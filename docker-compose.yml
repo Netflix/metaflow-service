@@ -1,0 +1,31 @@
+version: "3"
+services:
+  metadata:
+    image: "metadata_service:latest"
+    container_name: "metadata_service"
+    ports:
+      - "5004:5004"
+    volumes:
+      - .:/code
+    environment:
+      - MF_METADATA_DB_HOST=db
+      - MF_METADATA_DB_PORT=5432
+      - MF_METADATA_DB_USER=postgres
+      - MF_METADATA_DB_PSWD=postgres
+      - MF_METADATA_DB_NAME=postgres
+    links:
+      - db
+  db:
+    image: "postgres:11"
+    restart: always
+    container_name: "my_postgres"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - my_dbdata:/var/lib/postgresql/data2
+volumes:
+  my_dbdata:
