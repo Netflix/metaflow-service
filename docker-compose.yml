@@ -4,7 +4,7 @@ services:
     image: "metadata_service:latest"
     container_name: "metadata_service"
     ports:
-      - "5004:5004"
+      - "8080:8080"
     volumes:
       - .:/code
     environment:
