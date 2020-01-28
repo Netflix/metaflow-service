@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from aiohttp import web
 from aiohttp_swagger import *
@@ -36,7 +37,9 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     the_app = app(loop)
     handler = the_app.make_handler()
-    f = loop.create_server(handler, "0.0.0.0", 8080)
+    port = os.environ.get("MF_METADATA_PORT", 8080)
+    host = str(os.environ.get("MF_METADATA_HOST", "0.0.0.0"))
+    f = loop.create_server(handler, host, port)
 
     srv = loop.run_until_complete(f)
     print("serving on", srv.sockets[0].getsockname())
