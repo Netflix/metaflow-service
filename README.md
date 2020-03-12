@@ -16,6 +16,10 @@ The service depends on the following Environment Variables to be set:
   - MF_METADATA_DB_PSWD [defaults to postgres]
   - MF_METADATA_DB_NAME [defaults to postgres]
 
+Optionally you can also overrider the host and port the service runs on
+  - MF_METADATA_PORT [defaults to 8080]
+  - MF_METADATA_HOST [defaults to 0.0.0.0]
+
 >```sh
 >pip3 install -r requirements.txt
 >python3 -m metadata_service.server
