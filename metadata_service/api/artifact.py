@@ -88,7 +88,8 @@ class ArtificatsApi(object):
         artifact = await self._async_table.get_artifact(
             flow_name, run_number, step_name, task_id, artifact_name
         )
-
+        print("print response body")
+        print(artifact.body)
         return web.Response(
             status=artifact.response_code, body=json.dumps(artifact.body)
         )
@@ -136,8 +137,10 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_task(
             flow_name, run_number, step_name, task_id
         )
+        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
+            artifacts)
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(artifacts.body)
+            status=artifacts.response_code, body=json.dumps(filtered_body)
         )
 
     async def get_artifacts_by_step(self, request):
@@ -177,8 +180,9 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_steps(
             flow_name, run_number, step_name
         )
+        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(artifacts.body)
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(artifacts.body)
+            status=artifacts.response_code, body=json.dumps(filtered_body)
         )
 
     async def get_artifacts_by_run(self, request):
@@ -210,8 +214,9 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
+        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(artifacts)
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(artifacts.body)
+            status=artifacts.response_code, body=json.dumps(filtered_body)
         )
 
     async def create_artifacts(self, request):
@@ -323,3 +328,22 @@ class ArtificatsApi(object):
         result = {"artifacts_created": count}
 
         return web.Response(body=json.dumps(result))
+
+    @staticmethod
+    def _get_latest_attempt_id(artifacts):
+        attempt_id = 0
+        for artifact in artifacts:
+            if artifact['attempt_id'] > attempt_id:
+                attempt_id = artifact['attempt_id']
+        return attempt_id
+
+    @staticmethod
+    def _filter_artifacts_by_attempt_id(artifacts):
+        attempt_id = ArtificatsApi._get_latest_attempt_id(artifacts)
+        result = []
+        for artifact in artifacts:
+            if artifact['attempt_id'] == attempt_id:
+                result.append(artifact)
+
+        return result
+
