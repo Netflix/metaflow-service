@@ -88,8 +88,6 @@ class ArtificatsApi(object):
         artifact = await self._async_table.get_artifact(
             flow_name, run_number, step_name, task_id, artifact_name
         )
-        print("print response body")
-        print(artifact.body)
         return web.Response(
             status=artifact.response_code, body=json.dumps(artifact.body)
         )
