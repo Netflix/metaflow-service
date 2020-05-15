@@ -236,7 +236,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     run_by_flow_dict = {}
     _current_count = 0
     _row_type = RunRow
-    table_name = "runs_v7"
+    table_name = "runs_v3"
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -247,6 +247,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ts_epoch BIGINT NOT NULL,
         tags JSONB,
         system_tags JSONB,
+        last_heartbeat_ts BIGINT,
         PRIMARY KEY(flow_id, run_number),
         FOREIGN KEY(flow_id) REFERENCES {1} (flow_id),
         UNIQUE (flow_id, run_id)
@@ -281,7 +282,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
     run_to_step_dict = {}
     _row_type = StepRow
-    table_name = "steps_v7"
+    table_name = "steps_v3"
     run_table_name = AsyncRunTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -334,7 +335,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     step_to_task_dict = {}
     _current_count = 0
     _row_type = TaskRow
-    table_name = "tasks_v7"
+    table_name = "tasks_v3"
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -348,6 +349,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         ts_epoch BIGINT NOT NULL,
         tags JSONB,
         system_tags JSONB,
+        last_heartbeat_ts BIGINT,
         FOREIGN KEY(flow_id, run_number, step_name) REFERENCES {1} (flow_id, run_number, step_name),
         UNIQUE (flow_id, run_number, step_name, task_name)
     )
@@ -397,7 +399,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     run_to_metadata_dict = {}
     _current_count = 0
     _row_type = MetadataRow
-    table_name = "metadata_v7"
+    table_name = "metadata_v3"
     task_table_name = AsyncTaskTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -479,7 +481,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     task_to_artifact_dict = {}
     current_count = 0
     _row_type = ArtifactRow
-    table_name = "artifact_v7"
+    table_name = "artifact_v3"
     task_table_name = AsyncTaskTablePostgres.table_name
     ordering = "ORDER BY attempt_id DESC"
     _command = """
