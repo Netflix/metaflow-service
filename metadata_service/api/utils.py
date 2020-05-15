@@ -32,7 +32,6 @@ def get_traceback_str():
         ]
     )
 
-
 def http_500(msg):
     body = {
         'traceback': get_traceback_str(),

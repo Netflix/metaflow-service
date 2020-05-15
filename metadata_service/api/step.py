@@ -20,6 +20,8 @@ class StepApi(object):
             self.create_step,
         )
         self._async_table = AsyncPostgresDB.get_instance().step_table_postgres
+        self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._db = AsyncPostgresDB.get_instance()
 
     @format_response
     @handle_exceptions
@@ -39,7 +41,7 @@ class StepApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -70,7 +72,7 @@ class StepApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -109,7 +111,7 @@ class StepApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -145,8 +147,11 @@ class StepApi(object):
         tags = body.get("tags")
         system_tags = body.get("system_tags")
 
+        run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
+
         step_row = StepRow(
-            flow_name, run_number, user, step_name, tags=tags, system_tags=system_tags
+            flow_name, run_number, run_id, user, step_name, tags=tags,
+            system_tags=system_tags
         )
 
         return await self._async_table.add_step(step_row)
