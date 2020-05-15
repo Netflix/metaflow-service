@@ -32,7 +32,7 @@ class RunApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -96,6 +96,8 @@ class RunApi(object):
             properties:
                 user_name:
                     type: string
+                run_id:
+                    type: string
                 tags:
                     type: object
                 system_tags:
@@ -105,6 +107,8 @@ class RunApi(object):
         responses:
             "200":
                 description: successful operation. Return newly registered run
+            "400":
+                description: invalid HTTP Request
             "405":
                 description: invalid HTTP Method
         """
@@ -114,8 +118,15 @@ class RunApi(object):
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
+
+        run_id = body.get("run_id")
+        if run_id and run_id.isnumeric():
+            return web.Response(status=400, body=json.dumps(
+                {"message": "provided run_id may not be a numeric"}))
+
         run_row = RunRow(
-            flow_id=flow_name, user_name=user, tags=tags, system_tags=system_tags
+            flow_id=flow_name, user_name=user, tags=tags,
+            system_tags=system_tags, run_id=run_id
         )
 
         run_response = await self._async_table.add_run(run_row)
