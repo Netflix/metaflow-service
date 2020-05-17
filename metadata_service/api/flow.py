@@ -3,7 +3,7 @@ from aiohttp import web
 import json
 from ..data.models import FlowRow
 from ..data.postgres_async_db import AsyncPostgresDB
-from .utils import read_body
+from .utils import read_body, format_response, handle_exceptions
 import asyncio
 
 
@@ -17,6 +17,8 @@ class FlowApi(object):
         app.router.add_route("POST", "/flows/{flow_id}", self.create_flow)
         self._async_table = AsyncPostgresDB.get_instance().flow_table_postgres
 
+    @format_response
+    @handle_exceptions
     async def create_flow(self, request):
         """
         ---
@@ -60,11 +62,10 @@ class FlowApi(object):
         flow = FlowRow(
             flow_id=flow_name, user_name=user, tags=tags, system_tags=system_tags
         )
-        response = await self._async_table.add_flow(flow)
-        return web.Response(
-            status=response.response_code, body=json.dumps(response.body)
-        )
+        return await self._async_table.add_flow(flow)
 
+    @format_response
+    @handle_exceptions
     async def get_flow(self, request):
         """
         ---
@@ -89,11 +90,10 @@ class FlowApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        flow_response = await self._async_table.get_flow(flow_name)
-        return web.Response(
-            status=flow_response.response_code, body=json.dumps(flow_response.body)
-        )
+        return await self._async_table.get_flow(flow_name)
 
+    @format_response
+    @handle_exceptions
     async def get_all_flows(self, request):
         """
         ---
@@ -108,5 +108,4 @@ class FlowApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        flows = await self._async_table.get_all_flows()
-        return web.Response(status=flows.response_code, body=json.dumps(flows.body))
+        return await self._async_table.get_all_flows()

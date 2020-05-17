@@ -1,9 +1,11 @@
 import boto3
 import json
 import os
+from multidict import MultiDict
 from aiohttp import web
 from botocore.client import Config
 from .utils import get_traceback_str
+from . import METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER
 
 
 class AuthApi(object):
@@ -25,7 +27,8 @@ class AuthApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        return web.Response(text="pong")
+        return web.Response(text="pong", headers=MultiDict(
+                                {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
     async def get_authorization_token(self, request):
         """

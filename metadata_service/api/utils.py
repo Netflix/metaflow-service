@@ -1,6 +1,10 @@
 import json
 import sys
 import traceback
+from multidict import MultiDict
+from aiohttp import web
+from functools import wraps
+from . import METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER
 
 
 async def read_body(request_content):
@@ -27,3 +31,42 @@ def get_traceback_str():
             "".join(exc_line),
         ]
     )
+
+
+def http_500(msg):
+    body = {
+        'traceback': get_traceback_str(),
+        'detail': msg,
+        'status': 500,
+        'title': 'Internal Server Error',
+        'type': 'about:blank'
+    }
+
+    return 500, body
+
+
+def handle_exceptions(func):
+    """Catch exceptions and return appropriate HTTP error."""
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as err:
+            return http_500(str(err))
+
+    return wrapper
+
+
+def format_response(func):
+    """handle formatting"""
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        db_response = await func(*args, **kwargs)
+        return web.Response(status=db_response.response_code,
+                            body=json.dumps(db_response.body),
+                            headers=MultiDict(
+                                {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+
+    return wrapper

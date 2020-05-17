@@ -1,7 +1,5 @@
-from aiohttp import web
 from ..data.models import StepRow
-import json
-from .utils import read_body
+from .utils import read_body, format_response, handle_exceptions
 from ..data.postgres_async_db import AsyncPostgresDB
 
 
@@ -23,6 +21,8 @@ class StepApi(object):
         )
         self._async_table = AsyncPostgresDB.get_instance().step_table_postgres
 
+    @format_response
+    @handle_exceptions
     async def get_steps(self, request):
         """
         ---
@@ -50,9 +50,10 @@ class StepApi(object):
         """
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        steps = await self._async_table.get_steps(flow_name, run_number)
-        return web.Response(status=steps.response_code, body=json.dumps(steps.body))
+        return await self._async_table.get_steps(flow_name, run_number)
 
+    @format_response
+    @handle_exceptions
     async def get_step(self, request):
         """
         ---
@@ -88,9 +89,10 @@ class StepApi(object):
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
-        step = await self._async_table.get_step(flow_name, run_number, step_name)
-        return web.Response(status=step.response_code, body=json.dumps(step.body))
+        return await self._async_table.get_step(flow_name, run_number, step_name)
 
+    @format_response
+    @handle_exceptions
     async def create_step(self, request):
         """
         ---
@@ -147,5 +149,4 @@ class StepApi(object):
             flow_name, run_number, user, step_name, tags=tags, system_tags=system_tags
         )
 
-        step = await self._async_table.add_step(step_row)
-        return web.Response(status=step.response_code, body=json.dumps(step.body))
+        return await self._async_table.add_step(step_row)
