@@ -1,9 +1,8 @@
 from aiohttp import web
 import json
-from .utils import read_body
+from .utils import read_body, format_response, handle_exceptions
 import asyncio
 from ..data.postgres_async_db import AsyncPostgresDB
-
 
 class MetadataApi(object):
     _metadata_table = None
@@ -30,6 +29,9 @@ class MetadataApi(object):
 
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
 
+
+    @format_response
+    @handle_exceptions
     async def get_metadata(self, request):
         """
         ---
@@ -69,14 +71,12 @@ class MetadataApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
-        metadata_response = await self._async_table.get_metadata(
+        return await self._async_table.get_metadata(
             flow_name, run_number, step_name, task_id
         )
-        return web.Response(
-            status=metadata_response.response_code,
-            body=json.dumps(metadata_response.body),
-        )
 
+    @format_response
+    @handle_exceptions
     async def get_metadata_by_run(self, request):
         """
         ---
@@ -104,11 +104,8 @@ class MetadataApi(object):
         """
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        metadata_runs = await self._async_table.get_metadata_in_runs(
+        return await self._async_table.get_metadata_in_runs(
             flow_name, run_number
-        )
-        return web.Response(
-            status=metadata_runs.response_code, body=json.dumps(metadata_runs.body)
         )
 
     async def create_metadata(self, request):

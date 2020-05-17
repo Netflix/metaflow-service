@@ -1,8 +1,6 @@
-from aiohttp import web
 from ..data.models import TaskRow
 from ..data.postgres_async_db import AsyncPostgresDB
-import json
-from .utils import read_body
+from .utils import read_body, format_response, handle_exceptions
 import asyncio
 
 
@@ -28,6 +26,8 @@ class TaskApi(object):
         )
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
 
+    @format_response
+    @handle_exceptions
     async def get_tasks(self, request):
         """
         ---
@@ -62,9 +62,10 @@ class TaskApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
 
-        tasks = await self._async_table.get_tasks(flow_name, run_number, step_name)
-        return web.Response(status=tasks.response_code, body=json.dumps(tasks.body))
+        return await self._async_table.get_tasks(flow_name, run_number, step_name)
 
+    @format_response
+    @handle_exceptions
     async def get_task(self, request):
         """
         ---
@@ -104,11 +105,12 @@ class TaskApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
-        task = await self._async_table.get_task(
+        return await self._async_table.get_task(
             flow_name, run_number, step_name, task_id
         )
-        return web.Response(status=task.response_code, body=json.dumps(task.body))
 
+    @format_response
+    @handle_exceptions
     async def create_task(self, request):
         """
         ---
@@ -168,7 +170,4 @@ class TaskApi(object):
             tags=tags,
             system_tags=system_tags,
         )
-        task_response = await self._async_table.add_task(task)
-        return web.Response(
-            status=task_response.response_code, body=json.dumps(task_response.body)
-        )
+        return await self._async_table.add_task(task)

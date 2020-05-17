@@ -1,6 +1,6 @@
 from aiohttp import web
 from ..data.postgres_async_db import AsyncPostgresDB
-from .utils import read_body
+from .utils import read_body, format_response, handle_exceptions
 import json
 
 
@@ -39,6 +39,8 @@ class ArtificatsApi(object):
         )
         self._async_table = AsyncPostgresDB.get_instance().artifact_table_postgres
 
+    @format_response
+    @handle_exceptions
     async def get_artifact(self, request):
         """
         ---
@@ -85,14 +87,12 @@ class ArtificatsApi(object):
         task_id = request.match_info.get("task_id")
         artifact_name = request.match_info.get("artifact_name")
 
-        artifact = await self._async_table.get_artifact(
+        return await self._async_table.get_artifact(
             flow_name, run_number, step_name, task_id, artifact_name
         )
 
-        return web.Response(
-            status=artifact.response_code, body=json.dumps(artifact.body)
-        )
-
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -133,13 +133,12 @@ class ArtificatsApi(object):
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
 
-        artifacts = await self._async_table.get_artifact_in_task(
+        return await self._async_table.get_artifact_in_task(
             flow_name, run_number, step_name, task_id
         )
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(artifacts.body)
-        )
 
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_step(self, request):
         """
         ---
@@ -174,13 +173,12 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
 
-        artifacts = await self._async_table.get_artifact_in_steps(
+        return await self._async_table.get_artifact_in_steps(
             flow_name, run_number, step_name
         )
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(artifacts.body)
-        )
 
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_run(self, request):
         """
         ---
@@ -209,10 +207,7 @@ class ArtificatsApi(object):
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
 
-        artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(artifacts.body)
-        )
+        return await self._async_table.get_artifacts_in_runs(flow_name, run_number)
 
     async def create_artifacts(self, request):
         """
