@@ -1,6 +1,6 @@
 from aiohttp import web
 from ..data.postgres_async_db import AsyncPostgresDB
-from .utils import read_body
+from .utils import read_body, format_response, handle_exceptions
 import json
 
 
@@ -39,6 +39,8 @@ class ArtificatsApi(object):
         )
         self._async_table = AsyncPostgresDB.get_instance().artifact_table_postgres
 
+    @format_response
+    @handle_exceptions
     async def get_artifact(self, request):
         """
         ---
@@ -85,11 +87,8 @@ class ArtificatsApi(object):
         task_id = request.match_info.get("task_id")
         artifact_name = request.match_info.get("artifact_name")
 
-        artifact = await self._async_table.get_artifact(
+        return await self._async_table.get_artifact(
             flow_name, run_number, step_name, task_id, artifact_name
-        )
-        return web.Response(
-            status=artifact.response_code, body=json.dumps(artifact.body)
         )
 
     async def get_artifacts_by_task(self, request):
@@ -135,8 +134,9 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_task(
             flow_name, run_number, step_name, task_id
         )
+
         filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
-            artifacts)
+            artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )
@@ -178,10 +178,12 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_steps(
             flow_name, run_number, step_name
         )
+
         filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )
+
 
     async def get_artifacts_by_run(self, request):
         """
@@ -212,7 +214,7 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(artifacts)
+        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )

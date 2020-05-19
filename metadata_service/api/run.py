@@ -1,7 +1,5 @@
 import asyncio
-import json
-from aiohttp import web
-from .utils import read_body
+from .utils import read_body, format_response, handle_exceptions
 from ..data.models import RunRow
 from ..data.postgres_async_db import AsyncPostgresDB
 
@@ -16,6 +14,8 @@ class RunApi(object):
         app.router.add_route("POST", "/flows/{flow_id}/run", self.create_run)
         self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
 
+    @format_response
+    @handle_exceptions
     async def get_run(self, request):
         """
         ---
@@ -45,11 +45,10 @@ class RunApi(object):
         """
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        run_response = await self._async_table.get_run(flow_name, run_number)
-        return web.Response(
-            status=run_response.response_code, body=json.dumps(run_response.body)
-        )
+        return await self._async_table.get_run(flow_name, run_number)
 
+    @format_response
+    @handle_exceptions
     async def get_all_runs(self, request):
         """
         ---
@@ -71,10 +70,10 @@ class RunApi(object):
                 description: invalid HTTP Method
         """
         flow_name = request.match_info.get("flow_id")
-        runs = await self._async_table.get_all_runs(flow_name)
+        return await self._async_table.get_all_runs(flow_name)
 
-        return web.Response(status=runs.response_code, body=json.dumps(runs.body))
-
+    @format_response
+    @handle_exceptions
     async def create_run(self, request):
         """
         ---
@@ -118,7 +117,4 @@ class RunApi(object):
             flow_id=flow_name, user_name=user, tags=tags, system_tags=system_tags
         )
 
-        run_response = await self._async_table.add_run(run_row)
-        return web.Response(
-            status=run_response.response_code, body=json.dumps(run_response.body)
-        )
+        return await self._async_table.add_run(run_row)
