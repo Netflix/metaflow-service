@@ -134,6 +134,7 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_task(
             flow_name, run_number, step_name, task_id
         )
+
         filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
             artifacts.body)
         return web.Response(
@@ -182,6 +183,7 @@ class ArtificatsApi(object):
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )
+
 
     async def get_artifacts_by_run(self, request):
         """
