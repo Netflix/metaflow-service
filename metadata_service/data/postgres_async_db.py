@@ -80,7 +80,8 @@ class AsyncPostgresTable(object):
     async def _init(self):
         await PostgresUtils.create_if_missing(self.table_name, self._command)
 
-    async def get_records(self, filter_dict={}, fetch_single=False):
+    async def get_records(self, filter_dict={}, fetch_single=False,
+                              ordering=None, limit=None):
         # generate where clause
         filters = []
         for col_name, col_val in filter_dict.items():
@@ -91,8 +92,16 @@ class AsyncPostgresTable(object):
         if bool(filter_dict):
             where_clause = "where " + seperator.join(filters)
 
-        select_sql = "select * from {0} {1}".format(
-            self.table_name, where_clause
+        sql_template = "select * from {0} {1}"
+
+        if ordering is not None:
+            sql_template = sql_template + " {2}"
+
+        if limit is not None:
+            sql_template = sql_template + " {3}"
+
+        select_sql = sql_template.format(
+            self.table_name, where_clause, ordering, limit
         ).rstrip()
 
         try:
@@ -425,6 +434,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     _row_type = ArtifactRow
     table_name = "artifact_v3"
     task_table_name = AsyncTaskTablePostgres.table_name
+    ordering = "ORDER BY attempt_id DESC"
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255) NOT NULL,
@@ -488,7 +498,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "flow_id": "'{0}'".format(flow_id),
             "run_number": str(run_id),
         }
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict,
+                                      ordering=self.ordering)
 
     async def get_artifact_in_steps(self, flow_id: str, run_id: int, step_name: str):
         filter_dict = {
@@ -496,7 +507,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "run_number": str(run_id),
             "step_name": "'{0}'".format(step_name),
         }
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict,
+                                      ordering=self.ordering)
 
     async def get_artifact_in_task(
         self, flow_id: str, run_id: int, step_name: str, task_id: int
@@ -507,7 +519,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "step_name": "'{0}'".format(step_name),
             "task_id": str(task_id),
         }
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict,
+                                      ordering=self.ordering)
 
     async def get_artifact(
         self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str
@@ -519,4 +532,5 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "task_id": str(task_id),
             '"name"': "'{0}'".format(name),
         }
-        return await self.get_records(filter_dict=filter_dict, fetch_single=True)
+        return await self.get_records(filter_dict=filter_dict,
+                                      fetch_single=True, ordering=self.ordering)
