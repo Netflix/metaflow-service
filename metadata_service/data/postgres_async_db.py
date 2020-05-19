@@ -82,10 +82,11 @@ class AsyncPostgresDB(object):
 class AsyncPostgresTable(object):
     table_name = None
     schema_version = 1
+    keys = None
     _command = None
     _insert_command = None
     _filters = None
-    _base_query = "SELECT * from"
+    _base_query = "SELECT {0} from"
     _row_type = None
 
     def __init__(self):
@@ -106,8 +107,8 @@ class AsyncPostgresTable(object):
         if bool(filter_dict):
             where_clause = "where " + seperator.join(filters)
 
-        select_sql = "select * from {0} {1}".format(
-            self.table_name, where_clause
+        select_sql = "select {0} from {1} {2}".format(
+            self.keys, self.table_name, where_clause
         ).rstrip()
 
         try:
@@ -192,6 +193,7 @@ class PostgresUtils(object):
 class AsyncFlowTablePostgres(AsyncPostgresTable):
     flow_dict = {}
     table_name = "flows_v3"
+    keys = "flow_id, user_name, ts_epoch, tags, system_tags"
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255) PRIMARY KEY,
@@ -228,6 +230,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     _current_count = 0
     _row_type = RunRow
     table_name = "runs_v3"
+    keys = "flow_id, run_number, run_id, user_name, ts_epoch, tags, system_tags"
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -260,7 +263,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
         key, value = translate_run_key(run_id)
         filter_dict = {"flow_id": "'{0}'".format(flow_id), key: str(value)}
-        print(filter_dict)
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, expanded=expanded)
 
@@ -274,6 +276,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     run_to_step_dict = {}
     _row_type = StepRow
     table_name = "steps_v3"
+    keys = "flow_id, run_number, run_id, step_name, user_name, ts_epoch, tags, system_tags"
     run_table_name = AsyncRunTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -327,6 +330,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     _current_count = 0
     _row_type = TaskRow
     table_name = "tasks_v3"
+    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, user_name, ts_epoch, tags, system_tags"
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -392,6 +396,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     _row_type = MetadataRow
     table_name = "metadata_v3"
     task_table_name = AsyncTaskTablePostgres.table_name
+    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, id, field_name, value, type, user_name, ts_epoch, tags, system_tags"
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255),
@@ -474,6 +479,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     _row_type = ArtifactRow
     table_name = "artifact_v3"
     task_table_name = AsyncTaskTablePostgres.table_name
+    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, name, location, ds_type, sha, type, content_type, user_name, attempt_id, ts_epoch, tags, system_tags"
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255) NOT NULL,
