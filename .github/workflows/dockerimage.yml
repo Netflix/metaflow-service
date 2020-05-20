@@ -1,0 +1,25 @@
+name: Docker Image CI
+
+on:
+  release:
+    branches: [ release-branch ]    
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: build assets
+        working-directory: ${{ github.workspace }}
+        run: ls -la
+      - uses: docker/build-push-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME_NETFLIX_OSS }}
+          password: ${{ secrets.DOCKER_AUTH_TOKEN_NETFLIX_OSS }}
+          repository: netflixoss/metaflow_metadata_service
+          tag_with_ref: true
+          tag_with_sha: true
+          dockerfile: ${{ github.workspace }}/Dockerfile
