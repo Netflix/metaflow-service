@@ -69,3 +69,4 @@ def format_response(func):
                                 {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
     return wrapper
+
