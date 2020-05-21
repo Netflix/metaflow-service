@@ -32,7 +32,7 @@ def translate_run_key(v: str):
     key = "run_id"
     value = "'{0}'".format(v)
 
-    if v.isnumeric():
+    if str(v).isnumeric():
         key = "run_number"
         value = str(value)
 
@@ -43,7 +43,7 @@ def translate_task_key(v: str):
     key = "task_name"
     value = "'{0}'".format(v)
 
-    if v.isnumeric():
+    if str(v).isnumeric():
         key = "task_id"
         value = str(value)
 

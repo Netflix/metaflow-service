@@ -366,7 +366,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_tasks(self, flow_id: str, run_id: int, step_name: str):
+    async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": "'{0}'".format(flow_id),
@@ -375,8 +375,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.get_records(filter_dict=filter_dict)
 
-    async def get_task(self, flow_id: str, run_id: int, step_name: str,
-                       task_id: int, expanded: bool = False):
+    async def get_task(self, flow_id: str, run_id: str, step_name: str,
+                       task_id: str, expanded: bool = False):
         run_id_key, run_id_value = translate_run_key(run_id)
         task_id_key, task_id_value = translate_task_key(task_id)
         filter_dict = {

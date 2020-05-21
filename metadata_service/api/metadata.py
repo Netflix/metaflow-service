@@ -27,7 +27,7 @@ class MetadataApi(object):
             "tasks/{task_id}/metadata",
             self.create_metadata,
         )
-
+        self._db = AsyncPostgresDB.get_instance()
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
 
     async def get_metadata(self, request):
