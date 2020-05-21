@@ -41,6 +41,7 @@ class RunRow(object):
         ts_epoch=None,
         tags=None,
         system_tags=None,
+        last_heartbeat_ts=None,
     ):
         self.flow_id = flow_id
         self.user_name = user_name
@@ -161,6 +162,7 @@ class TaskRow(object):
         ts_epoch=None,
         tags=None,
         system_tags=None,
+        last_heartbeat_ts=None,
     ):
         self.flow_id = flow_id
         self.run_number = run_number
