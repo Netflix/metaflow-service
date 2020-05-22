@@ -3,7 +3,7 @@ from aiohttp import web
 from .utils import read_body, format_response, handle_exceptions
 from ..data.models import RunRow
 from ..data.postgres_async_db import AsyncPostgresDB
-
+import json
 
 class RunApi(object):
     _run_table = None
