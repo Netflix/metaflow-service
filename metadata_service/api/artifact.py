@@ -305,9 +305,14 @@ class ArtificatsApi(object):
         body = await read_body(request.content)
         count = 0
 
-        run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
-        task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
-                                                         step_name, task_id)
+        try:
+            run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
+            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
+                                                             step_name, task_id)
+        except Exception:
+            return web.Response(status=400, body=json.dumps(
+                {"message": "need to register run_id and task_id first"}))
+
         # todo change to bulk insert
         for artifact in body:
             values = {

@@ -121,8 +121,7 @@ class RunApi(object):
 
         run_id = body.get("run_number")
         if run_id and run_id.isnumeric():
-            return web.Response(status=400, body=json.dumps(
-                {"message": "provided run_id may not be a numeric"}))
+            raise Exception("provided run_id may not be a numeric")
 
         run_row = RunRow(
             flow_id=flow_name, user_name=user, tags=tags,
