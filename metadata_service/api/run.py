@@ -1,4 +1,5 @@
 import asyncio
+from aiohttp import web
 from .utils import read_body, format_response, handle_exceptions
 from ..data.models import RunRow
 from ..data.postgres_async_db import AsyncPostgresDB
@@ -95,7 +96,7 @@ class RunApi(object):
             properties:
                 user_name:
                     type: string
-                run_id:
+                run_number:
                     type: string
                 tags:
                     type: object
@@ -118,7 +119,7 @@ class RunApi(object):
         tags = body.get("tags")
         system_tags = body.get("system_tags")
 
-        run_id = body.get("run_id")
+        run_id = body.get("run_number")
         if run_id and run_id.isnumeric():
             return web.Response(status=400, body=json.dumps(
                 {"message": "provided run_id may not be a numeric"}))

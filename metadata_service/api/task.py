@@ -150,7 +150,7 @@ class TaskApi(object):
                     type: object
                 system_tags:
                     type: object
-                task_name:
+                task_id:
                     type: string
         produces:
         - 'text/plain'
@@ -170,7 +170,7 @@ class TaskApi(object):
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
-        task_name = body.get("task_name")
+        task_name = body.get("task_id")
 
         if task_name and task_name.isnumeric():
             return web.Response(status=400, body=json.dumps(
