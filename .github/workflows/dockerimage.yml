@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   release:
-    branches: [ release-branch ]    
+    branches: [ master ]    
 
 jobs:
 
