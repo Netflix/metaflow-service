@@ -33,7 +33,7 @@ def app(loop=None):
     return app
 
 
-if __name__ == "__main__":
+def main():
     loop = asyncio.get_event_loop()
     the_app = app(loop)
     handler = the_app.make_handler()
@@ -47,3 +47,7 @@ if __name__ == "__main__":
         loop.run_forever()
     except KeyboardInterrupt:
         pass
+
+
+if __name__ == "__main__":
+    main()
