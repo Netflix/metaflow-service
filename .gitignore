@@ -1,2 +1,28 @@
+# Distribution / packaging
+.Python
+env3/
+env/
+bin/
+build/
+develop-eggs/
+dist/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+*.eggs
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+
+# C extensions
+*.so
+
+# jetbrains
 .idea
