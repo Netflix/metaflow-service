@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   release:
-    branches: [ release-branch ]    
+    branches: [ master ]    
 
 jobs:
 
@@ -22,4 +22,5 @@ jobs:
           repository: netflixoss/metaflow_metadata_service
           tag_with_ref: true
           tag_with_sha: true
+          tags: "latest"
           dockerfile: ${{ github.workspace }}/Dockerfile

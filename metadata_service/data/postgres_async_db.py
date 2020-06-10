@@ -117,7 +117,8 @@ class AsyncPostgresTable(object):
             sql_template = sql_template + " {4}"
 
         select_sql = sql_template.format(
-            self.keys, self.table_name, where_clause, ordering, limit).rstrip()
+            self.keys, self.table_name, where_clause, ordering, limit
+        ).rstrip()
 
         try:
             with (
@@ -283,7 +284,8 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     run_to_step_dict = {}
     _row_type = StepRow
     table_name = "steps_v3"
-    keys = "flow_id, run_number, run_id, step_name, user_name, ts_epoch, tags, system_tags"
+    keys = "flow_id, run_number, run_id, step_name, user_name, ts_epoch, tags, " \
+           "system_tags"
     run_table_name = AsyncRunTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -336,7 +338,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     _current_count = 0
     _row_type = TaskRow
     table_name = "tasks_v3"
-    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, user_name, ts_epoch, tags, system_tags"
+    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, " \
+           "user_name, ts_epoch, tags, system_tags"
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -401,7 +404,8 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     _row_type = MetadataRow
     table_name = "metadata_v3"
     task_table_name = AsyncTaskTablePostgres.table_name
-    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, id, field_name, value, type, user_name, ts_epoch, tags, system_tags"
+    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, id, " \
+           "field_name, value, type, user_name, ts_epoch, tags, system_tags"
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255),
@@ -485,7 +489,9 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     table_name = "artifact_v3"
     task_table_name = AsyncTaskTablePostgres.table_name
     ordering = "ORDER BY attempt_id DESC"
-    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, name, location, ds_type, sha, type, content_type, user_name, attempt_id, ts_epoch, tags, system_tags"
+    keys = "flow_id, run_number, run_id, step_name, task_id, task_name, name, " \
+           "location, ds_type, sha, type, content_type, user_name, " \
+           "attempt_id, ts_epoch, tags, system_tags"
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255) NOT NULL,
