@@ -1,8 +1,9 @@
 import asyncio
+from aiohttp import web
 from .utils import read_body, format_response, handle_exceptions
 from ..data.models import RunRow
 from ..data.postgres_async_db import AsyncPostgresDB
-
+import json
 
 class RunApi(object):
     _run_table = None
@@ -32,7 +33,7 @@ class RunApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -95,6 +96,8 @@ class RunApi(object):
             properties:
                 user_name:
                     type: string
+                run_number:
+                    type: string
                 tags:
                     type: object
                 system_tags:
@@ -104,6 +107,8 @@ class RunApi(object):
         responses:
             "200":
                 description: successful operation. Return newly registered run
+            "400":
+                description: invalid HTTP Request
             "405":
                 description: invalid HTTP Method
         """
@@ -113,8 +118,14 @@ class RunApi(object):
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
+
+        run_id = body.get("run_number")
+        if run_id and run_id.isnumeric():
+            raise Exception("provided run_id may not be a numeric")
+
         run_row = RunRow(
-            flow_id=flow_name, user_name=user, tags=tags, system_tags=system_tags
+            flow_id=flow_name, user_name=user, tags=tags,
+            system_tags=system_tags, run_id=run_id
         )
 
         return await self._async_table.add_run(run_row)

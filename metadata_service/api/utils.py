@@ -35,7 +35,6 @@ def get_traceback_str():
         ]
     )
 
-
 def http_500(msg):
     body = {
         'traceback': get_traceback_str(),
@@ -73,3 +72,4 @@ def format_response(func):
                                 {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
     return wrapper
+

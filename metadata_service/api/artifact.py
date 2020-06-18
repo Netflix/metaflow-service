@@ -38,6 +38,7 @@ class ArtificatsApi(object):
             self.create_artifacts,
         )
         self._async_table = AsyncPostgresDB.get_instance().artifact_table_postgres
+        self._db = AsyncPostgresDB.get_instance()
 
     @format_response
     @handle_exceptions
@@ -57,7 +58,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -67,7 +68,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "task_id"
           required: true
-          type: "integer"
+          type: "string"
         - name: "artifact_name"
           in: "path"
           description: "artifact_name"
@@ -107,7 +108,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -117,7 +118,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "task_id"
           required: true
-          type: "integer"
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -157,7 +158,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -201,7 +202,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -235,7 +236,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -245,7 +246,7 @@ class ArtificatsApi(object):
           in: "path"
           description: "task_id"
           required: true
-          type: "integer"
+          type: "string"
         - name: "body"
           in: "body"
           description: "body"
@@ -303,13 +304,24 @@ class ArtificatsApi(object):
         task_id = request.match_info.get("task_id")
         body = await read_body(request.content)
         count = 0
+
+        try:
+            run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
+            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
+                                                             step_name, task_id)
+        except Exception:
+            return web.Response(status=400, body=json.dumps(
+                {"message": "need to register run_id and task_id first"}))
+
         # todo change to bulk insert
         for artifact in body:
             values = {
                 "flow_id": flow_name,
                 "run_number": run_number,
+                "run_id": run_id,
                 "step_name": step_name,
                 "task_id": task_id,
+                "task_name": task_name,
                 "name": artifact.get("name", " "),
                 "location": artifact.get("location", " "),
                 "ds_type": artifact.get("ds_type", " "),
