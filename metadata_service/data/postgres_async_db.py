@@ -178,7 +178,11 @@ class AsyncPostgresTable(object):
                 await cur.execute(insert_sql, tuple(values))
                 records = await cur.fetchall()
                 record = records[0]
-                response_body = self._row_type(**record).serialize()
+                filtered_record = {}
+                for key, value in record.items():
+                    if key in self.keys:
+                        filtered_record[key] = value
+                response_body = self._row_type(**filtered_record).serialize()
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
         except (Exception, psycopg2.DatabaseError) as error:
@@ -252,6 +256,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         system_tags JSONB,
         last_heartbeat_ts BIGINT,
         PRIMARY KEY(flow_id, run_number),
+        FOREIGN KEY(flow_id) REFERENCES {1} (flow_id),
         UNIQUE (flow_id, run_id)
     )
     """.format(
@@ -298,6 +303,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         tags JSONB,
         system_tags JSONB,
         PRIMARY KEY(flow_id, run_number, step_name),
+        FOREIGN KEY(flow_id, run_number) REFERENCES {1} (flow_id, run_number),
         UNIQUE(flow_id, run_id, step_name)
     )
     """.format(
@@ -354,6 +360,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         tags JSONB,
         system_tags JSONB,
         last_heartbeat_ts BIGINT,
+        FOREIGN KEY(flow_id, run_number, step_name) REFERENCES {1} (flow_id, run_number, step_name),
         UNIQUE (flow_id, run_number, step_name, task_name)
     )
     """.format(

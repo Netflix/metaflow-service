@@ -12,6 +12,24 @@ class AuthApi(object):
     def __init__(self, app):
         app.router.add_route("GET", "/auth/token", self.get_authorization_token)
         app.router.add_route("GET", "/ping", self.ping)
+        app.router.add_route("GET", "/version", self.version)
+
+
+    async def version(self, request):
+        """
+        ---
+        description: Returns the version of the metadata service
+        tags:
+        - Admin
+        produces:
+        - 'text/plain'
+        responses:
+            "200":
+                description: successful operation. Return the version number
+            "405":
+                description: invalid HTTP Method
+        """
+        return web.Response(text=str(METADATA_SERVICE_VERSION))
 
     async def ping(self, request):
         """

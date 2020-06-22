@@ -23,7 +23,7 @@ if __name__ == "__main__":
         path = my_env['PATH']
         my_env['PATH'] = virtual_env_path+"/bin:"+path
         metadata_server_process = Popen(
-            "metadata_service", shell=True,
+            "metadata_service >> /root/metadata_service/output.txt", shell=True,
             close_fds=True, env=my_env)
 
         metadata_server_process.wait()

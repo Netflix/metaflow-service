@@ -9,7 +9,7 @@ RUN pip3 install virtualenv && pip3 install requests
 RUN virtualenv /opt/v_1_0_1 -p python3
 RUN virtualenv /opt/latest -p python3
 
-RUN /opt/v_1_0_1/bin/pip install https://github.com/Netflix/metaflow-service/archive/1.0.1.zip
+RUN /opt/v_1_0_1/bin/pip install https://github.com/ferras/metaflow-service-clone/archive/v1.0.2-alpha.zip
 
 ADD metadata_service /root/metadata_service
 ADD setup.py setup.cfg /root/
