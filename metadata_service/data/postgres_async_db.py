@@ -3,6 +3,7 @@ import psycopg2.extras
 import os
 import aiopg
 import json
+import time
 
 from .db_utils import DBResponse, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -61,9 +62,19 @@ class AsyncPostgresDB(object):
         )
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
-        self.pool = await aiopg.create_pool(dsn)
-        for table in self.tables:
-            await table._init()
+        retries = 3
+        for i in range(retries):
+            while True:
+                try:
+                    self.pool = await aiopg.create_pool(dsn)
+                    for table in self.tables:
+                        await table._init()
+                except Exception as e:
+                    if retries - i < 1:
+                        raise e
+                    time.sleep(1)
+                    continue
+                break
 
     async def get_run_ids(self, flow_id: str, run_id: str):
         run = await self.run_table_postgres.get_run(flow_id, run_id,
@@ -136,7 +147,7 @@ class AsyncPostgresTable(object):
                     body = rows[0]
                 else:
                     body = rows
-
+                # todo make sure connection is closed even with error
                 cur.close()
                 return DBResponse(response_code=200, body=body)
         except (Exception, psycopg2.DatabaseError) as error:
@@ -183,6 +194,7 @@ class AsyncPostgresTable(object):
                     if key in self.keys:
                         filtered_record[key] = value
                 response_body = self._row_type(**filtered_record).serialize()
+                # todo make sure connection is closed even with error
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
         except (Exception, psycopg2.DatabaseError) as error:
@@ -193,13 +205,15 @@ class PostgresUtils(object):
     @staticmethod
     async def create_if_missing(table_name, command):
         with (await AsyncPostgresDB.get_instance().pool.cursor()) as cur:
-            await cur.execute(
-                "select * from information_schema.tables where table_name=%s",
-                (table_name,),
-            )
-            table_exist = bool(cur.rowcount)
-            if not table_exist:
-                await cur.execute(command)
+            try:
+                await cur.execute(
+                    "select * from information_schema.tables where table_name=%s",
+                    (table_name,),
+                )
+                table_exist = bool(cur.rowcount)
+                if not table_exist:
+                    await cur.execute(command)
+            finally:
                 cur.close()
     # todo add method to check schema version
 

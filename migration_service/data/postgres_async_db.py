@@ -1,8 +1,7 @@
-import psycopg2
-import psycopg2.extras
+import time
 import os
 import aiopg
-import json
+
 
 class PostgresUtils(object):
     @staticmethod
@@ -45,4 +44,14 @@ class AsyncPostgresDB(object):
         )
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
-        self.pool = await aiopg.create_pool(dsn)
+        retries = 3
+        for i in range(retries):
+            while True:
+                try:
+                    self.pool = await aiopg.create_pool(dsn)
+                except Exception as e:
+                    if retries - i < 1:
+                        raise e
+                    time.sleep(1)
+                    continue
+                break

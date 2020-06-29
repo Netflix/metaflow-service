@@ -23,19 +23,16 @@ def app(loop=None):
 
 
 if __name__ == "__main__":
-    try:
-        loop = asyncio.get_event_loop()
-        the_app = app(loop)
-        handler = the_app.make_handler()
-        port = os.environ.get("MF_MIGRATION_PORT", 8082)
-        host = str(os.environ.get("MF_METADATA_HOST", "0.0.0.0"))
-        f = loop.create_server(handler, host, port)
+    loop = asyncio.get_event_loop()
+    the_app = app(loop)
+    handler = the_app.make_handler()
+    port = os.environ.get("MF_MIGRATION_PORT", 8082)
+    host = str(os.environ.get("MF_METADATA_HOST", "0.0.0.0"))
+    f = loop.create_server(handler, host, port)
 
-        srv = loop.run_until_complete(f)
+    srv = loop.run_until_complete(f)
 
-        print("serving on", srv.sockets[0].getsockname())
-    except Exception:
-        pass
+    print("serving on", srv.sockets[0].getsockname())
     try:
         loop.run_forever()
     except KeyboardInterrupt:

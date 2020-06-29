@@ -17,8 +17,6 @@ class AdminApi(object):
                                 1))
         if endpoints_enabled:
             app.router.add_route("PATCH", "/upgrade", self.upgrade)
-            app.router.add_route("PUT", "/downgrade_by_one",
-                                 self.downgrade_by_one)
 
     async def ping(self, request):
         """
@@ -46,7 +44,7 @@ class AdminApi(object):
         produces:
         - 'text/plain'
         responses:
-            "202":
+            "200":
                 description: successful operation. Return version text
             "405":
                 description: invalid HTTP Method
@@ -64,7 +62,7 @@ class AdminApi(object):
         produces:
         - 'text/plain'
         responses:
-            "202":
+            "200":
                 description: successful operation. Return  text
             "500":
                 description: could not upgrade
@@ -114,29 +112,3 @@ class AdminApi(object):
             }
             return web.Response(status=500, body=json.dumps(body))
 
-    async def downgrade_by_one(self, request):
-        """
-        ---
-        description: This end-point downgrades to the previous version of the
-            schema
-        tags:
-        - Admin
-        produces:
-        - 'text/plain'
-        responses:
-            "202":
-                description: successful operation. Return  text
-            "500":
-                description: could not downgrade
-        """
-        goose_version_cmd = goose_migration_template.format(
-             database_name, user, password, host, port,
-            "down"
-        )
-        p = Popen(goose_version_cmd, shell=True,
-                  close_fds=True)
-        p.wait()
-        if p.returncode == 0:
-            return web.Response(text="downgrade success")
-        else:
-            return web.Response(text="downgrade failed", status=500)
