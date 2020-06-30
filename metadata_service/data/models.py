@@ -171,7 +171,7 @@ class TaskRow(object):
         self.task_id = task_id
         self.task_name = task_name
         self.user_name = user_name
-        if ts_epoch is not None:
+        if ts_epoch is None:
             ts_epoch = int(round(time.time() * 1000))
 
         self.ts_epoch = ts_epoch
@@ -248,7 +248,7 @@ class MetadataRow(object):
         self.value = value
         self.type = type
         self.user_name = user_name
-        if ts_epoch is not None:
+        if ts_epoch is None:
             ts_epoch = int(round(time.time() * 1000))
 
         self.ts_epoch = ts_epoch
