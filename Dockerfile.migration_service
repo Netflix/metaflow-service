@@ -1,0 +1,7 @@
+FROM python:3.7
+
+# Migration Service
+ADD migration_service /migration_service
+RUN pip3 install -r /migration_service/requirements.txt
+RUN cd /
+CMD python3 -m migration_service.migration_server

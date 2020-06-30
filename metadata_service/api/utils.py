@@ -1,10 +1,13 @@
 import json
 import sys
 import traceback
+import collections
 from multidict import MultiDict
 from aiohttp import web
 from functools import wraps
 from . import METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER
+
+Response = collections.namedtuple("Response", "response_code body")
 
 
 async def read_body(request_content):
@@ -32,7 +35,6 @@ def get_traceback_str():
         ]
     )
 
-
 def http_500(msg):
     body = {
         'traceback': get_traceback_str(),
@@ -42,7 +44,7 @@ def http_500(msg):
         'type': 'about:blank'
     }
 
-    return 500, body
+    return Response(response_code=500, body=body)
 
 
 def handle_exceptions(func):
@@ -70,3 +72,4 @@ def format_response(func):
                                 {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
     return wrapper
+

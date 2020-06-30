@@ -1,0 +1,4 @@
+aiohttp
+aiohttp_swagger
+psycopg2
+aiopg

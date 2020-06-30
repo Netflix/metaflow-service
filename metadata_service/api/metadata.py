@@ -26,7 +26,7 @@ class MetadataApi(object):
             "tasks/{task_id}/metadata",
             self.create_metadata,
         )
-
+        self._db = AsyncPostgresDB.get_instance()
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
 
 
@@ -48,7 +48,7 @@ class MetadataApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -58,7 +58,7 @@ class MetadataApi(object):
           in: "path"
           description: "task_id"
           required: true
-          type: "integer"
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -93,7 +93,7 @@ class MetadataApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -124,7 +124,7 @@ class MetadataApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -134,7 +134,7 @@ class MetadataApi(object):
           in: "path"
           description: "task_id"
           required: true
-          type: "integer"
+          type: "string"
         - name: "body"
           in: "body"
           description: "body"
@@ -171,12 +171,22 @@ class MetadataApi(object):
 
         body = await read_body(request.content)
         count = 0
+        try:
+            run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
+            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
+                                                             step_name, task_id)
+        except Exception:
+            return web.Response(status=400, body=json.dumps(
+                {"message": "need to register run_id and task_id first"}))
+
         for datum in body:
             values = {
                 "flow_id": flow_name,
                 "run_number": run_number,
+                "run_id": run_id,
                 "step_name": step_name,
                 "task_id": task_id,
+                "task_name": task_name,
                 "field_name": datum.get("field_name", " "),
                 "value": datum.get("value", " "),
                 "type": datum.get("type", " "),

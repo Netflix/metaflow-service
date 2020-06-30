@@ -5,6 +5,7 @@ services:
     restart: always
     container_name: "metadata_service"
     ports:
+      - "${MF_MIGRATION_PORT:-8082}:${MF_MIGRATION_PORT:-8082}"
       - "${MF_METADATA_PORT:-8080}:${MF_METADATA_PORT:-8080}"
     volumes:
       - .:/code
@@ -14,8 +15,10 @@ services:
       - MF_METADATA_DB_USER=postgres
       - MF_METADATA_DB_PSWD=postgres
       - MF_METADATA_DB_NAME=postgres
+      - MF_MIGRATION_ENDPOINTS_ENABLED=1
       - MF_METADATA_PORT=${MF_METADATA_PORT:-8080}
       - MF_METADATA_HOST=${MF_METADATA_HOST:-0.0.0.0}
+      - MF_MIGRATION_PORT=${MF_METADATA_PORT:-8082}
     links:
       - db
   db:

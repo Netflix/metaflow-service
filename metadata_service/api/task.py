@@ -1,6 +1,9 @@
 from ..data.models import TaskRow
 from ..data.postgres_async_db import AsyncPostgresDB
 from .utils import read_body, format_response, handle_exceptions
+import json
+from aiohttp import web
+
 import asyncio
 
 
@@ -25,6 +28,7 @@ class TaskApi(object):
             self.create_task,
         )
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
+        self._db = AsyncPostgresDB.get_instance()
 
     @format_response
     @handle_exceptions
@@ -44,7 +48,7 @@ class TaskApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -82,7 +86,7 @@ class TaskApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -127,7 +131,7 @@ class TaskApi(object):
           in: "path"
           description: "run_number"
           required: true
-          type: "integer"
+          type: "string"
         - name: "step_name"
           in: "path"
           description: "step_name"
@@ -146,11 +150,15 @@ class TaskApi(object):
                     type: object
                 system_tags:
                     type: object
+                task_id:
+                    type: string
         produces:
         - 'text/plain'
         responses:
             "202":
                 description: successful operation. Return newly registered task
+            "400":
+                description: invalid HTTP Request
             "405":
                 description: invalid HTTP Method
         """
@@ -162,10 +170,20 @@ class TaskApi(object):
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
+        task_name = body.get("task_id")
+
+        if task_name and task_name.isnumeric():
+            return web.Response(status=400, body=json.dumps(
+                {"message": "provided task_name may not be a numeric"}))
+
+        run_number, run_id = await self._db.get_run_ids(flow_id, run_number)
+
         task = TaskRow(
             flow_id=flow_id,
             run_number=run_number,
+            run_id=run_id,
             step_name=step_name,
+            task_name=task_name,
             user_name=user,
             tags=tags,
             system_tags=system_tags,
