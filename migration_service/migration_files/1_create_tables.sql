@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 SELECT 'up SQL query';
-CREATE TABLE flows_v3 (
+CREATE TABLE IF NOT EXISTS flows_v3 (
   flow_id VARCHAR(255) PRIMARY KEY,
   user_name VARCHAR(255),
   ts_epoch BIGINT NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE flows_v3 (
   system_tags JSONB
 );
 
-CREATE TABLE runs_v3 (
+CREATE TABLE IF NOT EXISTS runs_v3 (
   flow_id VARCHAR(255) NOT NULL,
   run_number SERIAL NOT NULL,
   user_name VARCHAR(255),
@@ -20,7 +20,7 @@ CREATE TABLE runs_v3 (
   FOREIGN KEY(flow_id) REFERENCES flows_v3 (flow_id)
 );
 
-CREATE TABLE steps_v3 (
+CREATE TABLE IF NOT EXISTS steps_v3 (
     flow_id VARCHAR(255) NOT NULL,
     run_number BIGINT NOT NULL,
     step_name VARCHAR(255) NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE steps_v3 (
 );
 
 
-CREATE TABLE tasks_v3 (
+CREATE TABLE IF NOT EXISTS tasks_v3 (
     flow_id VARCHAR(255) NOT NULL,
     run_number BIGINT NOT NULL,
     step_name VARCHAR(255) NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE tasks_v3 (
     FOREIGN KEY(flow_id, run_number, step_name) REFERENCES steps_v3 (flow_id, run_number, step_name)
 );
 
-CREATE TABLE metadata_v3 (
+CREATE TABLE IF NOT EXISTS metadata_v3 (
     flow_id VARCHAR(255),
     run_number BIGINT NOT NULL,
     step_name VARCHAR(255) NOT NULL,
@@ -61,7 +61,7 @@ CREATE TABLE metadata_v3 (
     PRIMARY KEY(flow_id, run_number, step_name, task_id, field_name)
 );
 
-CREATE TABLE artifact_v3 (
+CREATE TABLE IF NOT EXISTS artifact_v3 (
     flow_id VARCHAR(255) NOT NULL,
     run_number BIGINT NOT NULL,
     step_name VARCHAR(255) NOT NULL,
