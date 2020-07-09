@@ -14,9 +14,12 @@ class ApiUtils(object):
 
     @staticmethod
     def get_unapplied_migrations(current_version):
-        migrations_list = ApiUtils.list_migrations()
-        index_version = migrations_list.index(current_version)
-        return migrations_list[index_version+1:]
+        try:
+            migrations_list = ApiUtils.list_migrations()
+            index_version = migrations_list.index(current_version)
+            return migrations_list[index_version+1:]
+        except:
+            return migrations_list
 
     @staticmethod
     async def get_goose_version():
