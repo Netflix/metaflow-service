@@ -33,11 +33,11 @@ class AsyncPostgresDB(object):
 
     async def _init(self):
 
-        host = os.environ.get("MF_METADATA_DB_HOST", "localhost")
-        port = os.environ.get("MF_METADATA_DB_PORT", 5432)
-        user = os.environ.get("MF_METADATA_DB_USER", "postgres")
-        password = os.environ.get("MF_METADATA_DB_PSWD", "postgres")
-        database_name = os.environ.get("MF_METADATA_DB_NAME", "postgres")
+        host = os.environ.get("MF_METADATA_DB_HOST", "localhost").replace("'", "\'")
+        port = os.environ.get("MF_METADATA_DB_PORT", 5432).replace("'", "\'")
+        user = os.environ.get("MF_METADATA_DB_USER", "postgres").replace("'", "\'")
+        password = os.environ.get("MF_METADATA_DB_PSWD", "postgres").replace("'", "\'")
+        database_name = os.environ.get("MF_METADATA_DB_NAME", "postgres").replace("'", "\'")
 
         dsn = "dbname={0} user={1} password={2} host={3} port={4}".format(
             database_name, user, password, host, port
