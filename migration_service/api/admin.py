@@ -3,7 +3,8 @@ import json
 from aiohttp import web
 from subprocess import Popen
 from .utils import ApiUtils
-from . import goose_migration_template, host, port, user, password, \
+from . import goose_migration_template
+from migration_service.migration_config import host, port, user, password, \
     database_name
 
 

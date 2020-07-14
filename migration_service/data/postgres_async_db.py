@@ -1,7 +1,8 @@
 import time
 import os
 import aiopg
-
+from migration_service.migration_config import host, port, user, password, \
+    database_name
 
 class PostgresUtils(object):
     @staticmethod
@@ -33,12 +34,6 @@ class AsyncPostgresDB(object):
 
     async def _init(self):
 
-        host = os.environ.get("MF_METADATA_DB_HOST", "localhost").replace("'", "\'")
-        port = os.environ.get("MF_METADATA_DB_PORT", 5432)
-        user = os.environ.get("MF_METADATA_DB_USER", "postgres").replace("'", "\'")
-        password = os.environ.get("MF_METADATA_DB_PSWD", "postgres").replace("'", "\'")
-        database_name = os.environ.get("MF_METADATA_DB_NAME", "postgres").replace("'", "\'")
-
         dsn = "dbname={0} user={1} password={2} host={3} port={4}".format(
             database_name, user, password, host, port
         )
@@ -46,12 +41,11 @@ class AsyncPostgresDB(object):
         # todo add retry and better error message
         retries = 3
         for i in range(retries):
-            while True:
-                try:
-                    self.pool = await aiopg.create_pool(dsn)
-                except Exception as e:
-                    if retries - i < 1:
-                        raise e
-                    time.sleep(1)
-                    continue
-                break
+            try:
+                self.pool = await aiopg.create_pool(dsn)
+            except Exception as e:
+                print("printing connection exception: " + str(e))
+                if retries - i < 1:
+                    raise e
+                time.sleep(1)
+                continue
