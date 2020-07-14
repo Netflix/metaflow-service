@@ -1,7 +1,9 @@
 from subprocess import Popen, PIPE
 from ..data.postgres_async_db import PostgresUtils
 from . import version_dict, latest, goose_template, \
-    host, port, user, password, database_name, goose_migration_template
+    goose_migration_template
+from migration_service.migration_config import host, port, user, password, \
+    database_name
 
 
 class ApiUtils(object):
@@ -33,6 +35,7 @@ class ApiUtils(object):
                   close_fds=True)
         p.wait()
 
+        version = None
         std_err = p.stderr.read()
         lines_err = std_err.decode("utf-8").split("\n")
         for line in lines_err:
@@ -41,7 +44,12 @@ class ApiUtils(object):
                 version = s[1]
                 print(line)
                 break
-        return version
+
+        if version:
+            return version
+        else:
+            raise Exception(
+                "unable to get db version via goose: " + std_err.decode("utf-8"))
 
     @staticmethod
     async def get_latest_compatible_version():
