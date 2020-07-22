@@ -12,7 +12,7 @@ setup(
   packages=find_packages(),
   entry_points='''
         [console_scripts]
-        metadata_service=metadata_service.server:main
+        metadata_service=services.metadata_service.server:main
    ''',
   install_requires=[
           'aiohttp',

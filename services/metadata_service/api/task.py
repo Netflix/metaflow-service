@@ -1,5 +1,5 @@
-from ..data.models import TaskRow
-from ..data.postgres_async_db import AsyncPostgresDB
+from services.data.models import TaskRow
+from services.data.postgres_async_db import AsyncPostgresDB
 from .utils import read_body, format_response, handle_exceptions
 import json
 from aiohttp import web

@@ -33,7 +33,7 @@ Optionally you can also overrider the host and port the service runs on
 
 >```sh
 >pip3 install ./
->python3 -m metadata_service.server
+>python3 -m services.metadata_service.server
 >```
 
 Swagger UI: http://localhost:8080/api/doc

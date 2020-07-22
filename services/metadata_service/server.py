@@ -13,7 +13,7 @@ from .api.artifact import ArtificatsApi
 from .api.admin import AuthApi
 
 from .api.metadata import MetadataApi
-from .data.postgres_async_db import AsyncPostgresDB
+from services.data.postgres_async_db import AsyncPostgresDB
 
 
 def app(loop=None):

@@ -2,7 +2,8 @@ from aiohttp import web
 import json
 from .utils import read_body, format_response, handle_exceptions
 import asyncio
-from ..data.postgres_async_db import AsyncPostgresDB
+from services.data.postgres_async_db import AsyncPostgresDB
+
 
 class MetadataApi(object):
     _metadata_table = None
@@ -28,7 +29,6 @@ class MetadataApi(object):
         )
         self._db = AsyncPostgresDB.get_instance()
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
-
 
     @format_response
     @handle_exceptions
