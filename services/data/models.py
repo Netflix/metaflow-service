@@ -1,6 +1,7 @@
 import time
 from .db_utils import get_exposed_run_id, get_exposed_task_id
 
+
 class FlowRow(object):
     flow_id: str = None
     user_name: str = None
