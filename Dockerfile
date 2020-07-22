@@ -12,7 +12,7 @@ RUN virtualenv /opt/latest -p python3
 RUN /opt/v_1_0_1/bin/pip install https://github.com/Netflix/metaflow-service/archive/1.0.1.zip
 
 ADD services/__init__.py /root/services/
-ADD services/metadata_service /root/services/data
+ADD services/data /root/services/data
 ADD services/metadata_service /root/services/metadata_service
 ADD setup.py setup.cfg /root/
 WORKDIR /root
