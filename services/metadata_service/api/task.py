@@ -27,6 +27,9 @@ class TaskApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "task",
             self.create_task,
         )
+        app.router.add_route("POST",
+                             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat",
+                             self.runs_heartbeat)
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 

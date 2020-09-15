@@ -15,6 +15,9 @@ class RunApi(object):
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}", self.get_run)
         app.router.add_route("POST", "/flows/{flow_id}/run", self.create_run)
+        app.router.add_route("POST",
+                             "/flows/{flow_id}/runs/{run_number}/heartbeat",
+                             self.runs_heartbeat)
         self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
 
     @format_response
