@@ -1,6 +1,9 @@
+import os
 import requests
 import socket
 import time
+
+port = int(os.environ.get("MF_MIGRATION_PORT", 8082))
 
 try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -8,8 +11,8 @@ try:
     while retry_count > 0:
         try:
             print("connecting")
-            s.connect(('localhost', 8082))
-            print("Port 8082 reachable")
+            s.connect(('localhost', port))
+            print("Port reachable", port)
             break
         except socket.error as e:
             print("booting...")
@@ -24,7 +27,7 @@ try:
 except Exception:
     pass
 
-r = requests.get('http://localhost:8082/version')
+r = requests.get('http://localhost:{0}/version'.format(port))
 conf_file = open('/migration_service/config', 'w')
 print(r.text, file=conf_file)
 conf_file.close()
