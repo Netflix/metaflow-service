@@ -65,6 +65,7 @@ class RunRow(object):
         self.last_heartbeat_ts = last_heartbeat_ts
         self.finished_at = finished_at
         self.duration = duration
+        self.last_heartbeat_ts=last_heartbeat_ts
 
     def serialize(self, expanded: bool = False):
         if expanded:
@@ -77,6 +78,7 @@ class RunRow(object):
                 "ts_epoch": self.ts_epoch,
                 "finished_at": self.finished_at,
                 "duration": self.duration,
+                "last_heartbeat_ts": self.last_heartbeat_ts,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
@@ -90,6 +92,7 @@ class RunRow(object):
                 "ts_epoch": self.ts_epoch,
                 "finished_at": self.finished_at,
                 "duration": self.duration,
+                "last_heartbeat_ts": self.last_heartbeat_ts,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
