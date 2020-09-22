@@ -536,7 +536,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                     END) AS status
                     """.format(
                         table_name=table_name,
-                        heartbeat_threshold=10000
+                        heartbeat_threshold=10
                     ),
                     "(CASE WHEN artifacts.ts_epoch IS NULL THEN NULL ELSE artifacts.ts_epoch - runs_v3.ts_epoch END) AS duration"]
     flow_table_name = AsyncFlowTablePostgres.table_name
