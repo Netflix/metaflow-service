@@ -205,7 +205,7 @@ class AsyncPostgresTable(object):
         # generate where clause
         filters = []
         for col_name, col_val in filter_dict.items():
-            v = str(col_val)
+            v = str(col_val).strip("'")
             if not v.isnumeric():
                 v = "'" + v + "'"
             filters.append(col_name + "=" + str(v))
@@ -304,7 +304,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     _current_count = 0
     _row_type = RunRow
     table_name = "runs_v3"
-    keys = "flow_id, run_number, run_id, user_name, ts_epoch, tags, system_tags"
+    keys = "flow_id, run_number, run_id, user_name, ts_epoch, tags, " \
+           "system_tags, last_heartbeat_ts"
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -346,7 +347,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
         run_key, run_value = translate_run_key(run_id)
-        translate_task_key()
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value)}
         set_dict = {
@@ -417,7 +417,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     _row_type = TaskRow
     table_name = "tasks_v3"
     keys = "flow_id, run_number, run_id, step_name, task_id, task_name, " \
-           "user_name, ts_epoch, tags, system_tags"
+           "user_name, ts_epoch, tags, system_tags, last_heartbeat_ts"
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -479,11 +479,10 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                        task_id: str):
         run_key, run_value = translate_run_key(run_id)
         task_key, task_value = translate_task_key(task_id)
-        translate_task_key()
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value),
-                       "step_name:": step_name,
-                       task_key: str(task_key)}
+                       "step_name": step_name,
+                       task_key: str(task_value)}
         set_dict = {
             "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
         }

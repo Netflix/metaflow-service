@@ -134,3 +134,42 @@ class RunApi(object):
         )
 
         return await self._async_table.add_run(run_row)
+
+    @format_response
+    @handle_exceptions
+    async def runs_heartbeat(self, request):
+        """
+        ---
+        description: update hb
+        tags:
+        - Run
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "body"
+          in: "body"
+          description: "body"
+          required: true
+          schema:
+            type: object
+        produces:
+        - 'text/plain'
+        responses:
+            "200":
+                description: successful operation. Return newly registered run
+            "400":
+                description: invalid HTTP Request
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_name = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        return await self._async_table.update_heartbeat(flow_name, run_number)

@@ -54,6 +54,7 @@ class RunRow(object):
             ts_epoch = int(round(time.time() * 1000))
 
         self.ts_epoch = ts_epoch
+        self.last_heartbeat_ts = last_heartbeat_ts
 
     def serialize(self, expanded: bool = False):
         if expanded:
@@ -64,7 +65,8 @@ class RunRow(object):
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
-                "system_tags": self.system_tags
+                "system_tags": self.system_tags,
+                "last_heartbeat_ts": self.last_heartbeat_ts
             }
         else:
             return {
@@ -73,7 +75,8 @@ class RunRow(object):
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
-                "system_tags": self.system_tags
+                "system_tags": self.system_tags,
+                "last_heartbeat_ts": self.last_heartbeat_ts
             }
 
 
@@ -178,6 +181,7 @@ class TaskRow(object):
         self.ts_epoch = ts_epoch
         self.tags = tags
         self.system_tags = system_tags
+        self.last_heartbeat_ts = last_heartbeat_ts
 
     def serialize(self, expanded: bool = False):
         if expanded:
@@ -192,6 +196,7 @@ class TaskRow(object):
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
+                "last_heartbeat_ts": self.last_heartbeat_ts
             }
         else:
             return {
@@ -203,6 +208,7 @@ class TaskRow(object):
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
+                "last_heartbeat_ts": self.last_heartbeat_ts
             }
 
 
