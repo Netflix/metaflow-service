@@ -1,0 +1,4 @@
+tox
+pytest
+pytest-cov
+pytest-aiohttp

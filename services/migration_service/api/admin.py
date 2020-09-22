@@ -4,7 +4,7 @@ from aiohttp import web
 from subprocess import Popen
 from .utils import ApiUtils
 from . import goose_migration_template
-from migration_service.migration_config import host, port, user, password, \
+from ..migration_config import host, port, user, password, \
     database_name
 
 
@@ -15,7 +15,7 @@ class AdminApi(object):
         app.router.add_route("GET", "/db_schema_status", self.db_schema_status)
 
         endpoints_enabled = int(os.environ.get("MF_MIGRATION_ENDPOINTS_ENABLED",
-                                1))
+                                               1))
         if endpoints_enabled:
             app.router.add_route("PATCH", "/upgrade", self.upgrade)
 
@@ -69,7 +69,7 @@ class AdminApi(object):
                 description: could not upgrade
         """
         goose_version_cmd = goose_migration_template.format(
-             database_name, user, password, host, port,
+            database_name, user, password, host, port,
             "up"
         )
         p = Popen(goose_version_cmd, shell=True,
@@ -112,4 +112,3 @@ class AdminApi(object):
                 "detail": repr(e)
             }
             return web.Response(status=500, body=json.dumps(body))
-

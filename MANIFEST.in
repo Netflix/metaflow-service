@@ -1,0 +1,7 @@
+include services/utils/requirements.txt
+include services/data/requirements.txt
+include services/metadata_service/requirements.txt
+include services/migration_service/requirements.txt
+include requirements.dev.txt
+include requirements.txt
+include README.md
