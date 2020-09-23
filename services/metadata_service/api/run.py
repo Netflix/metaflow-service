@@ -1,9 +1,8 @@
 import asyncio
-from aiohttp import web
+
 from .utils import read_body, format_response, handle_exceptions
 from services.data.models import RunRow
 from services.data.postgres_async_db import AsyncPostgresDB
-import json
 
 
 class RunApi(object):

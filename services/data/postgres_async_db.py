@@ -10,6 +10,7 @@ from .db_utils import DBResponse, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 
+WAIT_TIME = 10
 
 class AsyncPostgresDB(object):
     connection = None
@@ -352,8 +353,12 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         set_dict = {
             "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
         }
-        return await self.update_row(filter_dict=filter_dict,
-                                     update_dict=set_dict)
+        result = await self.update_row(filter_dict=filter_dict,
+                                       update_dict=set_dict)
+        body = {"wait_time_in_seconds": WAIT_TIME}
+
+        return DBResponse(response_code=result.response_code,
+                          body=json.dumps(body))
 
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
@@ -486,8 +491,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         set_dict = {
             "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
         }
-        return await self.update_row(filter_dict=filter_dict,
-                                     update_dict=set_dict)
+        result = await self.update_row(filter_dict=filter_dict,
+                                       update_dict=set_dict)
+
+        body = {"wait_time_in_seconds": WAIT_TIME}
+
+        return DBResponse(response_code=result.response_code,
+                          body=json.dumps(body))
 
 
 class AsyncMetadataTablePostgres(AsyncPostgresTable):
