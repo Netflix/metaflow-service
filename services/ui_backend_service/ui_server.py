@@ -19,6 +19,7 @@ from .api.dag import DagApi
 
 from .api.ws import Websocket
 from .api.notify import ListenNotify
+from .api.heartbeat_monitor import HeartbeatMonitor
 from .cache.store import CacheStore
 
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -41,6 +42,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     app.on_startup.append(cache_store.start_caches)
     app.on_cleanup.append(cache_store.stop_caches)
     ListenNotify(app, event_emitter)
+    HeartbeatMonitor(event_emitter)
     Websocket(app, event_emitter)
 
     FlowApi(app)

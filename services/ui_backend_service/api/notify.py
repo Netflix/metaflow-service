@@ -43,6 +43,10 @@ class ListenNotify(object):
                         if resources != None and len(resources) > 0:
                             await load_and_broadcast(self.event_emitter, operation, table,
                                                      data, table.primary_keys)
+                        
+                        # Heartbeat watcher for Runs.
+                        if table.table_name == self.db.run_table_postgres.table_name:
+                            self.event_emitter.emit('run-heartbeat', 'update', data['run_number'])
 
                         # Notify related resources once new `_task_ok` artifact has been created
                         if operation == "INSERT" and \
@@ -63,6 +67,8 @@ class ListenNotify(object):
                                     data, self.db.run_table_postgres.primary_keys)
                                 # Also trigger preload of artifacts after a run finishes.
                                 self.event_emitter.emit("preload-artifacts", data['run_number'])
+                                # And remove possible heartbeat watchers for completed runs
+                                self.event_emitter.emit("run-heartbeat", "complete", data['run_number'])
 
                 except Exception as err:
                     print(err, flush=True)
