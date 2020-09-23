@@ -2,6 +2,7 @@ import os
 import json
 from aiohttp import web
 from subprocess import Popen
+from multidict import MultiDict
 from .utils import ApiUtils
 from . import goose_migration_template
 from ..migration_config import host, port, user, password, \
@@ -105,10 +106,12 @@ class AdminApi(object):
                 "db_schema_versions": ApiUtils.list_migrations(),
                 "unapplied_migrations": unapplied_migrations
             }
-            return web.Response(body=json.dumps(body))
+            return web.Response(body=json.dumps(body),
+                                headers=MultiDict({"Content-Type": "application/json"}))
 
         except Exception as e:
             body = {
                 "detail": repr(e)
             }
-            return web.Response(status=500, body=json.dumps(body))
+            return web.Response(status=500, body=json.dumps(body),
+                                headers=MultiDict({"Content-Type": "application/json"}))
