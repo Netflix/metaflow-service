@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
   name = 'metadata_service',
-  version = '2.0.3',
+  version = '2.0.4',
   license='Apache License 2.0',
   description = 'Metadata Service: backend service for Metaflow',
   author = 'Machine Learning Infrastructure Team at Netflix',
