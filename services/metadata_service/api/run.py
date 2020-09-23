@@ -1,9 +1,8 @@
 import asyncio
-from aiohttp import web
+
 from .utils import read_body, format_response, handle_exceptions
 from services.data.models import RunRow
 from services.data.postgres_async_db import AsyncPostgresDB
-import json
 
 
 class RunApi(object):
@@ -15,6 +14,9 @@ class RunApi(object):
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}", self.get_run)
         app.router.add_route("POST", "/flows/{flow_id}/run", self.create_run)
+        app.router.add_route("POST",
+                             "/flows/{flow_id}/runs/{run_number}/heartbeat",
+                             self.runs_heartbeat)
         self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
 
     @format_response
@@ -131,3 +133,42 @@ class RunApi(object):
         )
 
         return await self._async_table.add_run(run_row)
+
+    @format_response
+    @handle_exceptions
+    async def runs_heartbeat(self, request):
+        """
+        ---
+        description: update hb
+        tags:
+        - Run
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "body"
+          in: "body"
+          description: "body"
+          required: true
+          schema:
+            type: object
+        produces:
+        - 'text/plain'
+        responses:
+            "200":
+                description: successful operation. Return newly registered run
+            "400":
+                description: invalid HTTP Request
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_name = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        return await self._async_table.update_heartbeat(flow_name, run_number)

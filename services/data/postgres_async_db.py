@@ -4,11 +4,13 @@ import os
 import aiopg
 import json
 import time
+import datetime
 
 from .db_utils import DBResponse, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 
+WAIT_TIME = 10
 
 class AsyncPostgresDB(object):
     connection = None
@@ -200,6 +202,51 @@ class AsyncPostgresTable(object):
         except (Exception, psycopg2.DatabaseError) as error:
             return aiopg_exception_handling(error)
 
+    async def update_row(self, filter_dict={}, update_dict={}):
+        # generate where clause
+        filters = []
+        for col_name, col_val in filter_dict.items():
+            v = str(col_val).strip("'")
+            if not v.isnumeric():
+                v = "'" + v + "'"
+            filters.append(col_name + "=" + str(v))
+
+        seperator = " and "
+        where_clause = ""
+        if bool(filter_dict):
+            where_clause = seperator.join(filters)
+
+        sets = []
+        for col_name, col_val in update_dict.items():
+            sets.append(col_name + " = " + str(col_val))
+
+        set_seperator = ", "
+        set_clause = ""
+        if bool(filter_dict):
+            set_clause = set_seperator.join(sets)
+        update_sql = """
+                UPDATE {0} SET {1} WHERE {2};
+        """.format(self.table_name, set_clause, where_clause)
+        try:
+            with (
+                await AsyncPostgresDB.get_instance().pool.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor
+                )
+            ) as cur:
+                await cur.execute(update_sql)
+                if cur.rowcount < 1:
+                    return DBResponse(response_code=404,
+                                      body={"msg": "could not find row"})
+                if cur.rowcount > 1:
+                    return DBResponse(response_code=500,
+                                      body={"msg": "duplicate rows"})
+                body = {"rowcount": cur.rowcount}
+                # todo make sure connection is closed even with error
+                cur.close()
+                return DBResponse(response_code=200, body=body)
+        except (Exception, psycopg2.DatabaseError) as error:
+            return aiopg_exception_handling(error)
+
 
 class PostgresUtils(object):
     @staticmethod
@@ -216,6 +263,7 @@ class PostgresUtils(object):
             finally:
                 cur.close()
     # todo add method to check schema version
+
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):
     flow_dict = {}
@@ -257,7 +305,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     _current_count = 0
     _row_type = RunRow
     table_name = "runs_v3"
-    keys = "flow_id, run_number, run_id, user_name, ts_epoch, tags, system_tags"
+    keys = "flow_id, run_number, run_id, user_name, ts_epoch, tags, " \
+           "system_tags, last_heartbeat_ts"
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -296,6 +345,20 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     async def get_all_runs(self, flow_id: str):
         filter_dict = {"flow_id": "'{0}'".format(flow_id)}
         return await self.get_records(filter_dict=filter_dict)
+
+    async def update_heartbeat(self, flow_id: str, run_id: str):
+        run_key, run_value = translate_run_key(run_id)
+        filter_dict = {"flow_id": flow_id,
+                       run_key: str(run_value)}
+        set_dict = {
+            "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
+        }
+        result = await self.update_row(filter_dict=filter_dict,
+                                       update_dict=set_dict)
+        body = {"wait_time_in_seconds": WAIT_TIME}
+
+        return DBResponse(response_code=result.response_code,
+                          body=json.dumps(body))
 
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
@@ -359,7 +422,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     _row_type = TaskRow
     table_name = "tasks_v3"
     keys = "flow_id, run_number, run_id, step_name, task_id, task_name, " \
-           "user_name, ts_epoch, tags, system_tags"
+           "user_name, ts_epoch, tags, system_tags, last_heartbeat_ts"
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -416,6 +479,25 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, expanded=expanded)
+
+    async def update_heartbeat(self, flow_id: str, run_id: str, step_name: str,
+                       task_id: str):
+        run_key, run_value = translate_run_key(run_id)
+        task_key, task_value = translate_task_key(task_id)
+        filter_dict = {"flow_id": flow_id,
+                       run_key: str(run_value),
+                       "step_name": step_name,
+                       task_key: str(task_value)}
+        set_dict = {
+            "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
+        }
+        result = await self.update_row(filter_dict=filter_dict,
+                                       update_dict=set_dict)
+
+        body = {"wait_time_in_seconds": WAIT_TIME}
+
+        return DBResponse(response_code=result.response_code,
+                          body=json.dumps(body))
 
 
 class AsyncMetadataTablePostgres(AsyncPostgresTable):
