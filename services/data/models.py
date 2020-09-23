@@ -54,11 +54,7 @@ class RunRow(object):
         self.flow_id = flow_id
         self.user_name = user_name
         self.run_number = run_number
-
-        if run_id is None:
-            run_id = str(run_number)
         self.run_id = run_id
-
         self.status = status
         self.tags = tags
         self.system_tags = system_tags
@@ -197,16 +193,9 @@ class TaskRow(object):
     ):
         self.flow_id = flow_id
         self.run_number = run_number
-
-        if run_id is None:
-            run_id = str(run_number)
         self.run_id = run_id
-
         self.step_name = step_name
         self.task_id = task_id
-
-        if task_name is None:
-            task_name = str(task_id)
         self.task_name = task_name
 
         self.user_name = user_name
@@ -292,18 +281,10 @@ class MetadataRow(object):
     ):
         self.flow_id = flow_id
         self.run_number = run_number
-
-        if run_id is None:
-            run_id = str(run_number)
         self.run_id = run_id
-
         self.step_name = step_name
         self.task_id = task_id
-
-        if task_name is None:
-            task_name = str(task_id)
         self.task_name = task_name
-
         self.field_name = field_name
         self.value = value
         self.type = type
@@ -390,18 +371,10 @@ class ArtifactRow(object):
     ):
         self.flow_id = flow_id
         self.run_number = run_number
-
-        if run_id is None:
-            run_id = str(run_number)
         self.run_id = run_id
-
         self.step_name = step_name
         self.task_id = task_id
-
-        if task_name is None:
-            task_name = str(task_id)
         self.task_name = task_name
-
         self.name = name
         self.location = location
         self.ds_type = ds_type
