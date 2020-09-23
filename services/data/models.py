@@ -84,7 +84,7 @@ class RunRow(object):
         else:
             return {
                 "flow_id": self.flow_id,
-                "run_number": get_exposed_run_id(self.run_number, self.run_id),
+                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
                 "user_name": self.user_name,
                 "status": self.status,
                 "ts_epoch": self.ts_epoch,
@@ -149,7 +149,7 @@ class StepRow(object):
         else:
             return {
                 "flow_id": self.flow_id,
-                "run_number": get_exposed_run_id(self.run_number, self.run_id),
+                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
                 "step_name": self.step_name,
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
@@ -231,9 +231,9 @@ class TaskRow(object):
         else:
             return {
                 "flow_id": self.flow_id,
-                "run_number": get_exposed_run_id(self.run_number, self.run_id),
+                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
                 "step_name": self.step_name,
-                "task_id": get_exposed_task_id(self.task_id, self.task_name),
+                "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
                 "finished_at": self.finished_at,
@@ -319,9 +319,9 @@ class MetadataRow(object):
             return {
                 "id": self.id,
                 "flow_id": self.flow_id,
-                "run_number": get_exposed_run_id(self.run_number, self.run_id),
+                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
                 "step_name": self.step_name,
-                "task_id": get_exposed_task_id(self.task_id, self.task_name),
+                "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
                 "field_name": self.field_name,
                 "value": self.value,
                 "type": self.type,
@@ -414,9 +414,9 @@ class ArtifactRow(object):
         else:
             return {
                 "flow_id": self.flow_id,
-                "run_number": get_exposed_run_id(self.run_number, self.run_id),
+                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
                 "step_name": self.step_name,
-                "task_id": get_exposed_task_id(self.task_id, self.task_name),
+                "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
                 "name": self.name,
                 "location": self.location,
                 "ds_type": self.ds_type,

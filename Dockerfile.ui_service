@@ -1,0 +1,10 @@
+FROM python:3.7
+ADD services/__init__.py /root/services/__init__.py
+ADD services/data /root/services/data
+ADD services/utils /root/services/utils
+ADD services/ui_backend_service /root/services/ui_backend_service
+ADD setup.py setup.cfg /root/
+WORKDIR /root
+RUN pip install --editable .
+RUN pip install git+https://github.com/tuulos/metaflow.git@mfgui-cache
+CMD ui_backend_service
