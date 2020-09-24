@@ -8,7 +8,7 @@ import sys
 
 from metaflow.client.cache import CacheAction
 from metaflow import S3, FlowSpec
-from metaflow.graph import FlowGraph
+from .custom_flowgraph import FlowGraph # TODO: change to metaflow.graph when the AST-only PR is merged.
 
 class GenerateDag(CacheAction):
     '''
@@ -96,7 +96,7 @@ def generate_dag(tarball_path):
     sourcecode = f.extractfile(script_name).read().decode('utf-8')
   
   # Initialize a FlowGraph object
-  graph = flowgraph_from_source(sourcecode)
+  graph = FlowGraph(sourcecode)
   # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
   dag = {}
   for node in graph:
@@ -107,30 +107,3 @@ def generate_dag(tarball_path):
       'next': node.out_funcs
     }
   return dag
-
-def flowgraph_from_source(sourcestring):
-  # First we need to initialize the codepackage content as a module.
-  # ***IMPORTANT***
-  # TODO: This is potentially risky. Assume that we are in control of the code,
-  # as it has ended up in our S3 bucket? Otherwise it might be a vector for arbitrary code execution.
-  # ***IMPORTANT***
-  tmpfile = tempfile.NamedTemporaryFile(suffix='.py', delete=True)
-  try:
-    tmpfile.write(sourcestring.encode('utf8'))
-    tmpfile.flush()
-    tmpmodule_path, tmpmodule_file_name = os.path.split(tmpfile.name)
-    tmpmodule_name = tmpmodule_file_name[:-3]
-    sys.path.append(tmpmodule_path)
-    source_module = __import__(tmpmodule_name)
-    # After the module has been initialized, we look for any class that subclasses FlowSpec, and pass this
-    # to the FlowGraph to get a graph parsed.
-    flowspec_subclasses = [ cls for cls in dir(source_module)
-                                if inspect.isclass(getattr(source_module, cls))
-                                if issubclass(getattr(source_module, cls), FlowSpec)
-                                if not getattr(source_module, cls) == FlowSpec
-                          ]
-    main_flow_class = getattr(source_module, flowspec_subclasses[0])
-    graph = FlowGraph(main_flow_class)
-  finally:
-    tmpfile.close()
-  return graph
