@@ -12,7 +12,7 @@ from .custom_flowgraph import FlowGraph # TODO: change to metaflow.graph when th
 
 class GenerateDag(CacheAction):
     '''
-    Generates a DAG for a given codepackage tarball location.
+    Generates a DAG for a given codepackage tarball location and Flow name.
 
     Returns
     --------
@@ -33,11 +33,12 @@ class GenerateDag(CacheAction):
     '''
 
     @classmethod
-    def format_request(cls, codepackage_location):
+    def format_request(cls, flow_id, codepackage_location):
         msg = {
-            'location': codepackage_location
+            'location': codepackage_location,
+            'flow_id': flow_id
         }
-        result_key = 'dag:result:%s' % hashlib.sha1(codepackage_location.encode('utf-8')).hexdigest()
+        result_key = 'dag:result:%s' % hashlib.sha1((flow_id+codepackage_location).encode('utf-8')).hexdigest()
 
         return msg,\
                [result_key],\
@@ -70,17 +71,15 @@ class GenerateDag(CacheAction):
 
         results = {}
         location = message['location']
+        flow_name = message['flow_id']
 
         result_key = [ key for key in keys if key.startswith('dag:result')][0]
-
-        # expression to use for printing progress during stream.
-        stream_print = lambda line: stream_output({"progress": line})
 
         # get codepackage from S3
         with S3() as s3:
           try:
             codetar = s3.get(location)
-            results[result_key] = json.dumps([True, generate_dag(codetar.path)])
+            results[result_key] = json.dumps([True, generate_dag(flow_name, codetar.path)])
           except Exception as ex:
             results[result_key] = json.dumps([False, "failed to generate dag: %s" % ex])
 
@@ -88,7 +87,7 @@ class GenerateDag(CacheAction):
 
 # Utilities
 
-def generate_dag(tarball_path):
+def generate_dag(flow_id, tarball_path):
   # extract the sourcecode from the tarball
   with TarFile.open(tarball_path) as f:
     info = f.extractfile('INFO').read().decode('utf-8')
@@ -96,7 +95,7 @@ def generate_dag(tarball_path):
     sourcecode = f.extractfile(script_name).read().decode('utf-8')
   
   # Initialize a FlowGraph object
-  graph = FlowGraph(sourcecode)
+  graph = FlowGraph(source=sourcecode, name=flow_id)
   # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
   dag = {}
   for node in graph:

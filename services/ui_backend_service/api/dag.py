@@ -34,9 +34,10 @@ class DagApi(object):
 
         # parse codepackage location.
         codepackage_loc = json.loads(db_response.body['value'])['location']
+        flow_name = db_response.body['flow_id']
 
         # Fetch or Generate the DAG from the codepackage.
-        dag = await self._dag_store.cache.GenerateDag(codepackage_loc)
+        dag = await self._dag_store.cache.GenerateDag(flow_name, codepackage_loc)
         await dag.wait()  # wait for results to be ready
         success, dag = dag.get()
         response = DBResponse(200 if success else 404, dag)
