@@ -5,7 +5,7 @@ from pyee import AsyncIOEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
 HEARTBEAT_INTERVAL = 10 # interval of heartbeats, in seconds
 
-class HeartbeatMonitor(object):
+class RunHeartbeatMonitor(object):
   '''
   Service class for adding objects with heartbeat timestamps to be monitored and acted upon
   when heartbeat becomes too old.
@@ -40,7 +40,6 @@ class HeartbeatMonitor(object):
     
   async def add_run_to_watch(self, run_id):
     run = await self.get_run(run_id)
-    print("trying to add:", run, flush=True)
 
     if self.heartbeat_field in run and self.key in run:
       run_number = run[self.key]
@@ -52,7 +51,14 @@ class HeartbeatMonitor(object):
     self.watched.pop(run_id, None)
 
   async def get_run(self, run_id):
-    result, _ = await self._run_table.find_records(conditions=["run_number = %s"], values=[run_id], fetch_single=True)
+    # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
+    # and we can not broadcast an up-to-date status.
+    result, _ = await self._run_table.find_records(
+                            conditions=["run_number = %s"],
+                            values=[run_id],
+                            fetch_single=True,
+                            enable_joins=True
+                          )
     return result.body if result.response_code==200 else None
   
   async def load_and_broadcast(self, run_id):
@@ -69,8 +75,8 @@ class HeartbeatMonitor(object):
     and triggering handlers in case the heartbeat is too old.
     '''
     while True:
-      time_now = int(datetime.datetime.utcnow().timestamp())
-      print(f"checking heartbeats of {len(self.watched)} runs, timestamp: {time_now}", flush=True)
+      time_now = int(datetime.datetime.utcnow().timestamp()) # same format as the metadata heartbeat uses
+      # print(f"checking heartbeats of {len(self.watched)} runs, timestamp: {time_now}", flush=True)
       for run_number, last_heartbeat_ts in list(self.watched.items()):
         if time_now - last_heartbeat_ts > HEARTBEAT_INTERVAL * 2:
           await self.load_and_broadcast(run_number)
