@@ -665,13 +665,21 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     _row_type = TaskRow
     table_name = "tasks_v3"
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
-            "task_name", "user_name", "ts_epoch", "tags", "system_tags", "last_heartbeat_ts"]
+            "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
     joins = ["LEFT JOIN {artifacts_table} AS artifacts ON ({table_name}.flow_id = artifacts.flow_id AND {table_name}.task_id = artifacts.task_id AND artifacts.name = '_task_ok')"
              .format(table_name=table_name, artifacts_table="artifact_v3")]
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = ["artifacts.ts_epoch AS finished_at",
-                    "(CASE WHEN artifacts.ts_epoch IS NULL THEN NULL ELSE artifacts.ts_epoch - tasks_v3.ts_epoch END) AS duration",
+                    """
+                    (CASE
+                        WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+                        THEN {table_name}.last_heartbeat_ts-{table_name}.ts_epoch
+                        WHEN artifacts.ts_epoch IS NOT NULL
+                        THEN artifacts.ts_epoch - {table_name}.ts_epoch
+                        ELSE NULL
+                    END) AS duration
+                    """.format(table_name=table_name),
                     "COALESCE(artifacts.attempt_id, 0) AS attempt_id"]
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
