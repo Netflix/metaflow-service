@@ -538,7 +538,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                         table_name=table_name,
                         heartbeat_threshold=10
                     ),
-                    "(CASE WHEN artifacts.ts_epoch IS NULL THEN NULL ELSE artifacts.ts_epoch - runs_v3.ts_epoch END) AS duration"]
+                    """
+                    (CASE
+                        WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+                        THEN {table_name}.last_heartbeat_ts-{table_name}.ts_epoch
+                        WHEN artifacts.ts_epoch IS NOT NULL
+                        THEN artifacts.ts_epoch - {table_name}.ts_epoch
+                        ELSE NULL
+                    END) AS duration
+                    """.format(table_name=table_name)
+                    ]
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
