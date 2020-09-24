@@ -3,6 +3,8 @@ import datetime
 from typing import Dict
 from pyee import AsyncIOEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
+from .notify import resource_list
+
 HEARTBEAT_INTERVAL = 10 # interval of heartbeats, in seconds
 
 class RunHeartbeatMonitor(object):
@@ -44,7 +46,7 @@ class RunHeartbeatMonitor(object):
     if self.heartbeat_field in run and self.key in run:
       run_number = run[self.key]
       heartbeat_ts = run[self.heartbeat_field]
-      if heartbeat_ts is not None:
+      if heartbeat_ts is not None: # only start monitoring on runs that have a heartbeat
         self.watched[run_number] = heartbeat_ts
 
   def remove_run_from_watch(self, run_id):
@@ -83,38 +85,3 @@ class RunHeartbeatMonitor(object):
           self.remove_run_from_watch(run_number)
           
       await asyncio.sleep(HEARTBEAT_INTERVAL)
-
-
-def resource_list(table_name: str, data: Dict):
-    resource_paths = {
-        "flows_v3": [
-            "/flows",
-            "/flows/{flow_id}"
-        ],
-        "runs_v3": [
-            "/runs",
-            "/flows/{flow_id}/runs",
-            "/flows/{flow_id}/runs/{run_number}"
-        ],
-        "steps_v3": [
-            "/flows/{flow_id}/runs/{run_number}/steps",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}"
-        ],
-        "tasks_v3": [
-            "/flows/{flow_id}/runs/{run_number}/tasks",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}"
-        ],
-        "metadata_v3": [
-            "/flows/{flow_id}/runs/{run_number}/metadata",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata"
-        ],
-        "artifact_v3": [
-            "/flows/{flow_id}/runs/{run_number}/artifacts",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts"
-        ],
-    }
-    if table_name in resource_paths:
-        return [path.format(**data) for path in resource_paths[table_name]]
-    return []
