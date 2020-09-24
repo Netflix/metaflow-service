@@ -69,7 +69,8 @@ class ArtifactCacheStore(object):
             conditions=["ts_epoch >= %s"],
             values=[since],
             order=['ts_epoch DESC'],
-            limit=METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT
+            limit=METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT,
+            expanded=True
         )
 
         return [ run['run_number'] for run in _records.body ]
