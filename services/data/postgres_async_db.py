@@ -536,12 +536,12 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                     END) AS status
                     """.format(
                         table_name=table_name,
-                        heartbeat_threshold=10
+                        heartbeat_threshold=WAIT_TIME
                     ),
                     """
                     (CASE
                         WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-                        THEN {table_name}.last_heartbeat_ts-{table_name}.ts_epoch
+                        THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
                         WHEN artifacts.ts_epoch IS NOT NULL
                         THEN artifacts.ts_epoch - {table_name}.ts_epoch
                         ELSE NULL
@@ -673,8 +673,21 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     join_columns = ["artifacts.ts_epoch AS finished_at",
                     """
                     (CASE
+                        WHEN artifacts.ts_epoch IS NOT NULL
+                        THEN 'completed'
+                        WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                        AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                        THEN 'failed'
+                        ELSE 'running'
+                    END) AS status
+                    """.format(
+                        table_name=table_name,
+                        heartbeat_threshold=WAIT_TIME
+                    ),
+                    """
+                    (CASE
                         WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-                        THEN {table_name}.last_heartbeat_ts-{table_name}.ts_epoch
+                        THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
                         WHEN artifacts.ts_epoch IS NOT NULL
                         THEN artifacts.ts_epoch - {table_name}.ts_epoch
                         ELSE NULL

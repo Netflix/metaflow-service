@@ -98,6 +98,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
                                  step_name=_step.get("step_name"),
                                  run_number=_step.get("run_number"),
                                  run_id=_step.get("run_id"))).body
+    _task_step['status'] = 'running'
 
     # Wait for results
     operation, resources, result = await wait_for(_should_call, TIMEOUT_FUTURE)
@@ -126,6 +127,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
                                 step_name="end",
                                 run_number=_run.get("run_number"),
                                 run_id=_run.get("run_id"))).body
+    _task_end['status'] = 'running'
 
     # Wait for results
     operation, resources, result = await wait_for(_should_call, TIMEOUT_FUTURE)

@@ -36,7 +36,8 @@ async def test_list_tasks(cli, db):
                             step_name=_step.get("step_name"),
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
-
+    _task['status'] = 'running'
+    
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
 
@@ -52,5 +53,6 @@ async def test_single_task(cli, db):
                             step_name=_step.get("step_name"),
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
+    _task['status'] = 'running'
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
