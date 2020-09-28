@@ -5,6 +5,9 @@ import json
 
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
+DBPagination = collections.namedtuple(
+    "DBPagination", "limit offset count count_total page pages_total")
+
 
 def aiopg_exception_handling(exception):
     err_msg = str(exception)
@@ -19,7 +22,7 @@ def aiopg_exception_handling(exception):
     elif isinstance(exception, psycopg2.errors.UniqueViolation):
         return DBResponse(response_code=409, body=json.dumps(body))
     elif isinstance(exception, IndexError):
-        return DBResponse(response_code=404, body="{}")
+        return DBResponse(response_code=404, body={})
     else:
         return DBResponse(response_code=500, body=json.dumps(body))
 
@@ -29,25 +32,13 @@ def get_db_ts_epoch_str():
 
 
 def translate_run_key(v: str):
-    key = "run_id"
-    value = "'{0}'".format(v)
-
-    if str(v).isnumeric():
-        key = "run_number"
-        value = str(value)
-
-    return key, value
+    value = str(v)
+    return "run_number" if value.isnumeric() else "run_id", value
 
 
 def translate_task_key(v: str):
-    key = "task_name"
-    value = "'{0}'".format(v)
-
-    if str(v).isnumeric():
-        key = "task_id"
-        value = str(value)
-
-    return key, value
+    value = str(v)
+    return "task_id" if value.isnumeric() else "task_name", value
 
 
 def get_exposed_run_id(run_number, run_id):
@@ -60,3 +51,20 @@ def get_exposed_task_id(task_id, task_name):
     if task_name is not None:
         return task_name
     return task_id
+
+
+def _get_latest_attempt_id_for_tasks(artifacts):
+    attempt_ids = {}
+    for artifact in artifacts:
+        attempt_ids[artifact['task_id']] = max(
+            artifact['attempt_id'], attempt_ids.get(artifact['task_id'], 0))
+    return attempt_ids
+
+
+def _filter_artifacts_by_attempt_id_for_tasks(artifacts):
+    attempt_ids = _get_latest_attempt_id_for_tasks(artifacts)
+    result = []
+    for artifact in artifacts:
+        if artifact['attempt_id'] == attempt_ids[artifact['task_id']]:
+            result.append(artifact)
+    return result

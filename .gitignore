@@ -17,6 +17,10 @@ var/
 *.egg
 *.eggs
 
+# Test artifacts
+.tox/
+.coverage
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
