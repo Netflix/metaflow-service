@@ -1,7 +1,8 @@
 import hashlib
 
 from metaflow.client.cache import CacheAction
-from metaflow import S3
+from .utils import NoRetryS3
+from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
 from .utils import decode, batchiter
 import json
 
@@ -81,35 +82,50 @@ class SearchArtifacts(CacheAction):
         artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
         result_key = [ key for key in keys if key.startswith('search:result')][0]
 
-        stream_print = lambda line: stream_output({"progress": line})
+        # Lambdas for streaming status updates.
+        stream_progress = lambda num: stream_output({"type": "progress", "fraction": num})
+        stream_error = lambda err, id: stream_output({"type": "error", "message": err, "id": id})
         
         # Make a list of artifact locations that require fetching (not cached previously)
         locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
-        stream_print("need to fetch {} of {} artifacts".format(len(locations_to_fetch), len(locations)))
 
         # Fetch the S3 locations data
         num_s3_batches = max(1, len(locations_to_fetch) // S3_BATCH_SIZE)
         s3_locations = [ loc for loc in locations_to_fetch if loc.startswith("s3://") ]
-        with S3() as s3:
+        with NoRetryS3() as s3:
             for i, locations in enumerate(batchiter(s3_locations, S3_BATCH_SIZE), start=1):
-                stream_print("fetching batch {} of {}".format(i, num_s3_batches))
-                for artifact_data in s3.get_many(locations, return_missing=True):
-                    # stream_print(f"artifact URL {artifact_data.url}")
-                    artifact_key = artifact_cache_id(artifact_data.url)
-                    if artifact_data.size < MAX_SIZE:
-                        try:
-                            # TODO: Figure out a way to store the artifact content without decoding?
-                            # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                            # so we can not rely on the file existing if we only return a filepath as a cached response
-                            results[artifact_key] = json.dumps([True, decode(artifact_data.path)])
-                        except Exception as ex:
-                            results[artifact_key] = json.dumps([False, 'failed: %s' % ex])
-                    else:
-                        results[artifact_key] = json.dumps([False, 'object is too large'])
+                stream_progress(i / num_s3_batches)
+                try:
+                    for artifact_data in s3.get_many(locations, return_missing=True):
+                        artifact_key = artifact_cache_id(artifact_data.url)
+                        if artifact_data.size < MAX_SIZE:
+                            try:
+                                # TODO: Figure out a way to store the artifact content without decoding?
+                                # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
+                                # so we can not rely on the file existing if we only return a filepath as a cached response
+                                results[artifact_key] = json.dumps([True, decode(artifact_data.path)])
+                            except Exception as ex:
+                                # Exceptions might be fixable with configuration changes or other measures,
+                                # therefore we do not want to write anything to the cache for these artifacts.
+                                stream_error(str(ex), "artifact-handle-failed")
+                        else:
+                            stream_error("Artifact is too big", "artifact-too-big")
+                            results[artifact_key] = json.dumps([False, 'object is too large'])
+                except MetaflowS3AccessDenied as ex:
+                    stream_error(str(ex), "s3-access-denied")
+                except MetaflowS3NotFound as ex:
+                    stream_error(str(ex), "s3-not-found")
+                except MetaflowS3URLException as ex:
+                    stream_error(str(ex), "s3-bad-url")
+                except MetaflowS3CredentialsMissing as ex:
+                    stream_error(str(ex), "s3-missing-credentials")
+                except MetaflowS3Exception as ex:
+                    stream_error(str(ex), "s3-generic-error")
         # Skip the inaccessible locations
         other_locations = [ loc for loc in locations_to_fetch if not loc.startswith("s3://") ]
         for loc in other_locations:
             artifact_key = artifact_cache_id(loc)
+            stream_error("Artifact is not accessible", "artifact-not-accessible")
             results[artifact_key] = json.dumps([False, 'object is not accessible'])
 
         # Perform search on loaded artifacts.
@@ -117,8 +133,13 @@ class SearchArtifacts(CacheAction):
         searchterm = message['searchterm']
         format_loc = lambda x: x[len("search:artifactdata:"):] # extract location from the artifact cache key
         for key in artifact_keys:
-            _artifact_json = results[key] if key in results else existing_keys[key]
-            load_success, value = json.loads(_artifact_json)
+            if key in results:
+                load_success, value = json.loads(results[key])
+            elif key in existing_keys:
+                load_success, value = json.loads(existing_keys[key])
+            else:
+                load_success, value = False, None
+
             search_results[format_loc(key)] = {
                 "included": load_success,
                 "matches": value==searchterm

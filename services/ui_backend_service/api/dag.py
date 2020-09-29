@@ -1,5 +1,5 @@
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import DBResponse, translate_run_key
+from services.data.db_utils import DBResponse
 from services.utils import handle_exceptions
 from .utils import format_response, web_response
 
@@ -19,13 +19,11 @@ class DagApi(object):
     @handle_exceptions
     async def get_run_dag(self, request):
         flow_name = request.match_info['flow_id']
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
+        run_number = request.match_info['run_number']
         # 'code-package' value contains json with dstype, sha1 hash and location
         db_response, _ = await self._metadata_table.find_records(
-            conditions=["flow_id = %s", "{run_id_key} = %s".format(
-                run_id_key=run_id_key), "field_name = %s"],
-            values=[flow_name, run_id_value, "code-package"],
+            conditions=["flow_id = %s", "run_number = %s", "field_name = %s"],
+            values=[flow_name, run_number, "code-package"],
             fetch_single=True
         )
         if not db_response.response_code == 200:
@@ -38,9 +36,23 @@ class DagApi(object):
 
         # Fetch or Generate the DAG from the codepackage.
         dag = await self._dag_store.cache.GenerateDag(flow_name, codepackage_loc)
-        await dag.wait()  # wait for results to be ready
-        success, dag = dag.get()
-        response = DBResponse(200 if success else 404, dag)
+        if not dag.is_ready():
+            async for event in dag.stream():
+                if event["type"] == "error":
+                    # raise error, there was an exception during processing.
+                    raise GenerateDAGFailed(event["message"], event["id"])
+            await dag.wait()  # wait until results are ready
+        dag = dag.get()
+        response = DBResponse(200, dag)
         status, body = format_response(request, response)
 
         return web_response(status, body)
+
+
+class GenerateDAGFailed(Exception):
+    def __init__(self, msg="Failed to process DAG", id="failed-to-process-dag"):
+        self.message = msg
+        self.id = id
+
+    def __str__(self):
+        return self.message

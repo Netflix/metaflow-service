@@ -15,9 +15,6 @@ version = pkg_resources.require("metadata_service")[0].version
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
 
-Response = collections.namedtuple("Response", "response_code body")
-
-
 async def read_body(request_content):
     byte_array = bytearray()
     while not request_content.at_eof():
@@ -44,8 +41,10 @@ def get_traceback_str():
     )
 
 
-def http_500(msg):
+def http_500(msg, id):
+    # NOTE: worth considering if we want to expose tracebacks in the future in the api messages.
     body = {
+        'id': id,
         'traceback': get_traceback_str(),
         'detail': msg,
         'status': 500,
@@ -53,7 +52,7 @@ def http_500(msg):
         'type': 'about:blank'
     }
 
-    return Response(response_code=500, body=body)
+    return web_response(500, body)
 
 
 def handle_exceptions(func):
@@ -64,7 +63,8 @@ def handle_exceptions(func):
         try:
             return await func(*args, **kwargs)
         except Exception as err:
-            return http_500(str(err))
+            err_id = getattr(err, 'id', 'generic-error') # pass along an id for the error
+            return http_500(str(err), err_id)
 
     return wrapper
 

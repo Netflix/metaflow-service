@@ -34,14 +34,17 @@ class ArtifactSearchApi(object):
         if res.is_ready():
             artifact_data = res.get()
         else:
-            await ws.send_str(json.dumps({"event": {"progress": "cache miss, fetching artifact data"}}))
             async for event in res.stream():
                 await ws.send_str(json.dumps(event))
+                if event["event"]["type"] == "error":
+                    # close websocket if an error is encountered.
+                    await ws.close(code=1011)
+            await res.wait()
             artifact_data = res.get()
 
         results = await search_dict_filter(meta_artifacts, artifact_data)
 
-        await ws.send_str(json.dumps({"event": {"matches": results}}))
+        await ws.send_str(json.dumps({"event": {"type": "result", "matches": results}}))
 
         return ws
 

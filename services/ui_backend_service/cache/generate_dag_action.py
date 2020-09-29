@@ -1,15 +1,13 @@
 import hashlib
 import json
 from tarfile import TarFile
-import inspect
-import tempfile
-import os
-import sys
 
 from metaflow.client.cache import CacheAction
-from metaflow import S3, FlowSpec
+from metaflow import FlowSpec
 from .custom_flowgraph import FlowGraph # TODO: change to metaflow.graph when the AST-only PR is merged.
 
+from .utils import NoRetryS3
+from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
 class GenerateDag(CacheAction):
     '''
     Generates a DAG for a given codepackage tarball location and Flow name.
@@ -39,11 +37,12 @@ class GenerateDag(CacheAction):
             'flow_id': flow_id
         }
         result_key = 'dag:result:%s' % hashlib.sha1((flow_id+codepackage_location).encode('utf-8')).hexdigest()
+        stream_key = 'dag:stream:%s' % hashlib.sha1((flow_id+codepackage_location).encode('utf-8')).hexdigest()
 
         return msg,\
                [result_key],\
-               None,\
-               []
+               stream_key,\
+               [stream_key]
 
 
     @classmethod
@@ -56,10 +55,7 @@ class GenerateDag(CacheAction):
     @classmethod
     def stream_response(cls, it):
         for msg in it:
-            if msg is None:
-                yield msg
-            else:
-                yield {'event': msg}
+          yield msg
 
     @classmethod
     def execute(cls,
@@ -74,14 +70,25 @@ class GenerateDag(CacheAction):
         flow_name = message['flow_id']
 
         result_key = [ key for key in keys if key.startswith('dag:result')][0]
+        stream_error = lambda err, id: stream_output({"type": "error", "message": err, "id": id})
 
         # get codepackage from S3
-        with S3() as s3:
+        with NoRetryS3() as s3:
           try:
             codetar = s3.get(location)
-            results[result_key] = json.dumps([True, generate_dag(flow_name, codetar.path)])
+            results[result_key] = json.dumps(generate_dag(flow_name, codetar.path))
+          except MetaflowS3AccessDenied as ex:
+            stream_error(str(ex), "s3-access-denied")
+          except MetaflowS3NotFound as ex:
+            stream_error(str(ex), "s3-not-found")
+          except MetaflowS3URLException as ex:
+            stream_error(str(ex), "s3-bad-url")
+          except MetaflowS3CredentialsMissing as ex:
+            stream_error(str(ex), "s3-missing-credentials")
+          except MetaflowS3Exception as ex:
+            stream_error(str(ex), "s3-generic-error")
           except Exception as ex:
-            results[result_key] = json.dumps([False, "failed to generate dag: %s" % ex])
+            stream_error(str(ex), "dag-processing-error")
 
         return results
 
