@@ -1,6 +1,7 @@
 import os
 import json
 import boto3
+import botocore
 import codecs
 from urllib.parse import urlparse
 
@@ -47,8 +48,11 @@ class LogApi(object):
             try:
                 lines = await read_and_output(bucket, path)
                 return web_response(200, {'data': lines})
-            except Exception:
-                return web_response(502, {'data': []})
+            except botocore.exceptions.ClientError as err:
+                raise LogException(
+                    err.response['Error']['Message'], 'log-error-s3')
+            except Exception as err:
+                raise LogException(str(err), 'log-error')
         else:
             return web_response(404, {'data': []})
 
@@ -70,8 +74,11 @@ class LogApi(object):
             try:
                 lines = await read_and_output(bucket, path)
                 return web_response(200, {'data': lines})
-            except Exception:
-                return web_response(502, {'data': []})
+            except botocore.exceptions.ClientError as err:
+                raise LogException(
+                    err.response['Error']['Message'], 'log-error-s3')
+            except Exception as err:
+                raise LogException(str(err), 'log-error')
         else:
             return web_response(404, {'data': []})
 
@@ -140,3 +147,12 @@ async def read_and_output_ws(bucket, path, ws):
             'row': row,
             'line': line.strip(),
         }))
+
+
+class LogException(Exception):
+    def __init__(self, msg='Failed to read log', id='log-error'):
+        self.message = msg
+        self.id = id
+
+    def __str__(self):
+        return self.message
