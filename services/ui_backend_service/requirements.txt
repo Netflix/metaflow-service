@@ -4,3 +4,4 @@ psycopg2
 aiopg
 boto3
 pyee
+yarl==1.5.1
