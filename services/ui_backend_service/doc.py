@@ -3,10 +3,8 @@ def response_object(ref_definition: str):
         "type": "object",
         "properties": {
             "data": {
-                "type": "array",
-                "items": {
-                    "$ref": ref_definition
-                }
+                "type": "object",
+                "$ref": ref_definition
             },
             "status": {
                 "type": "integer",
@@ -133,6 +131,50 @@ def response_error(status: int):
         }
     }
 
+def response_internal_error(error_ids_and_descriptions = {}):
+    '''Formats a response object for internal errors. 
+    Includes all passed in keys in the 'id' enum field, along with 'generic-error'.
+    Includes all values as descriptions for the error ids.
+    '''
+    # Include the default error-id.
+    _errors = {
+        "generic-error": "Non-Specific Error",
+        **error_ids_and_descriptions
+    }
+    error_ids = list(_errors.keys())
+    description = "Specific error ID\n" + "\n".join([ f"* {id} - {desc}" for id, desc in _errors.items() ])
+    return {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "enum": error_ids,
+                "description": description
+            },
+            "traceback": {
+                "type": "string",
+                "description": "Stacktrace of the error"
+            },
+            "detail": {
+                "type": "string",
+                "description": "Detailed message of the error"
+            },
+            "status": {
+                "type": "integer",
+                "default": 500
+            },
+            "title": {
+                "type": "string",
+                "default": 'Internal Server Error'
+            },
+            "type": {
+                "type": "string",
+                "default": 'about:blank'
+            },
+        },
+        "required": ["id", "traceback", "detail", "status", "title", "type"]
+    }
+
 
 def path_param(name: str, description: str, param_type: str):
     return {
@@ -190,7 +232,6 @@ def modelprop(name: str, property_type: str, description: str, default_value):
             "default": default_value
         }
     }
-
 
 swagger_definitions = {
     "Params": {
@@ -283,7 +324,27 @@ swagger_definitions = {
     "ResponsesTaskList": response_list("#/definitions/ModelsTask"),
     "ResponsesMetadataList": response_list("#/definitions/ModelsMetadata"),
     "ResponsesArtifactList": response_list("#/definitions/ModelsArtifact"),
+    "ResponsesLog": response_object("#/definitions/ModelsLog"),
+    "ResponsesLogError500": response_internal_error(
+        {
+            "log-error-s3": "Something went wrong with S3 access",
+            "log-error": "Parsing the log failed"
+        }
+    ),
+    "ResponsesDag": response_object("#/definitions/ModelsDag"),
+    "ResponsesDagError500": response_internal_error(
+        {
+            "s3-access-failed": "S3 Access Failed",
+            "s3-not-found": "S3 error 404 not found",
+            "s3-bad-url": "S3 URL is malformed",
+            "s3-missing-credentials": "Missing credentials for S3 access",
+            "s3-generic-error": "Something went wrong with S3 access",
+            "dag-processing-error": "Processing the DAG Failed"
+        }
+    ),
     "ResponsesError405": response_error(405),
+    "ResponsesError404": response_error(404),
+    "ResponsesError500": response_internal_error(),
     "ModelsFlow": basemodel({}),
     "ModelsRun": basemodel({
         **modelprop("run_number", "integer", "Run number", 5),
@@ -323,6 +384,67 @@ swagger_definitions = {
         **modelprop("content_type", "string", "Content-type", "gzip+pickle-v2"),
         **modelprop("attempt_id", "integer", "Attempt id", 0),
     }),
+    "ModelsDag": {
+        "type": "object",
+        "properties": {
+            "start": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsDagNode",
+                "description": "First step of the flow"
+            },
+            "sample_step": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsDagNode",
+                "description": "One of many steps of the flow, name of the property can be anything, not just sample_step"
+            },
+            "end": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsDagNode",
+                "description": "Last step in the flow"
+            }
+        },
+        "required": ["start", "end"]
+    },
+    "ModelsDagNode": {
+        "type": "object",
+        "properties": {
+            "type": {
+                "type": "string",
+                "description": "DAG Node type"
+            },
+            "box_next": {
+                "type": "boolean",
+                "description": "Boolean value whether there is a next node inside the same split"
+            },
+            "box_ends": {
+                "type": "string",
+                "description": "name of step that joins the split"
+            },
+            "next": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "names of next steps that follow from this step"
+            }
+        },
+        "required": ["type", "box_next", "box_ends", "next"]
+    },
+    "ModelsLog": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "$ref": "#/definitions/ModelsLogRow"
+        }
+    },
+    "ModelsLogRow": {
+        "type": "object",
+        "properties": {
+            **modelprop("row", "int", "Row number", 0),
+            **modelprop("line", "string", "Log line content", "logged text")
+        },
+        "required": ["row", "line"]
+    }
 }
 
 swagger_description = "Metaflow UI backend service"

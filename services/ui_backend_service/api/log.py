@@ -32,32 +32,74 @@ class LogApi(object):
 
     @handle_exceptions
     async def get_task_log_stdout(self, request):
-        attempt_id = request.query.get("attempt_id", None)
-
-        bucket, path, _ = \
-            await get_metadata_log(
-                self._async_table.find_records,
-                request.match_info.get("flow_id"),
-                request.match_info.get("run_number"),
-                request.match_info.get("step_name"),
-                request.match_info.get("task_id"),
-                attempt_id,
-                STDOUT)
-
-        if bucket and path:
-            try:
-                lines = await read_and_output(bucket, path)
-                return web_response(200, {'data': lines})
-            except botocore.exceptions.ClientError as err:
-                raise LogException(
-                    err.response['Error']['Message'], 'log-error-s3')
-            except Exception as err:
-                raise LogException(str(err), 'log-error')
-        else:
-            return web_response(404, {'data': []})
+        """
+        ---
+        description: Get STDOUT log of a Task
+        tags:
+        - Task
+        parameters:
+          - $ref: '#/definitions/Params/Path/flow_id'
+          - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/definitions/Params/Path/step_name'
+          - $ref: '#/definitions/Params/Path/task_id'
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Return a tasks stdout log
+                schema:
+                  $ref: '#/definitions/ResponsesLog'
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+            "404":
+                description: Log for task could not be found
+                schema:
+                  $ref: '#/definitions/ResponsesError404'
+            "500":
+                description: Internal Server Error (with error id)
+                schema:
+                    $ref: '#/definitions/ResponsesLogError500'
+        """
+        return await self.get_task_log(request, STDOUT)
 
     @handle_exceptions
     async def get_task_log_stderr(self, request):
+        """
+        ---
+        description: Get STDERR log of a Task
+        tags:
+        - Task
+        parameters:
+          - $ref: '#/definitions/Params/Path/flow_id'
+          - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/definitions/Params/Path/step_name'
+          - $ref: '#/definitions/Params/Path/task_id'
+          - $ref: '#/definitions/Params/Custom/attempt_id'
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Return a tasks stderr log
+                schema:
+                  $ref: '#/definitions/ResponsesLog'
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+            "404":
+                description: Log for task could not be found
+                schema:
+                  $ref: '#/definitions/ResponsesError404'
+            "500":
+                description: Internal Server Error (with error id)
+                schema:
+                    $ref: '#/definitions/ResponsesLogError500'
+        """
+        return await self.get_task_log(request, STDERR)
+
+    async def get_task_log(self, request, logtype=STDOUT):
         attempt_id = request.query.get("attempt_id", None)
 
         bucket, path, _ = \
@@ -68,7 +110,7 @@ class LogApi(object):
                 request.match_info.get("step_name"),
                 request.match_info.get("task_id"),
                 attempt_id,
-                STDERR)
+                logtype)
 
         if bucket and path:
             try:
