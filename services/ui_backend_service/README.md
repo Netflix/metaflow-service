@@ -109,3 +109,16 @@ co = contains               *string*
 sw = starts with            ^string*
 ew = ends with              *string$
 ```
+
+## Custom Navigation links for UI
+You can customize the admin navigation links presented by the UI by renaming the provided `links.example.json` file to `links.json`. The backend service serves the contents of the file as-is, so be sure to adhere to the predefined structure.
+
+**Local Dev**
+Simply edit the `links.json` file content
+
+**Prebuilt docker image**
+You can mount a custom `links.json` when launching the Docker container with a command such as
+
+```bash
+  docker run -v /path/to/custom/links.json:/root/service/ui_backend_service/links.json metaflow/ui-service
+```

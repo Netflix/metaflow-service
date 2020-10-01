@@ -19,7 +19,7 @@ services:
       - MF_METADATA_DB_NAME=postgres
       - MF_UI_METADATA_PORT=${MF_UI_METADATA_PORT:-8083}
       - MF_UI_METADATA_HOST=${MF_UI_METADATA_HOST:-0.0.0.0}
-      - UI_ENABLED=1
+      - UI_ENABLED=0
     depends_on:
       - db
   metadata:

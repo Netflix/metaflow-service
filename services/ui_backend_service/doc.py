@@ -324,6 +324,13 @@ swagger_definitions = {
     "ResponsesTaskList": response_list("#/definitions/ModelsTask"),
     "ResponsesMetadataList": response_list("#/definitions/ModelsMetadata"),
     "ResponsesArtifactList": response_list("#/definitions/ModelsArtifact"),
+    "ResponsesLinkList": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "$ref": "#/definitions/ModelsLink"
+        }
+    },
     "ResponsesLog": response_object("#/definitions/ModelsLog"),
     "ResponsesLogError500": response_internal_error(
         {
@@ -384,6 +391,20 @@ swagger_definitions = {
         **modelprop("content_type", "string", "Content-type", "gzip+pickle-v2"),
         **modelprop("attempt_id", "integer", "Attempt id", 0),
     }),
+    "ModelsLink": {
+        "type": "object",
+        "properties": {
+            "href": {
+                "type": "string",
+                "description": "URL for the link"
+            },
+            "label": {
+                "type": "string",
+                "description": "Label for the link"
+            }
+        },
+        "required": ["href", "label"]
+    },
     "ModelsDag": {
         "type": "object",
         "properties": {
