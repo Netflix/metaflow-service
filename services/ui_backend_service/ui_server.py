@@ -21,6 +21,7 @@ from .api.ws import Websocket
 from .api.notify import ListenNotify
 from .api.heartbeat_monitor import RunHeartbeatMonitor
 from .cache.store import CacheStore
+from .frontend import Frontend
 
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration
@@ -57,6 +58,9 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     LogApi(app)
     AdminApi(app)
+
+    if os.environ.get("UI_ENABLED", 0) == "1":
+        Frontend(app)  # Serve UI bundle only if enabled
 
     setup_swagger(app,
                   description=swagger_description,

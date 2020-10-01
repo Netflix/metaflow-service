@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.ui_service
+      args:
+        UI_ENABLED: 0
     ports:
       - "${MF_UI_METADATA_PORT:-8083}:${MF_UI_METADATA_PORT:-8083}"
     volumes:
@@ -17,6 +19,7 @@ services:
       - MF_METADATA_DB_NAME=postgres
       - MF_UI_METADATA_PORT=${MF_UI_METADATA_PORT:-8083}
       - MF_UI_METADATA_HOST=${MF_UI_METADATA_HOST:-0.0.0.0}
+      - UI_ENABLED=1
     depends_on:
       - db
   metadata:
@@ -60,6 +63,7 @@ services:
       - db
   db:
     image: "postgres:11"
+    command: ["postgres", "-c", "log_statement=none"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

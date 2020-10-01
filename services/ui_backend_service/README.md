@@ -33,6 +33,16 @@ Optionally you can also overrider the host and port the service runs on:
 - `MF_UI_METADATA_PORT` [defaults to 8083]
 - `MF_UI_METADATA_HOST` [defaults to 0.0.0.0]
 
+Enable built-in UI bundle serving (assumes assets are located inside `ui/` folder):
+
+- `UI_ENABLED` [defaults to 0]
+
+This also works as a Docker build argument to download and install latest or specific UI release:
+
+> ```sh
+> $ docker build --arg UI_ENABLED=1 UI_VERSION=v0.1.2 ...
+> ```
+
 Running the service without Docker (from project root):
 
 > ```sh
