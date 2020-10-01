@@ -59,12 +59,15 @@ def app(loop=None, db_conf: DBConfiguration = None):
     LogApi(app)
     AdminApi(app)
 
-    if os.environ.get("UI_ENABLED", 0) == "1":
-        Frontend(app)  # Serve UI bundle only if enabled
-
     setup_swagger(app,
                   description=swagger_description,
                   definitions=swagger_definitions)
+
+    if os.environ.get("UI_ENABLED", 0) == "1":
+        # Serve UI bundle only if enabled
+        # This has to be placed last due to catch-all route
+        Frontend(app)
+
     return app
 
 
