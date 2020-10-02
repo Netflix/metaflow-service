@@ -7,9 +7,11 @@ RUN apt-get update && apt-get -y install python3.7 && apt-get -y install python3
 RUN pip3 install virtualenv && pip3 install requests
 
 RUN virtualenv /opt/v_1_0_1 -p python3
+RUN virtualenv /opt/v_2_0_4 -p python3
 RUN virtualenv /opt/latest -p python3
 
 RUN /opt/v_1_0_1/bin/pip install https://github.com/Netflix/metaflow-service/archive/1.0.1.zip
+RUN /opt/v_2_0_4/bin/pip install https://github.com/Netflix/metaflow-service/archive/2.0.4.zip
 
 ADD services/__init__.py /root/services/
 ADD services/data /root/services/data
