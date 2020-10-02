@@ -260,8 +260,9 @@ def resource_conditions(fullpath: str = None) -> (str, MultiDict, List[str], Lis
 
 
 async def find_records(request: web.BaseRequest, async_table=None, initial_conditions: List[str] = [], initial_values=[],
-                       allowed_order: List[str] = [], allowed_group: List[str] = [], allowed_filters: List[str] = [],
-                       postprocess: Callable[[DBResponse], DBResponse] = None, fetch_single=False, enable_joins=False):
+                       initial_order: List[str] = [], allowed_order: List[str] = [], allowed_group: List[str] = [],
+                       allowed_filters: List[str] = [], postprocess: Callable[[DBResponse], DBResponse] = None,
+                       fetch_single=False, enable_joins=False):
     page, limit, offset, order, groups, group_limit = pagination_query(
         request,
         allowed_order=allowed_order,
@@ -274,11 +275,12 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
 
     conditions = initial_conditions + builtin_conditions + custom_conditions
     values = initial_values + builtin_vals + custom_vals
+    ordering = (initial_order or []) + (order or [])
 
     results, pagination = await async_table.find_records(
         conditions=conditions, values=values, limit=limit, offset=offset,
-        order=order, groups=groups, group_limit=group_limit, fetch_single=fetch_single,
-        enable_joins=enable_joins, expanded=False
+        order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
+        fetch_single=fetch_single, enable_joins=enable_joins, expanded=False
     )
 
     # Modify the response after the fetch has been executed

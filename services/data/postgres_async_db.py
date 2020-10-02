@@ -187,9 +187,6 @@ class AsyncPostgresTable(object):
             {offset}
             """
 
-            if self.ordering and order == None:
-                order = self.ordering
-
             select_sql = sql_template.format(
                 keys=",".join(
                     self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
@@ -668,7 +665,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     _current_count = 0
     _row_type = TaskRow
     table_name = "tasks_v3"
-    ordering = ["attempt_id DESC"]
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
