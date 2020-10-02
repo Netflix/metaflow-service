@@ -525,7 +525,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         ts_epoch BIGINT NOT NULL,
         tags JSONB,
         system_tags JSONB,
-        PRIMARY KEY(flow_id, run_number, step_name, task_id, field_name)
+        PRIMARY KEY(id, flow_id, run_number, step_name, task_id, field_name)
     )
     """.format(
         table_name, task_table_name
