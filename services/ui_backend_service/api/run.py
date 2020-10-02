@@ -1,7 +1,10 @@
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import translate_run_key
+from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
-from .utils import find_records
+from .utils import find_records, web_response, format_response
+
+from ..cache.store import CacheStore
+import json
 
 
 class RunApi(object):
@@ -12,7 +15,12 @@ class RunApi(object):
             "GET", "/flows/{flow_id}/runs", self.get_flow_runs)
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}", self.get_run)
+        app.router.add_route(
+            "GET", "/flows/{flow_id}/runs/{run_number}/parameters", self.get_run_parameters)
+
         self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._artifact_table = AsyncPostgresDB.get_instance().artifact_table_postgres
+        self._artifact_store = CacheStore().artifact_cache
 
     @handle_exceptions
     async def get_run(self, request):
@@ -141,3 +149,90 @@ class RunApi(object):
                                   ["finished_at", "duration", "status"],
                                   enable_joins=True
                                   )
+
+    @handle_exceptions
+    async def get_run_parameters(self, request):
+        """
+         ---
+          description: Get parameters of a run
+          tags:
+          - Run
+          parameters:
+            - $ref: '#/definitions/Params/Path/flow_id'
+            - $ref: '#/definitions/Params/Path/run_number'
+          produces:
+          - application/json
+          responses:
+              "200":
+                  description: Returns parameters of a run
+                  schema:
+                    $ref: '#/definitions/ResponsesRunParameterList'
+              "405":
+                  description: invalid HTTP Method
+                  schema:
+                    $ref: '#/definitions/ResponsesError405'
+              "500":
+                  description: Internal Server Error (with error id)
+                  schema:
+                    $ref: '#/definitions/ResponsesRunParameterListError500'
+        """
+        flow_name = request.match_info['flow_id']
+        run_id_key, run_id_value = translate_run_key(
+            request.match_info.get("run_number")
+        )
+        # '_parameters' step has all the parameters as artifacts. only pick the
+        # public parameters (no underscore prefix)
+        db_response, _ = await self._artifact_table.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(run_id_key=run_id_key),
+                "step_name = %s",
+                "name NOT LIKE %s"
+            ],
+            values=[
+                flow_name,
+                run_id_value,
+                "_parameters",
+                "\_%"
+            ],
+            fetch_single=False
+        )
+        # We want to return a success and empty object in case the run simply had no parameters.
+        if not db_response.response_code == 200:
+            response = DBResponse(200, {})
+            status, body = format_response(request, response)
+            return web_response(status, body)
+
+        # Fetch the values for the given parameters.
+        locations = [art["location"]
+                     for art in db_response.body if "location" in art]
+        _params = await self._artifact_store.cache.GetArtifacts(locations)
+        if not _params.is_ready():
+            async for event in _params.stream():
+                if event["type"] == "error":
+                    # raise error, there was an exception during processing.
+                    raise GetParametersFailed(event["message"], event["id"])
+            await _params.wait()  # wait until results are ready
+        _params = _params.get()
+
+        combined_results = []
+        for art in db_response.body:
+            if "location" in art and art["location"] in _params:
+                combined_results.append({
+                    "name": art["name"],
+                    "value": _params[art["location"]]
+                })
+
+        response = DBResponse(200, combined_results)
+        status, body = format_response(request, response)
+
+        return web_response(status, body)
+
+
+class GetParametersFailed(Exception):
+    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters"):
+        self.message = msg
+        self.id = id
+
+    def __str__(self):
+        return self.message

@@ -318,6 +318,18 @@ swagger_definitions = {
     "ResponsesFlowList": response_list("#/definitions/ModelsFlow"),
     "ResponsesRun": response_object("#/definitions/ModelsRun"),
     "ResponsesRunList": response_list("#/definitions/ModelsRun"),
+    "ResponsesRunParameterList": response_list("#/definitions/ModelsRunParameter"),
+    "ResponsesRunParameterListError500": response_internal_error(
+        {
+            "s3-access-failed": "S3 Access Failed",
+            "s3-not-found": "S3 error 404 not found",
+            "s3-bad-url": "S3 URL is malformed",
+            "s3-missing-credentials": "Missing credentials for S3 access",
+            "s3-generic-error": "Something went wrong with S3 access",
+            "artifact-not-accessible": "Artifact was not accessible",
+            "artifact-handle-failed": "Processing the artifact failed",
+        }
+    ),
     "ResponsesStep": response_object("#/definitions/ModelsStep"),
     "ResponsesStepList": response_list("#/definitions/ModelsStep"),
     "ResponsesTask": response_object("#/definitions/ModelsTask"),
@@ -359,6 +371,13 @@ swagger_definitions = {
         **modelprop("finished_at", "integer", "Finished at epoch timestamp", 1591788834035),
         **modelprop("duration", "integer", "Duration in milliseconds (null if unfinished)", 456),
     }),
+    "ModelsRunParameter": {
+        "type": "object",
+        "properties": {
+            **modelprop("name", "string", "Name of the parameter", "param1"),
+            **modelprop("value", "string", "Value of the parameter", "A"),
+        }
+    },
     "ModelsStep": basemodel({
         **modelprop("run_number", "integer", "Run number", 5),
         **modelprop("step_name", "string", "Step name", "bonus_movie"),

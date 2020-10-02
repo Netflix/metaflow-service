@@ -1,6 +1,8 @@
 from services.data.postgres_async_db import AsyncPostgresDB
+from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .search_artifacts_action import SearchArtifacts
+from .get_artifacts_action import GetArtifacts
 import time
 import os
 
@@ -31,17 +33,17 @@ class CacheStore(object):
 METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50)
 class ArtifactCacheStore(object):
     def __init__(self, event_emitter):
-        self.event_emitter = event_emitter
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self._artifact_table = AsyncPostgresDB.get_instance().artifact_table_postgres
         self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
         self.cache = None
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
-        event_emitter.on("preload-artifacts", self.preload_event_handler)
+        self.event_emitter.on("preload-artifacts", self.preload_event_handler)
 
     async def start_cache(self):
-        actions = [SearchArtifacts]
+        actions = [SearchArtifacts, GetArtifacts]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                     actions,
                                     max_size=600000)
