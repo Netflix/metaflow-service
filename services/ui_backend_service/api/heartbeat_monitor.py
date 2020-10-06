@@ -78,6 +78,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
       self.remove_from_watch(run_id)
     
   async def add_to_watch(self, run_id):
+    # TODO: Optimize db trigger so we do not have to fetch a record in order to add it to the
+    # heartbeat monitor
     run = await self.get_run(run_id)
 
     if "last_heartbeat_ts" in run and "run_number" in run:
@@ -132,6 +134,8 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
       self.remove_from_watch(key)
     
   async def add_to_watch(self, data):
+    # TODO: Optimize db trigger so we do not have to fetch a record in order to add it to the
+    # heartbeat monitor
     task = await self.get_task(
       data["flow_id"],
       data["run_number"],
