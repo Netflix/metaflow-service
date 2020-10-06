@@ -11,7 +11,7 @@ def open_and_read_if_exists(path: str):
 
 
 requirements = []
-for service in ['utils', 'data', 'metadata_service', 'migration_service']:
+for service in ['utils', 'data', 'metadata_service', 'migration_service', 'ui_backend_service']:
     requirements += open_and_read_if_exists(
         "services/{}/requirements.txt".format(service)).splitlines()
 
@@ -37,9 +37,13 @@ setup(
         [console_scripts]
         metadata_service=services.metadata_service.server:main
         migration_service=services.migration_service.migration_server:main
+        ui_backend_service=services.ui_backend_service.ui_server:main
    ''',
     install_requires=requirements,
-    tests_require=requirements_tests,
+    tests_require=requirements + requirements_tests,
+    extras_require={
+        'test': requirements + requirements_tests
+    },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',

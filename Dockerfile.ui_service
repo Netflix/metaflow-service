@@ -1,0 +1,22 @@
+FROM python:3.7
+
+ARG UI_ENABLED="0"
+ARG UI_VERSION="v0.1.2"
+
+ENV UI_ENABLED=$UI_ENABLED
+ENV UI_VERSION=$UI_VERSION
+
+ADD services/__init__.py /root/services/__init__.py
+ADD services/data /root/services/data
+ADD services/utils /root/services/utils
+ADD services/ui_backend_service /root/services/ui_backend_service
+ADD setup.py setup.cfg /root/
+
+WORKDIR /root
+
+RUN services/ui_backend_service/download_ui.sh
+
+RUN pip install --editable .
+RUN pip install git+https://github.com/tuulos/metaflow.git@mfgui-cache
+
+CMD ui_backend_service
