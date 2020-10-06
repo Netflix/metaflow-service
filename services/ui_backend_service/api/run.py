@@ -1,5 +1,5 @@
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import DBResponse
+from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import find_records, web_response, format_response
 
@@ -46,14 +46,18 @@ class RunApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        run_number = request.match_info.get("run_number")
+        run_id_key, run_id_value = translate_run_key(
+            request.match_info.get("run_number"))
 
         return await find_records(request,
                                   self._async_table,
                                   fetch_single=True,
                                   initial_conditions=[
-                                      "flow_id = %s", "run_number = %s"],
-                                  initial_values=[flow_name, run_number],
+                                      "flow_id = %s",
+                                      "{run_id_key} = %s".format(
+                                          run_id_key=run_id_key),
+                                  ],
+                                  initial_values=[flow_name, run_id_value],
                                   enable_joins=True)
 
     @handle_exceptions
@@ -177,6 +181,7 @@ class RunApi(object):
         flow_name = request.match_info['flow_id']
         run_number = request.match_info.get("run_number")
 
+        # _artifact_store.get_run_parameters will translate run_number/run_id properly
         combined_results = await self._artifact_store.get_run_parameters(flow_name, run_number)
 
         response = DBResponse(200, combined_results)

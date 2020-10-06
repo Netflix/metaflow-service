@@ -42,6 +42,26 @@ async def test_list_tasks(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
 
 
+async def test_list_tasks_non_numerical(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_step), 200, [])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_step), 200, [])
+
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"),
+                            task_name="bar")).body
+    _task['status'] = 'running'
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
+
+
 async def test_single_task(cli, db):
     await _test_single_resource(cli, db, "/flows/HelloFlow/runs/404/steps/none/tasks/5", 404, {})
 
@@ -56,6 +76,21 @@ async def test_single_task(cli, db):
     _task['status'] = 'running'
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
+
+
+async def test_single_task_non_numerical(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), run_number=_run.get("run_number"), step_name="step")).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            run_number=_run.get("run_number"),
+                            step_name=_step.get("step_name"),
+                            task_name="bar")).body
+    _task['status'] = 'running'
+
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/bar".format(**_task), 200, _task)
 
 
 async def test_list_task_attempts(cli, db):
