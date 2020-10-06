@@ -47,8 +47,12 @@ class Websocket(object):
             for resource in resources:
                 if sub.resource == resource:
                     # Check if possible filters match this event
-                    filters_match_request = await self.db.apply_filters_to_data(
-                        data=data, conditions=sub.conditions, values=sub.values)
+                    # only if the subscription actually provided conditions.
+                    if sub.conditions:
+                        filters_match_request = await self.db.apply_filters_to_data(
+                            data=data, conditions=sub.conditions, values=sub.values)
+                    else:
+                        filters_match_request = True
                     if filters_match_request:
                         payload = {'type': operation, 'uuid': sub.uuid,
                                    'resource': resource, 'data': data}

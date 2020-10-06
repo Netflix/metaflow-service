@@ -1,4 +1,5 @@
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.data.db_utils import translate_run_key
 from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .search_artifacts_action import SearchArtifacts
@@ -41,6 +42,7 @@ class ArtifactCacheStore(object):
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
         self.event_emitter.on("preload-artifacts", self.preload_event_handler)
+        self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):
         actions = [SearchArtifacts, GetArtifacts]
@@ -94,6 +96,77 @@ class ArtifactCacheStore(object):
         # be sure to return a list of unique locations
         return list(frozenset(artifact['location'] for artifact in _records.body if 'location' in artifact))
     
+    async def get_run_parameters(self, flow_name, run_number):
+        '''Fetches run parameter artifact locations,
+        fetches the artifact content from S3, parses it, and returns
+        a formatted list of names&values
+
+        Returns
+        -------
+        [
+            {
+                "name": "name_of_parameter",
+                "value": "value-of-parameter-as-string"
+            }
+        ]
+        OR None
+        '''
+        run_id_key, run_id_value = translate_run_key(run_number)
+      
+        # '_parameters' step has all the parameters as artifacts. only pick the
+        # public parameters (no underscore prefix)
+        db_response, _ = await self._artifact_table.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(run_id_key=run_id_key),
+                "step_name = %s",
+                "name NOT LIKE %s",
+                "name <> %s"
+            ],
+            values=[
+                flow_name,
+                run_id_value,
+                "_parameters",
+                "\_%",
+                "name" #exclude the 'name' parameter as this always exists, and contains the FlowName
+            ],
+            fetch_single=False
+        )
+        # Return nothing if params artifacts were not found.
+        if not db_response.response_code == 200:
+            return None
+            
+        # Fetch the values for the given parameters through the cache client.
+        locations = [ art["location"] for art in db_response.body if "location" in art ]
+        _params = await self.cache.GetArtifacts(locations)
+        if not _params.is_ready():
+            async for event in _params.stream():
+                if event["type"] == "error":
+                    # raise error, there was an exception during processing.
+                    raise GetParametersFailed(event["message"], event["id"])
+            await _params.wait()  # wait until results are ready
+        _params = _params.get()
+
+        combined_results = {}
+        for art in db_response.body:
+            if "location" in art and art["location"] in _params:
+                key = art["name"]
+                combined_results[key] = {
+                    "value": _params[art["location"]]
+                }
+        
+        return combined_results
+    
+    async def run_parameters_event_handler(self, flow_id, run_number):
+        parameters = await self.get_run_parameters(flow_id, run_number)
+        if parameters:
+            self.event_emitter.emit(
+                "notify",
+                "UPDATE",
+                [f"/flows/{flow_id}/runs/{run_number}/parameters"],
+                parameters
+            )
+    
     async def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
         await self.preload_data_for_runs([run_id])
@@ -117,3 +190,11 @@ class DAGCacheStore(object):
     
     async def stop_cache(self):
         await self.cache.stop()
+
+class GetParametersFailed(Exception):
+    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters"):
+        self.message = msg
+        self.id = id
+
+    def __str__(self):
+        return self.message

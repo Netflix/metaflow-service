@@ -318,8 +318,8 @@ swagger_definitions = {
     "ResponsesFlowList": response_list("#/definitions/ModelsFlow"),
     "ResponsesRun": response_object("#/definitions/ModelsRun"),
     "ResponsesRunList": response_list("#/definitions/ModelsRun"),
-    "ResponsesRunParameterList": response_list("#/definitions/ModelsRunParameter"),
-    "ResponsesRunParameterListError500": response_internal_error(
+    "ResponsesRunParameters": response_object("#/definitions/ModelsRunParameters"),
+    "ResponsesRunParametersError500": response_internal_error(
         {
             "s3-access-failed": "S3 Access Failed",
             "s3-not-found": "S3 error 404 not found",
@@ -371,10 +371,18 @@ swagger_definitions = {
         **modelprop("finished_at", "integer", "Finished at epoch timestamp", 1591788834035),
         **modelprop("duration", "integer", "Duration in milliseconds (null if unfinished)", 456),
     }),
+    "ModelsRunParameters": {
+        "type": "object",
+        "properties": {
+            "run_parameter_name": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsRunParameter"
+            }
+        }
+    },
     "ModelsRunParameter": {
         "type": "object",
         "properties": {
-            **modelprop("name", "string", "Name of the parameter", "param1"),
             **modelprop("value", "string", "Value of the parameter", "A"),
         }
     },

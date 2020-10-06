@@ -48,6 +48,12 @@ class ListenNotify(object):
                         if table.table_name == self.db.run_table_postgres.table_name:
                             self.event_emitter.emit('run-heartbeat', 'update', data['run_number'])
 
+                        # Notify when Run parameters are ready.
+                        if operation == "INSERT" and \
+                                table.table_name == self.db.step_table_postgres.table_name and \
+                                data["step_name"] == "start":
+                            self.event_emitter.emit("run-parameters", data['flow_id'], data['run_number'])
+                        
                         # Notify related resources once new `_task_ok` artifact has been created
                         if operation == "INSERT" and \
                                 table.table_name == self.db.artifact_table_postgres.table_name and \
