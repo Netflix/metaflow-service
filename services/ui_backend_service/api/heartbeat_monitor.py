@@ -130,7 +130,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     if action == "update":
       await self.add_to_watch(data)
     elif action == "complete":
-      key = self.generate_hashmap_key(data)
+      key = self.generate_dict_key(data)
       self.remove_from_watch(key)
     
   async def add_to_watch(self, data):
@@ -143,7 +143,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
       data["task_id"]
     )
 
-    key = self.generate_hashmap_key(data)
+    key = self.generate_dict_key(data)
     if key and "last_heartbeat_ts" in task:
       heartbeat_ts = task["last_heartbeat_ts"]
       if heartbeat_ts is not None: # only start monitoring on runs that have a heartbeat
@@ -171,7 +171,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     resources = resource_list(self._task_table.table_name, task)
     self.event_emitter.emit('notify', 'UPDATE', resources, task)
   
-  def generate_hashmap_key(self, data):
+  def generate_dict_key(self, data):
     "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"
     try:
       return "{flow_id}/{run_number}/{step_name}/{task_id}".format(**data)
