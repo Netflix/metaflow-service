@@ -173,7 +173,6 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     task = await self.get_task(flow_id, run_number, step_name, task_id, attempt_id)
     resources = resource_list(self._task_table.table_name, task)
     self.event_emitter.emit('notify', 'UPDATE', resources, task)
-    print("HB expired for task:", task, flush=True)
   
   def generate_dict_key(self, data):
     "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"
