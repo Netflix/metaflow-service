@@ -143,41 +143,45 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
       data["task_id"]
     )
 
-    key = self.generate_dict_key(data)
+    key = self.generate_dict_key(task)
     if key and "last_heartbeat_ts" in task:
       heartbeat_ts = task["last_heartbeat_ts"]
       if heartbeat_ts is not None: # only start monitoring on runs that have a heartbeat
         self.watched[key] = heartbeat_ts
 
-  async def get_task(self, flow_id, run_number, step_name, task_id):
-    # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
+  async def get_task(self, flow_id, run_number, step_name, task_id, attempt_id = None):
+    "Fetches task from DB. Specifying attempt_id will fetch the specific attempt. Otherwise the newest attempt is returned."
+    # Remember to enable_joins for the query, otherwise the 'status' will be missing from the task
     # and we can not broadcast an up-to-date status.
+    conditions = ["flow_id = %s", "run_number = %s", "step_name = %s", "task_id = %s"]
+    values = [flow_id, run_number, step_name, task_id]
+    if attempt_id:
+      conditions.append("attempt_id = %s")
+      values.append(attempt_id)
+
     result, _ = await self._task_table.find_records(
-                            conditions=[
-                              "flow_id = %s",
-                              "run_number = %s",
-                              "step_name = %s",
-                              "task_id = %s"
-                            ],
-                            values=[flow_id, run_number, step_name, task_id],
+                            conditions=conditions,
+                            values=values,
+                            order=["attempt_id DESC"],
                             fetch_single=True,
                             enable_joins=True
                           )
     return result.body if result.response_code==200 else None
   
   async def load_and_broadcast(self, key):
-    flow_id, run_number, step_name, task_id = self.decode_key_ids(key)
-    task = await self.get_task(flow_id, run_number, step_name, task_id)
+    flow_id, run_number, step_name, task_id, attempt_id = self.decode_key_ids(key)
+    task = await self.get_task(flow_id, run_number, step_name, task_id, attempt_id)
     resources = resource_list(self._task_table.table_name, task)
     self.event_emitter.emit('notify', 'UPDATE', resources, task)
+    print("HB expired for task:", task, flush=True)
   
   def generate_dict_key(self, data):
     "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"
     try:
-      return "{flow_id}/{run_number}/{step_name}/{task_id}".format(**data)
+      return "{flow_id}/{run_number}/{step_name}/{task_id}/{attempt_id}".format(**data)
     except:
       return None
   
   def decode_key_ids(self, key):
-    flow, run, step, task = key.split("/")
-    return flow, run, step, task
+    flow, run, step, task, attempt = key.split("/")
+    return flow, run, step, task, attempt
