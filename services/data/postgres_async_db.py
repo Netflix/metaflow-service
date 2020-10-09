@@ -668,13 +668,38 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
-    joins = ["LEFT JOIN {artifacts_table} AS artifacts ON ({table_name}.flow_id = artifacts.flow_id AND {table_name}.task_id = artifacts.task_id AND artifacts.name = '_task_ok')"
-             .format(table_name=table_name, artifacts_table="artifact_v3")]
+    joins = [
+            """
+            LEFT JOIN (
+                SELECT
+                    temp.flow_id, temp.run_number, temp.step_name,
+                    temp.task_id, temp.ts_epoch as started_at,
+                    temp.value::int as attempt_id,
+                    done.ts_epoch as finished_at
+                FROM {metadata_table} as temp
+                LEFT JOIN {metadata_table} as done ON (
+                    temp.flow_id = done.flow_id AND
+                    temp.step_name = done.step_name AND
+                    temp.task_id = done.task_id AND
+                    done.field_name = 'attempt-done' AND
+                    temp.value = done.value
+                )
+                WHERE temp.field_name = 'attempt'
+            ) AS attempt ON (
+                {table_name}.flow_id = attempt.flow_id AND
+                {table_name}.run_number = attempt.run_number AND
+                {table_name}.step_name = attempt.step_name AND
+                {table_name}.task_id = attempt.task_id
+            )
+            """.format(table_name=table_name, metadata_table="metadata_v3"),
+            ]
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
-    join_columns = ["artifacts.ts_epoch AS finished_at",
+    join_columns = [
+                    "attempt.started_at as started_at",
+                    "attempt.finished_at as finished_at",
                     """
                     (CASE
-                        WHEN artifacts.ts_epoch IS NOT NULL
+                        WHEN attempt.finished_at IS NOT NULL
                         THEN 'completed'
                         WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                         AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
@@ -687,14 +712,15 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     ),
                     """
                     (CASE
-                        WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-                        THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-                        WHEN artifacts.ts_epoch IS NOT NULL
-                        THEN artifacts.ts_epoch - {table_name}.ts_epoch
+                        WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+                        THEN {table_name}.last_heartbeat_ts*1000-attempt.finished_at
+                        WHEN attempt.finished_at IS NOT NULL
+                        THEN attempt.finished_at - attempt.started_at
                         ELSE NULL
                     END) AS duration
                     """.format(table_name=table_name),
-                    "COALESCE(artifacts.attempt_id, 0) AS attempt_id"]
+                    "COALESCE(attempt.attempt_id, 0) AS attempt_id"
+                    ]
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (

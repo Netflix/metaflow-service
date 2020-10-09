@@ -171,6 +171,7 @@ class TaskRow(object):
     user_name: str = None
     status: str = None
     ts_epoch: int = 0
+    started_at: int = None
     finished_at: int = None
     duration: int = None
     attempt_id: int = 0
@@ -188,6 +189,7 @@ class TaskRow(object):
         task_name=None,
         status=None,
         ts_epoch=None,
+        started_at=None,
         finished_at=None,
         duration=None,
         attempt_id=0,
@@ -209,6 +211,7 @@ class TaskRow(object):
 
         self.status = status
         self.ts_epoch = ts_epoch
+        self.started_at = started_at
         self.finished_at = finished_at
         self.duration = duration
         self.attempt_id = attempt_id
@@ -228,6 +231,7 @@ class TaskRow(object):
                 "user_name": self.user_name,
                 "status": self.status,
                 "ts_epoch": self.ts_epoch,
+                "started_at": self.started_at,
                 "finished_at": self.finished_at,
                 "duration": self.duration,
                 "attempt_id": self.attempt_id,
@@ -244,6 +248,7 @@ class TaskRow(object):
                 "user_name": self.user_name,
                 "status": self.status,
                 "ts_epoch": self.ts_epoch,
+                "started_at": self.started_at,
                 "finished_at": self.finished_at,
                 "duration": self.duration,
                 "attempt_id": self.attempt_id,
