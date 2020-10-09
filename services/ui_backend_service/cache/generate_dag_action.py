@@ -87,6 +87,8 @@ class GenerateDag(CacheAction):
             stream_error(str(ex), "s3-missing-credentials")
           except MetaflowS3Exception as ex:
             stream_error(str(ex), "s3-generic-error")
+          except UnsupportedFlowLanguage as ex:
+            stream_error(str(ex), "dag-unsupported-flow-language")
           except Exception as ex:
             stream_error(str(ex), "dag-processing-error")
 
@@ -97,8 +99,12 @@ class GenerateDag(CacheAction):
 def generate_dag(flow_id, tarball_path):
   # extract the sourcecode from the tarball
   with TarFile.open(tarball_path) as f:
-    info = f.extractfile('INFO').read().decode('utf-8')
-    script_name = json.loads(info)['script']
+    info_json = f.extractfile('INFO').read().decode('utf-8')
+    info = json.loads(info_json)
+    # Break if language is not supported.
+    if info["use_r"]:
+      raise UnsupportedFlowLanguage
+    script_name = info['script']
     sourcecode = f.extractfile(script_name).read().decode('utf-8')
   
   # Initialize a FlowGraph object
@@ -113,3 +119,7 @@ def generate_dag(flow_id, tarball_path):
       'next': node.out_funcs
     }
   return dag
+
+class UnsupportedFlowLanguage(Exception):
+  def __str__(self):
+    return "Parsing DAG graph is not supported for the language used in this Flow."
