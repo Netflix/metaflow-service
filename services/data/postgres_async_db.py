@@ -668,35 +668,64 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
+    # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
+    # the older metadata service not recording separate metadata for task attempts. This is also the
+    # reason why we must join through the artifacts table, instead of directly from metadata.
+    # The join adds an 'old_run_data' boolean to inform whether the attempt timestamps 
+    # are trustworthy or not.
     joins = [
             """
             LEFT JOIN (
                 SELECT
-                    temp.flow_id, temp.run_number, temp.step_name,
-                    temp.task_id, temp.ts_epoch as started_at,
-                    temp.value::int as attempt_id,
-                    done.ts_epoch as finished_at
-                FROM {metadata_table} as temp
-                LEFT JOIN {metadata_table} as done ON (
-                    temp.flow_id = done.flow_id AND
-                    temp.step_name = done.step_name AND
-                    temp.task_id = done.task_id AND
-                    done.field_name = 'attempt-done' AND
-                    temp.value = done.value
+                    task_ok.flow_id, task_ok.run_number, task_ok.step_name,
+                    task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
+                    attempt.ts_epoch as started_at,
+                    done.ts_epoch as finished_at,
+                    (attempt.ts_epoch IS NULL AND done.ts_epoch IS NULL) as old_run_data
+                FROM {artifact_table} as task_ok
+                LEFT JOIN {metadata_table} as attempt ON (
+                    task_ok.flow_id = attempt.flow_id AND
+                    task_ok.step_name = attempt.step_name AND
+                    task_ok.task_id = attempt.task_id AND
+                    attempt.field_name = 'attempt' AND
+                    task_ok.attempt_id = attempt.value::int
                 )
-                WHERE temp.field_name = 'attempt'
+                LEFT JOIN {metadata_table} as done ON (
+                    task_ok.flow_id = done.flow_id AND
+                    task_ok.step_name = done.step_name AND
+                    task_ok.task_id = done.task_id AND
+                    done.field_name = 'attempt-done' AND
+                    task_ok.attempt_id = done.value::int
+                )
+                WHERE task_ok.name = '_task_ok'
             ) AS attempt ON (
                 {table_name}.flow_id = attempt.flow_id AND
                 {table_name}.run_number = attempt.run_number AND
                 {table_name}.step_name = attempt.step_name AND
                 {table_name}.task_id = attempt.task_id
             )
-            """.format(table_name=table_name, metadata_table="metadata_v3"),
+            """.format(
+                table_name=table_name,
+                metadata_table="metadata_v3",
+                artifact_table="artifact_v3"
+                ),
             ]
-    select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
+    select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys] 
     join_columns = [
-                    "attempt.started_at as started_at",
-                    "attempt.finished_at as finished_at",
+                    """
+                    (CASE
+                        WHEN attempt.old_run_data IS TRUE
+                        THEN {table_name}.ts_epoch
+                        ELSE attempt.started_at
+                    END) as started_at
+                    """.format(table_name=table_name),
+                    """
+                    (CASE
+                        WHEN attempt.old_run_data IS TRUE
+                        THEN attempt.ts_epoch
+                        ELSE attempt.finished_at
+                    END) as finished_at
+                    """,
                     """
                     (CASE
                         WHEN attempt.finished_at IS NOT NULL
@@ -712,8 +741,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     ),
                     """
                     (CASE
+                        WHEN attempt.old_run_data IS TRUE AND attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+                        THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
+                        WHEN attempt.old_run_data IS TRUE AND attempt.ts_epoch IS NOT NULL
+                        THEN attempt.ts_epoch - {table_name}.ts_epoch
                         WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-                        THEN {table_name}.last_heartbeat_ts*1000-attempt.finished_at
+                        THEN {table_name}.last_heartbeat_ts*1000-attempt.started_at
                         WHEN attempt.finished_at IS NOT NULL
                         THEN attempt.finished_at - attempt.started_at
                         ELSE NULL
