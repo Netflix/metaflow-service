@@ -3,6 +3,27 @@ name: Test
 on: [push]
 
 jobs:
+  codestyle:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [3.7]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python ${{ matrix.python-version }} dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pycodestyle
+      - name: Run Python PEP8 code style checks
+        continue-on-error: true
+        run: pycodestyle
+  
   unit:
     runs-on: ubuntu-latest
 
