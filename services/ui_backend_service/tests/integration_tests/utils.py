@@ -204,14 +204,14 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
         assert resp.status == expected_status
     except AssertionError as ex:
         print("expected status: {0} but got status: {1}".format(resp.status, expected_status))
-        raise ex
+        raise ex from None
 
     try:
         assert data == expected_data
     except AssertionError as ex:
         print("Expected data to be:\n", expected_data)
         print("Instead got data:\n", data)
-        raise ex
+        raise ex from None
 
 
 async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}):
