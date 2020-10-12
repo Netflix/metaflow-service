@@ -145,11 +145,15 @@ async def test_list_task_attempts(cli, db):
     _task_second_attempt = dict(_task)
 
     _task_first_attempt['attempt_id'] = 0
+    # as no other timestamps are available, the task ts_epoch will be used for started_at
+    _task_first_attempt['started_at'] = _task_first_attempt['ts_epoch']
     _task_first_attempt['finished_at'] = _artifact_first['ts_epoch']
     _task_first_attempt['duration'] = _artifact_first['ts_epoch'] - \
         _task_first_attempt['ts_epoch']
 
     _task_second_attempt['attempt_id'] = 1
+    # as no other timestamps are available, the task ts_epoch will be used for started_at
+    _task_second_attempt['started_at'] = _task_second_attempt['ts_epoch']
     _task_second_attempt['finished_at'] = _artifact_second['ts_epoch']
     _task_second_attempt['duration'] = _artifact_second['ts_epoch'] - \
         _task_second_attempt['ts_epoch']
@@ -208,6 +212,8 @@ async def test_task_with_multiple_attempts(cli, db):
     _task['status'] = 'completed'
 
     _task['attempt_id'] = 1
+    # as no other timestamps are available, the task ts_epoch will be used for started_at
+    _task['started_at'] = _task['ts_epoch']
     _task['finished_at'] = _artifact_second['ts_epoch']
     _task['duration'] = _artifact_second['ts_epoch'] - \
         _task['ts_epoch']
