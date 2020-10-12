@@ -728,6 +728,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     """,
                     """
                     (CASE
+                        WHEN attempt.old_run_data IS TRUE AND attempt.ts_epoch IS NOT NULL
+                        THEN 'completed'
                         WHEN attempt.finished_at IS NOT NULL
                         THEN 'completed'
                         WHEN {table_name}.last_heartbeat_ts IS NOT NULL
