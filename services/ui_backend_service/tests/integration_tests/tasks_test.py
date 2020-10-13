@@ -93,7 +93,8 @@ async def test_single_task_non_numerical(cli, db):
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/bar".format(**_task), 200, _task)
 
 
-async def test_list_task_attempts(cli, db):
+async def test_list_old_metadata_task_attempts(cli, db):
+    # Test tasks with old (missing attempt) metadata
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
@@ -163,7 +164,8 @@ async def test_list_task_attempts(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
 
 
-async def test_task_with_multiple_attempts(cli, db):
+async def test_old_metadata_task_with_multiple_attempts(cli, db):
+    # Test tasks with old (missing attempt) metadata
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
