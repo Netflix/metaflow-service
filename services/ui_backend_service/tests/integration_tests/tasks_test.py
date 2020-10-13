@@ -2,7 +2,7 @@ import pytest
 from .utils import (
     init_app, init_db, clean_db,
     add_flow, add_run, add_step, add_task, add_artifact,
-    _test_list_resources, _test_single_resource
+    _test_list_resources, _test_single_resource, add_metadata
 )
 pytestmark = [pytest.mark.integration_tests]
 
@@ -221,3 +221,165 @@ async def test_old_metadata_task_with_multiple_attempts(cli, db):
         _task['ts_epoch']
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
+
+async def test_task_with_attempt_metadata(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
+
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+    _task['status'] = 'running'
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+    _artifact_first = (await add_artifact(db,
+                                          flow_id=_task.get("flow_id"),
+                                          run_number=_task.get("run_number"),
+                                          run_id=_task.get("run_id"),
+                                          step_name=_task.get("step_name"),
+                                          task_id=_task.get("task_id"),
+                                          task_name=_task.get("task_name"),
+                                          artifact={
+                                              "name": "_task_ok",
+                                              "location": "location",
+                                              "ds_type": "ds_type",
+                                              "sha": "sha",
+                                              "type": "type",
+                                              "content_type": "content_type",
+                                              "attempt_id": 0})).body
+    _attempt_first = (await add_metadata(db,
+                                          flow_id=_task.get("flow_id"),
+                                          run_number=_task.get("run_number"),
+                                          run_id=_task.get("run_id"),
+                                          step_name=_task.get("step_name"),
+                                          task_id=_task.get("task_id"),
+                                          task_name=_task.get("task_name"),
+                                          metadata={
+                                              "field_name": "attempt",
+                                              "type": "attempt",
+                                              "value": "0"
+                                              })).body
+    _task['started_at'] = _attempt_first['ts_epoch']
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
+
+    _attempt_done_first = (await add_metadata(db,
+                                          flow_id=_task.get("flow_id"),
+                                          run_number=_task.get("run_number"),
+                                          run_id=_task.get("run_id"),
+                                          step_name=_task.get("step_name"),
+                                          task_id=_task.get("task_id"),
+                                          task_name=_task.get("task_name"),
+                                          metadata={
+                                              "field_name": "attempt-done",
+                                              "type": "attempt-done",
+                                              "value": "0"
+                                              })).body
+    _task['finished_at'] = _attempt_done_first['ts_epoch']
+    _task['status'] = 'completed'
+    _task['duration'] = _task['finished_at']-_task['started_at']
+    
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
+
+async def test_list_task_attempts(cli, db):
+    # Test tasks with old (missing attempt) metadata
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
+
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+    _task['status'] = 'running'
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+    _artifact_first = (await add_artifact(db,
+                                          flow_id=_task.get("flow_id"),
+                                          run_number=_task.get("run_number"),
+                                          run_id=_task.get("run_id"),
+                                          step_name=_task.get("step_name"),
+                                          task_id=_task.get("task_id"),
+                                          task_name=_task.get("task_name"),
+                                          artifact={
+                                              "name": "_task_ok",
+                                              "location": "location",
+                                              "ds_type": "ds_type",
+                                              "sha": "sha",
+                                              "type": "type",
+                                              "content_type": "content_type",
+                                              "attempt_id": 0})).body
+    _attempt_first = (await add_metadata(db,
+                                        flow_id=_task.get("flow_id"),
+                                        run_number=_task.get("run_number"),
+                                        run_id=_task.get("run_id"),
+                                        step_name=_task.get("step_name"),
+                                        task_id=_task.get("task_id"),
+                                        task_name=_task.get("task_name"),
+                                        metadata={
+                                            "field_name": "attempt",
+                                            "type": "attempt",
+                                            "value": "0"
+                                            })).body
+    _attempt_done_first = (await add_metadata(db,
+                                        flow_id=_task.get("flow_id"),
+                                        run_number=_task.get("run_number"),
+                                        run_id=_task.get("run_id"),
+                                        step_name=_task.get("step_name"),
+                                        task_id=_task.get("task_id"),
+                                        task_name=_task.get("task_name"),
+                                        metadata={
+                                            "field_name": "attempt-done",
+                                            "type": "attempt-done",
+                                            "value": "0"
+                                            })).body
+
+    _artifact_second = (await add_artifact(db,
+                                           flow_id=_task.get("flow_id"),
+                                           run_number=_task.get("run_number"),
+                                           run_id=_task.get("run_id"),
+                                           step_name=_task.get("step_name"),
+                                           task_id=_task.get("task_id"),
+                                           task_name=_task.get("task_name"),
+                                           artifact={
+                                               "name": "_task_ok",
+                                               "location": "location",
+                                               "ds_type": "ds_type",
+                                               "sha": "sha",
+                                               "type": "type",
+                                               "content_type": "content_type",
+                                               "attempt_id": 1})).body
+    _attempt_second = (await add_metadata(db,
+                                        flow_id=_task.get("flow_id"),
+                                        run_number=_task.get("run_number"),
+                                        run_id=_task.get("run_id"),
+                                        step_name=_task.get("step_name"),
+                                        task_id=_task.get("task_id"),
+                                        task_name=_task.get("task_name"),
+                                        metadata={
+                                            "field_name": "attempt",
+                                            "type": "attempt",
+                                            "value": "1"
+                                            })).body
+
+    _task_first_attempt = dict(_task)
+    _task_second_attempt = dict(_task)
+
+    _task_first_attempt['attempt_id'] = 0
+    _task_first_attempt['status'] = 'completed'
+    _task_first_attempt['started_at'] = _attempt_first['ts_epoch']
+    _task_first_attempt['finished_at'] = _attempt_done_first['ts_epoch']
+    _task_first_attempt['duration'] = _task_first_attempt['finished_at'] \
+                                    - _task_first_attempt['started_at']
+
+    _task_second_attempt['attempt_id'] = 1
+    _task_second_attempt['started_at'] = _attempt_second['ts_epoch']
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
