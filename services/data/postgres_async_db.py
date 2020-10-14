@@ -672,66 +672,67 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     # the older metadata service not recording separate metadata for task attempts. This is also the
     # reason why we must join through the artifacts table, instead of directly from metadata.
     joins = [
-            """
-            LEFT JOIN (
-                SELECT
-                    task_ok.flow_id, task_ok.run_number, task_ok.step_name,
-                    task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
-                    attempt.ts_epoch as started_at,
-                    COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at
-                FROM {artifact_table} as task_ok
-                LEFT JOIN {metadata_table} as attempt ON (
-                    task_ok.flow_id = attempt.flow_id AND
-                    task_ok.step_name = attempt.step_name AND
-                    task_ok.task_id = attempt.task_id AND
-                    attempt.field_name = 'attempt' AND
-                    task_ok.attempt_id = attempt.value::int
-                )
-                LEFT JOIN {metadata_table} as done ON (
-                    task_ok.flow_id = done.flow_id AND
-                    task_ok.step_name = done.step_name AND
-                    task_ok.task_id = done.task_id AND
-                    done.field_name = 'attempt-done' AND
-                    task_ok.attempt_id = done.value::int
-                )
-                WHERE task_ok.name = '_task_ok'
-            ) AS attempt ON (
-                {table_name}.flow_id = attempt.flow_id AND
-                {table_name}.run_number = attempt.run_number AND
-                {table_name}.step_name = attempt.step_name AND
-                {table_name}.task_id = attempt.task_id
+        """
+        LEFT JOIN (
+            SELECT
+                task_ok.flow_id, task_ok.run_number, task_ok.step_name,
+                task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
+                attempt.ts_epoch as started_at,
+                COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at
+            FROM {artifact_table} as task_ok
+            LEFT JOIN {metadata_table} as attempt ON (
+                task_ok.flow_id = attempt.flow_id AND
+                task_ok.step_name = attempt.step_name AND
+                task_ok.task_id = attempt.task_id AND
+                attempt.field_name = 'attempt' AND
+                task_ok.attempt_id = attempt.value::int
             )
-            """.format(
-                table_name=table_name,
-                metadata_table="metadata_v3",
-                artifact_table="artifact_v3"
-                ),
-            ]
-    select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys] 
+            LEFT JOIN {metadata_table} as done ON (
+                task_ok.flow_id = done.flow_id AND
+                task_ok.step_name = done.step_name AND
+                task_ok.task_id = done.task_id AND
+                done.field_name = 'attempt-done' AND
+                task_ok.attempt_id = done.value::int
+            )
+            WHERE task_ok.name = '_task_ok'
+        ) AS attempt ON (
+            {table_name}.flow_id = attempt.flow_id AND
+            {table_name}.run_number = attempt.run_number AND
+            {table_name}.step_name = attempt.step_name AND
+            {table_name}.task_id = attempt.task_id
+        )
+        """.format(
+            table_name=table_name,
+            metadata_table="metadata_v3",
+            artifact_table="artifact_v3"
+        ),
+    ]
+    select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = [
-                    "attempt.started_at as started_at",
-                    "attempt.finished_at as finished_at",
-                    """
-                    (CASE
-                        WHEN attempt.finished_at IS NOT NULL
-                        THEN 'completed'
-                        ELSE 'running'
-                    END) AS status
-                    """.format(
-                        table_name=table_name,
-                        heartbeat_threshold=WAIT_TIME
-                    ),
-                    """
-                    (CASE
-                        WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-                        THEN {table_name}.last_heartbeat_ts*1000-attempt.started_at
-                        WHEN attempt.finished_at IS NOT NULL
-                        THEN attempt.finished_at - COALESCE(attempt.started_at, {table_name}.ts_epoch)
-                        ELSE NULL
-                    END) AS duration
-                    """.format(table_name=table_name),
-                    "COALESCE(attempt.attempt_id, 0) AS attempt_id"
-                    ]
+        "attempt.started_at as started_at",
+        "attempt.finished_at as finished_at",
+        """
+        (CASE
+            WHEN attempt.finished_at IS NOT NULL
+            THEN 'completed'
+            ELSE 'running'
+        END) AS status
+        """.format(
+            table_name=table_name
+        ),
+        """
+        (CASE
+            WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+            THEN {table_name}.last_heartbeat_ts*1000-attempt.started_at
+            WHEN attempt.finished_at IS NOT NULL
+            THEN attempt.finished_at - COALESCE(attempt.started_at, {table_name}.ts_epoch)
+            ELSE NULL
+        END) AS duration
+        """.format(
+            table_name=table_name
+        ),
+        "COALESCE(attempt.attempt_id, 0) AS attempt_id"
+    ]
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
