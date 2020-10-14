@@ -671,8 +671,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
     # the older metadata service not recording separate metadata for task attempts. This is also the
     # reason why we must join through the artifacts table, instead of directly from metadata.
-    # The join adds an 'old_run_data' boolean to inform whether the attempt timestamps 
-    # are trustworthy or not.
     joins = [
             """
             LEFT JOIN (
@@ -680,8 +678,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     task_ok.flow_id, task_ok.run_number, task_ok.step_name,
                     task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
                     attempt.ts_epoch as started_at,
-                    done.ts_epoch as finished_at,
-                    (attempt.ts_epoch IS NULL AND done.ts_epoch IS NULL) as old_run_data
+                    COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at
                 FROM {artifact_table} as task_ok
                 LEFT JOIN {metadata_table} as attempt ON (
                     task_ok.flow_id = attempt.flow_id AND
@@ -712,29 +709,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             ]
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys] 
     join_columns = [
+                    "attempt.started_at as started_at",
+                    "attempt.finished_at as finished_at",
                     """
                     (CASE
-                        WHEN attempt.old_run_data IS TRUE
-                        THEN {table_name}.ts_epoch
-                        ELSE attempt.started_at
-                    END) as started_at
-                    """.format(table_name=table_name),
-                    """
-                    (CASE
-                        WHEN attempt.old_run_data IS TRUE
-                        THEN attempt.ts_epoch
-                        ELSE attempt.finished_at
-                    END) as finished_at
-                    """,
-                    """
-                    (CASE
-                        WHEN attempt.old_run_data IS TRUE AND attempt.ts_epoch IS NOT NULL
-                        THEN 'completed'
                         WHEN attempt.finished_at IS NOT NULL
                         THEN 'completed'
-                        WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                        AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-                        THEN 'failed'
                         ELSE 'running'
                     END) AS status
                     """.format(
@@ -743,14 +723,10 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     ),
                     """
                     (CASE
-                        WHEN attempt.old_run_data IS TRUE AND attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-                        THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-                        WHEN attempt.old_run_data IS TRUE AND attempt.ts_epoch IS NOT NULL
-                        THEN attempt.ts_epoch - {table_name}.ts_epoch
                         WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
                         THEN {table_name}.last_heartbeat_ts*1000-attempt.started_at
                         WHEN attempt.finished_at IS NOT NULL
-                        THEN attempt.finished_at - attempt.started_at
+                        THEN attempt.finished_at - COALESCE(attempt.started_at, {table_name}.ts_epoch)
                         ELSE NULL
                     END) AS duration
                     """.format(table_name=table_name),

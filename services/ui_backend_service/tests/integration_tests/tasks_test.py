@@ -81,15 +81,11 @@ async def test_list_old_metadata_task_attempts(cli, db):
     _task_second_attempt = dict(_task)
 
     _task_first_attempt['attempt_id'] = 0
-    # as no other timestamps are available, the task ts_epoch will be used for started_at
-    _task_first_attempt['started_at'] = _task_first_attempt['ts_epoch']
     _task_first_attempt['finished_at'] = _artifact_first['ts_epoch']
     _task_first_attempt['duration'] = _artifact_first['ts_epoch'] - \
         _task_first_attempt['ts_epoch']
 
     _task_second_attempt['attempt_id'] = 1
-    # as no other timestamps are available, the task ts_epoch will be used for started_at
-    _task_second_attempt['started_at'] = _task_second_attempt['ts_epoch']
     _task_second_attempt['finished_at'] = _artifact_second['ts_epoch']
     _task_second_attempt['duration'] = _artifact_second['ts_epoch'] - \
         _task_second_attempt['ts_epoch']
@@ -112,8 +108,6 @@ async def test_old_metadata_task_with_multiple_attempts(cli, db):
     _task['status'] = 'completed'
 
     _task['attempt_id'] = 1
-    # as no other timestamps are available, the task ts_epoch will be used for started_at
-    _task['started_at'] = _task['ts_epoch']
     _task['finished_at'] = _artifact_second['ts_epoch']
     _task['duration'] = _artifact_second['ts_epoch'] - \
         _task['ts_epoch']
@@ -125,14 +119,16 @@ async def test_task_with_attempt_metadata(cli, db):
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
 
-    _artifact_first = await create_ok_artifact_for_task(db, _task)
     _attempt_first = await create_task_attempt_metadata(db, _task)
+    _artifact_first = await create_ok_artifact_for_task(db, _task)
     _task['started_at'] = _attempt_first['ts_epoch']
+    _task['finished_at'] = _artifact_first['ts_epoch']
+    _task['duration'] = _task['finished_at']-_task['started_at']
+    _task['status'] = 'completed'
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
 
     _attempt_done_first = await create_task_attempt_done_metadata(db, _task)
     _task['finished_at'] = _attempt_done_first['ts_epoch']
-    _task['status'] = 'completed'
     _task['duration'] = _task['finished_at']-_task['started_at']
     
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
@@ -142,13 +138,12 @@ async def test_list_task_attempts(cli, db):
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
 
-    _artifact_first = await create_ok_artifact_for_task(db, _task)
     _attempt_first = await create_task_attempt_metadata(db, _task)
+    _artifact_first = await create_ok_artifact_for_task(db, _task)
     _attempt_done_first = await create_task_attempt_done_metadata(db, _task)
 
-    # Second task will remain 'running' without attempt-done metadata
-    _artifact_second = await create_ok_artifact_for_task(db, _task, attempt = 1)
     _attempt_second = await create_task_attempt_metadata(db, _task, attempt = 1)
+    _artifact_second = await create_ok_artifact_for_task(db, _task, attempt = 1)
 
     _task_first_attempt = dict(_task)
     _task_second_attempt = dict(_task)
@@ -160,8 +155,13 @@ async def test_list_task_attempts(cli, db):
     _task_first_attempt['duration'] = _task_first_attempt['finished_at'] \
                                     - _task_first_attempt['started_at']
 
+    # Second attempt counts as completed as well due to the _task_ok existing.
     _task_second_attempt['attempt_id'] = 1
+    _task_second_attempt['status'] = 'completed'
     _task_second_attempt['started_at'] = _attempt_second['ts_epoch']
+    _task_second_attempt['finished_at'] = _artifact_second['ts_epoch']
+    _task_second_attempt['duration'] = _task_second_attempt['finished_at'] \
+                                    - _task_second_attempt['started_at']
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
 
