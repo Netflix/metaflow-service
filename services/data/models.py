@@ -170,6 +170,7 @@ class TaskRow(object):
     task_name: str = None
     user_name: str = None
     status: str = None
+    task_ok: str = None
     ts_epoch: int = 0
     finished_at: int = None
     duration: int = None
@@ -187,6 +188,7 @@ class TaskRow(object):
         task_id=None,
         task_name=None,
         status=None,
+        task_ok=None,
         ts_epoch=None,
         finished_at=None,
         duration=None,
@@ -208,6 +210,7 @@ class TaskRow(object):
             ts_epoch = int(round(time.time() * 1000))
 
         self.status = status
+        self.task_ok = task_ok
         self.ts_epoch = ts_epoch
         self.finished_at = finished_at
         self.duration = duration
@@ -227,6 +230,7 @@ class TaskRow(object):
                 "task_name": self.task_name,
                 "user_name": self.user_name,
                 "status": self.status,
+                "task_ok": self.task_ok,
                 "ts_epoch": self.ts_epoch,
                 "finished_at": self.finished_at,
                 "duration": self.duration,
@@ -243,6 +247,7 @@ class TaskRow(object):
                 "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
                 "user_name": self.user_name,
                 "status": self.status,
+                "task_ok": self.task_ok,
                 "ts_epoch": self.ts_epoch,
                 "finished_at": self.finished_at,
                 "duration": self.duration,

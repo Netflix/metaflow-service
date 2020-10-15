@@ -671,7 +671,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     joins = ["LEFT JOIN {artifacts_table} AS artifacts ON ({table_name}.flow_id = artifacts.flow_id AND {table_name}.task_id = artifacts.task_id AND artifacts.name = '_task_ok')"
              .format(table_name=table_name, artifacts_table="artifact_v3")]
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
-    join_columns = ["artifacts.ts_epoch AS finished_at",
+    join_columns = ["artifacts.location AS task_ok",
+                    "artifacts.ts_epoch AS finished_at",
                     """
                     (CASE
                         WHEN artifacts.ts_epoch IS NOT NULL
