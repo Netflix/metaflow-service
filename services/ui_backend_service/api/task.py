@@ -146,7 +146,8 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
-                                  enable_joins=True
+                                  enable_joins=True,
+                                  postprocess=self._postprocess
                                   )
 
     @handle_exceptions
@@ -273,7 +274,7 @@ class TaskApi(object):
 
         def _cleanup(item):
             # TODO: test if 'running' statuses go through correctly.
-            item['status'] = item['status'] if item['task_ok'] else 'failed'
+            item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
             item.pop('task_ok')
             return item
 
