@@ -1,9 +1,11 @@
+import time
 from urllib.parse import urlsplit, parse_qsl
 from multidict import MultiDict
 from aiohttp import web
 from typing import Callable, List, Dict
 from services.data.db_utils import DBResponse
 from services.utils import format_qs, format_baseurl, web_response
+from collections import deque
 
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
@@ -156,7 +158,7 @@ def builtin_conditions_query_dict(query: MultiDict):
 
                 conditions.append(
                     "tags||system_tags::text LIKE {}(array[{}])"
-                    .format(compare, ",".join(["%s"]*len(tags))))
+                    .format(compare, ",".join(["%s"] * len(tags))))
                 values += map(lambda t: "%{}%".format(t), tags)
 
             else:
@@ -165,7 +167,7 @@ def builtin_conditions_query_dict(query: MultiDict):
                 compare = "?|" if operator == "any" else "?&"
 
                 conditions.append("tags||system_tags {} array[{}]".format(
-                    compare, ",".join(["%s"]*len(tags))))
+                    compare, ",".join(["%s"] * len(tags))))
                 values += tags
 
     return conditions, values
@@ -294,3 +296,28 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         status, res = format_response_list(
             request, results, page, pagination.pages_total)
         return web_response(status, res)
+
+
+class TTLQueue:
+    def __init__(self, ttl_in_seconds: int):
+        self._ttl: int = ttl_in_seconds
+        self._queue = deque()
+
+    def append(self, value: any):
+        self._queue.append((time.time(), value))
+        self.discard_expired_values()
+
+    def discard_expired_values(self):
+        cutoff_time = time.time() - self._ttl
+        try:
+            while self._queue[0][0] < cutoff_time:
+                self._queue.popleft()
+        except IndexError:
+            pass
+
+    def values(self):
+        self.discard_expired_values()
+        return self._queue
+
+    def values_since(self, since_epoch: int):
+        return [value for value in self.values() if value[0] >= since_epoch]
