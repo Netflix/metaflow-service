@@ -20,8 +20,8 @@ class Refinery(object):
         data = await self.fetch_data(locations)
         _rec = record
         for k, v in _rec.items():
-            if k in self.field_names and v in data:
-                _rec[k] = data[v]
+            if k in self.field_names:
+                _rec[k] = data[v] if v in data else None
         return _rec
 
     async def refine_records(self, records):
@@ -31,8 +31,8 @@ class Refinery(object):
         _recs = []
         for rec in records:
             for k, v in rec.items():
-                if k in self.field_names and v in data:
-                    rec[k] = data[v]
+                 if k in self.field_names:
+                    rec[k] = data[v] if v in data else None
             _recs.append(rec)
         return _recs
 

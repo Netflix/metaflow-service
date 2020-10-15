@@ -194,7 +194,8 @@ class TaskApi(object):
                                   initial_values=[
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
-                                  enable_joins=True)
+                                  enable_joins=True,
+                                  postprocess=self.refiner.postprocess)
 
     @handle_exceptions
     async def get_task_attempts(self, request):
@@ -258,5 +259,6 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
-                                  enable_joins=True
+                                  enable_joins=True,
+                                  postprocess=self.refiner.postprocess
                                   )
