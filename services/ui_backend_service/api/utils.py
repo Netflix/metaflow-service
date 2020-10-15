@@ -4,7 +4,7 @@ from aiohttp import web
 from typing import Callable, List, Dict
 from services.data.db_utils import DBResponse
 from services.utils import format_qs, format_baseurl, web_response
-from inspect import isawaitable
+from asyncio import iscoroutinefunction
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
     query = {}
@@ -285,7 +285,10 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
 
     # Modify the response after the fetch has been executed
     if postprocess is not None:
-            results = (await postprocess(results)) if isawaitable(postprocess) else postprocess(results)
+        if iscoroutinefunction(postprocess):
+            results = await postprocess(results)
+        else:
+            results = postprocess(results)
 
     if fetch_single:
         status, res = format_response(request, results)

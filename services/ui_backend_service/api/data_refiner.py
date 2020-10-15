@@ -37,10 +37,13 @@ class Refinery(object):
         return _recs
 
     async def fetch_data(self, locations):
-        _res = await self.artifact_store.cache.GetArtifacts(locations)
-        if not _res.is_ready():
-            await _res.wait()
-        return _res.get()
+        try:
+            _res = await self.artifact_store.cache.GetArtifacts(locations)
+            if not _res.is_ready():
+                await _res.wait()
+            return _res.get()
+        except:
+            return {}
 
     async def postprocess(self, response: DBResponse):
         """
