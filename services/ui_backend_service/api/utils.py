@@ -285,7 +285,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
 
     # Modify the response after the fetch has been executed
     if postprocess is not None:
-        results = postprocess(results)
+        results = await postprocess(results)
 
     if fetch_single:
         status, res = format_response(request, results)
