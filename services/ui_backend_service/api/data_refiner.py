@@ -11,7 +11,7 @@ class Refinery(object):
     field_names: list of field names that contain S3 locations to be replaced with content.
     """
 
-    def __init__(self, field_names=[]):
+    def __init__(self, field_names):
         self.artifact_store = CacheStore().artifact_cache
         self.field_names = field_names
 
@@ -45,7 +45,7 @@ class Refinery(object):
         except:
             return {}
 
-    async def postprocess(self, response: DBResponse):
+    async def _postprocess(self, response: DBResponse):
         """
         Async post processing callback that can be used as the find_records helpers
         postprocessing parameter.
@@ -62,3 +62,33 @@ class Refinery(object):
 
         return DBResponse(response_code=response.response_code,
                           body=body)
+
+class TaskRefiner(Refinery):
+    """
+    Refiner class for postprocessing Task rows.
+
+    Fetches specified content from S3 and cleans up unnecessary fields from response.
+    """
+    def __init__(self, field_names):
+        super().__init__(field_names)
+    
+    async def postprocess(self, response: DBResponse):
+        """Calls the refiner postprocessing to fetch S3 values for content.
+        Cleans up returned fields, for example by combining 'task_ok' boolean into the 'status'
+        """
+        refined_response = await self._postprocess(response)
+        if response.response_code != 200 or not response.body:
+            return response
+
+        def _cleanup(item):
+            # TODO: test if 'running' statuses go through correctly.
+            item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
+            item.pop('task_ok')
+            return item
+
+        if isinstance(refined_response.body, list):
+            body = [_cleanup(task) for task in refined_response.body ]
+        else:
+            body = _cleanup(refined_response.body)
+        
+        return DBResponse(response_code=refined_response.response_code, body=body)

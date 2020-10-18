@@ -2,7 +2,7 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
-from .data_refiner import Refinery
+from .data_refiner import TaskRefiner
 
 
 class TaskApi(object):
@@ -28,7 +28,7 @@ class TaskApi(object):
             self.get_task_attempts,
         )
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
-        self.refiner = Refinery(field_names=["task_ok"])
+        self.refiner = TaskRefiner(field_names=["task_ok"])
 
     @handle_exceptions
     async def get_run_tasks(self, request):
@@ -86,7 +86,7 @@ class TaskApi(object):
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self._postprocess
+                                  postprocess=self.refiner.postprocess
                                   )
 
     @handle_exceptions
@@ -147,7 +147,7 @@ class TaskApi(object):
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self._postprocess
+                                  postprocess=self.refiner.postprocess
                                   )
 
     @handle_exceptions
@@ -196,7 +196,7 @@ class TaskApi(object):
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
                                   enable_joins=True,
-                                  postprocess=self._postprocess)
+                                  postprocess=self.refiner.postprocess)
 
     @handle_exceptions
     async def get_task_attempts(self, request):
@@ -261,26 +261,5 @@ class TaskApi(object):
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self._postprocess
+                                  postprocess=self.refiner.postprocess
                                   )
-
-    async def _postprocess(self, response: DBResponse):
-        """Calls the refiner postprocessing to fetch S3 values for content.
-        Cleans up returned fields, for example by combining 'task_ok' boolean into the 'status'
-        """
-        refined_response = await self.refiner.postprocess(response)
-        if response.response_code != 200 or not response.body:
-            return response
-
-        def _cleanup(item):
-            # TODO: test if 'running' statuses go through correctly.
-            item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
-            item.pop('task_ok')
-            return item
-
-        if isinstance(refined_response.body, list):
-            body = [_cleanup(task) for task in refined_response.body ]
-        else:
-            body = _cleanup(refined_response.body)
-        
-        return DBResponse(response_code=refined_response.response_code, body=body)
