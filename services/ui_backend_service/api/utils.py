@@ -303,11 +303,11 @@ class TTLQueue:
         self._ttl: int = ttl_in_seconds
         self._queue = deque()
 
-    def append(self, value: any):
+    async def append(self, value: any):
         self._queue.append((time.time(), value))
-        self.discard_expired_values()
+        await self.discard_expired_values()
 
-    def discard_expired_values(self):
+    async def discard_expired_values(self):
         cutoff_time = time.time() - self._ttl
         try:
             while self._queue[0][0] < cutoff_time:
@@ -315,9 +315,9 @@ class TTLQueue:
         except IndexError:
             pass
 
-    def values(self):
-        self.discard_expired_values()
+    async def values(self):
+        await self.discard_expired_values()
         return self._queue
 
-    def values_since(self, since_epoch: int):
-        return [value for value in self.values() if value[0] >= since_epoch]
+    async def values_since(self, since_epoch: int):
+        return [value for value in await self.values() if value[0] >= since_epoch]

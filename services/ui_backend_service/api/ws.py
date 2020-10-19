@@ -1,13 +1,16 @@
-from aiohttp import web, WSMsgType
-from typing import List, Dict
-
+import os
 import json
 import asyncio
 import collections
 
+from aiohttp import web, WSMsgType
+from typing import List, Dict
+
 from .utils import resource_conditions, TTLQueue
 from services.data.postgres_async_db import AsyncPostgresDB
 from pyee import AsyncIOEventEmitter
+
+WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
 
 SUBSCRIBE = 'SUBSCRIBE'
 UNSUBSCRIBE = 'UNSUBSCRIBE'
@@ -37,19 +40,19 @@ class Websocket(object):
     {"type": "UPDATE", "uuid": "myst3rySh4ck", "resource": "/runs", "data": {"foo": "bar"}}
     '''
     subscriptions: List[WSSubscription] = []
-    queue = TTLQueue(60 * 5)  # 5 minute queue
 
-    def __init__(self, app, event_emitter=None):
+    def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS):
         self.app = app
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = AsyncPostgresDB.get_instance()
+        self.queue = TTLQueue(queue_ttl)
 
         event_emitter.on('notify', self.event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
 
     async def event_handler(self, operation: str, resources: List[str], data: Dict):
-        # Append to QUEUE so that we can send events to users in case of
-        self.queue.append({
+        # Append event to the queue so that we can later dispatch them in case of disconnections
+        await self.queue.append({
             'operation': operation,
             'resources': resources,
             'data': data
@@ -86,7 +89,8 @@ class Websocket(object):
 
         # Send previous events that client might have missed due to disconnection
         if since:
-            event_queue = self.queue.values_since(since)
+            # Subtract 1 second to make sure all events are included
+            event_queue = await self.queue.values_since(since)
             for _, event in event_queue:
                 await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
 
