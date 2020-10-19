@@ -31,7 +31,7 @@ class Refinery(object):
         _recs = []
         for rec in records:
             for k, v in rec.items():
-                 if k in self.field_names:
+                if k in self.field_names:
                     rec[k] = data[v] if v in data else None
             _recs.append(rec)
         return _recs
@@ -63,15 +63,17 @@ class Refinery(object):
         return DBResponse(response_code=response.response_code,
                           body=body)
 
+
 class TaskRefiner(Refinery):
     """
     Refiner class for postprocessing Task rows.
 
     Fetches specified content from S3 and cleans up unnecessary fields from response.
     """
-    def __init__(self, field_names):
-        super().__init__(field_names)
-    
+
+    def __init__(self):
+        super().__init__(field_names = ["task_ok"])
+
     async def postprocess(self, response: DBResponse):
         """Calls the refiner postprocessing to fetch S3 values for content.
         Cleans up returned fields, for example by combining 'task_ok' boolean into the 'status'
@@ -87,8 +89,8 @@ class TaskRefiner(Refinery):
             return item
 
         if isinstance(refined_response.body, list):
-            body = [_cleanup(task) for task in refined_response.body ]
+            body = [_cleanup(task) for task in refined_response.body]
         else:
             body = _cleanup(refined_response.body)
-        
+
         return DBResponse(response_code=refined_response.response_code, body=body)

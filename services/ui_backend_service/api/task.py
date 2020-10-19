@@ -28,7 +28,7 @@ class TaskApi(object):
             self.get_task_attempts,
         )
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
-        self.refiner = TaskRefiner(field_names=["task_ok"])
+        self.refiner = TaskRefiner()
 
     @handle_exceptions
     async def get_run_tasks(self, request):
