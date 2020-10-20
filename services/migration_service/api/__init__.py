@@ -3,7 +3,8 @@ import os
 version_dict = {
     '0': 'v_1_0_1',
     '1': 'v_1_0_1',
-    '20200603104139': 'latest'
+    '20200603104139': 'latest',
+    '20201002000616': 'latest'
 }
 
 latest = "latest"
