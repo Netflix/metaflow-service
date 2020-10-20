@@ -395,8 +395,9 @@ swagger_definitions = {
         **modelprop("run_number", "integer", "Run number", 5),
         **modelprop("step_name", "string", "Step name", "bonus_movie"),
         **modelprop("task_id", "integer", "Task id", 32),
-        **modelprop("status", "string", "Task status (completed/running/failed)", "completed"),
-        **modelprop("finished_at", "integer", "Finished at epoch timestamp", 1591788834035),
+        **modelprop("status", "string", "Task status (completed/running)", "completed"),
+        **modelprop("started_at", "integer", "Started at epoch timestamp of the attempt (if this could be inferred from the database, otherwise NULL)", None),
+        **modelprop("finished_at", "integer", "Finished at epoch timestamp of the attempt", 1591788834035),
         **modelprop("duration", "integer", "Duration in milliseconds (null if unfinished)", 456),
     }),
     "ModelsMetadata": basemodel({
