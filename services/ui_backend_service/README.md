@@ -43,6 +43,14 @@ This also works as a Docker build argument to download and install latest or spe
 > $ docker build --arg UI_ENABLED=1 UI_VERSION=v0.1.2 ...
 > ```
 
+Configure amount of seconds realtime events are kept in queue (delivered to UI in case of reconnects):
+
+- `WS_QUEUE_TTL_SECONDS` [defaults to 300 (5 minutes)]
+
+Configure amount of runs to prefetch during server startup (artifact cache):
+
+- `PREFETCH_RUNS_LIMIT` [defaults to 50]
+
 Running the service without Docker (from project root):
 
 > ```sh
@@ -111,6 +119,7 @@ ew = ends with              *string$
 ```
 
 ## Custom Navigation links for UI
+
 You can customize the admin navigation links presented by the UI by renaming the provided `links.example.json` file to `links.json`. The backend service serves the contents of the file as-is, so be sure to adhere to the predefined structure.
 
 **Local Dev**

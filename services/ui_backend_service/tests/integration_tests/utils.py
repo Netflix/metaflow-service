@@ -29,7 +29,7 @@ TIMEOUT_FUTURE = 0.1
 # Test fixture helpers begin
 
 
-def init_app(loop, aiohttp_client):
+def init_app(loop, aiohttp_client, queue_ttl=30):
     app = web.Application()
     app.event_emitter = AsyncIOEventEmitter()
 
@@ -46,7 +46,7 @@ def init_app(loop, aiohttp_client):
     ArtificatsApi(app)
     TagApi(app)
 
-    Websocket(app, app.event_emitter)
+    Websocket(app, app.event_emitter, queue_ttl)
 
     AdminApi(app)
 
