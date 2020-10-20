@@ -7,7 +7,6 @@ from services.data.db_utils import DBResponse
 from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
 
-
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
     query = {}
     for key in request.query:
@@ -282,12 +281,8 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
     results, pagination = await async_table.find_records(
         conditions=conditions, values=values, limit=limit, offset=offset,
         order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
-        fetch_single=fetch_single, enable_joins=enable_joins, expanded=False
+        fetch_single=fetch_single, enable_joins=enable_joins, expanded=False, postprocess=postprocess
     )
-
-    # Modify the response after the fetch has been executed
-    if postprocess is not None:
-        results = postprocess(results)
 
     if fetch_single:
         status, res = format_response(request, results)

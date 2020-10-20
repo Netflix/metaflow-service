@@ -15,7 +15,7 @@ def decode(path):
     "decodes a gzip+pickle compressed object from a file path"
     with GzipFile(path) as f:
         obj = pickle.load(f)
-        return str(obj)
+        return obj
 
 # No-Retry S3 client
 import os

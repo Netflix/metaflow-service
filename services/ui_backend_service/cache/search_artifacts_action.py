@@ -138,6 +138,8 @@ class SearchArtifacts(CacheAction):
                 load_success, value = json.loads(existing_keys[key])
             else:
                 load_success, value = False, None
+            if value:
+                value = str(value)
 
             search_results[format_loc(key)] = {
                 "included": load_success,
