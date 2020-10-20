@@ -210,6 +210,7 @@ async def create_task(db, step = None, status = "running", task_name=None):
                 task_name=task_name)
             ).body
     _task['status'] = status
+    _task.pop('task_ok', None) # cleanup fields used internally.
 
     return _task
 

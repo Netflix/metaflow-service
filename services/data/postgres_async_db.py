@@ -6,7 +6,8 @@ import json
 import math
 import time
 import datetime
-from typing import List
+from typing import List, Callable
+from asyncio import iscoroutinefunction
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -171,7 +172,8 @@ class AsyncPostgresTable(object):
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
-                           group_limit: int = 10, expanded=False, enable_joins=False) -> (DBResponse, DBPagination):
+                           group_limit: int = 10, expanded=False, enable_joins=False,
+                           postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -236,8 +238,16 @@ class AsyncPostgresTable(object):
                 offset="OFFSET {}".format(offset) if offset else ""
             ).strip()
 
-        return await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
+        result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
                                       expanded=expanded, limit=limit, offset=offset)
+        # Modify the response after the fetch has been executed
+        if postprocess is not None:
+            if iscoroutinefunction(postprocess):
+                result = await postprocess(result)
+            else:
+                result = postprocess(result)
+
+        return result, pagination
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
@@ -677,6 +687,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             SELECT
                 task_ok.flow_id, task_ok.run_number, task_ok.step_name,
                 task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
+                task_ok.location,
                 attempt.ts_epoch as started_at,
                 COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at
             FROM {artifact_table} as task_ok
@@ -711,6 +722,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     join_columns = [
         "attempt.started_at as started_at",
         "attempt.finished_at as finished_at",
+        "attempt.location as task_ok",
         """
         (CASE
             WHEN attempt.finished_at IS NOT NULL
