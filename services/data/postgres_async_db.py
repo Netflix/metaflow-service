@@ -727,10 +727,15 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         (CASE
             WHEN attempt.finished_at IS NOT NULL
             THEN 'completed'
+            WHEN attempt.finished_at IS NULL
+                AND {table_name}.last_heartbeat_ts IS NOT NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+            THEN 'failed'
             ELSE 'running'
         END) AS status
         """.format(
-            table_name=table_name
+            table_name=table_name,
+            heartbeat_threshold=WAIT_TIME
         ),
         """
         (CASE
