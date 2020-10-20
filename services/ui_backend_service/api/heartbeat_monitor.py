@@ -4,6 +4,7 @@ from typing import Dict
 from pyee import AsyncIOEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
 from .notify import resource_list
+from .data_refiner import TaskRefiner
 
 HEARTBEAT_INTERVAL = 10 # interval of heartbeats, in seconds
 
@@ -125,6 +126,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     )
     # Table for data fetching for load_and_broadcast and add_to_watch
     self._task_table = AsyncPostgresDB.get_instance().task_table_postgres
+    self.refiner = TaskRefiner()
 
   async def heartbeat_handler(self, action, data):
     if action == "update":
@@ -164,7 +166,8 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
                             values=values,
                             order=["attempt_id DESC"],
                             fetch_single=True,
-                            enable_joins=True
+                            enable_joins=True,
+                            postprocess=self.refiner.postprocess
                           )
     return result.body if result.response_code==200 else None
   
