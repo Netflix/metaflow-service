@@ -232,21 +232,21 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
 
     # Wait for results
-    await wait_for(_should_call, 0.1)
+    await wait_for(_should_call, TIMEOUT_FUTURE)
 
     # Add new Run
     _should_call = _set_notify_handler(cli, loop)
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
 
     # Wait for results
-    await wait_for(_should_call, 0.1)
+    await wait_for(_should_call, TIMEOUT_FUTURE)
 
     # Add normal Step
     _should_call = _set_notify_handler(cli, loop)
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
 
     # Wait for results
-    await wait_for(_should_call, 0.1)
+    await wait_for(_should_call, TIMEOUT_FUTURE)
 
     # Add new Task
     _should_call = _set_notify_handler(cli, loop)
@@ -257,7 +257,7 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
                                  run_id=_step.get("run_id"))).body
 
     # Wait for results
-    await wait_for(_should_call, 0.1)
+    await wait_for(_should_call, TIMEOUT_FUTURE)
 
     # Add artifact with attempt_id = 0 (Task will be done)
     _artifact_step = (await add_artifact(db,
@@ -281,9 +281,9 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     # Wait for results
-    await wait_for(_should_call_artifact, 0.1)
+    await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
 
-    operation, _, result = await wait_for(_should_call_task_done, 0.1)
+    operation, _, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "UPDATE"
     assert result["finished_at"] == _artifact_step["ts_epoch"]
     assert result["attempt_id"] == 0
@@ -312,10 +312,9 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     # Wait for results
-    await wait_for(_should_call_artifact, 0.1)
+    await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
 
-    # Second attempt artifact should report new task attempt as an 'INSERT'
-    operation, _, result = await wait_for(_should_call_task_done, 0.1)
+    operation, _, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "INSERT"
     assert result["finished_at"] == _artifact_step["ts_epoch"]
     assert result["attempt_id"] == 1

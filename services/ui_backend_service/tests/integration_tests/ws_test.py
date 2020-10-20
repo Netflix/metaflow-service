@@ -1,4 +1,7 @@
 import pytest
+import time
+import asyncio
+import math
 from .utils import (
     init_app, init_db, clean_db,
     add_flow,
@@ -17,6 +20,12 @@ def cli(loop, aiohttp_client):
 
 
 @pytest.fixture
+def cli_short_ttl(loop, aiohttp_client):
+    # Use 0.5 second TTL for Websocket queue
+    return init_app(loop, aiohttp_client, queue_ttl=0.5)
+
+
+@pytest.fixture
 async def db(cli):
     async_db = await init_db(cli)
 
@@ -30,11 +39,14 @@ async def db(cli):
 # Fixtures end
 
 
-async def _subscribe(ws, resource, uuid="123"):
-    return await ws.send_json({
+async def _subscribe(ws, resource, uuid="123", since: int = None):
+    subscription = {
         "type": "SUBSCRIBE",
         "uuid": uuid,
-        "resource": resource})
+        "resource": resource}
+    if since is not None:
+        subscription['since'] = since
+    return await ws.send_json(subscription)
 
 
 async def _unsubscribe(ws, uuid="123"):
@@ -53,6 +65,90 @@ async def test_subscription(cli, db, loop):
     msg = await ws.receive_json(timeout=TIMEOUT_FUTURE)
     assert msg["type"] == "INSERT"
     assert msg["data"] == _flow
+
+    await ws.close()
+
+
+async def test_subscription_queue(cli, db, loop):
+    ws = await cli.ws_connect("/ws")
+
+    now = int(math.floor(time.time()))
+
+    # At this point we have not subscribed to any resources
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+
+    try:
+        # Make sure nothing is received via websocket
+        await ws.receive_json(timeout=TIMEOUT_FUTURE)
+        assert False
+    except:
+        pass
+
+    # Subscribe and request events that happened in the past
+    await _subscribe(ws=ws, resource="/flows", since=now)
+
+    msg = await ws.receive_json(timeout=TIMEOUT_FUTURE)
+    assert msg["type"] == "INSERT"
+    assert msg["data"] == _flow
+
+    await ws.close()
+
+
+async def test_subscription_queue_without_since(cli, db, loop):
+    ws = await cli.ws_connect("/ws")
+
+    # At this point we have not subscribed to any resources
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+
+    try:
+        # Make sure nothing is received via websocket
+        await ws.receive_json(timeout=TIMEOUT_FUTURE)
+        assert False
+    except:
+        pass
+
+    # Above flow should not be returned without `since` parameter
+    await _subscribe(ws=ws, resource="/flows")
+
+    try:
+        # Make sure still nothing is received via websocket
+        await ws.receive_json(timeout=TIMEOUT_FUTURE)
+        assert False
+    except:
+        # This is expected since queue data has expired
+        pass
+
+    await ws.close()
+
+
+async def test_subscription_queue_ttl_expired(cli_short_ttl, db, loop):
+    ws = await cli_short_ttl.ws_connect("/ws")
+
+    now = int(math.floor(time.time()))
+
+    # At this point we have not subscribed to any resources
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+
+    try:
+        # Make sure nothing is received via websocket
+        await ws.receive_json(timeout=TIMEOUT_FUTURE)
+        assert False
+    except:
+        pass
+
+    # Sleep 1 second to make sure we are past queue TTL (0.5s in this case)
+    await asyncio.sleep(1)
+
+    # Subscribe and request events that happened in the past
+    # Nothing should be returned since queue TTL is 0.5 seconds and we have waited 1 second
+    await _subscribe(ws=ws, resource="/flows", since=now)
+
+    try:
+        await ws.receive_json(timeout=TIMEOUT_FUTURE)
+        assert False
+    except:
+        # This is expected since queue data has expired
+        pass
 
     await ws.close()
 
