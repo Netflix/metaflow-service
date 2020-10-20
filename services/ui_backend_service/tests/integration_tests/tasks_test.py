@@ -37,6 +37,7 @@ async def test_list_tasks(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
     _task['status'] = 'running'
+    _task.pop('task_ok', None)
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
@@ -57,6 +58,7 @@ async def test_list_tasks_non_numerical(cli, db):
                             run_id=_step.get("run_id"),
                             task_name="bar")).body
     _task['status'] = 'running'
+    _task.pop('task_ok', None)
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
@@ -74,6 +76,7 @@ async def test_single_task(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
     _task['status'] = 'running'
+    _task.pop('task_ok', None)
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
 
@@ -88,6 +91,7 @@ async def test_single_task_non_numerical(cli, db):
                             step_name=_step.get("step_name"),
                             task_name="bar")).body
     _task['status'] = 'running'
+    _task.pop('task_ok', None)
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/bar".format(**_task), 200, _task)
@@ -104,6 +108,7 @@ async def test_list_task_attempts(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
     _task['status'] = 'running'
+    _task.pop('task_ok', None)
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
 
@@ -170,6 +175,7 @@ async def test_task_with_multiple_attempts(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
     _task['status'] = 'running'
+    _task.pop('task_ok', None)
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
 

@@ -358,7 +358,8 @@ swagger_definitions = {
             "s3-bad-url": "S3 URL is malformed",
             "s3-missing-credentials": "Missing credentials for S3 access",
             "s3-generic-error": "Something went wrong with S3 access",
-            "dag-processing-error": "Processing the DAG Failed"
+            "dag-processing-error": "Processing the DAG Failed",
+            "dag-unsupported-flow-language": "The Flow language is not supported by the DAG parser. DAG graph can not be generated"
         }
     ),
     "ResponsesError405": response_error(405),

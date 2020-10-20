@@ -6,7 +6,8 @@ import json
 import math
 import time
 import datetime
-from typing import List
+from typing import List, Callable
+from asyncio import iscoroutinefunction
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -171,7 +172,8 @@ class AsyncPostgresTable(object):
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
-                           group_limit: int = 10, expanded=False, enable_joins=False) -> (DBResponse, DBPagination):
+                           group_limit: int = 10, expanded=False, enable_joins=False,
+                           postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -236,8 +238,16 @@ class AsyncPostgresTable(object):
                 offset="OFFSET {}".format(offset) if offset else ""
             ).strip()
 
-        return await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
+        result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
                                       expanded=expanded, limit=limit, offset=offset)
+        # Modify the response after the fetch has been executed
+        if postprocess is not None:
+            if iscoroutinefunction(postprocess):
+                result = await postprocess(result)
+            else:
+                result = postprocess(result)
+
+        return result, pagination
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
@@ -671,7 +681,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     joins = ["LEFT JOIN {artifacts_table} AS artifacts ON ({table_name}.flow_id = artifacts.flow_id AND {table_name}.task_id = artifacts.task_id AND artifacts.name = '_task_ok')"
              .format(table_name=table_name, artifacts_table="artifact_v3")]
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
-    join_columns = ["artifacts.ts_epoch AS finished_at",
+    join_columns = ["artifacts.location AS task_ok",
+                    "artifacts.ts_epoch AS finished_at",
                     """
                     (CASE
                         WHEN artifacts.ts_epoch IS NOT NULL

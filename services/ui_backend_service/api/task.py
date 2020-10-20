@@ -1,7 +1,8 @@
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import translate_run_key, translate_task_key
+from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
+from .data_refiner import TaskRefiner
 
 
 class TaskApi(object):
@@ -27,6 +28,7 @@ class TaskApi(object):
             self.get_task_attempts,
         )
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
+        self.refiner = TaskRefiner()
 
     @handle_exceptions
     async def get_run_tasks(self, request):
@@ -83,7 +85,8 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
-                                  enable_joins=True
+                                  enable_joins=True,
+                                  postprocess=self.refiner.postprocess
                                   )
 
     @handle_exceptions
@@ -143,7 +146,8 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
-                                  enable_joins=True
+                                  enable_joins=True,
+                                  postprocess=self.refiner.postprocess
                                   )
 
     @handle_exceptions
@@ -191,7 +195,8 @@ class TaskApi(object):
                                   initial_values=[
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
-                                  enable_joins=True)
+                                  enable_joins=True,
+                                  postprocess=self.refiner.postprocess)
 
     @handle_exceptions
     async def get_task_attempts(self, request):
@@ -255,5 +260,6 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys +
                                   ["finished_at", "duration", "attempt_id"],
-                                  enable_joins=True
+                                  enable_joins=True,
+                                  postprocess=self.refiner.postprocess
                                   )
