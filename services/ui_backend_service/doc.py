@@ -395,6 +395,35 @@ swagger_definitions = {
         **modelprop("run_number", "integer", "Run number", 5),
         **modelprop("step_name", "string", "Step name", "bonus_movie"),
         **modelprop("task_id", "integer", "Task id", 32),
+        "foreach_stack": {
+            "type": "array",
+            "description": "Task foreach_stack. Empty list, or contains a list with step_name, foreach_var, foreach_num and foreach index",
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "allOf": [
+                            {
+                                "type": "string",
+                                "description": "step name",
+                                "example": "process_foreach"
+                            },
+                            {
+                                "type": "integer",
+                                "description": "number of foreach steps",
+                                "example": 10
+                            },
+                            {
+                                "type": "integer",
+                                "description": "index of current foreach step",
+                                "example": 1
+                            }
+                        ]
+                    }
+                }
+            }
+        },
         **modelprop("status", "string", "Task status (completed/running)", "completed"),
         **modelprop("started_at", "integer", "Started at epoch timestamp of the attempt (if this could be inferred from the database, otherwise NULL)", None),
         **modelprop("finished_at", "integer", "Finished at epoch timestamp of the attempt", 1591788834035),
