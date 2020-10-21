@@ -72,7 +72,7 @@ class TaskRefiner(Refinery):
     """
 
     def __init__(self):
-        super().__init__(field_names = ["task_ok"])
+        super().__init__(field_names = ["task_ok", "foreach_stack"])
 
     async def postprocess(self, response: DBResponse):
         """Calls the refiner postprocessing to fetch S3 values for content.
