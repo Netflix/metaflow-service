@@ -689,7 +689,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
                 task_ok.location,
                 attempt.ts_epoch as started_at,
-                COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at
+                COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at,
+                foreach_stack.location as foreach_stack
             FROM {artifact_table} as task_ok
             LEFT JOIN {metadata_table} as attempt ON (
                 task_ok.flow_id = attempt.flow_id AND
@@ -704,6 +705,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.task_id = done.task_id AND
                 done.field_name = 'attempt-done' AND
                 task_ok.attempt_id = done.value::int
+            )
+            LEFT JOIN {artifact_table} as foreach_stack ON (
+                task_ok.flow_id = foreach_stack.flow_id AND
+                task_ok.step_name = foreach_stack.step_name AND
+                task_ok.task_id = foreach_stack.task_id AND
+                foreach_stack.name = '_foreach_stack' AND
+                task_ok.attempt_id = foreach_stack.attempt_id
             )
             WHERE task_ok.name = '_task_ok'
         ) AS attempt ON (
@@ -743,7 +751,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name
         ),
-        "COALESCE(attempt.attempt_id, 0) AS attempt_id"
+        "COALESCE(attempt.attempt_id, 0) AS attempt_id",
+        "attempt.foreach_stack as foreach_stack"
     ]
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
