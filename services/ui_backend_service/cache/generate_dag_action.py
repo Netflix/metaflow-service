@@ -114,7 +114,7 @@ def generate_dag(flow_id, tarball_path):
   for node in graph:
     dag[node.name] = {
       'type': node.type,
-      'box_next': node.has_tail_next,
+      'box_next': node.type not in ('linear', 'join'),
       'box_ends': node.matching_join,
       'next': node.out_funcs
     }
