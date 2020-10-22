@@ -42,6 +42,7 @@ class LogApi(object):
           - $ref: '#/definitions/Params/Path/run_number'
           - $ref: '#/definitions/Params/Path/step_name'
           - $ref: '#/definitions/Params/Path/task_id'
+          - $ref: '#/definitions/Params/Custom/attempt_id'
         produces:
         - application/json
         responses:
@@ -100,17 +101,17 @@ class LogApi(object):
         return await self.get_task_log(request, STDERR)
 
     async def get_task_log(self, request, logtype=STDOUT):
+        flow_id = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        step_name = request.match_info.get("step_name")
+        task_id = request.match_info.get("task_id")
         attempt_id = request.query.get("attempt_id", None)
 
         bucket, path, _ = \
-            await get_metadata_log(
+            await get_metadata_log_assume_path(
                 self._async_table.find_records,
-                request.match_info.get("flow_id"),
-                request.match_info.get("run_number"),
-                request.match_info.get("step_name"),
-                request.match_info.get("task_id"),
-                attempt_id,
-                logtype)
+                flow_id, run_number, step_name, task_id,
+                attempt_id, logtype)
 
         if bucket and path:
             try:
@@ -123,6 +124,30 @@ class LogApi(object):
                 raise LogException(str(err), 'log-error')
         else:
             return web_response(404, {'data': []})
+
+
+async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> (str, str, int):
+    bucket, path, _ = \
+        await get_metadata_log(
+            find_records,
+            flow_name, run_number, step_name, task_id,
+            attempt_id, field_name)
+
+    # Backward compatibility for runs before https://github.com/Netflix/metaflow-service/pull/30
+    # Manually construct assumed logfile S3 path based on first attempt
+    if not path:
+        if attempt_id and attempt_id is not 0 and attempt_id is not "0":
+            bucket, path, _ = \
+                await get_metadata_log(
+                    find_records,
+                    flow_name, run_number, step_name, task_id,
+                    0, field_name)
+
+            if path:
+                suffix = "{}.log".format("stdout" if field_name == STDOUT else "stderr")
+                path = path.replace("0.{}".format(suffix), "{}.{}".format(attempt_id, suffix))
+
+    return bucket, path, attempt_id
 
 
 async def get_metadata_log(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> (str, str, int):
