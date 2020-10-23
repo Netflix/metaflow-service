@@ -15,6 +15,7 @@ from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
 WAIT_TIME = 10
+OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14 # 2 weeks (in milliseconds)
 
 
 class AsyncPostgresDB(object):
@@ -543,11 +544,15 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                         WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                         AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
                         THEN 'failed'
+                        WHEN {table_name}.last_heartbeat_ts IS NULL
+                        AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
+                        THEN 'failed'
                         ELSE 'running'
                     END) AS status
                     """.format(
                         table_name=table_name,
-                        heartbeat_threshold=WAIT_TIME
+                        heartbeat_threshold=WAIT_TIME,
+                        cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
                     ),
                     """
                     (CASE
