@@ -72,7 +72,7 @@ class TaskRefiner(Refinery):
     """
 
     def __init__(self):
-        super().__init__(field_names = ["task_ok", "foreach_stack"])
+        super().__init__(field_names=["task_ok", "foreach_stack"])
 
     async def postprocess(self, response: DBResponse):
         """Calls the refiner postprocessing to fetch S3 values for content.
@@ -82,15 +82,19 @@ class TaskRefiner(Refinery):
         if response.response_code != 200 or not response.body:
             return response
 
-        def _cleanup(item):
-            # TODO: test if 'running' statuses go through correctly.
+        def _process(item):
             item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
-            item.pop('task_ok')
+            item.pop('task_ok', None)
+
+            if item['foreach_stack']:
+                _, _name, _, _index = item['foreach_stack'][0]
+                item['foreach_label'] = "{}[{}]".format(item['task_id'], _index)
+            item.pop('foreach_stack', None)
             return item
 
         if isinstance(refined_response.body, list):
-            body = [_cleanup(task) for task in refined_response.body]
+            body = [_process(task) for task in refined_response.body]
         else:
-            body = _cleanup(refined_response.body)
+            body = _process(refined_response.body)
 
         return DBResponse(response_code=refined_response.response_code, body=body)
