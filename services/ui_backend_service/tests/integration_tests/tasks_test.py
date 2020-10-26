@@ -133,6 +133,13 @@ async def test_task_with_attempt_metadata(cli, db):
     
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
 
+async def test_task_failed_status_with_heartbeat(cli, db):
+    _task = await create_task(db, last_heartbeat_ts=1, status="failed")
+    _task['duration'] = _task['last_heartbeat_ts'] * 1000 - _task['ts_epoch']
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+    
 async def test_list_task_attempts(cli, db):
     _task = await create_task(db)
 
@@ -191,7 +198,7 @@ async def create_ok_artifact_for_task(db, task, attempt=0):
             ).body
     return _task
 
-async def create_task(db, step = None, status = "running", task_name=None):
+async def create_task(db, step = None, status = "running", task_name=None, last_heartbeat_ts=None):
     "Creates and returns a task with specific status. Optionally creates the task for a specific step if provided."
     if not step:
         _flow = (await add_flow(db, flow_id="HelloFlow")).body
@@ -207,7 +214,8 @@ async def create_task(db, step = None, status = "running", task_name=None):
                 flow_id=step.get("flow_id"),
                 run_number=step.get("run_number"),
                 step_name=step.get("step_name"),
-                task_name=task_name)
+                task_name=task_name,
+                last_heartbeat_ts=last_heartbeat_ts)
             ).body
     _task['status'] = status
     _task.pop('task_ok', None) # cleanup fields used internally.

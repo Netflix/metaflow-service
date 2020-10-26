@@ -50,6 +50,10 @@ class ListenNotify(object):
                         if table.table_name == self.db.run_table_postgres.table_name:
                             self.event_emitter.emit('run-heartbeat', 'update', data['run_number'])
 
+                        # Heartbeat watcher for Tasks.
+                        if table.table_name == self.db.task_table_postgres.table_name:
+                            self.event_emitter.emit('task-heartbeat', 'update', data)
+
                         # Notify when Run parameters are ready.
                         if operation == "INSERT" and \
                                 table.table_name == self.db.step_table_postgres.table_name and \
@@ -60,6 +64,9 @@ class ListenNotify(object):
                         if operation == "INSERT" and \
                                 table.table_name == self.db.artifact_table_postgres.table_name and \
                                 data["name"] == "_task_ok":
+
+                            # remove heartbeat watcher for completed task
+                            self.event_emitter.emit("task-heartbeat", "complete", data)
 
                             # Always mark task finished if '_task_ok' artifact is created
                             # Include 'attempt_id' so we can identify which attempt this artifact related to

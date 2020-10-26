@@ -19,7 +19,7 @@ from .api.dag import DagApi
 
 from .api.ws import Websocket
 from .api.notify import ListenNotify
-from .api.heartbeat_monitor import RunHeartbeatMonitor
+from .api.heartbeat_monitor import RunHeartbeatMonitor, TaskHeartbeatMonitor
 from .cache.store import CacheStore
 from .frontend import Frontend
 
@@ -44,6 +44,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     app.on_cleanup.append(cache_store.stop_caches)
     ListenNotify(app, event_emitter)
     RunHeartbeatMonitor(event_emitter)
+    TaskHeartbeatMonitor(event_emitter)
     Websocket(app, event_emitter)
 
     FlowApi(app)
