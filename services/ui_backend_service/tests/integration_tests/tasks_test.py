@@ -218,7 +218,9 @@ async def create_task(db, step = None, status = "running", task_name=None, last_
                 last_heartbeat_ts=last_heartbeat_ts)
             ).body
     _task['status'] = status
-    _task.pop('task_ok', None) # cleanup fields used internally.
+    # cleanup fields used internally.
+    _task.pop('task_ok', None)
+    _task.pop('foreach_stack', None)
 
     return _task
 
