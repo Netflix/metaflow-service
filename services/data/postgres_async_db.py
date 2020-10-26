@@ -753,7 +753,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """
         (CASE
             WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-            THEN {table_name}.last_heartbeat_ts*1000-attempt.started_at
+            THEN {table_name}.last_heartbeat_ts*1000-COALESCE(attempt.started_at, {table_name}.ts_epoch)
             WHEN attempt.finished_at IS NOT NULL
             THEN attempt.finished_at - COALESCE(attempt.started_at, {table_name}.ts_epoch)
             ELSE NULL
