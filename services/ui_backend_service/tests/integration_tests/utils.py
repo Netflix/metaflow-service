@@ -133,19 +133,19 @@ async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
                    run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
-                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
-    task = TaskRow(
-        flow_id=flow_id,
-        run_number=run_number,
-        run_id=run_id,
-        step_name=step_name,
-        task_name=task_name,
-        task_id=task_id,
-        user_name=user_name,
-        tags=tags,
-        system_tags=system_tags,
-    )
-    return await db.task_table_postgres.add_task(task)
+                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                   last_heartbeat_ts=None):
+    task = {
+        "flow_id": flow_id,
+        "run_number": run_number,
+        "step_name": step_name,
+        "task_name": task_name,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags),
+        "last_heartbeat_ts": last_heartbeat_ts
+    }
+    return await db.task_table_postgres.create_record(task)
 
 
 async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
