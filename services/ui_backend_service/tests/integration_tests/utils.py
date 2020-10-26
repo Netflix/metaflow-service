@@ -1,5 +1,7 @@
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
+import json
+import datetime
 
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration
@@ -101,16 +103,17 @@ async def add_flow(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
                   run_number: int = None, run_id: str = None,
-                  user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
-    run = RunRow(
-        flow_id=flow_id,
-        run_number=run_number,
-        run_id=run_id,
-        user_name=user_name,
-        tags=tags,
-        system_tags=system_tags,
-    )
-    return await db.run_table_postgres.add_run(run)
+                  user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                  last_heartbeat_ts=None):
+    run = {
+        "flow_id": flow_id,
+        "run_id": run_id,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags),
+        "last_heartbeat_ts": last_heartbeat_ts
+    }
+    return await db.run_table_postgres.create_record(run)
 
 
 async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
@@ -231,5 +234,9 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
         print("Expected data to be:\n", expected_data)
         print("Instead got data:\n", data)
         raise ex from None
+
+def get_heartbeat_ts(offset=5):
+    "Return a heartbeat timestamp with the given offset in seconds. Default offset is 5 seconds"
+    return int(datetime.datetime.utcnow().timestamp())+offset
 
 # Resource helpers end
