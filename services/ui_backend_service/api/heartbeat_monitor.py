@@ -175,7 +175,10 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     flow_id, run_number, step_name, task_id, attempt_id = self.decode_key_ids(key)
     task = await self.get_task(flow_id, run_number, step_name, task_id, attempt_id)
     resources = resource_list(self._task_table.table_name, task)
-    self.event_emitter.emit('notify', 'UPDATE', resources, task)
+    if resources and task['status'] == "failed":
+      # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
+      # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
+      self.event_emitter.emit('notify', 'UPDATE', resources, task)
   
   def generate_dict_key(self, data):
     "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"
