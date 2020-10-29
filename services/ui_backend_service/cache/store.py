@@ -48,7 +48,8 @@ class ArtifactCacheStore(object):
         actions = [SearchArtifacts, GetArtifacts]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                     actions,
-                                    max_size=600000)
+                                    max_size=600000,
+                                    max_actions=32)
         await self.cache.start()
         await self.preload_initial_data()
     
