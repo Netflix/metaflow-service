@@ -96,7 +96,7 @@ class SearchArtifacts(CacheAction):
             for i, locations in enumerate(batchiter(s3_locations, S3_BATCH_SIZE), start=1):
                 stream_progress(i / num_s3_batches)
                 try:
-                    for artifact_data in s3.get_many(locations, return_missing=True):
+                    for artifact_data in s3.get_many(locations):
                         artifact_key = artifact_cache_id(artifact_data.url)
                         if artifact_data.size < MAX_SIZE:
                             try:
