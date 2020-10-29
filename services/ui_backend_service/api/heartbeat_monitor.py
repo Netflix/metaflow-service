@@ -16,8 +16,8 @@ class HeartbeatMonitor(object):
     event_emitter.on(event_name, self.heartbeat_handler)
 
     # Start heartbeat watcher
-    loop = asyncio.get_event_loop()
-    loop.create_task(self.check_heartbeats())
+    self.loop = asyncio.get_event_loop()
+    self.loop.create_task(self.check_heartbeats())
 
   async def heartbeat_handler(self):
     "handle the event_emitter events"
@@ -45,7 +45,7 @@ class HeartbeatMonitor(object):
       time_now = int(datetime.datetime.utcnow().timestamp()) # same format as the metadata heartbeat uses
       for key, hb in list(self.watched.items()):
         if time_now - hb > HEARTBEAT_INTERVAL * 2:
-          await self.load_and_broadcast(key)
+          self.loop.create_task(self.load_and_broadcast(key))
           self.remove_from_watch(key)
           
       await asyncio.sleep(HEARTBEAT_INTERVAL)
