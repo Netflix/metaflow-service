@@ -36,7 +36,7 @@ async def db(cli):
 def _set_notify_handler(cli, loop):
     should_call = Future(loop=loop)
 
-    async def event_handler(operation: str, resources: List[str], result: Dict):
+    def event_handler(operation: str, resources: List[str], result: Dict):
         should_call.set_result([operation, resources, result])
     cli.server.app.event_emitter.once('notify', event_handler)
 
@@ -156,20 +156,20 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
                                          task_name=_task_step.get("task_name"),
                                          artifact={"name": "_task_ok"})).body
 
-    _should_call_artifact = Future(loop=loop)
+    # _should_call_artifact = Future(loop=loop)
     _should_call_task_done = Future(loop=loop)
 
-    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
-        if not _should_call_artifact.done():
-            _should_call_artifact.set_result([operation, resources, result])
-        elif not _should_call_task_done.done():
+    def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
+        # if not _should_call_artifact.done():
+        #     _should_call_artifact.set_result([operation, resources, result])
+        if not _should_call_task_done.done():
             _should_call_task_done.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     # Wait for results
-    operation, resources, result = await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
-    assert operation == "INSERT"
-    assert result == _artifact_step
+    # operation, resources, result = await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
+    # assert operation == "INSERT"
+    # assert result == _artifact_step
 
     operation, resources, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "UPDATE"
@@ -189,13 +189,14 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
                                         task_name=_task_end.get("task_name"),
                                         artifact={"name": "_task_ok"})).body
 
-    _should_call_artifact = Future(loop=loop)
+    # _should_call_artifact = Future(loop=loop)
     _should_call_task_done = Future(loop=loop)
     _should_call_run_done = Future(loop=loop)
 
-    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
+    def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
         if operation == "INSERT":
-            _should_call_artifact.set_result([operation, resources, result])
+            # _should_call_artifact.set_result([operation, resources, result])
+            pass
         elif operation == "UPDATE":
             if "/runs" in resources:
                 _should_call_run_done.set_result(
@@ -206,9 +207,9 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     # Wait for results
-    operation, resources, result = await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
-    assert operation == "INSERT"
-    assert result == _artifact_end
+    # operation, resources, result = await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
+    # assert operation == "INSERT"
+    # assert result == _artifact_end
 
     operation, resources, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "UPDATE"
@@ -272,18 +273,18 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
                                          task_name=_task_step.get("task_name"),
                                          artifact={"name": "_task_ok", "attempt_id": 0})).body
 
-    _should_call_artifact = Future(loop=loop)
+    # _should_call_artifact = Future(loop=loop)
     _should_call_task_done = Future(loop=loop)
 
-    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
-        if not _should_call_artifact.done():
-            _should_call_artifact.set_result([operation, resources, result])
-        elif not _should_call_task_done.done():
+    def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
+        # if not _should_call_artifact.done():
+        #     _should_call_artifact.set_result([operation, resources, result])
+        if not _should_call_task_done.done():
             _should_call_task_done.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     # Wait for results
-    await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
+    # await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
 
     operation, _, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "UPDATE"
@@ -303,18 +304,18 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
                                          task_name=_task_step.get("task_name"),
                                          artifact={"name": "_task_ok", "attempt_id": 1})).body
 
-    _should_call_artifact = Future(loop=loop)
+    # _should_call_artifact = Future(loop=loop)
     _should_call_task_done = Future(loop=loop)
 
-    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
-        if not _should_call_artifact.done():
-            _should_call_artifact.set_result([operation, resources, result])
-        elif not _should_call_task_done.done():
+    def _event_handler_task_done(operation: str, resources: List[str], result: Dict):
+        # if not _should_call_artifact.done():
+        #     _should_call_artifact.set_result([operation, resources, result])
+        if not _should_call_task_done.done():
             _should_call_task_done.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     # Wait for results
-    await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
+    # await wait_for(_should_call_artifact, TIMEOUT_FUTURE)
 
     operation, _, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "INSERT"
