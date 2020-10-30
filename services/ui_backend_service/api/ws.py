@@ -47,9 +47,16 @@ class Websocket(object):
         self.db = AsyncPostgresDB.get_instance()
         self.queue = TTLQueue(queue_ttl)
 
-        event_emitter.on('notify', self.event_handler)
+        event_emitter.on('notify', self._event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
+        self.loop = asyncio.get_event_loop()
 
+    def _event_handler(self, *args, **kwargs):
+        """Wrapper to run coroutine event handler code threadsafe in a loop,
+        as the ExecutorEventEmitter does not accept coroutines as handlers.
+        """
+        asyncio.run_coroutine_threadsafe(self.event_handler(*args, **kwargs), self.loop)
+        
     async def event_handler(self, operation: str, resources: List[str], data: Dict):
         # Append event to the queue so that we can later dispatch them in case of disconnections
         await self.queue.append({

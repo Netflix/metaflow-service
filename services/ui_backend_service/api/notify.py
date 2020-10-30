@@ -28,7 +28,7 @@ class ListenNotify(object):
             await cur.execute("LISTEN notify")
             while True:
                 msg = await conn.notifies.get()
-                self.loop.create_task(self.handle_trigger_msg(msg))
+                await self.handle_trigger_msg(msg)
 
     async def handle_trigger_msg(self, msg: str):
         try:
@@ -53,8 +53,8 @@ class ListenNotify(object):
                     self.event_emitter.emit('run-heartbeat', 'update', data['run_number'])
 
                 # Heartbeat watcher for Tasks.
-                if table.table_name == self.db.task_table_postgres.table_name:
-                    self.event_emitter.emit('task-heartbeat', 'update', data)
+                # if table.table_name == self.db.task_table_postgres.table_name:
+                #     self.event_emitter.emit('task-heartbeat', 'update', data)
 
                 # Notify when Run parameters are ready.
                 if operation == "INSERT" and \
@@ -68,7 +68,7 @@ class ListenNotify(object):
                         data["name"] == "_task_ok":
 
                     # remove heartbeat watcher for completed task
-                    self.event_emitter.emit("task-heartbeat", "complete", data)
+                    # self.event_emitter.emit("task-heartbeat", "complete", data)
 
                     # Always mark task finished if '_task_ok' artifact is created
                     # Include 'attempt_id' so we can identify which attempt this artifact related to
@@ -128,15 +128,15 @@ def resource_list(table_name: str, data: Dict):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts"
         ],
-        "metadata_v3": [
-            "/flows/{flow_id}/runs/{run_number}/metadata",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata"
-        ],
-        "artifact_v3": [
-            "/flows/{flow_id}/runs/{run_number}/artifacts",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts"
-        ],
+        # "metadata_v3": [
+        #     "/flows/{flow_id}/runs/{run_number}/metadata",
+        #     "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata"
+        # ],
+        # "artifact_v3": [
+        #     "/flows/{flow_id}/runs/{run_number}/artifacts",
+        #     "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts",
+        #     "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts"
+        # ],
     }
     if table_name in resource_paths:
         return [path.format(**data) for path in resource_paths[table_name]]
@@ -167,3 +167,4 @@ async def load_and_broadcast(event_emitter, operation: str, table,
 
     _data, _resources = await load_data_from_db(table, {**filter_dict, **custom_filter_dict}, postprocess)
     event_emitter.emit('notify', operation, _resources, _data)
+    print("NR OF TASKS: ", len(asyncio.all_tasks()), flush=True)

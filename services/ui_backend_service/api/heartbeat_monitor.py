@@ -13,11 +13,17 @@ class HeartbeatMonitor(object):
     self.watched = {}
     # Handle HB Events
     self.event_emitter = event_emitter or AsyncIOEventEmitter()
-    event_emitter.on(event_name, self.heartbeat_handler)
+    event_emitter.on(event_name, self._heartbeat_handler)
 
     # Start heartbeat watcher
     self.loop = asyncio.get_event_loop()
     self.loop.create_task(self.check_heartbeats())
+
+  def _heartbeat_handler(self, *args, **kwargs):
+    """Wrapper to run coroutine event handler code threadsafe in a loop,
+    as the ExecutorEventEmitter does not accept coroutines as handlers.
+    """
+    asyncio.run_coroutine_threadsafe(self.heartbeat_handler(*args, **kwargs), self.loop)
 
   async def heartbeat_handler(self):
     "handle the event_emitter events"
@@ -45,7 +51,7 @@ class HeartbeatMonitor(object):
       time_now = int(datetime.datetime.utcnow().timestamp()) # same format as the metadata heartbeat uses
       for key, hb in list(self.watched.items()):
         if time_now - hb > HEARTBEAT_INTERVAL * 2:
-          self.loop.create_task(self.load_and_broadcast(key))
+          await self.load_and_broadcast(key)
           self.remove_from_watch(key)
           
       await asyncio.sleep(HEARTBEAT_INTERVAL)
