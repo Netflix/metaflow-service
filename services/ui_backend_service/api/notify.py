@@ -167,4 +167,3 @@ async def load_and_broadcast(event_emitter, operation: str, table,
 
     _data, _resources = await load_data_from_db(table, {**filter_dict, **custom_filter_dict}, postprocess)
     event_emitter.emit('notify', operation, _resources, _data)
-    print("NR OF TASKS: ", len(asyncio.all_tasks()), flush=True)

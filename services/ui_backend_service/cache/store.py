@@ -1,9 +1,10 @@
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
-from pyee import AsyncIOEventEmitter
+from pyee import ExecutorEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .search_artifacts_action import SearchArtifacts
 from .get_artifacts_action import GetArtifacts
+import asyncio
 import time
 import os
 
@@ -34,10 +35,11 @@ class CacheStore(object):
 METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50)
 class ArtifactCacheStore(object):
     def __init__(self, event_emitter):
-        self.event_emitter = event_emitter or AsyncIOEventEmitter()
+        self.event_emitter = event_emitter or ExecutorEventEmitter()
         self._artifact_table = AsyncPostgresDB.get_instance().artifact_table_postgres
         self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
         self.cache = None
+        self.loop = asyncio.get_event_loop()
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
@@ -158,7 +160,10 @@ class ArtifactCacheStore(object):
         
         return combined_results
     
-    async def run_parameters_event_handler(self, flow_id, run_number):
+    def run_parameters_event_handler(self, *args, **kwargs):
+        asyncio.run_coroutine_threadsafe(self._run_parameters_event_handler(*args, **kwargs), self.loop)
+
+    async def _run_parameters_event_handler(self, flow_id, run_number):
         parameters = await self.get_run_parameters(flow_id, run_number)
         if parameters:
             self.event_emitter.emit(
@@ -168,9 +173,9 @@ class ArtifactCacheStore(object):
                 parameters
             )
     
-    async def preload_event_handler(self, run_id):
+    def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
-        await self.preload_data_for_runs([run_id])
+        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
 
     async def stop_cache(self):
         await self.cache.stop()
