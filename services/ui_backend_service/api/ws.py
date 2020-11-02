@@ -155,7 +155,7 @@ class Websocket(object):
 async def load_data_from_db(table, data: Dict[str, Any],
                             postprocess: Callable = None):
     # filter the data for loading based on available primary keys
-    filter_dict = { key: data[key] for key in ["attempt_id", *table.primary_keys]}
+    filter_dict = { key: data[key] for key in ["attempt_id", *table.primary_keys] if key in data }
 
     conditions, values = [], []
     for k, v in filter_dict.items():
