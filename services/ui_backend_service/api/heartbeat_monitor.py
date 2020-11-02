@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from typing import Dict
-from pyee import AsyncIOEventEmitter
+from pyee import ExecutorEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
 from .notify import resource_list
 from .data_refiner import TaskRefiner
@@ -12,7 +12,7 @@ class HeartbeatMonitor(object):
   def __init__(self, event_name, event_emitter=None):
     self.watched = {}
     # Handle HB Events
-    self.event_emitter = event_emitter or AsyncIOEventEmitter()
+    self.event_emitter = event_emitter or ExecutorEventEmitter()
     event_emitter.on(event_name, self._heartbeat_handler)
 
     # Start heartbeat watcher
@@ -109,7 +109,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
   async def load_and_broadcast(self, key):
     run = await self.get_run(key)
     resources = resource_list(self._run_table.table_name, run)
-    self.event_emitter.emit('notify', 'UPDATE', resources, run)
+    self.event_emitter.emit('notify', 'UPDATE', self._run_table, resources, run)
 
 class TaskHeartbeatMonitor(HeartbeatMonitor):
   '''
@@ -184,7 +184,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     if resources and task['status'] == "failed":
       # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
       # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
-      self.event_emitter.emit('notify', 'UPDATE', resources, task)
+      self.event_emitter.emit('notify', 'UPDATE', self._task_table, resources, task)
   
   def generate_dict_key(self, data):
     "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"

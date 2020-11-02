@@ -4,11 +4,12 @@ import asyncio
 import collections
 
 from aiohttp import web, WSMsgType
-from typing import List, Dict
+from typing import List, Dict, Any, Callable
 
 from .utils import resource_conditions, TTLQueue
 from services.data.postgres_async_db import AsyncPostgresDB
-from pyee import AsyncIOEventEmitter
+from pyee import ExecutorEventEmitter
+from .data_refiner import TaskRefiner
 
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
 
@@ -43,9 +44,10 @@ class Websocket(object):
 
     def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS):
         self.app = app
-        self.event_emitter = event_emitter or AsyncIOEventEmitter()
+        self.event_emitter = event_emitter or ExecutorEventEmitter()
         self.db = AsyncPostgresDB.get_instance()
         self.queue = TTLQueue(queue_ttl)
+        self.task_refiner = TaskRefiner()
 
         event_emitter.on('notify', self._event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
@@ -57,16 +59,20 @@ class Websocket(object):
         """
         asyncio.run_coroutine_threadsafe(self.event_handler(*args, **kwargs), self.loop)
         
-    async def event_handler(self, operation: str, resources: List[str], data: Dict):
-        # Append event to the queue so that we can later dispatch them in case of disconnections
-        await self.queue.append({
-            'operation': operation,
-            'resources': resources,
-            'data': data
-        })
-
-        for subscription in self.subscriptions:
-            await self._event_subscription(subscription, operation, resources, data)
+    async def event_handler(self, operation: str, table, resources: List[str], data: Dict):
+        # Check if event needs to be broadcast (if anyone is subscribed to the resource)
+        if any(subscription.resource in resources for subscription in self.subscriptions):
+            # load the data and postprocessor for broadcasting
+            _postprocess = self.get_table_postprocessor(table.table_name)
+            _data = await load_data_from_db(table, data, postprocess=_postprocess)
+            # Append event to the queue so that we can later dispatch them in case of disconnections
+            await self.queue.append({
+                'operation': operation,
+                'resources': resources,
+                'data': _data
+            })
+            for subscription in self.subscriptions:
+                await self._event_subscription(subscription, operation, resources, _data)
 
     async def _event_subscription(self, subscription: WSSubscription, operation: str, resources: List[str], data: Dict):
         for resource in resources:
@@ -138,3 +144,26 @@ class Websocket(object):
         # Always remove clients from listeners
         await self.unsubscribe_from(ws)
         return ws
+    
+    def get_table_postprocessor(self, table_name):
+        if table_name == self.db.task_table_postgres.table_name:
+            return self.task_refiner.postprocess
+        else:
+            return None
+
+
+async def load_data_from_db(table, data: Dict[str, Any],
+                            postprocess: Callable = None):
+    # filter the data for loading based on available primary keys
+    filter_dict = { key: data[key] for key in ["attempt_id", *table.primary_keys]}
+
+    conditions, values = [], []
+    for k, v in filter_dict.items():
+        conditions.append("{} = %s".format(k))
+        values.append(v)
+
+    results, _ = await table.find_records(
+        conditions=conditions, values=values, fetch_single=True,
+        enable_joins=True, postprocess=postprocess
+    )
+    return results.body
