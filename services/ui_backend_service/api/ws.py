@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import asyncio
 import collections
 
@@ -17,7 +18,7 @@ SUBSCRIBE = 'SUBSCRIBE'
 UNSUBSCRIBE = 'UNSUBSCRIBE'
 
 WSSubscription = collections.namedtuple(
-    "WSSubscription", "ws fullpath resource query uuid conditions values")
+    "WSSubscription", "ws disconnected_ts fullpath resource query uuid conditions values")
 
 
 class Websocket(object):
@@ -72,7 +73,11 @@ class Websocket(object):
                 'data': _data
             })
             for subscription in self.subscriptions:
-                await self._event_subscription(subscription, operation, resources, _data)
+                if not subscription.disconnected_ts:
+                    await self._event_subscription(subscription, operation, resources, _data)
+                elif subscription.disconnected_ts and time.time() - subscription.disconnected_ts > WS_QUEUE_TTL_SECONDS:
+                    await self.unsubscribe_from(subscription.ws, subscription.uuid)
+
 
     async def _event_subscription(self, subscription: WSSubscription, operation: str, resources: List[str], data: Dict):
         for resource in resources:
@@ -97,7 +102,7 @@ class Websocket(object):
         _resource, query, conditions, values = resource_conditions(resource)
         subscription = WSSubscription(
             ws=ws, fullpath=resource, resource=_resource, query=query, uuid=uuid,
-            conditions=conditions, values=values)
+            conditions=conditions, values=values, disconnected_ts=None)
         self.subscriptions.append(subscription)
 
         # Send previous events that client might have missed due to disconnection
@@ -115,6 +120,17 @@ class Websocket(object):
         else:
             self.subscriptions = list(
                 filter(lambda s: ws != s.ws, self.subscriptions))
+    
+    async def handle_disconnect(self, ws):
+        """Sets disconnected timestamp on websocket subscription without removing it from the list.
+        Removing is handled by event_handler that checks for expired subscriptions before emitting
+        """
+        self.subscriptions = list(
+            map(
+                lambda sub: sub._replace(disconnected_ts = time.time()) if sub.ws == ws else sub,
+                self.subscriptions)
+            )
+        
 
     async def websocket_handler(self, request):
         ws = web.WebSocketResponse()
@@ -143,7 +159,7 @@ class Websocket(object):
                         print(err, flush=True)
 
         # Always remove clients from listeners
-        await self.unsubscribe_from(ws)
+        await self.handle_disconnect(ws)
         return ws
     
     def get_table_postprocessor(self, table_name):
