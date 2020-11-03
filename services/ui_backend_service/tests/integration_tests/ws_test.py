@@ -74,18 +74,19 @@ async def test_subscription_queue(cli, db, loop):
 
     now = int(math.floor(time.time()))
 
-    # At this point we have not subscribed to any resources
+    # Subscribe to resource.
+    await _subscribe(ws=ws, resource="/flows")
+    # Disconnect from ws.
+    await ws.close()
+
+    # create a new flow while disconnected subscription is still less than TTL old.
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
 
-    try:
-        # Make sure nothing is received via websocket
-        await ws.receive_json(timeout=TIMEOUT_FUTURE)
-        assert False
-    except:
-        pass
+    # Reconnect to websocket.
+    ws = await cli.ws_connect("/ws")
 
     # Subscribe and request events that happened in the past
-    await _subscribe(ws=ws, resource="/flows", since=now)
+    await _subscribe(ws=ws, resource="/flows", since=now-10)
 
     msg = await ws.receive_json(timeout=TIMEOUT_FUTURE)
     assert msg["type"] == "INSERT"
