@@ -60,12 +60,15 @@ class Websocket(object):
         """
         asyncio.run_coroutine_threadsafe(self.event_handler(*args, **kwargs), self.loop)
         
-    async def event_handler(self, operation: str, table, resources: List[str], data: Dict):
+    async def event_handler(self, operation: str, resources: List[str], data: Dict, table=None, filter_dict: Dict = {}):
+        """Either receives raw data from table triggers listener and either performs a database load
+        before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
+        """
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
         if any(subscription.resource in resources for subscription in self.subscriptions):
             # load the data and postprocessor for broadcasting
             _postprocess = self.get_table_postprocessor(table.table_name)
-            _data = await load_data_from_db(table, data, postprocess=_postprocess)
+            _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess) if table else data
             # Append event to the queue so that we can later dispatch them in case of disconnections
             #
             # NOTE: server instance specific ws queue will not work when scaling across multiple instances.
@@ -174,9 +177,14 @@ class Websocket(object):
 
 
 async def load_data_from_db(table, data: Dict[str, Any],
+                            filter_dict: Dict = {},
                             postprocess: Callable = None):
     # filter the data for loading based on available primary keys
-    filter_dict = { key: data[key] for key in ["attempt_id", *table.primary_keys] if key in data }
+    conditions_dict = {
+        key: data[key] for key in table.primary_keys
+        if key in data
+    }
+    filter_dict = {**conditions_dict, **filter_dict}
 
     conditions, values = [], []
     for k, v in filter_dict.items():

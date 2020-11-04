@@ -77,7 +77,8 @@ class ListenNotify(object):
                         event_emitter=self.event_emitter,
                         operation=_op,
                         table=self.db.task_table_postgres,
-                        data={**data, "attempt_id": _attempt_id}
+                        data=data,
+                        filter_dict={"attempt_id": _attempt_id}
                     )
 
                     # Last step is always called 'end' and only one '_task_ok' should be present
@@ -120,6 +121,7 @@ def resource_list(table_name: str, data: Dict):
         return [path.format(**data) for path in resource_paths[table_name]]
     return []
 
-async def _broadcast(event_emitter, operation: str, table, data: Dict):
+
+async def _broadcast(event_emitter, operation: str, table, data: Dict, filter_dict={}):
     _resources = resource_list(table.table_name, data)
-    event_emitter.emit('notify', operation, table, _resources, data)
+    event_emitter.emit('notify', operation, _resources, data, table, filter_dict)
