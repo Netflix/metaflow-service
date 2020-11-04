@@ -67,6 +67,10 @@ class Websocket(object):
             _postprocess = self.get_table_postprocessor(table.table_name)
             _data = await load_data_from_db(table, data, postprocess=_postprocess)
             # Append event to the queue so that we can later dispatch them in case of disconnections
+            #
+            # NOTE: server instance specific ws queue will not work when scaling across multiple instances.
+            # but on the other hand loading data and pushing everything into the queue for every server instance is also
+            # a suboptimal solution.
             await self.queue.append({
                 'operation': operation,
                 'resources': resources,
