@@ -11,6 +11,9 @@ services:
     volumes:
       - ./services:/root/services
       - ${HOME}/.aws:/root/.aws
+    # Add container capability for benchmarking processes. required for py-spy
+    cap_add:
+      - SYS_PTRACE
     environment:
       - MF_METADATA_DB_HOST=db
       - MF_METADATA_DB_PORT=5432
