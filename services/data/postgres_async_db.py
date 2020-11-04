@@ -15,7 +15,7 @@ from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
 WAIT_TIME = 10
-OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14 # 2 weeks (in milliseconds)
+OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
 
 
 class AsyncPostgresDB(object):
@@ -168,7 +168,7 @@ class AsyncPostgresTable(object):
             values.append(col_val)
 
         response, _ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
-                                              order=ordering, limit=limit,  expanded=expanded)
+                                              order=ordering, limit=limit, expanded=expanded)
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
@@ -240,7 +240,7 @@ class AsyncPostgresTable(object):
             ).strip()
 
         result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                      expanded=expanded, limit=limit, offset=offset)
+                                                    expanded=expanded, limit=limit, offset=offset)
         # Modify the response after the fetch has been executed
         if postprocess is not None:
             if iscoroutinefunction(postprocess):
@@ -278,8 +278,8 @@ class AsyncPostgresTable(object):
                     offset=offset,
                     count=count,
                     count_total=count_total,
-                    page=math.floor(offset/max(limit, 1)) + 1,
-                    pages_total=max(math.ceil(count_total/max(limit, 1)), 1),
+                    page=math.floor(offset / max(limit, 1)) + 1,
+                    pages_total=max(math.ceil(count_total / max(limit, 1)), 1),
                 )
 
                 cur.close()
@@ -695,6 +695,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.location,
                 attempt.ts_epoch as started_at,
                 COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at,
+                attempt_ok.value::boolean as attempt_ok,
                 foreach_stack.location as foreach_stack
             FROM {artifact_table} as task_ok
             LEFT JOIN {metadata_table} as attempt ON (
@@ -710,6 +711,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.task_id = done.task_id AND
                 done.field_name = 'attempt-done' AND
                 task_ok.attempt_id = done.value::int
+            )
+            LEFT JOIN {metadata_table} as attempt_ok ON (
+                task_ok.flow_id = attempt_ok.flow_id AND
+                task_ok.step_name = attempt_ok.step_name AND
+                task_ok.task_id = attempt_ok.task_id AND
+                attempt_ok.field_name = 'attempt_ok' AND
+                attempt_ok.tags ? CONCAT('attempt_id:', task_ok.attempt_id)
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
                 task_ok.flow_id = foreach_stack.flow_id AND
@@ -735,9 +743,20 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     join_columns = [
         "attempt.started_at as started_at",
         "attempt.finished_at as finished_at",
-        "attempt.location as task_ok",
+        "attempt.attempt_ok as attempt_ok",
         """
         (CASE
+            WHEN attempt_ok IS NOT NULL
+            THEN NULL
+            ELSE attempt.location
+        END) as task_ok
+        """,
+        """
+        (CASE
+            WHEN attempt_ok IS TRUE
+            THEN 'completed'
+            WHEN attempt_ok IS FALSE
+            THEN 'failed'
             WHEN attempt.finished_at IS NOT NULL
             THEN 'completed'
             WHEN attempt.finished_at IS NULL
