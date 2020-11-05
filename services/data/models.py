@@ -65,7 +65,7 @@ class RunRow(object):
         self.last_heartbeat_ts = last_heartbeat_ts
         self.finished_at = finished_at
         self.duration = duration
-        self.last_heartbeat_ts=last_heartbeat_ts
+        self.last_heartbeat_ts = last_heartbeat_ts
 
     def serialize(self, expanded: bool = False):
         if expanded:

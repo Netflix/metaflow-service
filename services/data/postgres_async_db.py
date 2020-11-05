@@ -15,7 +15,7 @@ from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
 WAIT_TIME = 10
-OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14 # 2 weeks (in milliseconds)
+OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
 
 
 class AsyncPostgresDB(object):
@@ -168,7 +168,7 @@ class AsyncPostgresTable(object):
             values.append(col_val)
 
         response, _ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
-                                              order=ordering, limit=limit,  expanded=expanded)
+                                              order=ordering, limit=limit, expanded=expanded)
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
@@ -240,7 +240,7 @@ class AsyncPostgresTable(object):
             ).strip()
 
         result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                      expanded=expanded, limit=limit, offset=offset)
+                                                    expanded=expanded, limit=limit, offset=offset)
         # Modify the response after the fetch has been executed
         if postprocess is not None:
             if iscoroutinefunction(postprocess):
@@ -278,8 +278,8 @@ class AsyncPostgresTable(object):
                     offset=offset,
                     count=count,
                     count_total=count_total,
-                    page=math.floor(offset/max(limit, 1)) + 1,
-                    pages_total=max(math.ceil(count_total/max(limit, 1)), 1),
+                    page=math.floor(offset / max(limit, 1)) + 1,
+                    pages_total=max(math.ceil(count_total / max(limit, 1)), 1),
                 )
 
                 cur.close()
@@ -533,8 +533,33 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
-    joins = ["LEFT JOIN {artifacts_table} AS artifacts ON ({table_name}.flow_id = artifacts.flow_id AND {table_name}.run_number = artifacts.run_number AND artifacts.step_name = 'end' AND artifacts.name = '_task_ok')"
-             .format(table_name=table_name, artifacts_table="artifact_v3")]
+    joins = [
+        """
+        LEFT JOIN (
+            SELECT
+                artifacts.flow_id, artifacts.run_number, artifacts.step_name,
+                artifacts.task_id, artifacts.attempt_id, artifacts.ts_epoch,
+                attempt_ok.value::boolean as attempt_ok
+            FROM {artifact_table} as artifacts
+            LEFT JOIN {metadata_table} as attempt_ok ON (
+                artifacts.flow_id = attempt_ok.flow_id AND
+                artifacts.run_number = attempt_ok.run_number AND
+                artifacts.task_id = attempt_ok.task_id AND
+                artifacts.step_name = attempt_ok.step_name AND
+                attempt_ok.field_name = 'attempt_ok' AND
+                attempt_ok.tags ? CONCAT('attempt_id:', artifacts.attempt_id)
+            )
+            WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
+        ) AS artifacts ON (
+            {table_name}.flow_id = artifacts.flow_id AND
+            {table_name}.run_number = artifacts.run_number
+        )
+        """.format(
+            table_name=table_name,
+            metadata_table="metadata_v3",
+            artifact_table="artifact_v3"
+        ),
+    ]
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = [
         """
@@ -556,6 +581,10 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
+            WHEN artifacts.attempt_ok IS TRUE
+            THEN 'completed'
+            WHEN artifacts.attempt_ok IS FALSE
+            THEN 'failed'
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN 'completed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
@@ -712,6 +741,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.location,
                 attempt.ts_epoch as started_at,
                 COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at,
+                attempt_ok.value::boolean as attempt_ok,
                 foreach_stack.location as foreach_stack
             FROM {artifact_table} as task_ok
             LEFT JOIN {metadata_table} as attempt ON (
@@ -727,6 +757,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.task_id = done.task_id AND
                 done.field_name = 'attempt-done' AND
                 task_ok.attempt_id = done.value::int
+            )
+            LEFT JOIN {metadata_table} as attempt_ok ON (
+                task_ok.flow_id = attempt_ok.flow_id AND
+                task_ok.step_name = attempt_ok.step_name AND
+                task_ok.task_id = attempt_ok.task_id AND
+                attempt_ok.field_name = 'attempt_ok' AND
+                attempt_ok.tags ? CONCAT('attempt_id:', task_ok.attempt_id)
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
                 task_ok.flow_id = foreach_stack.flow_id AND
@@ -752,9 +789,23 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     join_columns = [
         "attempt.started_at as started_at",
         "attempt.finished_at as finished_at",
-        "attempt.location as task_ok",
+        "attempt.attempt_ok as attempt_ok",
+        # If 'attempt_ok' is present, we can leave task_ok NULL since
+        #   that is used to fetch the artifact value from remote location.
+        # This process is performed at TaskRefiner (data_refiner.py)
         """
         (CASE
+            WHEN attempt_ok IS NOT NULL
+            THEN NULL
+            ELSE attempt.location
+        END) as task_ok
+        """,
+        """
+        (CASE
+            WHEN attempt_ok IS TRUE
+            THEN 'completed'
+            WHEN attempt_ok IS FALSE
+            THEN 'failed'
             WHEN attempt.finished_at IS NOT NULL
             THEN 'completed'
             WHEN attempt.finished_at IS NULL
