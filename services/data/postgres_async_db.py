@@ -533,8 +533,33 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
-    joins = ["LEFT JOIN {artifacts_table} AS artifacts ON ({table_name}.flow_id = artifacts.flow_id AND {table_name}.run_number = artifacts.run_number AND artifacts.step_name = 'end' AND artifacts.name = '_task_ok')"
-             .format(table_name=table_name, artifacts_table="artifact_v3")]
+    joins = [
+        """
+        LEFT JOIN (
+            SELECT
+                artifacts.flow_id, artifacts.run_number, artifacts.step_name,
+                artifacts.task_id, artifacts.attempt_id, artifacts.ts_epoch,
+                attempt_ok.value::boolean as attempt_ok
+            FROM {artifact_table} as artifacts
+            LEFT JOIN {metadata_table} as attempt_ok ON (
+                artifacts.flow_id = attempt_ok.flow_id AND
+                artifacts.run_number = attempt_ok.run_number AND
+                artifacts.task_id = attempt_ok.task_id AND
+                artifacts.step_name = attempt_ok.step_name AND
+                attempt_ok.field_name = 'attempt_ok' AND
+                attempt_ok.tags ? CONCAT('attempt_id:', artifacts.attempt_id)
+            )
+            WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
+        ) AS artifacts ON (
+            {table_name}.flow_id = artifacts.flow_id AND
+            {table_name}.run_number = artifacts.run_number
+        )
+        """.format(
+            table_name=table_name,
+            metadata_table="metadata_v3",
+            artifact_table="artifact_v3"
+        ),
+    ]
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = [
         """
@@ -556,6 +581,10 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
+            WHEN artifacts.attempt_ok IS TRUE
+            THEN 'completed'
+            WHEN artifacts.attempt_ok IS FALSE
+            THEN 'failed'
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN 'completed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL

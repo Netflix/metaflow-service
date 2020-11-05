@@ -197,7 +197,6 @@ class TaskRow(object):
         finished_at=None,
         duration=None,
         attempt_id=0,
-        attempt_ok=None,
         tags=None,
         system_tags=None,
         last_heartbeat_ts=None,
@@ -222,7 +221,6 @@ class TaskRow(object):
         self.finished_at = finished_at
         self.duration = duration
         self.attempt_id = attempt_id
-        self.attempt_ok = attempt_ok
         self.tags = tags
         self.system_tags = system_tags
         self.last_heartbeat_ts = last_heartbeat_ts
@@ -245,7 +243,6 @@ class TaskRow(object):
                 "finished_at": self.finished_at,
                 "duration": self.duration,
                 "attempt_id": self.attempt_id,
-                "attempt_ok": self.attempt_ok,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
@@ -265,7 +262,6 @@ class TaskRow(object):
                 "finished_at": self.finished_at,
                 "duration": self.duration,
                 "attempt_id": self.attempt_id,
-                "attempt_ok": self.attempt_ok,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
