@@ -72,7 +72,7 @@ class ArtifactCacheStore(object):
 
         print("preloading {} artifacts".format(len(artifact_locations)), flush=True)
 
-        res = await self.cache.SearchArtifacts(artifact_locations, "preload")
+        res = await self.cache.GetArtifacts(artifact_locations)
         async for event in res.stream():
             print(event, flush=True)
 
