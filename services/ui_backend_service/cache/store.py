@@ -158,14 +158,16 @@ class ArtifactCacheStore(object):
         return combined_results
     
     async def run_parameters_event_handler(self, flow_id, run_number):
-        parameters = await self.get_run_parameters(flow_id, run_number)
-        if parameters:
+        try:
+            parameters = await self.get_run_parameters(flow_id, run_number)
             self.event_emitter.emit(
                 "notify",
                 "UPDATE",
                 [f"/flows/{flow_id}/runs/{run_number}/parameters"],
                 parameters
             )
+        except GetParametersFailed:
+            pass
     
     async def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
