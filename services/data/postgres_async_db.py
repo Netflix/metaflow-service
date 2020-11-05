@@ -790,6 +790,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         "attempt.started_at as started_at",
         "attempt.finished_at as finished_at",
         "attempt.attempt_ok as attempt_ok",
+        # If 'attempt_ok' is present, we can leave task_ok NULL since
+        #   that is used to fetch the artifact value from remote location.
+        # This process is performed at TaskRefiner (data_refiner.py)
         """
         (CASE
             WHEN attempt_ok IS NOT NULL
