@@ -79,6 +79,7 @@ async def test_run_status_with_heartbeat(cli, db):
     _run_failed["last_heartbeat_ts"] = 1
     # NOTE: heartbeat_ts and ts_epoch have different units.
     _run_failed["duration"] = _run_failed["last_heartbeat_ts"]*1000 - _run_failed["ts_epoch"]
+    _run_failed["finished_at"] = _run_failed["last_heartbeat_ts"] * 1000
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_failed), 200, _run_failed)
     
@@ -168,6 +169,8 @@ async def test_old_run_status_without_heartbeat(cli, db):
             }
         )
     _run_failed["ts_epoch"] = _old_ts
+    # finished at should be the start time + cutoff period
+    _run_failed["finished_at"] = _run_failed["ts_epoch"] + (60 * 60 * 24 * 14 * 1000)
     _run_failed["status"] = "failed"
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_failed), 200, _run_failed)
