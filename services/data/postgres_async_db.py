@@ -536,34 +536,51 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     joins = ["LEFT JOIN {artifacts_table} AS artifacts ON ({table_name}.flow_id = artifacts.flow_id AND {table_name}.run_number = artifacts.run_number AND artifacts.step_name = 'end' AND artifacts.name = '_task_ok')"
              .format(table_name=table_name, artifacts_table="artifact_v3")]
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys]
-    join_columns = ["artifacts.ts_epoch AS finished_at",
-                    """
-                    (CASE
-                        WHEN artifacts.ts_epoch IS NOT NULL
-                        THEN 'completed'
-                        WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                        AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-                        THEN 'failed'
-                        WHEN {table_name}.last_heartbeat_ts IS NULL
-                        AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
-                        THEN 'failed'
-                        ELSE 'running'
-                    END) AS status
-                    """.format(
-                        table_name=table_name,
-                        heartbeat_threshold=WAIT_TIME,
-                        cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
-                    ),
-                    """
-                    (CASE
-                        WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-                        THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-                        WHEN artifacts.ts_epoch IS NOT NULL
-                        THEN artifacts.ts_epoch - {table_name}.ts_epoch
-                        ELSE NULL
-                    END) AS duration
-                    """.format(table_name=table_name)
-                    ]
+    join_columns = [
+        """
+        (CASE
+            WHEN artifacts.ts_epoch IS NOT NULL
+            THEN artifacts.ts_epoch
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+            THEN {table_name}.last_heartbeat_ts*1000
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+            AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
+            THEN {table_name}.ts_epoch + {cutoff}
+            ELSE NULL
+        END) AS finished_at
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=WAIT_TIME,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+        ),
+        """
+        (CASE
+            WHEN artifacts.ts_epoch IS NOT NULL
+            THEN 'completed'
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+            THEN 'failed'
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+            AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
+            THEN 'failed'
+            ELSE 'running'
+        END) AS status
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=WAIT_TIME,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+        ),
+        """
+        (CASE
+            WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+            THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
+            WHEN artifacts.ts_epoch IS NOT NULL
+            THEN artifacts.ts_epoch - {table_name}.ts_epoch
+            ELSE NULL
+        END) AS duration
+        """.format(table_name=table_name)
+    ]
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
