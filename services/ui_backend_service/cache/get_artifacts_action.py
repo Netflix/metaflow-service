@@ -63,7 +63,9 @@ class GetArtifacts(CacheAction):
                 stream_output=None,
                 **kwargs):
 
-        results = {}
+        # make a copy of already existing results, as the cache action has to produce all keys it promised
+        # in the format_request response.
+        results = {**existing_keys}
         locations = message['artifact_locations']
 
         artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
@@ -117,8 +119,6 @@ class GetArtifacts(CacheAction):
         for key in artifact_keys:
             if key in results:
                 success, value = json.loads(results[key])
-            elif key in existing_keys:
-                success, value = json.loads(existing_keys[key])
             else:
                 success, value = False, None
             

@@ -166,20 +166,19 @@ class ArtifactCacheStore(object):
 
         return combined_results
 
-    def run_parameters_event_handler(self, *args, **kwargs):
-        asyncio.run_coroutine_threadsafe(self._run_parameters_event_handler(*args, **kwargs), self.loop)
-
-    async def _run_parameters_event_handler(self, flow_id, run_number):
-        parameters = await self.get_run_parameters(flow_id, run_number)
-        if parameters:
+    async def run_parameters_event_handler(self, flow_id, run_number):
+        try:
+            parameters = await self.get_run_parameters(flow_id, run_number)
             self.event_emitter.emit(
                 "notify",
                 "UPDATE",
                 [f"/flows/{flow_id}/runs/{run_number}/parameters"],
                 parameters
             )
+        except GetParametersFailed:
+            pass
 
-    def preload_event_handler(self, run_id):
+    async def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
         asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
 
