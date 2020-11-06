@@ -49,6 +49,7 @@ Configure amount of seconds realtime events are kept in queue (delivered to UI i
 
 Configure amount of runs to prefetch during server startup (artifact cache):
 
+- `PREFETCH_RUNS_SINCE` [in seconds, defaults to 2 days ago (86400 * 2 seconds)]
 - `PREFETCH_RUNS_LIMIT` [defaults to 50]
 
 Running the service without Docker (from project root):
