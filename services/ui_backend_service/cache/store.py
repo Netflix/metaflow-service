@@ -36,6 +36,8 @@ class CacheStore(object):
             await self.dag_cache.stop_cache()
 
 
+# Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
+METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE = os.environ.get('PREFETCH_RUNS_SINCE', 86400 * 2)
 METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50)
 
 
@@ -77,10 +79,9 @@ class ArtifactCacheStore(object):
             print(event, flush=True)
 
     async def get_recent_run_numbers(self):
-        since = int(round(time.time() * 1000)) - 86400_000 * 2  # 2 days ago
         _records, _ = await self._run_table.find_records(
             conditions=["ts_epoch >= %s"],
-            values=[since],
+            values=[int(round(time.time() * 1000)) - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)],
             order=['ts_epoch DESC'],
             limit=METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT,
             expanded=True

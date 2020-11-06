@@ -23,6 +23,8 @@ services:
       - MF_UI_METADATA_PORT=${MF_UI_METADATA_PORT:-8083}
       - MF_UI_METADATA_HOST=${MF_UI_METADATA_HOST:-0.0.0.0}
       - UI_ENABLED=1
+      - PREFETCH_RUNS_SINCE=3600 # 1 hour in seconds
+      - PREFETCH_RUNS_LIMIT=1 # Prefetch only one run
     depends_on:
       - db
   metadata:
