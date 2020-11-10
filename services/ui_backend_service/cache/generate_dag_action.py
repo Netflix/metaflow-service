@@ -102,7 +102,7 @@ def generate_dag(flow_id, tarball_path):
     info_json = f.extractfile('INFO').read().decode('utf-8')
     info = json.loads(info_json)
     # Break if language is not supported.
-    if info["use_r"]:
+    if "use_r" in info and info["use_r"]:
       raise UnsupportedFlowLanguage
     script_name = info['script']
     sourcecode = f.extractfile(script_name).read().decode('utf-8')
