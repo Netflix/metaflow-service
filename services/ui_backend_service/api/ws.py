@@ -15,6 +15,7 @@ from .data_refiner import TaskRefiner
 from throttler import throttle_simultaneous
 
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
+WS_POSTPROCESS_CONCURRENCY_LIMIT = int(os.environ.get("WS_POSTPROCESS_CONCURRENCY_LIMIT", 8))
 
 SUBSCRIBE = 'SUBSCRIBE'
 UNSUBSCRIBE = 'UNSUBSCRIBE'

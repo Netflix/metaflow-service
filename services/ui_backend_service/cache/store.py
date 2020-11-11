@@ -9,6 +9,9 @@ import asyncio
 import time
 import os
 
+CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
+CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
+
 
 class CacheStore(object):
     "Singleton class for all the different cache clients that are used to access caches"
@@ -59,7 +62,7 @@ class ArtifactCacheStore(object):
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
                                       max_size=600000,
-                                      max_actions=16)
+                                      max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
         await self.cache.start()
         asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
 
@@ -197,7 +200,7 @@ class DAGCacheStore(object):
         self.cache = CacheAsyncClient('cache_data/dag',
                                       actions,
                                       max_size=100000,
-                                      max_actions=16)
+                                      max_actions=CACHE_DAG_MAX_ACTIONS)
         await self.cache.start()
 
     async def stop_cache(self):

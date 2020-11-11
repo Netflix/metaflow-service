@@ -25,6 +25,10 @@ services:
       - UI_ENABLED=1
       - PREFETCH_RUNS_SINCE=3600 # 1 hour in seconds
       - PREFETCH_RUNS_LIMIT=1 # Prefetch only one run
+      - S3_NUM_WORKERS=2
+      - CACHE_ARTIFACT_MAX_ACTIONS=16
+      - CACHE_DAG_MAX_ACTIONS=16
+      - WS_POSTPROCESS_CONCURRENCY_LIMIT=8
     depends_on:
       - db
   metadata:

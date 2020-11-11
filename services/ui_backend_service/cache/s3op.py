@@ -37,7 +37,7 @@ sys.path.insert(0,
 # we use Metaflow's parallel_imap_unordered instead of
 # multiprocessing.Pool because https://bugs.python.org/issue31886
 
-NUM_WORKERS_DEFAULT = 2
+NUM_WORKERS_DEFAULT = int(os.environ.get("S3_NUM_WORKERS", 2))
 
 S3Url = namedtuple('S3Url', ['bucket', 'path', 'url', 'local', 'prefix'])
 
