@@ -3,3 +3,4 @@ aiohttp-swagger==1.0.15
 boto3==1.15.10
 pyee==8.0.1
 yarl==1.5.1
+throttler==1.2.0

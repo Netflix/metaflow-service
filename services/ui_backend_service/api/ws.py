@@ -12,6 +12,8 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from pyee import ExecutorEventEmitter
 from .data_refiner import TaskRefiner
 
+from throttler import throttle_simultaneous
+
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
 
 SUBSCRIBE = 'SUBSCRIBE'
@@ -59,7 +61,7 @@ class Websocket(object):
         as the ExecutorEventEmitter does not accept coroutines as handlers.
         """
         asyncio.run_coroutine_threadsafe(self.event_handler(*args, **kwargs), self.loop)
-        
+
     async def event_handler(self, operation: str, resources: List[str], data: Dict, table=None, filter_dict: Dict = {}):
         """Either receives raw data from table triggers listener and either performs a database load
         before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
@@ -67,7 +69,7 @@ class Websocket(object):
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
         if any(subscription.resource in resources for subscription in self.subscriptions):
             # load the data and postprocessor for broadcasting
-            _postprocess = self.get_table_postprocessor(table.table_name)
+            _postprocess = await self.get_table_postprocessor(table.table_name)
             _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess) if table else data
             # Append event to the queue so that we can later dispatch them in case of disconnections
             #
@@ -84,7 +86,6 @@ class Websocket(object):
                     await self._event_subscription(subscription, operation, resources, _data)
                 elif subscription.disconnected_ts and time.time() - subscription.disconnected_ts > WS_QUEUE_TTL_SECONDS:
                     await self.unsubscribe_from(subscription.ws, subscription.uuid)
-
 
     async def _event_subscription(self, subscription: WSSubscription, operation: str, resources: List[str], data: Dict):
         for resource in resources:
@@ -127,22 +128,21 @@ class Websocket(object):
         else:
             self.subscriptions = list(
                 filter(lambda s: ws != s.ws, self.subscriptions))
-    
+
     async def handle_disconnect(self, ws):
         """Sets disconnected timestamp on websocket subscription without removing it from the list.
         Removing is handled by event_handler that checks for expired subscriptions before emitting
         """
         self.subscriptions = list(
             map(
-                lambda sub: sub._replace(disconnected_ts = time.time()) if sub.ws == ws else sub,
+                lambda sub: sub._replace(disconnected_ts=time.time()) if sub.ws == ws else sub,
                 self.subscriptions)
-            )
-        
+        )
 
     async def websocket_handler(self, request):
         ws = web.WebSocketResponse()
         await ws.prepare(request)
-        
+
         while not ws.closed:
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
@@ -168,8 +168,9 @@ class Websocket(object):
         # Always remove clients from listeners
         await self.handle_disconnect(ws)
         return ws
-    
-    def get_table_postprocessor(self, table_name):
+
+    @throttle_simultaneous(count=8)
+    async def get_table_postprocessor(self, table_name):
         if table_name == self.db.task_table_postgres.table_name:
             return self.task_refiner.postprocess
         else:

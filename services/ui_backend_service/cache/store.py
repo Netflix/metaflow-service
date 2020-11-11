@@ -59,7 +59,7 @@ class ArtifactCacheStore(object):
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
                                       max_size=600000,
-                                      max_actions=32)
+                                      max_actions=16)
         await self.cache.start()
         asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
 
@@ -196,7 +196,8 @@ class DAGCacheStore(object):
         actions = [GenerateDag]
         self.cache = CacheAsyncClient('cache_data/dag',
                                       actions,
-                                      max_size=100000)
+                                      max_size=100000,
+                                      max_actions=16)
         await self.cache.start()
 
     async def stop_cache(self):
