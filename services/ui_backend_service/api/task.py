@@ -80,11 +80,9 @@ class TaskApi(object):
                                   initial_values=[
                                       flow_name, run_id_value],
                                   initial_order=["attempt_id DESC"],
-                                  allowed_order=self._async_table.keys +
-                                  ["finished_at", "duration", "attempt_id"],
+                                  allowed_order=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys +
-                                  ["finished_at", "duration", "attempt_id"],
+                                  allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
                                   postprocess=self.refiner.postprocess
                                   )
@@ -141,11 +139,9 @@ class TaskApi(object):
                                   initial_values=[
                                       flow_name, run_id_value, step_name],
                                   initial_order=["attempt_id DESC"],
-                                  allowed_order=self._async_table.keys +
-                                  ["finished_at", "duration", "attempt_id"],
+                                  allowed_order=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys +
-                                  ["finished_at", "duration", "attempt_id"],
+                                  allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
                                   postprocess=self.refiner.postprocess
                                   )
@@ -255,11 +251,9 @@ class TaskApi(object):
                                   initial_values=[
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
-                                  allowed_order=self._async_table.keys +
-                                  ["finished_at", "duration", "attempt_id"],
+                                  allowed_order=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys +
-                                  ["finished_at", "duration", "attempt_id"],
+                                  allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
                                   postprocess=self.refiner.postprocess
                                   )
