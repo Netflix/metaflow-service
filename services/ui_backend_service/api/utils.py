@@ -7,6 +7,7 @@ from services.data.db_utils import DBResponse
 from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
 
+
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
     query = {}
     for key in request.query:
