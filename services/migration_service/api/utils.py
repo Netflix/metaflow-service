@@ -19,7 +19,7 @@ class ApiUtils(object):
         try:
             migrations_list = ApiUtils.list_migrations()
             index_version = migrations_list.index(current_version)
-            return migrations_list[index_version+1:]
+            return migrations_list[index_version + 1:]
         except:
             return migrations_list
 
