@@ -47,7 +47,7 @@ class AdminApi(object):
     async def links(self, request):
         """
         ---
-        description: Provides custom navigation links for UI. 
+        description: Provides custom navigation links for UI.
         tags:
         - Admin
         produces:
