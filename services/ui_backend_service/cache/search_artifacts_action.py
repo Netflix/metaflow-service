@@ -50,7 +50,7 @@ class SearchArtifacts(CacheAction):
 
     @classmethod
     def response(cls, keys_objs):
-        '''Action should respond with a dictionary of 
+        '''Action should respond with a dictionary of
         {
             location: {
                 "matches": boolean,
@@ -85,8 +85,11 @@ class SearchArtifacts(CacheAction):
         result_key = [key for key in keys if key.startswith('search:result')][0]
 
         # Lambdas for streaming status updates.
-        def stream_progress(num): return stream_output({"type": "progress", "fraction": num})
-        def stream_error(err, id): return stream_output({"type": "error", "message": err, "id": id})
+        def stream_progress(num):
+            return stream_output({"type": "progress", "fraction": num})
+
+        def stream_error(err, id):
+            return stream_output({"type": "error", "message": err, "id": id})
 
         # Make a list of artifact locations that require fetching (not cached previously)
         locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
@@ -132,7 +135,11 @@ class SearchArtifacts(CacheAction):
         # Perform search on loaded artifacts.
         search_results = {}
         searchterm = message['searchterm']
-        def format_loc(x): return x[len("search:artifactdata:"):]  # extract location from the artifact cache key
+
+        def format_loc(x):
+            "extract location from the artifact cache key"
+            return x[len("search:artifactdata:"):]
+
         for key in artifact_keys:
             if key in results:
                 load_success, value = json.loads(results[key])

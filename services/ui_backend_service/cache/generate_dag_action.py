@@ -71,7 +71,9 @@ class GenerateDag(CacheAction):
         flow_name = message['flow_id']
 
         result_key = [key for key in keys if key.startswith('dag:result')][0]
-        def stream_error(err, id): return stream_output({"type": "error", "message": err, "id": id})
+
+        def stream_error(err, id):
+            return stream_output({"type": "error", "message": err, "id": id})
 
         # get codepackage from S3
         with NoRetryS3() as s3:

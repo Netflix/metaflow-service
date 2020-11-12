@@ -72,7 +72,8 @@ class GetArtifacts(CacheAction):
         result_key = [key for key in keys if key.startswith('parameters:result')][0]
 
         # Lambdas for streaming status updates.
-        def stream_error(err, id): return stream_output({"type": "error", "message": err, "id": id})
+        def stream_error(err, id):
+            return stream_output({"type": "error", "message": err, "id": id})
 
         # Make a list of artifact locations that require fetching (not cached previously)
         locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
@@ -115,7 +116,11 @@ class GetArtifacts(CacheAction):
 
         # Collect the artifact contents into the results.
         collected = {}
-        def format_loc(x): return x[len("search:artifactdata:"):]  # extract location from the artifact cache key
+
+        def format_loc(x):
+            "extract location from the artifact cache key"
+            return x[len("search:artifactdata:"):]
+
         for key in artifact_keys:
             if key in results:
                 success, value = json.loads(results[key])
