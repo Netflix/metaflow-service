@@ -51,7 +51,7 @@ class ArtifactSearchApi(object):
         return ws
 
     async def get_run_artifacts(self, flow_name, run_id_key, run_id_value, artifact_name):
-        '''find a set of artifacts to perform the search over. 
+        '''find a set of artifacts to perform the search over.
         Includes localstore artifacts as well, as we want to return that these could not be searched over.
         '''
         meta_artifacts = await self._artifact_table.get_records(
@@ -87,14 +87,15 @@ async def search_dict_filter(artifacts, artifact_match_dict={}):
             'searchable': boolean
         }
     ]
-      searchable: denotes whether the task had an artifact that could be searched or not. 
+      searchable: denotes whether the task had an artifact that could be searched or not.
       False in cases where the artifact could not be included in the search
     '''
 
-    def result_format(art): return dict(
-        [key, val] for key, val in art.items()
-        if key in ['flow_id', 'run_number', 'step_name', 'task_id']
-    )
+    def result_format(art):
+        return dict(
+            [key, val] for key, val in art.items()
+            if key in ['flow_id', 'run_number', 'step_name', 'task_id']
+        )
 
     results = []
     for artifact in artifacts:
