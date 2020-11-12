@@ -3,6 +3,14 @@
 # adds specific error code for missing S3 credentials.
 # and removes aws_retry decorator usage to fit backend usecase.
 
+from metaflow.datatools.s3op import _populate_prefixes
+from metaflow.datatools.s3op import verify_results, generate_local_path
+from metaflow.datatools.s3op import S3Ops as _S3Ops
+from metaflow.datatools.s3op import with_unit
+from metaflow.datatools.s3op import worker, start_workers, process_urls
+from metaflow.datatools.s3op import format_triplet, normalize_client_error
+from metaflow.multicore_utils import parallel_map
+from metaflow.util import url_quote, url_unquote
 import math
 import string
 import sys
@@ -24,14 +32,12 @@ import click
 
 # s3op can be launched as a stand-alone script. We must set
 # PYTHONPATH for the parent Metaflow explicitly.
-sys.path.insert(0,\
-    os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+sys.path.insert(0,
+                os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 # we use Metaflow's parallel_imap_unordered instead of
 # multiprocessing.Pool because https://bugs.python.org/issue31886
-from metaflow.util import url_quote, url_unquote
-from metaflow.multicore_utils import parallel_map
 
-NUM_WORKERS_DEFAULT = 64
+NUM_WORKERS_DEFAULT = int(os.environ.get("S3_NUM_WORKERS", 2))
 
 S3Url = namedtuple('S3Url', ['bucket', 'path', 'url', 'local', 'prefix'])
 
@@ -46,15 +52,12 @@ ERROR_VERIFY_FAILED = 9
 ERROR_LOCAL_FILE_NOT_FOUND = 10
 ERROR_MISSING_CREDENTIALS = 11
 
-from metaflow.datatools.s3op import format_triplet, normalize_client_error
 
 # S3 worker pool
-from metaflow.datatools.s3op import worker, start_workers, process_urls
 
 # Utility functions
-from metaflow.datatools.s3op import with_unit
 
-from metaflow.datatools.s3op import S3Ops as _S3Ops
+
 class S3Ops(_S3Ops):
     def get_size(self, url):
         self.reset_client()
@@ -62,7 +65,7 @@ class S3Ops(_S3Ops):
             head = self.s3.head_object(Bucket=url.bucket, Key=url.path)
             return True, url, [(url, head['ContentLength'])]
         except NoCredentialsError as err:
-          return False, url, ERROR_MISSING_CREDENTIALS
+            return False, url, ERROR_MISSING_CREDENTIALS
         except ClientError as err:
             error_code = normalize_client_error(err)
             if error_code == 404:
@@ -106,28 +109,32 @@ class S3Ops(_S3Ops):
         except self.s3.exceptions.NoSuchBucket:
             return False, prefix_url, ERROR_URL_NOT_FOUND
         except NoCredentialsError as err:
-          return False, prefix_url, ERROR_MISSING_CREDENTIALS
+            return False, prefix_url, ERROR_MISSING_CREDENTIALS
         except ClientError as err:
             if err.response['Error']['Code'] == 'AccessDenied':
                 return False, prefix_url, ERROR_URL_ACCESS_DENIED
             else:
                 raise
 
+
 # We want to reuse an s3 client instance over multiple operations.
 # This is accomplished by op_ functions below.
-from metaflow.datatools.s3op import verify_results, generate_local_path
+
 
 def op_get_size(urls):
     s3 = S3Ops()
     return [s3.get_size(url) for url in urls]
 
+
 def op_list_prefix(prefix_urls):
     s3 = S3Ops()
     return [s3.list_prefix(prefix) for prefix in prefix_urls]
 
+
 def op_list_prefix_nonrecursive(prefix_urls):
     s3 = S3Ops()
     return [s3.list_prefix(prefix, delimiter='/') for prefix in prefix_urls]
+
 
 def exit(exit_code, url):
     if exit_code == ERROR_INVALID_URL:
@@ -151,6 +158,7 @@ def exit(exit_code, url):
         msg = 'Unknown error'
     print(msg, file=sys.stderr)
     sys.exit(exit_code)
+
 
 def parallel_op(op, lst, num_workers):
     # parallel op divides work equally amongst num_workers
@@ -181,11 +189,12 @@ def parallel_op(op, lst, num_workers):
             yield x
 
 # CLI
+
+
 @click.group()
 def cli():
     pass
 
-from metaflow.datatools.s3op import _populate_prefixes
 
 @cli.command('list', help='List S3 objects')
 @click.option('--inputs',
@@ -231,6 +240,7 @@ def lst(prefixes,
         else:
             print(format_triplet(url.prefix, url.url, str(size)))
 
+
 @cli.command(help='Download files from S3')
 @click.option('--recursive/--no-recursive',
               default=False,
@@ -250,7 +260,7 @@ def lst(prefixes,
 @click.option('--allow-missing/--no-allow-missing',
               default=False,
               show_default=True,
-              help='Do not exit if missing files are detected. '\
+              help='Do not exit if missing files are detected. '
                    'Implies --verify.')
 @click.option('--verbose/--no-verbose',
               default=True,
