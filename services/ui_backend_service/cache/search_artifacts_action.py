@@ -9,6 +9,7 @@ import json
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
 
+
 class SearchArtifacts(CacheAction):
     '''
     Fetches artifacts by locations and performs a search against the object contents.
@@ -33,20 +34,19 @@ class SearchArtifacts(CacheAction):
             'artifact_locations': unique_locs,
             'searchterm': searchterm
         }
-        
+
         artifact_keys = []
         for location in unique_locs:
             artifact_keys.append(artifact_cache_id(location))
-        
+
         request_id = lookup_id(locations, searchterm)
         stream_key = 'search:stream:%s' % request_id
         result_key = 'search:result:%s' % request_id
 
         return msg,\
-               [result_key, *artifact_keys],\
-               stream_key,\
-               [stream_key, result_key]
-
+            [result_key, *artifact_keys],\
+            stream_key,\
+            [stream_key, result_key]
 
     @classmethod
     def response(cls, keys_objs):
@@ -58,7 +58,7 @@ class SearchArtifacts(CacheAction):
             }
         }
         that tells the client whether the search term matches in the given location, or if performing search was impossible'''
-        return [ json.loads(val) for key, val in keys_objs.items() if key.startswith('search:result') ][0]
+        return [json.loads(val) for key, val in keys_objs.items() if key.startswith('search:result')][0]
 
     @classmethod
     def stream_response(cls, it):
@@ -82,18 +82,18 @@ class SearchArtifacts(CacheAction):
         locations = message['artifact_locations']
 
         artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
-        result_key = [ key for key in keys if key.startswith('search:result')][0]
+        result_key = [key for key in keys if key.startswith('search:result')][0]
 
         # Lambdas for streaming status updates.
-        stream_progress = lambda num: stream_output({"type": "progress", "fraction": num})
-        stream_error = lambda err, id: stream_output({"type": "error", "message": err, "id": id})
-        
+        def stream_progress(num): return stream_output({"type": "progress", "fraction": num})
+        def stream_error(err, id): return stream_output({"type": "error", "message": err, "id": id})
+
         # Make a list of artifact locations that require fetching (not cached previously)
         locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
 
         # Fetch the S3 locations data
         num_s3_batches = max(1, len(locations_to_fetch) // S3_BATCH_SIZE)
-        s3_locations = [ loc for loc in locations_to_fetch if loc.startswith("s3://") ]
+        s3_locations = [loc for loc in locations_to_fetch if loc.startswith("s3://")]
         with NoRetryS3() as s3:
             for i, locations in enumerate(batchiter(s3_locations, S3_BATCH_SIZE), start=1):
                 stream_progress(i / num_s3_batches)
@@ -123,7 +123,7 @@ class SearchArtifacts(CacheAction):
                 except MetaflowS3Exception as ex:
                     stream_error(str(ex), "s3-generic-error")
         # Skip the inaccessible locations
-        other_locations = [ loc for loc in locations_to_fetch if not loc.startswith("s3://") ]
+        other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
         for loc in other_locations:
             artifact_key = artifact_cache_id(loc)
             stream_error("Artifact is not accessible", "artifact-not-accessible")
@@ -132,7 +132,7 @@ class SearchArtifacts(CacheAction):
         # Perform search on loaded artifacts.
         search_results = {}
         searchterm = message['searchterm']
-        format_loc = lambda x: x[len("search:artifactdata:"):] # extract location from the artifact cache key
+        def format_loc(x): return x[len("search:artifactdata:"):]  # extract location from the artifact cache key
         for key in artifact_keys:
             if key in results:
                 load_success, value = json.loads(results[key])
@@ -143,17 +143,19 @@ class SearchArtifacts(CacheAction):
 
             search_results[format_loc(key)] = {
                 "included": load_success,
-                "matches": value==searchterm
+                "matches": value == searchterm
             }
-        
+
         results[result_key] = json.dumps(search_results)
 
         return results
 
+
 def lookup_id(locations, searchterm):
     "construct a unique id to be used with stream_key and result_key"
-    _string = "-".join(locations)+searchterm
+    _string = "-".join(locations) + searchterm
     return hashlib.sha1(_string.encode('utf-8')).hexdigest()
+
 
 def artifact_cache_id(location):
     "construct a unique cache key for artifact location"
