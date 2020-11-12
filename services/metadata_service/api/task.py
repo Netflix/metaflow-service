@@ -193,7 +193,6 @@ class TaskApi(object):
         )
         return await self._async_table.add_task(task)
 
-
     @format_response
     @handle_exceptions
     async def tasks_heartbeat(self, request):
