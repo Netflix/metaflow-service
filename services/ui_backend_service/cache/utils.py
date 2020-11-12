@@ -36,7 +36,7 @@ class MetaflowS3CredentialsMissing(MetaflowException):
 
 
 class NoRetryS3(S3):
-    '''Custom S3 class with no retries for quick failing. 
+    '''Custom S3 class with no retries for quick failing.
     Base implementation is the metaflow library S3 client
 
     Used only for get() and get_many() operations.
