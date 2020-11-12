@@ -133,7 +133,7 @@ def response_error(status: int):
 
 
 def response_internal_error(error_ids_and_descriptions={}):
-    '''Formats a response object for internal errors. 
+    '''Formats a response object for internal errors.
     Includes all passed in keys in the 'id' enum field, along with 'generic-error'.
     Includes all values as descriptions for the error ids.
     '''
@@ -285,7 +285,9 @@ swagger_definitions = {
             "_group": {
                 "name": "_group",
                 "in": "query",
-                "description": "Group (partition) results by column(s). Once applied, limits and filters are affected per group and pagination is no longer supported. - (_group=flow_id _group=flow_id,user_name)",
+                "description": "Group (partition) results by column(s). Once applied,\
+                    limits and filters are affected per group and pagination is no longer supported.\
+                     - (_group=flow_id _group=flow_id,user_name)",
                 "required": False,
                 "type": "string",
             },
