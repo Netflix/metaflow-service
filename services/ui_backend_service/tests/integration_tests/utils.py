@@ -65,7 +65,7 @@ async def init_db(cli):
     # Apply migrations and make sure "is_up_to_date" == True
     await cli.patch("/migration/upgrade")
     status = await (await cli.get("/migration/db_schema_status")).json()
-    assert status["is_up_to_date"] == True
+    assert status["is_up_to_date"] is True
 
     db = AsyncPostgresDB.get_instance()
     await db._init(db_conf)
@@ -235,8 +235,9 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
         print("Instead got data:\n", data)
         raise ex from None
 
+
 def get_heartbeat_ts(offset=5):
     "Return a heartbeat timestamp with the given offset in seconds. Default offset is 5 seconds"
-    return int(datetime.datetime.utcnow().timestamp())+offset
+    return int(datetime.datetime.utcnow().timestamp()) + offset
 
 # Resource helpers end
