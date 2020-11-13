@@ -37,12 +37,12 @@ class ListenNotify(object):
             data = payload.get("data")
 
             table = await self.db.get_table_by_name(table_name)
-            if table != None:
+            if table is not None:
                 resources = resource_list(table.table_name, data)
 
                 # Broadcast this event to `api/ws.py` (Websocket.event_handler)
                 # and notify each Websocket connection about this event
-                if resources != None and len(resources) > 0:
+                if resources is not None and len(resources) > 0:
                     await _broadcast(self.event_emitter, operation, table, data)
 
                 # Heartbeat watcher for Runs.
@@ -94,6 +94,7 @@ class ListenNotify(object):
 
         except Exception as err:
             print(err, flush=True)
+
 
 def resource_list(table_name: str, data: Dict):
     resource_paths = {

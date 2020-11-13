@@ -43,11 +43,11 @@ class AdminApi(object):
         """
         return web.Response(text="pong", headers=MultiDict(
             {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
-    
+
     async def links(self, request):
         """
         ---
-        description: Provides custom navigation links for UI. 
+        description: Provides custom navigation links for UI.
         tags:
         - Admin
         produces:
@@ -61,13 +61,14 @@ class AdminApi(object):
                 description: invalid HTTP Method
         """
         defaults = [
-            { "href": 'https://docs.metaflow.org/', "label": 'Metaflow documentation' },
-            { "href": 'https://github.com/Netflix/metaflow', "label": 'Github' }
+            {"href": 'https://docs.metaflow.org/', "label": 'Metaflow documentation'},
+            {"href": 'https://github.com/Netflix/metaflow', "label": 'Github'}
         ]
         custom_links = _load_links_file()
-        
+
         links = custom_links if custom_links else defaults
         return web.Response(status=200, body=json.dumps(links))
+
 
 def _load_links_file():
     try:

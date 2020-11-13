@@ -23,7 +23,7 @@ class Frontend(object):
         # serve the root static files separately.
         static_files = glob.glob(os.path.join(static_ui_path, "*.*"))
         for filepath in static_files:
-            filename = filepath[len(static_ui_path)+1:]
+            filename = filepath[len(static_ui_path) + 1:]
             app.router.add_route(
                 '*', f'/{filename}', self.serve_file(filename))
 

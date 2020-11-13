@@ -21,7 +21,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pycodestyle
       - name: Run Python PEP8 code style checks
-        continue-on-error: true
         run: pycodestyle
   
   unit:

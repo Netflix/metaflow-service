@@ -124,8 +124,7 @@ class Websocket(object):
     async def unsubscribe_from(self, ws, uuid: str = None):
         if uuid:
             self.subscriptions = list(
-                filter(lambda s: uuid !=
-                       s.uuid or ws != s.ws, self.subscriptions))
+                filter(lambda s: uuid != s.uuid or ws != s.ws, self.subscriptions))
         else:
             self.subscriptions = list(
                 filter(lambda s: ws != s.ws, self.subscriptions))

@@ -140,7 +140,7 @@ class ArtifactCacheStore(object):
                 flow_name,
                 run_id_value,
                 "_parameters",
-                "\_%",
+                r"\_%",
                 "name"  # exclude the 'name' parameter as this always exists, and contains the FlowName
             ],
             fetch_single=False

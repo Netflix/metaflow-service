@@ -15,6 +15,7 @@ version = pkg_resources.require("metadata_service")[0].version
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
 
+
 async def read_body(request_content):
     byte_array = bytearray()
     while not request_content.at_eof():
@@ -63,7 +64,7 @@ def handle_exceptions(func):
         try:
             return await func(*args, **kwargs)
         except Exception as err:
-            err_id = getattr(err, 'id', 'generic-error') # pass along an id for the error
+            err_id = getattr(err, 'id', 'generic-error')  # pass along an id for the error
             return http_500(str(err), err_id)
 
     return wrapper
@@ -139,7 +140,7 @@ class DBConfiguration(object):
                  password: str = "postgres",
                  database_name: str = "postgres",
                  prefix="MF_METADATA_DB_"):
-        table = str.maketrans({"'": "\'", "`": "\`"})
+        table = str.maketrans({"'": r"\'", "`": r"\`"})
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
 

@@ -93,26 +93,27 @@ class DAGNode(object):
             return
 
     def __str__(self):
-        return\
-"""*[{0.name} {0.type} (line {0.func_lineno})]*
-    in_funcs={in_funcs}
-    split_parents={parents}
-    matching_join={matching_join}
-    is_inside_foreach={is_inside_foreach}
-    decorators={decos}
-    num_args={0.num_args}
-    has_tail_next={0.has_tail_next} (line {0.tail_next_lineno})
-    invalid_tail_next={0.invalid_tail_next}
-    condition={0.condition}
-    foreach_param={0.foreach_param}
-    -> {out}"""\
-    .format(self,
-            matching_join=self.matching_join and '[%s]' % self.matching_join,
-            is_inside_foreach=self.is_inside_foreach,
-            in_funcs=', '.join('[%s]' % x for x in self.in_funcs),
-            parents=', '.join('[%s]' % x for x in self.split_parents),
-            decos=' | '.join(map(str, self.decorators)),
-            out=', '.join('[%s]' % x for x in self.out_funcs))
+        return """
+            *[{0.name} {0.type} (line {0.func_lineno})]*
+            in_funcs={in_funcs}
+            split_parents={parents}
+            matching_join={matching_join}
+            is_inside_foreach={is_inside_foreach}
+            decorators={decos}
+            num_args={0.num_args}
+            has_tail_next={0.has_tail_next} (line {0.tail_next_lineno})
+            invalid_tail_next={0.invalid_tail_next}
+            condition={0.condition}
+            foreach_param={0.foreach_param}
+            -> {out}"""\
+            .format(self,
+                    matching_join=self.matching_join and '[%s]' % self.matching_join,
+                    is_inside_foreach=self.is_inside_foreach,
+                    in_funcs=', '.join('[%s]' % x for x in self.in_funcs),
+                    parents=', '.join('[%s]' % x for x in self.split_parents),
+                    decos=' | '.join(map(str, self.decorators)),
+                    out=', '.join('[%s]' % x for x in self.out_funcs))
+
 
 class StepVisitor(ast.NodeVisitor):
 
@@ -126,6 +127,7 @@ class StepVisitor(ast.NodeVisitor):
         if 'step' in decos:
             doc = ast.get_docstring(node)
             self.nodes[node.name] = DAGNode(node, decos, doc if doc else '')
+
 
 class FlowGraph(object):
 
@@ -166,7 +168,7 @@ class FlowGraph(object):
             foreaches = [p for p in node.split_parents
                          if self.nodes[p].type == 'foreach']
             if [f for f in foreaches
-                if self.nodes[f].matching_join != node.name]:
+                    if self.nodes[f].matching_join != node.name]:
                 node.is_inside_foreach = True
 
     def _traverse_graph(self):
@@ -211,8 +213,8 @@ class FlowGraph(object):
         return iter(self.nodes.values())
 
     def __str__(self):
-        return '\n'.join(str(n) for _, n in sorted((n.func_lineno, n)\
-                                for n in self.nodes.values()))
+        return '\n'.join(str(n) for _, n in sorted((n.func_lineno, n)
+                                                   for n in self.nodes.values()))
 
     def output_dot(self):
 
