@@ -265,9 +265,45 @@ async def test_single_run_attempt_ok_failed(cli, db):
                                         "value": "False",  # run status = 'failed'
                                         "type": "internal_attempt_status"})).body
 
-    # We are expecting run status 'completed'
+    # We are expecting run status 'failed'
     _run["status"] = "failed"
     _run["finished_at"] = _artifact["ts_epoch"]
     _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
+
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
+
+
+async def test_single_run_failed_duration_finished_at(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=1)).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="end", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+
+    _last_artifact = (await add_artifact(
+        db,
+        flow_id=_task.get("flow_id"),
+        run_number=_task.get("run_number"),
+        step_name="end",
+        task_id=_task.get("task_id"),
+        artifact={
+            "name": "last-artifact",
+            "location": "location",
+            "ds_type": "ds_type",
+            "sha": "sha",
+            "type": "type",
+            "content_type": "content_type",
+                            "attempt_id": 0
+        })).body
+
+    # We are expecting run status 'failed'
+    _run["status"] = "failed"
+
+    # This should reflect last artifact ts_epoch
+    _run["finished_at"] = _last_artifact["ts_epoch"]
+    _run["duration"] = _last_artifact["ts_epoch"] - _run["ts_epoch"]
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
