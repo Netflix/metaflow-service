@@ -140,7 +140,7 @@ class DBConfiguration(object):
                  password: str = "postgres",
                  database_name: str = "postgres",
                  prefix="MF_METADATA_DB_"):
-        table = str.maketrans({"'": r"\'", "`": r"\`"})
+        table = str.maketrans({"'": "\'", "`": r"\`"})
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
 
