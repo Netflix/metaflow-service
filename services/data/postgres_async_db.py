@@ -736,43 +736,57 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """
         LEFT JOIN (
             SELECT
-                task_ok.flow_id, task_ok.run_number, task_ok.step_name,
-                task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
-                task_ok.location,
-                attempt.ts_epoch as started_at,
+                attempt_meta.flow_id, attempt_meta.run_number, attempt_meta.step_name,
+                attempt_meta.task_id, attempt_meta.attempt_id,
+                task_ok.ts_epoch, task_ok.location,
+                start.ts_epoch as started_at,
                 COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at,
                 attempt_ok.value::boolean as attempt_ok,
                 foreach_stack.location as foreach_stack
-            FROM {artifact_table} as task_ok
-            LEFT JOIN {metadata_table} as attempt ON (
-                task_ok.flow_id = attempt.flow_id AND
-                task_ok.step_name = attempt.step_name AND
-                task_ok.task_id = attempt.task_id AND
-                attempt.field_name = 'attempt' AND
-                task_ok.attempt_id = attempt.value::int
+            FROM (
+                SELECT a.flow_id, a.run_number, a.step_name, a.task_id, a.attempt_id as attempt_id
+                FROM {artifact_table} AS a
+                WHERE a.name = '_task_ok'
+                UNION
+                SELECT m.flow_id, m.run_number, m.step_name, m.task_id, m.value::int as attempt_id
+                FROM {metadata_table} AS m
+                WHERE m.field_name = 'attempt'
+            ) as attempt_meta
+            LEFT JOIN {metadata_table} as start ON (
+                attempt_meta.flow_id = start.flow_id AND
+                attempt_meta.step_name = start.step_name AND
+                attempt_meta.task_id = start.task_id AND
+                start.field_name = 'attempt' AND
+                attempt_meta.attempt_id = start.value::int
             )
             LEFT JOIN {metadata_table} as done ON (
-                task_ok.flow_id = done.flow_id AND
-                task_ok.step_name = done.step_name AND
-                task_ok.task_id = done.task_id AND
+                attempt_meta.flow_id = done.flow_id AND
+                attempt_meta.step_name = done.step_name AND
+                attempt_meta.task_id = done.task_id AND
                 done.field_name = 'attempt-done' AND
-                task_ok.attempt_id = done.value::int
+                attempt_meta.attempt_id = done.value::int
             )
             LEFT JOIN {metadata_table} as attempt_ok ON (
-                task_ok.flow_id = attempt_ok.flow_id AND
-                task_ok.step_name = attempt_ok.step_name AND
-                task_ok.task_id = attempt_ok.task_id AND
+                attempt_meta.flow_id = attempt_ok.flow_id AND
+                attempt_meta.step_name = attempt_ok.step_name AND
+                attempt_meta.task_id = attempt_ok.task_id AND
                 attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? CONCAT('attempt_id:', task_ok.attempt_id)
+                attempt_ok.tags ? CONCAT('attempt_id:', attempt_meta.attempt_id)
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
-                task_ok.flow_id = foreach_stack.flow_id AND
-                task_ok.step_name = foreach_stack.step_name AND
-                task_ok.task_id = foreach_stack.task_id AND
+                attempt_meta.flow_id = foreach_stack.flow_id AND
+                attempt_meta.step_name = foreach_stack.step_name AND
+                attempt_meta.task_id = foreach_stack.task_id AND
                 foreach_stack.name = '_foreach_stack' AND
-                task_ok.attempt_id = foreach_stack.attempt_id
+                attempt_meta.attempt_id = foreach_stack.attempt_id
             )
-            WHERE task_ok.name = '_task_ok'
+            LEFT JOIN {artifact_table} as task_ok ON (
+                attempt_meta.flow_id = task_ok.flow_id AND
+                attempt_meta.step_name = task_ok.step_name AND
+                attempt_meta.task_id = task_ok.task_id AND
+                task_ok.name = '_task_ok' AND
+                attempt_meta.attempt_id = task_ok.attempt_id
+            )
         ) AS attempt ON (
             {table_name}.flow_id = attempt.flow_id AND
             {table_name}.run_number = attempt.run_number AND
