@@ -112,7 +112,7 @@ async def test_run_status_with_heartbeat(cli, db):
             "sha": "sha",
             "type": "type",
             "content_type": "content_type",
-                            "attempt_id": 0
+            "attempt_id": 0
         })).body
 
     _run_complete["status"] = "completed"
@@ -265,7 +265,7 @@ async def test_single_run_attempt_ok_failed(cli, db):
                                         "value": "False",  # run status = 'failed'
                                         "type": "internal_attempt_status"})).body
 
-    # We are expecting run status 'completed'
+    # We are expecting run status 'failed'
     _run["status"] = "failed"
     _run["finished_at"] = _artifact["ts_epoch"]
     _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
