@@ -113,7 +113,9 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         run = await self.get_run(key)
         resources = resource_list(self._run_table.table_name, run) if run else None
         if resources and run['status'] == "failed":
-            self.event_emitter.emit('notify', 'UPDATE', self._run_table, resources, run)
+            # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
+            # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
+            self.event_emitter.emit('notify', 'UPDATE', resources, run)
 
 
 class TaskHeartbeatMonitor(HeartbeatMonitor):
@@ -190,7 +192,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         if resources and task['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
-            self.event_emitter.emit('notify', 'UPDATE', self._task_table, resources, task)
+            self.event_emitter.emit('notify', 'UPDATE', resources, task)
 
     def generate_dict_key(self, data):
         "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"
