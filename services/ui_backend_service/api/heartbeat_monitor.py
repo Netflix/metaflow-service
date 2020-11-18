@@ -112,7 +112,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
     async def load_and_broadcast(self, key):
         run = await self.get_run(key)
         resources = resource_list(self._run_table.table_name, run) if run else None
-        if resources and run:
+        if resources and run['status'] == "failed":
             self.event_emitter.emit('notify', 'UPDATE', self._run_table, resources, run)
 
 
