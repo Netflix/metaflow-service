@@ -283,27 +283,24 @@ async def test_single_run_failed_duration_finished_at(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
-    _last_artifact = (await add_artifact(
-        db,
-        flow_id=_task.get("flow_id"),
-        run_number=_task.get("run_number"),
-        step_name="end",
-        task_id=_task.get("task_id"),
-        artifact={
-            "name": "last-artifact",
-            "location": "location",
-            "ds_type": "ds_type",
-            "sha": "sha",
-            "type": "type",
-            "content_type": "content_type",
-                            "attempt_id": 0
-        })).body
+    _last_metadata = (await add_metadata(db,
+                                         flow_id=_task.get("flow_id"),
+                                         run_number=_task.get("run_number"),
+                                         run_id=_task.get("run_id"),
+                                         step_name=_task.get("step_name"),
+                                         task_id=_task.get("task_id"),
+                                         task_name=_task.get("task_name"),
+                                         tags=["attempt_id:0"],
+                                         metadata={
+                                             "field_name": "attempt_ok",
+                                             "value": "True",  # run status = 'completed'
+                                             "type": "internal_attempt_status"})).body
 
     # We are expecting run status 'failed'
     _run["status"] = "failed"
 
     # This should reflect last artifact ts_epoch
-    _run["finished_at"] = _last_artifact["ts_epoch"]
-    _run["duration"] = _last_artifact["ts_epoch"] - _run["ts_epoch"]
+    _run["finished_at"] = _last_metadata["ts_epoch"]
+    _run["duration"] = _last_metadata["ts_epoch"] - _run["ts_epoch"]
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)

@@ -564,17 +564,17 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         """
          LEFT JOIN (
             SELECT
-                last_artifact.flow_id, last_artifact.run_number,
-                MAX(last_artifact.ts_epoch) AS ts_epoch
-            FROM {artifact_table} as last_artifact
-            GROUP BY last_artifact.flow_id, last_artifact.run_number
-         ) AS last_artifact ON (
-            {table_name}.flow_id = last_artifact.flow_id AND
-            {table_name}.run_number = last_artifact.run_number
+                last_metadata.flow_id, last_metadata.run_number,
+                MAX(last_metadata.ts_epoch) AS ts_epoch
+            FROM {metadata_table} as last_metadata
+            GROUP BY last_metadata.flow_id, last_metadata.run_number
+         ) AS last_metadata ON (
+            {table_name}.flow_id = last_metadata.flow_id AND
+            {table_name}.run_number = last_metadata.run_number
          )
          """.format(
             table_name=table_name,
-            artifact_table="artifact_v3"
+            metadata_table="metadata_v3"
         ),
     ]
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys]
@@ -583,14 +583,14 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         (CASE
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch
-            WHEN artifacts.attempt_ok IS FALSE AND last_artifact.ts_epoch IS NOT NULL
-            THEN last_artifact.ts_epoch
+            WHEN artifacts.attempt_ok IS FALSE AND last_metadata.ts_epoch IS NOT NULL
+            THEN last_metadata.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-            THEN COALESCE(last_artifact.ts_epoch, {table_name}.last_heartbeat_ts*1000)
+            THEN COALESCE(last_metadata.ts_epoch, {table_name}.last_heartbeat_ts*1000)
             WHEN {table_name}.last_heartbeat_ts IS NULL
             AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
-            THEN COALESCE(last_artifact.ts_epoch, {table_name}.ts_epoch + {cutoff})
+            THEN COALESCE(last_metadata.ts_epoch, {table_name}.ts_epoch + {cutoff})
             ELSE NULL
         END) AS finished_at
         """.format(
@@ -622,11 +622,11 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         """
         (CASE
             WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-            THEN COALESCE(last_artifact.ts_epoch, {table_name}.last_heartbeat_ts*1000)-{table_name}.ts_epoch
+            THEN COALESCE(last_metadata.ts_epoch, {table_name}.last_heartbeat_ts*1000)-{table_name}.ts_epoch
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch - {table_name}.ts_epoch
             WHEN /* Use last known artifact ts_epoch when Run status = 'failed' */
-                last_artifact.ts_epoch IS NOT NULL AND
+                last_metadata.ts_epoch IS NOT NULL AND
                 (
                     artifacts.attempt_ok IS FALSE
                 ) OR (
@@ -636,7 +636,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                     {table_name}.last_heartbeat_ts IS NULL AND
                     @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
                 )
-            THEN last_artifact.ts_epoch - {table_name}.ts_epoch
+            THEN last_metadata.ts_epoch - {table_name}.ts_epoch
             ELSE NULL
         END) AS duration
         """.format(
