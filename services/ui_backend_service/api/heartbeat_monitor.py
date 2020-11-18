@@ -111,8 +111,11 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
 
     async def load_and_broadcast(self, key):
         run = await self.get_run(key)
-        resources = resource_list(self._run_table.table_name, run)
-        self.event_emitter.emit('notify', 'UPDATE', self._run_table, resources, run)
+        resources = resource_list(self._run_table.table_name, run) if run else None
+        if resources and run['status'] == "failed":
+            # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
+            # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
+            self.event_emitter.emit('notify', 'UPDATE', resources, run)
 
 
 class TaskHeartbeatMonitor(HeartbeatMonitor):
@@ -185,11 +188,11 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     async def load_and_broadcast(self, key):
         flow_id, run_number, step_name, task_id, attempt_id = self.decode_key_ids(key)
         task = await self.get_task(flow_id, run_number, step_name, task_id, attempt_id)
-        resources = resource_list(self._task_table.table_name, task)
+        resources = resource_list(self._task_table.table_name, task) if task else None
         if resources and task['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
-            self.event_emitter.emit('notify', 'UPDATE', self._task_table, resources, task)
+            self.event_emitter.emit('notify', 'UPDATE', resources, task)
 
     def generate_dict_key(self, data):
         "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"
