@@ -140,6 +140,7 @@ class AsyncPostgresTable(object):
     schema_version = 1
     keys: List[str] = []
     primary_keys: List[str] = None
+    trigger_keys: List[str] = None
     ordering: List[str] = None
     joins: List[str] = None
     select_columns: List[str] = keys
@@ -157,7 +158,7 @@ class AsyncPostgresTable(object):
 
     async def _init(self):
         await PostgresUtils.create_if_missing(self.table_name, self._command)
-        await PostgresUtils.trigger_notify(table_name=self.table_name, keys=self.primary_keys)
+        await PostgresUtils.trigger_notify(table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
@@ -492,6 +493,7 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
     table_name = "flows_v3"
     keys = ["flow_id", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id"]
+    trigger_keys = primary_keys
     select_columns = keys
     join_columns = []
     _command = """
@@ -533,6 +535,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
+    trigger_keys = primary_keys
     joins = [
         """
         LEFT JOIN (
@@ -672,6 +675,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id", "step_name",
             "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name"]
+    trigger_keys = primary_keys
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
     _command = """
@@ -729,6 +733,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
+    trigger_keys = primary_keys
     # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
     # the older metadata service not recording separate metadata for task attempts. This is also the
     # reason why we must join through the artifacts table, instead of directly from metadata.
@@ -934,6 +939,8 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             "field_name", "value", "type", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name"]
+    trigger_keys = ["flow_id", "run_number",
+                    "step_name", "task_id", "field_name", "value"]
     select_columns = keys
     _command = """
     CREATE TABLE {0} (
@@ -1022,6 +1029,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "ds_type", "sha", "type", "content_type", "user_name", "attempt_id", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "attempt_id", "name"]
+    trigger_keys = primary_keys
     select_columns = keys
     _command = """
     CREATE TABLE {0} (
