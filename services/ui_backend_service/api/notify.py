@@ -58,13 +58,13 @@ class ListenNotify(object):
                         table.table_name == self.db.step_table_postgres.table_name and \
                         data["step_name"] == "start":
                     self.event_emitter.emit("run-parameters", data['flow_id'], data['run_number'])
-                
+
                 # Notify task resources of a new attempt if 'attempt' metadata is inserted.
                 if operation == "INSERT" and \
                         table.table_name == self.db.metadata_table_postgres.table_name and \
                         data["field_name"] == "attempt":
 
-                    # Include 'attempt_id' so we can identify which attempt this artifact related to
+                    # Extract the attempt number from metadata attempt value, so we know which task attempt to broadcast.
                     _attempt_id = int(data.get("value", 0))
                     # First attempt has already been inserted by task table trigger.
                     # Later attempts must count as inserts to register properly for the UI
