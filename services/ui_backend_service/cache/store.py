@@ -8,6 +8,7 @@ from .get_artifacts_action import GetArtifacts
 import asyncio
 import time
 import os
+import logging
 
 CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
@@ -79,7 +80,10 @@ class ArtifactCacheStore(object):
 
         res = await self.cache.GetArtifacts(artifact_locations)
         async for event in res.stream():
-            print(event, flush=True)
+            if event["type"] == "error":
+                logging.error(event)
+            else:
+                logging.info(event)
 
     async def get_recent_run_numbers(self):
         _records, _ = await self._run_table.find_records(
