@@ -156,7 +156,7 @@ class ArtifactCacheStore(object):
             async for event in _params.stream():
                 if event["type"] == "error":
                     # raise error, there was an exception during processing.
-                    raise GetParametersFailed(event["message"], event["id"])
+                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
             await _params.wait()  # wait until results are ready
         _params = _params.get()
 
@@ -208,9 +208,10 @@ class DAGCacheStore(object):
 
 
 class GetParametersFailed(Exception):
-    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters"):
+    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters", traceback_str=None):
         self.message = msg
         self.id = id
+        self.traceback_str = traceback_str
 
     def __str__(self):
         return self.message
