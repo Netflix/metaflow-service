@@ -68,7 +68,7 @@ def handle_exceptions(func):
             # pass along an id for the error
             err_id = getattr(err, 'id', 'generic-error')
             # either use provided traceback from subprocess, or generate trace from current process
-            err_trace = getattr(err, 'traceback_str', get_traceback_str())
+            err_trace = getattr(err, 'traceback_str', None) or get_traceback_str()
             logging.error(err_trace)
             return http_500(str(err), err_id, err_trace)
 
