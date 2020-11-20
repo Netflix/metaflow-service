@@ -20,6 +20,7 @@ METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
 log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
+
 async def read_body(request_content):
     byte_array = bytearray()
     while not request_content.at_eof():
