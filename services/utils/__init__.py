@@ -16,6 +16,9 @@ version = pkg_resources.require("metadata_service")[0].version
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
 
+# Setup log level based on environment variable
+log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
+logging.basicConfig(level=log_level)
 
 async def read_body(request_content):
     byte_array = bytearray()

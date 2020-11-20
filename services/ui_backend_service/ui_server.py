@@ -1,6 +1,5 @@
 import asyncio
 import os
-import logging
 import signal
 
 from aiohttp import web
@@ -26,7 +25,7 @@ from .cache.store import CacheStore
 from .frontend import Frontend
 
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.utils import DBConfiguration
+from services.utils import DBConfiguration, logging
 
 from pyee import AsyncIOEventEmitter, ExecutorEventEmitter
 
