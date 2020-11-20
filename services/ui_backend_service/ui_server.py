@@ -78,7 +78,7 @@ def main():
     loop = asyncio.get_event_loop()
     # Set exception and signal handlers for async loop. Mainly for logging purposes.
     loop.set_exception_handler(async_loop_error_handler)
-    for sig in {signal.SIGTERM, signal.SIGHUP, signal.SIGINT}:
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
         loop.add_signal_handler(sig, lambda sig=sig: async_loop_signal_handler(sig))
 
     the_app = app(loop, DBConfiguration())
