@@ -8,6 +8,7 @@ from .get_artifacts_action import GetArtifacts
 import asyncio
 import time
 import os
+import logging
 
 CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
@@ -79,7 +80,10 @@ class ArtifactCacheStore(object):
 
         res = await self.cache.GetArtifacts(artifact_locations)
         async for event in res.stream():
-            print(event, flush=True)
+            if event["type"] == "error":
+                logging.error(event)
+            else:
+                logging.info(event)
 
     async def get_recent_run_numbers(self):
         _records, _ = await self._run_table.find_records(
@@ -156,7 +160,7 @@ class ArtifactCacheStore(object):
             async for event in _params.stream():
                 if event["type"] == "error":
                     # raise error, there was an exception during processing.
-                    raise GetParametersFailed(event["message"], event["id"])
+                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
             await _params.wait()  # wait until results are ready
         _params = _params.get()
 
@@ -208,9 +212,10 @@ class DAGCacheStore(object):
 
 
 class GetParametersFailed(Exception):
-    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters"):
+    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters", traceback_str=None):
         self.message = msg
         self.id = id
+        self.traceback_str = traceback_str
 
     def __str__(self):
         return self.message

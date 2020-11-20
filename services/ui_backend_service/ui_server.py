@@ -1,5 +1,6 @@
 import asyncio
 import os
+import signal
 
 from aiohttp import web
 from aiohttp_swagger import *
@@ -24,7 +25,7 @@ from .cache.store import CacheStore
 from .frontend import Frontend
 
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.utils import DBConfiguration
+from services.utils import DBConfiguration, logging
 
 from pyee import AsyncIOEventEmitter, ExecutorEventEmitter
 
@@ -74,6 +75,11 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
 def main():
     loop = asyncio.get_event_loop()
+    # Set exception and signal handlers for async loop. Mainly for logging purposes.
+    loop.set_exception_handler(async_loop_error_handler)
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        loop.add_signal_handler(sig, lambda sig=sig: async_loop_signal_handler(sig))
+
     the_app = app(loop, DBConfiguration())
     handler = web.AppRunner(the_app)
     loop.run_until_complete(handler.setup())
@@ -87,6 +93,15 @@ def main():
         loop.run_forever()
     except KeyboardInterrupt:
         pass
+
+
+def async_loop_error_handler(loop, context):
+    msg = context.get("exception", context["message"])
+    logging.error("Encountered an exception: {}".format(msg))
+
+
+def async_loop_signal_handler(signal):
+    logging.info("Received signal: {}".format(signal))
 
 
 if __name__ == "__main__":

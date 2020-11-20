@@ -8,6 +8,7 @@ from .custom_flowgraph import FlowGraph  # TODO: change to metaflow.graph when t
 
 from .utils import NoRetryS3
 from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
+from utils import get_traceback_str
 
 
 class GenerateDag(CacheAction):
@@ -72,8 +73,8 @@ class GenerateDag(CacheAction):
 
         result_key = [key for key in keys if key.startswith('dag:result')][0]
 
-        def stream_error(err, id):
-            return stream_output({"type": "error", "message": err, "id": id})
+        def stream_error(err, id, traceback=None):
+            return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
         # get codepackage from S3
         with NoRetryS3() as s3:
@@ -93,7 +94,7 @@ class GenerateDag(CacheAction):
             except UnsupportedFlowLanguage as ex:
                 stream_error(str(ex), "dag-unsupported-flow-language")
             except Exception as ex:
-                stream_error(str(ex), "dag-processing-error")
+                stream_error(str(ex), "dag-processing-error", get_traceback_str())
 
         return results
 
