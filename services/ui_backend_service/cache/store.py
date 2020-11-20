@@ -174,7 +174,11 @@ class ArtifactCacheStore(object):
 
         return combined_results
 
-    async def run_parameters_event_handler(self, flow_id, run_number):
+    def run_parameters_event_handler(self, *args, **kwargs):
+        "wrapper for async event handler so it works with ExecutorEventEmitter"
+        asyncio.run_coroutine_threadsafe(self._run_parameters_event_handler(*args, **kwargs), self.loop)
+
+    async def _run_parameters_event_handler(self, flow_id, run_number):
         try:
             parameters = await self.get_run_parameters(flow_id, run_number)
             self.event_emitter.emit(
@@ -184,7 +188,7 @@ class ArtifactCacheStore(object):
                 parameters
             )
         except GetParametersFailed:
-            pass
+            logging.error("Run parameter fetching failed")
 
     async def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
