@@ -6,6 +6,7 @@ import json
 import math
 import time
 import datetime
+import logging
 from typing import List, Callable
 from asyncio import iscoroutinefunction
 
@@ -13,6 +14,10 @@ from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
+
+logger = logging.getLogger('AsyncPostgresDB')
+
+AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
 WAIT_TIME = 10
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
@@ -63,7 +68,7 @@ class AsyncPostgresDB(object):
         retries = 3
         for i in range(retries):
             try:
-                self.pool = await aiopg.create_pool(db_conf.dsn)
+                self.pool = await aiopg.create_pool(db_conf.dsn, echo=AIOPG_ECHO)
 
                 # Clean existing trigger functions before creating new ones
                 await PostgresUtils.function_cleanup()
@@ -73,6 +78,7 @@ class AsyncPostgresDB(object):
 
                 break  # Break the retry loop
             except Exception as e:
+                logger.exception("Exception occured")
                 if retries - i < 1:
                     raise e
                 time.sleep(1)
@@ -132,6 +138,7 @@ class AsyncPostgresDB(object):
                 cur.close()
                 return len(records) > 0
         except:
+            logger.exception("Exception occured")
             return False
 
 
@@ -278,13 +285,14 @@ class AsyncPostgresTable(object):
                     offset=offset,
                     count=count,
                     count_total=count_total,
-                    page=math.floor(offset / max(limit, 1)) + 1,
-                    pages_total=max(math.ceil(count_total / max(limit, 1)), 1),
+                    page=math.floor(int(offset) / max(int(limit), 1)) + 1,
+                    pages_total=max(math.ceil(count_total / max(int(limit), 1)), 1),
                 )
 
                 cur.close()
                 return DBResponse(response_code=200, body=body), pagination
         except (Exception, psycopg2.DatabaseError) as error:
+            logger.exception("Exception occured")
             return aiopg_exception_handling(error), None
 
     async def get_tags(self):
@@ -306,6 +314,7 @@ class AsyncPostgresTable(object):
                 cur.close()
                 return DBResponse(response_code=200, body=tags)
         except (Exception, psycopg2.DatabaseError) as error:
+            logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
     async def create_record(self, record_dict):
@@ -353,6 +362,7 @@ class AsyncPostgresTable(object):
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
         except (Exception, psycopg2.DatabaseError) as error:
+            logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
     async def update_row(self, filter_dict={}, update_dict={}):
@@ -398,6 +408,7 @@ class AsyncPostgresTable(object):
                 cur.close()
                 return DBResponse(response_code=200, body=body)
         except (Exception, psycopg2.DatabaseError) as error:
+            logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
 
