@@ -104,5 +104,6 @@ def async_loop_error_handler(loop, context):
 def async_loop_signal_handler(signal):
     logging.info("Received signal: {}".format(signal))
 
+
 if __name__ == "__main__":
     main()
