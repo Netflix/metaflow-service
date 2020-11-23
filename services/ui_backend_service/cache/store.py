@@ -2,14 +2,14 @@ from .generate_dag_action import GenerateDag
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from pyee import ExecutorEventEmitter
-from metaflow.client.cache.cache_async_client import CacheAsyncClient, CacheClient
+from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .search_artifacts_action import SearchArtifacts
 from .get_artifacts_action import GetArtifacts
 import asyncio
 import time
 import os
 import logging
-from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE
+from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -63,7 +63,7 @@ class ArtifactCacheStore(object):
         # newly inserted content.
         if FEATURE_PREFETCH_ENABLE:
             self.event_emitter.on("preload-artifacts", self.preload_event_handler)
-            self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
+        self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):
         actions = [SearchArtifacts, GetArtifacts]
@@ -163,16 +163,19 @@ class ArtifactCacheStore(object):
         if not db_response.response_code == 200:
             return None
 
-        # Fetch the values for the given parameters through the cache client.
-        locations = [art["location"] for art in db_response.body if "location" in art]
-        _params = await self.cache.GetArtifacts(locations)
-        if not _params.is_ready():
-            async for event in _params.stream():
-                if event["type"] == "error":
-                    # raise error, there was an exception during processing.
-                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
-            await _params.wait()  # wait until results are ready
-        _params = _params.get()
+        if FEATURE_PREFETCH_ENABLE and FEATURE_REFINE_ENABLE:
+            # Fetch the values for the given parameters through the cache client.
+            locations = [art["location"] for art in db_response.body if "location" in art]
+            _params = await self.cache.GetArtifacts(locations)
+            if not _params.is_ready():
+                async for event in _params.stream():
+                    if event["type"] == "error":
+                        # raise error, there was an exception during processing.
+                        raise GetParametersFailed(event["message"], event["id"], event["traceback"])
+                await _params.wait()  # wait until results are ready
+            _params = _params.get()
+        else:
+            _params = []
 
         combined_results = {}
         for art in db_response.body:
