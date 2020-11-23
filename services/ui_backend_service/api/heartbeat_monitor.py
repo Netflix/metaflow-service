@@ -3,6 +3,7 @@ import datetime
 from typing import Dict
 from pyee import ExecutorEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.data.db_utils import translate_run_key, translate_task_key
 from .notify import resource_list
 from .data_refiner import TaskRefiner
 
@@ -87,10 +88,10 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         elif action == "complete":
             self.remove_from_watch(run_id)
 
-    async def add_to_watch(self, run_id):
+    async def add_to_watch(self, run_key):
         # TODO: Optimize db trigger so we do not have to fetch a record in order to add it to the
         # heartbeat monitor
-        run = await self.get_run(run_id)
+        run = await self.get_run(run_key)
 
         if "last_heartbeat_ts" in run and "run_number" in run:
             run_number = run["run_number"]
@@ -98,12 +99,15 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
                 self.watched[run_number] = heartbeat_ts
 
-    async def get_run(self, run_id):
+    async def get_run(self, run_key):
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
         # and we can not broadcast an up-to-date status.
+        # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
+        # Currently this restricts the use of expanded=True
+        run_id_key, run_id_value = translate_run_key(run_key)
         result, _ = await self._run_table.find_records(
-            conditions=["run_number = %s"],
-            values=[run_id],
+            conditions=["{column} = %s".format(column=run_id_key)],
+            values=[run_id_value],
             fetch_single=True,
             enable_joins=True
         )
@@ -165,12 +169,21 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
                 self.watched[key] = heartbeat_ts
 
-    async def get_task(self, flow_id, run_number, step_name, task_id, attempt_id=None):
+    async def get_task(self, flow_id, run_key, step_name, task_key, attempt_id=None):
         "Fetches task from DB. Specifying attempt_id will fetch the specific attempt. Otherwise the newest attempt is returned."
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the task
         # and we can not broadcast an up-to-date status.
-        conditions = ["flow_id = %s", "run_number = %s", "step_name = %s", "task_id = %s"]
-        values = [flow_id, run_number, step_name, task_id]
+        # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
+        # Currently this restricts the use of expanded=True
+        run_id_key, run_id_value = translate_run_key(run_key)
+        task_id_key, task_id_value = translate_task_key(task_key)
+        conditions = [
+            "flow_id = %s",
+            "{run_id_column} = %s".format(run_id_column=run_id_key),
+            "step_name = %s",
+            "{task_id_column} = %s".format(task_id_column=task_id_key)
+        ]
+        values = [flow_id, run_id_value, step_name, task_id_value]
         if attempt_id:
             conditions.append("attempt_id = %s")
             values.append(attempt_id)
