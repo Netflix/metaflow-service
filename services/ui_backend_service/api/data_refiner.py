@@ -80,9 +80,6 @@ class TaskRefiner(Refinery):
         super().__init__(field_names=["task_ok", "foreach_stack"])
 
     async def postprocess(self, response: DBResponse):
-        if FEATURE_REFINE_DISABLE:
-            return response
-
         """Calls the refiner postprocessing to fetch S3 values for content.
         Cleans up returned fields, for example by combining 'task_ok' boolean into the 'status'
         """
@@ -94,7 +91,7 @@ class TaskRefiner(Refinery):
             item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
             item.pop('task_ok', None)
 
-            if item['foreach_stack']:
+            if item['foreach_stack'] and len(item['foreach_stack']) > 0 and len(item['foreach_stack'][0]) >= 4:
                 _, _name, _, _index = item['foreach_stack'][0]
                 item['foreach_label'] = "{}[{}]".format(item['task_id'], _index)
             item.pop('foreach_stack', None)
