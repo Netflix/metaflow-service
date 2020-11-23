@@ -190,7 +190,7 @@ class ArtifactCacheStore(object):
         except GetParametersFailed:
             logging.error("Run parameter fetching failed")
 
-    async def preload_event_handler(self, run_id):
+    def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
         asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
 
