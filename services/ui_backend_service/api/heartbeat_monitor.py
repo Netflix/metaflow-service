@@ -105,7 +105,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             conditions=["run_number = %s"],
             values=[run_id],
             fetch_single=True,
-            enable_joins=True
+            enable_joins=True,
+            expanded=True
         )
         return result.body if result.response_code == 200 else None
 
@@ -181,6 +182,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             order=["attempt_id DESC"],
             fetch_single=True,
             enable_joins=True,
+            expanded=True,
             postprocess=self.refiner.postprocess
         )
         return result.body if result.response_code == 200 else None
