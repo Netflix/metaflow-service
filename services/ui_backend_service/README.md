@@ -52,6 +52,16 @@ Configure amount of runs to prefetch during server startup (artifact cache):
 - `PREFETCH_RUNS_SINCE` [in seconds, defaults to 2 days ago (86400 * 2 seconds)]
 - `PREFETCH_RUNS_LIMIT` [defaults to 50]
 
+Configure the amount of concurrent cache actions. This works similar to a database connection pool.
+
+- `CACHE_ARTIFACT_MAX_ACTIONS` [max number of artifact cache actions. Defaults to 16]
+- `CACHE_DAG_MAX_ACTIONS` [max number of DAG cache actions. Defaults to 16]
+
+Configure the maximum usable space by the cache:
+
+- `CACHE_ARTIFACT_STORAGE_LIMIT` [in bytes, defaults to 600000]
+- `CACHE_DAG_STORAGE_LIMIT` [in bytes, defaults to 100000]
+
 Running the service without Docker (from project root):
 
 > ```sh
