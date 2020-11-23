@@ -9,11 +9,15 @@ import asyncio
 import time
 import os
 import logging
-
 from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE
 
+# Tagged logger
+logger = logging.getLogger("CacheStore")
+
 CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
+CACHE_ARTIFACT_STORAGE_LIMIT = int(os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", 600000))
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
+CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", 100000))
 
 
 class CacheStore(object):
@@ -65,7 +69,7 @@ class ArtifactCacheStore(object):
         actions = [SearchArtifacts, GetArtifacts]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
-                                      max_size=600000,
+                                      max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
                                       max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
         if FEATURE_CACHE_ENABLE:
             await self.cache.start()
@@ -82,14 +86,14 @@ class ArtifactCacheStore(object):
         "preloads artifact data for given run ids. Can be used to prefetch artifacts for newly generated runs"
         artifact_locations = await self.get_artifact_locations_for_run_ids(run_ids)
 
-        print("preloading {} artifacts".format(len(artifact_locations)), flush=True)
+        logger.info("preloading {} artifacts".format(len(artifact_locations)))
 
         res = await self.cache.GetArtifacts(artifact_locations)
         async for event in res.stream():
             if event["type"] == "error":
-                logging.error(event)
+                logger.error(event)
             else:
-                logging.info(event)
+                logger.info(event)
 
     async def get_recent_run_numbers(self):
         _records, _ = await self._run_table.find_records(
@@ -194,9 +198,9 @@ class ArtifactCacheStore(object):
                 parameters
             )
         except GetParametersFailed:
-            logging.error("Run parameter fetching failed")
+            logger.error("Run parameter fetching failed")
 
-    async def preload_event_handler(self, run_id):
+    def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
         asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
 
@@ -213,7 +217,7 @@ class DAGCacheStore(object):
         actions = [GenerateDag]
         self.cache = CacheAsyncClient('cache_data/dag',
                                       actions,
-                                      max_size=100000,
+                                      max_size=CACHE_DAG_STORAGE_LIMIT,
                                       max_actions=CACHE_DAG_MAX_ACTIONS)
         if FEATURE_CACHE_ENABLE:
             await self.cache.start()
