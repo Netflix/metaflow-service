@@ -2,13 +2,15 @@ from .generate_dag_action import GenerateDag
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from pyee import ExecutorEventEmitter
-from metaflow.client.cache.cache_async_client import CacheAsyncClient
+from metaflow.client.cache.cache_async_client import CacheAsyncClient, CacheClient
 from .search_artifacts_action import SearchArtifacts
 from .get_artifacts_action import GetArtifacts
 import asyncio
 import time
 import os
 import logging
+
+from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE
 
 CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
@@ -55,8 +57,9 @@ class ArtifactCacheStore(object):
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
-        self.event_emitter.on("preload-artifacts", self.preload_event_handler)
-        self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
+        if FEATURE_PREFETCH_ENABLE:
+            self.event_emitter.on("preload-artifacts", self.preload_event_handler)
+            self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):
         actions = [SearchArtifacts, GetArtifacts]
@@ -64,8 +67,11 @@ class ArtifactCacheStore(object):
                                       actions,
                                       max_size=600000,
                                       max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
-        await self.cache.start()
-        asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
+        if FEATURE_CACHE_ENABLE:
+            await self.cache.start()
+
+        if FEATURE_PREFETCH_ENABLE:
+            asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
@@ -209,7 +215,8 @@ class DAGCacheStore(object):
                                       actions,
                                       max_size=100000,
                                       max_actions=CACHE_DAG_MAX_ACTIONS)
-        await self.cache.start()
+        if FEATURE_CACHE_ENABLE:
+            await self.cache.start()
 
     async def stop_cache(self):
         await self.cache.stop()
