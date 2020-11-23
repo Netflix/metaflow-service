@@ -9,9 +9,11 @@ import asyncio
 import time
 import os
 import logging
+from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
+
 CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
 CACHE_ARTIFACT_STORAGE_LIMIT = int(os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", 600000))
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
@@ -59,7 +61,8 @@ class ArtifactCacheStore(object):
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
-        self.event_emitter.on("preload-artifacts", self.preload_event_handler)
+        if FEATURE_PREFETCH_ENABLE:
+            self.event_emitter.on("preload-artifacts", self.preload_event_handler)
         self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):
@@ -68,8 +71,11 @@ class ArtifactCacheStore(object):
                                       actions,
                                       max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
                                       max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
-        await self.cache.start()
-        asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
+        if FEATURE_CACHE_ENABLE:
+            await self.cache.start()
+
+        if FEATURE_PREFETCH_ENABLE:
+            asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
@@ -157,16 +163,19 @@ class ArtifactCacheStore(object):
         if not db_response.response_code == 200:
             return None
 
-        # Fetch the values for the given parameters through the cache client.
-        locations = [art["location"] for art in db_response.body if "location" in art]
-        _params = await self.cache.GetArtifacts(locations)
-        if not _params.is_ready():
-            async for event in _params.stream():
-                if event["type"] == "error":
-                    # raise error, there was an exception during processing.
-                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
-            await _params.wait()  # wait until results are ready
-        _params = _params.get()
+        if FEATURE_PREFETCH_ENABLE and FEATURE_REFINE_ENABLE:
+            # Fetch the values for the given parameters through the cache client.
+            locations = [art["location"] for art in db_response.body if "location" in art]
+            _params = await self.cache.GetArtifacts(locations)
+            if not _params.is_ready():
+                async for event in _params.stream():
+                    if event["type"] == "error":
+                        # raise error, there was an exception during processing.
+                        raise GetParametersFailed(event["message"], event["id"], event["traceback"])
+                await _params.wait()  # wait until results are ready
+            _params = _params.get()
+        else:
+            _params = []
 
         combined_results = {}
         for art in db_response.body:
@@ -213,7 +222,8 @@ class DAGCacheStore(object):
                                       actions,
                                       max_size=CACHE_DAG_STORAGE_LIMIT,
                                       max_actions=CACHE_DAG_MAX_ACTIONS)
-        await self.cache.start()
+        if FEATURE_CACHE_ENABLE:
+            await self.cache.start()
 
     async def stop_cache(self):
         await self.cache.stop()
