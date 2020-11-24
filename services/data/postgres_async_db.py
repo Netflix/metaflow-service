@@ -18,6 +18,8 @@ from services.utils import DBConfiguration
 logger = logging.getLogger('AsyncPostgresDB')
 
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
+FEATURE_DB_TRIGGER_DISABLE = os.environ.get("FEATURE_DB_TRIGGER_DISABLE", 0) == "1"
+FEATURE_JOIN_DISABLE = os.environ.get("FEATURE_JOIN_DISABLE", 0) == "1"
 
 WAIT_TIME = 10
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
@@ -68,7 +70,14 @@ class AsyncPostgresDB(object):
         retries = 3
         for i in range(retries):
             try:
-                self.pool = await aiopg.create_pool(db_conf.dsn, echo=AIOPG_ECHO)
+                self.db_conf = db_conf
+                self.pool = await self.create_pool()
+
+                logger.info(
+                    "Connection established.\n"
+                    "   Pool min: {pool_min} max: {pool_max}".format(
+                        pool_min=self.pool.minsize,
+                        pool_max=self.pool.maxsize))
 
                 # Clean existing trigger functions before creating new ones
                 await PostgresUtils.function_cleanup()
@@ -82,6 +91,13 @@ class AsyncPostgresDB(object):
                 if retries - i < 1:
                     raise e
                 time.sleep(1)
+
+    async def create_pool(self):
+        return await aiopg.create_pool(
+            self.db_conf.dsn,
+            minsize=self.db_conf.pool_min,
+            maxsize=self.db_conf.pool_max,
+            echo=AIOPG_ECHO)
 
     async def get_table_by_name(self, table_name: str):
         for table in self.tables:
@@ -105,7 +121,7 @@ class AsyncPostgresDB(object):
     # This function is used to verify 'data' object matches the same filters as
     # 'AsyncPostgresTable.find_records' does. This is used with 'pg_notify' + Websocket
     # events to make sure that specific subscriber receives filtered data correctly.
-    async def apply_filters_to_data(self, data, conditions: List[str] = None, values=[]) -> bool:
+    async def apply_filters_to_data(self, data, conditions: List[str] = None, values=[], pool=None) -> bool:
         keys, vals, stm_vals = [], [], []
         for k, v in data.items():
             keys.append(k)
@@ -129,7 +145,7 @@ class AsyncPostgresDB(object):
 
         try:
             with (
-                await AsyncPostgresDB.get_instance().pool.cursor(
+                await (pool if pool else AsyncPostgresDB.get_instance().pool).cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
@@ -181,7 +197,11 @@ class AsyncPostgresTable(object):
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
-                           postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
+                           postprocess: Callable[[DBResponse], DBResponse] = None,
+                           pool=None) -> (DBResponse, DBPagination):
+        if FEATURE_JOIN_DISABLE:
+            enable_joins = False
+
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -247,7 +267,7 @@ class AsyncPostgresTable(object):
             ).strip()
 
         result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                                    expanded=expanded, limit=limit, offset=offset)
+                                                    expanded=expanded, limit=limit, offset=offset, pool=pool)
         # Modify the response after the fetch has been executed
         if postprocess is not None:
             if iscoroutinefunction(postprocess):
@@ -258,10 +278,11 @@ class AsyncPostgresTable(object):
         return result, pagination
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0,
+                          pool=None) -> (DBResponse, DBPagination):
         try:
             with (
-                await AsyncPostgresDB.get_instance().pool.cursor(
+                await (pool if pool else AsyncPostgresDB.get_instance().pool).cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
@@ -455,7 +476,7 @@ class PostgresUtils(object):
 
         name_prefix = "notify_ui"
         operations = ["INSERT", "UPDATE", "DELETE"]
-        _command = """
+        _commands = ["""
         CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -481,20 +502,33 @@ class PostgresUtils(object):
             RETURN rec;
             END;
         $$;
-
-        DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};
-        CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
-            FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
         """.format(
             schema=schema,
             prefix=name_prefix,
             table=table_name,
             keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
             events=" OR ".join(operations)
-        )
+        )]
+        _commands += ["DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};".format(
+            schema=schema,
+            prefix=name_prefix,
+            table=table_name
+        )]
+
+        if not FEATURE_DB_TRIGGER_DISABLE:
+            _commands += ["""
+                CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
+                    FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
+                """.format(
+                schema=schema,
+                prefix=name_prefix,
+                table=table_name,
+                events=" OR ".join(operations)
+            )]
 
         with (await AsyncPostgresDB.get_instance().pool.cursor()) as cur:
-            await cur.execute(_command)
+            for _command in _commands:
+                await cur.execute(_command)
             cur.close()
 
 

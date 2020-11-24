@@ -52,6 +52,7 @@ class Websocket(object):
         self.db = AsyncPostgresDB.get_instance()
         self.queue = TTLQueue(queue_ttl)
         self.task_refiner = TaskRefiner()
+        self._pool = None
 
         event_emitter.on('notify', self._event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
@@ -63,17 +64,24 @@ class Websocket(object):
         """
         asyncio.run_coroutine_threadsafe(self.event_handler(*args, **kwargs), self.loop)
 
+    async def get_pool(self):
+        if not self._pool:
+            self._pool = await self.db.create_pool()
+        return self._pool
+
     async def event_handler(self, operation: str, resources: List[str], data: Dict, table=None, filter_dict: Dict = {}):
         """Either receives raw data from table triggers listener and either performs a database load
         before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
         """
+        pool = await self.get_pool()
+
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
         if any(subscription.resource in resources for subscription in self.subscriptions):
             # load the data and postprocessor for broadcasting if table
             # is provided (otherwise data has already been loaded in advance)
             if table:
                 _postprocess = await self.get_table_postprocessor(table.table_name)
-                _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
+                _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess, pool=pool)
             else:
                 _data = data
             # Append event to the queue so that we can later dispatch them in case of disconnections
@@ -93,13 +101,15 @@ class Websocket(object):
                     await self.unsubscribe_from(subscription.ws, subscription.uuid)
 
     async def _event_subscription(self, subscription: WSSubscription, operation: str, resources: List[str], data: Dict):
+        pool = await self.get_pool()
+
         for resource in resources:
             if subscription.resource == resource:
                 # Check if possible filters match this event
                 # only if the subscription actually provided conditions.
                 if subscription.conditions:
                     filters_match_request = await self.db.apply_filters_to_data(
-                        data=data, conditions=subscription.conditions, values=subscription.values)
+                        data=data, conditions=subscription.conditions, values=subscription.values, pool=pool)
                 else:
                     filters_match_request = True
                 if filters_match_request:
@@ -183,7 +193,8 @@ class Websocket(object):
 
 async def load_data_from_db(table, data: Dict[str, Any],
                             filter_dict: Dict = {},
-                            postprocess: Callable = None):
+                            postprocess: Callable = None,
+                            pool=None):
     # filter the data for loading based on available primary keys
     conditions_dict = {
         key: data[key] for key in table.primary_keys
@@ -198,6 +209,6 @@ async def load_data_from_db(table, data: Dict[str, Any],
 
     results, _ = await table.find_records(
         conditions=conditions, values=values, fetch_single=True,
-        enable_joins=True, postprocess=postprocess
+        enable_joins=True, postprocess=postprocess, pool=pool
     )
     return results.body

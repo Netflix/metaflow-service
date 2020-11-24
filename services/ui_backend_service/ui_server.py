@@ -31,6 +31,8 @@ from pyee import AsyncIOEventEmitter, ExecutorEventEmitter
 
 from .doc import swagger_definitions, swagger_description
 
+from .features import FEATURE_DB_LISTEN_ENABLE, FEATURE_WS_ENABLE, FEATURE_HEARTBEAT_ENABLE
+
 
 def app(loop=None, db_conf: DBConfiguration = None):
 
@@ -43,10 +45,16 @@ def app(loop=None, db_conf: DBConfiguration = None):
     cache_store = CacheStore(event_emitter=event_emitter)
     app.on_startup.append(cache_store.start_caches)
     app.on_cleanup.append(cache_store.stop_caches)
-    ListenNotify(app, event_emitter)
-    RunHeartbeatMonitor(event_emitter)
-    TaskHeartbeatMonitor(event_emitter)
-    Websocket(app, event_emitter)
+
+    if FEATURE_DB_LISTEN_ENABLE:
+        ListenNotify(app, event_emitter)
+
+    if FEATURE_HEARTBEAT_ENABLE:
+        RunHeartbeatMonitor(event_emitter)
+        TaskHeartbeatMonitor(event_emitter)
+
+    if FEATURE_WS_ENABLE:
+        Websocket(app, event_emitter)
 
     FlowApi(app)
     RunApi(app)

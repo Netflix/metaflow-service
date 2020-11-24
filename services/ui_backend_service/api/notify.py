@@ -15,7 +15,7 @@ class ListenNotify(object):
         self.loop.create_task(self._init())
 
     async def _init(self):
-        pool = self.db.pool
+        pool = await self.db.create_pool()
 
         async with pool.acquire() as conn1:
             listener = self.listen(conn1)
