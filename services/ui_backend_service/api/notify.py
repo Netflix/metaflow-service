@@ -2,13 +2,13 @@ import json
 import asyncio
 from typing import Dict, List
 from services.data.postgres_async_db import AsyncPostgresDB
-from pyee import ExecutorEventEmitter
+from pyee import AsyncIOEventEmitter
 
 
 class ListenNotify(object):
     def __init__(self, app, event_emitter=None):
         self.app = app
-        self.event_emitter = event_emitter or ExecutorEventEmitter()
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = AsyncPostgresDB.get_instance()
 
         self.loop = asyncio.get_event_loop()

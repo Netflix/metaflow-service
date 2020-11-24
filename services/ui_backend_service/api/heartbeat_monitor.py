@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 from typing import Dict
-from pyee import ExecutorEventEmitter
+from pyee import AsyncIOEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
 from .notify import resource_list
@@ -14,18 +14,12 @@ class HeartbeatMonitor(object):
     def __init__(self, event_name, event_emitter=None):
         self.watched = {}
         # Handle HB Events
-        self.event_emitter = event_emitter or ExecutorEventEmitter()
-        event_emitter.on(event_name, self._heartbeat_handler)
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
+        event_emitter.on(event_name, self.heartbeat_handler)
 
         # Start heartbeat watcher
         self.loop = asyncio.get_event_loop()
         self.loop.create_task(self.check_heartbeats())
-
-    def _heartbeat_handler(self, *args, **kwargs):
-        """Wrapper to run coroutine event handler code threadsafe in a loop,
-        as the ExecutorEventEmitter does not accept coroutines as handlers.
-        """
-        asyncio.run_coroutine_threadsafe(self.heartbeat_handler(*args, **kwargs), self.loop)
 
     async def heartbeat_handler(self):
         "handle the event_emitter events"

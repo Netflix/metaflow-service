@@ -1,7 +1,7 @@
 from .generate_dag_action import GenerateDag
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
-from pyee import ExecutorEventEmitter
+from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .search_artifacts_action import SearchArtifacts
 from .get_artifacts_action import GetArtifacts
@@ -53,7 +53,7 @@ METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50
 
 class ArtifactCacheStore(object):
     def __init__(self, event_emitter):
-        self.event_emitter = event_emitter or ExecutorEventEmitter()
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self._artifact_table = AsyncPostgresDB.get_instance().artifact_table_postgres
         self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
         self.cache = None
@@ -187,11 +187,7 @@ class ArtifactCacheStore(object):
 
         return combined_results
 
-    def run_parameters_event_handler(self, *args, **kwargs):
-        "wrapper for async event handler so it works with ExecutorEventEmitter"
-        asyncio.run_coroutine_threadsafe(self._run_parameters_event_handler(*args, **kwargs), self.loop)
-
-    async def _run_parameters_event_handler(self, flow_id, run_number):
+    async def run_parameters_event_handler(self, flow_id, run_number):
         try:
             parameters = await self.get_run_parameters(flow_id, run_number)
             self.event_emitter.emit(
@@ -203,7 +199,7 @@ class ArtifactCacheStore(object):
         except GetParametersFailed:
             logger.error("Run parameter fetching failed")
 
-    def preload_event_handler(self, run_id):
+    async def preload_event_handler(self, run_id):
         "Handler for event-emitter for preloading artifacts for a run id"
         asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
 

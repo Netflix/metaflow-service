@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Callable
 
 from .utils import resource_conditions, TTLQueue
 from services.data.postgres_async_db import AsyncPostgresDB
-from pyee import ExecutorEventEmitter
+from pyee import AsyncIOEventEmitter
 from .data_refiner import TaskRefiner
 
 from throttler import throttle_simultaneous
@@ -48,20 +48,14 @@ class Websocket(object):
 
     def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS):
         self.app = app
-        self.event_emitter = event_emitter or ExecutorEventEmitter()
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = AsyncPostgresDB.get_instance()
         self.queue = TTLQueue(queue_ttl)
         self.task_refiner = TaskRefiner()
 
-        event_emitter.on('notify', self._event_handler)
+        event_emitter.on('notify', self.event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
         self.loop = asyncio.get_event_loop()
-
-    def _event_handler(self, *args, **kwargs):
-        """Wrapper to run coroutine event handler code threadsafe in a loop,
-        as the ExecutorEventEmitter does not accept coroutines as handlers.
-        """
-        asyncio.run_coroutine_threadsafe(self.event_handler(*args, **kwargs), self.loop)
 
     async def event_handler(self, operation: str, resources: List[str], data: Dict, table=None, filter_dict: Dict = {}):
         """Either receives raw data from table triggers listener and either performs a database load
