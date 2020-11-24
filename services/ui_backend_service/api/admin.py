@@ -10,6 +10,7 @@ UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
     commit=SERVICE_COMMIT_HASH or ""
 )
 
+
 class AdminApi(object):
     def __init__(self, app):
         app.router.add_route("GET", "/ping", self.ping)
