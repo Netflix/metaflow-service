@@ -73,6 +73,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             event_name="run-heartbeat",
             event_emitter=event_emitter
         )
+        self._pool = None
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
 
@@ -94,6 +95,9 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
                 self.watched[run_number] = heartbeat_ts
 
     async def get_run(self, run_key):
+        if not self._pool:
+            self._pool = await AsyncPostgresDB.get_instance().create_pool()
+
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
         # and we can not broadcast an up-to-date status.
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
@@ -103,7 +107,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             conditions=["{column} = %s".format(column=run_id_key)],
             values=[run_id_value],
             fetch_single=True,
-            enable_joins=True
+            enable_joins=True,
+            pool=self._pool
         )
         return result.body if result.response_code == 200 else None
 
@@ -165,6 +170,10 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
 
     async def get_task(self, flow_id, run_key, step_name, task_key, attempt_id=None):
         "Fetches task from DB. Specifying attempt_id will fetch the specific attempt. Otherwise the newest attempt is returned."
+
+        if not self._pool:
+            self._pool = await AsyncPostgresDB.get_instance().create_pool()
+
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the task
         # and we can not broadcast an up-to-date status.
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
@@ -188,7 +197,8 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             order=["attempt_id DESC"],
             fetch_single=True,
             enable_joins=True,
-            postprocess=self.refiner.postprocess
+            postprocess=self.refiner.postprocess,
+            pool=self._pool
         )
         return result.body if result.response_code == 200 else None
 
