@@ -27,7 +27,7 @@ from .frontend import Frontend
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration, logging
 
-from pyee import AsyncIOEventEmitter, ExecutorEventEmitter
+from pyee import AsyncIOEventEmitter
 
 from .doc import swagger_definitions, swagger_description
 
@@ -39,7 +39,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))
 
-    event_emitter = ExecutorEventEmitter()
+    event_emitter = AsyncIOEventEmitter()
     cache_store = CacheStore(event_emitter=event_emitter)
     app.on_startup.append(cache_store.start_caches)
     app.on_cleanup.append(cache_store.stop_caches)
