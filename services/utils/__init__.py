@@ -16,6 +16,11 @@ version = pkg_resources.require("metadata_service")[0].version
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
 
+# The latest commit hash of the repository, if set as an environment variable.
+SERVICE_COMMIT_HASH = os.environ.get("BUILD_COMMIT_HASH", None)
+# Build time of service, if set as an environment variable.
+SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
+
 # Setup log level based on environment variable
 log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
