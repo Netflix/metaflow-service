@@ -1,3 +1,4 @@
+from ..features import FEATURE_MODEL_EXPAND
 import asyncio
 import datetime
 from typing import Dict
@@ -105,7 +106,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             conditions=["{column} = %s".format(column=run_id_key)],
             values=[run_id_value],
             fetch_single=True,
-            enable_joins=True
+            enable_joins=True,
+            expanded=FEATURE_MODEL_EXPAND
         )
         return result.body if result.response_code == 200 else None
 
@@ -191,6 +193,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             order=["attempt_id DESC"],
             fetch_single=True,
             enable_joins=True,
+            expanded=FEATURE_MODEL_EXPAND,
             postprocess=self.refiner.postprocess
         )
         return result.body if result.response_code == 200 else None
