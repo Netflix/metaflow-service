@@ -9,7 +9,7 @@ import asyncio
 import time
 import os
 import logging
-from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
+from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE, FEATURE_MODEL_EXPAND
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -117,7 +117,8 @@ class ArtifactCacheStore(object):
         artifact_loc = "s3"
         _records, _ = await self._artifact_table.find_records(
             conditions=[run_id_cond, artifact_loc_cond],
-            values=[run_ids, artifact_loc]
+            values=[run_ids, artifact_loc],
+            expanded=FEATURE_MODEL_EXPAND
         )
 
         # be sure to return a list of unique locations
@@ -157,7 +158,8 @@ class ArtifactCacheStore(object):
                 r"\_%",
                 "name"  # exclude the 'name' parameter as this always exists, and contains the FlowName
             ],
-            fetch_single=False
+            fetch_single=False,
+            expanded=FEATURE_MODEL_EXPAND
         )
         # Return nothing if params artifacts were not found.
         if not db_response.response_code == 200:
