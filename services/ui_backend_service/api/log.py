@@ -17,7 +17,8 @@ STDERR = 'log_location_stderr'
 
 
 class LogApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out",
@@ -28,7 +29,7 @@ class LogApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/err",
             self.get_task_log_stderr,
         )
-        self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
+        self._async_table = self.db.metadata_table_postgres
 
     @handle_exceptions
     async def get_task_log_stdout(self, request):

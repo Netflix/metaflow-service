@@ -6,17 +6,14 @@ from pyee import AsyncIOEventEmitter
 
 
 class ListenNotify(object):
-    def __init__(self, app, event_emitter=None):
-        self.app = app
+    def __init__(self, app, event_emitter=None, db=AsyncPostgresDB.get_instance()):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
-        self.db = AsyncPostgresDB.get_instance()
+        self.db = db
 
         self.loop = asyncio.get_event_loop()
-        self.loop.create_task(self._init())
+        self.loop.create_task(self._init(self.db.pool))
 
-    async def _init(self):
-        pool = await self.db.create_pool()
-
+    async def _init(self, pool):
         async with pool.acquire() as conn1:
             listener = self.listen(conn1)
             await asyncio.gather(listener)

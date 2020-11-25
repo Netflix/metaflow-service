@@ -24,18 +24,18 @@ class CacheStore(object):
     "Singleton class for all the different cache clients that are used to access caches"
     instance = None
 
-    def __init__(self, event_emitter=None):
+    def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
         if not CacheStore.instance:
-            CacheStore.instance = CacheStore.__CacheStore(event_emitter)
+            CacheStore.instance = CacheStore.__CacheStore(event_emitter, db)
 
     def __getattribute__(self, name):
         # delegate attribute calls to the singleton instance.
         return getattr(CacheStore.instance, name)
 
     class __CacheStore(object):
-        def __init__(self, event_emitter=None):
-            self.artifact_cache = ArtifactCacheStore(event_emitter)
-            self.dag_cache = DAGCacheStore()
+        def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
+            self.artifact_cache = ArtifactCacheStore(event_emitter, db)
+            self.dag_cache = DAGCacheStore(db)
 
         async def start_caches(self, app):
             await self.artifact_cache.start_cache()
@@ -52,10 +52,10 @@ METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50
 
 
 class ArtifactCacheStore(object):
-    def __init__(self, event_emitter):
+    def __init__(self, event_emitter, db):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
-        self._artifact_table = AsyncPostgresDB.get_instance().artifact_table_postgres
-        self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._artifact_table = db.artifact_table_postgres
+        self._run_table = db.run_table_postgres
         self.cache = None
         self.loop = asyncio.get_event_loop()
 
@@ -208,8 +208,8 @@ class ArtifactCacheStore(object):
 
 
 class DAGCacheStore(object):
-    def __init__(self):
-        self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
+    def __init__(self, db):
+        self._run_table = db.run_table_postgres
         self.cache = None
 
     async def start_cache(self):

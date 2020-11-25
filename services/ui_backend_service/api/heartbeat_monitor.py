@@ -11,11 +11,12 @@ HEARTBEAT_INTERVAL = 10  # interval of heartbeats, in seconds
 
 
 class HeartbeatMonitor(object):
-    def __init__(self, event_name, event_emitter=None):
+    def __init__(self, event_name, event_emitter=None, db=AsyncPostgresDB.get_instance()):
         self.watched = {}
         # Handle HB Events
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         event_emitter.on(event_name, self.heartbeat_handler)
+        self.db = db
 
         # Start heartbeat watcher
         self.loop = asyncio.get_event_loop()
@@ -67,15 +68,15 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
       "run-heartbeat", "complete" run_id -> removes run from heartbeat checks
     '''
 
-    def __init__(self, event_emitter=None):
+    def __init__(self, event_emitter=None, db=None):
         # Init the abstract class
         super().__init__(
             event_name="run-heartbeat",
-            event_emitter=event_emitter
+            event_emitter=event_emitter,
+            db=db
         )
-        self._pool = None
         # Table for data fetching for load_and_broadcast and add_to_watch
-        self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._run_table = self.db.run_table_postgres
 
     async def heartbeat_handler(self, action, run_id):
         if action == "update":
@@ -95,9 +96,6 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
                 self.watched[run_number] = heartbeat_ts
 
     async def get_run(self, run_key):
-        if not self._pool:
-            self._pool = await AsyncPostgresDB.get_instance().create_pool()
-
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
         # and we can not broadcast an up-to-date status.
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
@@ -107,8 +105,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             conditions=["{column} = %s".format(column=run_id_key)],
             values=[run_id_value],
             fetch_single=True,
-            enable_joins=True,
-            pool=self._pool
+            enable_joins=True
         )
         return result.body if result.response_code == 200 else None
 
@@ -135,14 +132,15 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
       "task-heartbeat", "complete" data -> removes task from heartbeat checks
     '''
 
-    def __init__(self, event_emitter=None):
+    def __init__(self, event_emitter=None, db=None):
         # Init the abstract class
         super().__init__(
             event_name="task-heartbeat",
-            event_emitter=event_emitter
+            event_emitter=event_emitter,
+            db=db
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
-        self._task_table = AsyncPostgresDB.get_instance().task_table_postgres
+        self._task_table = self.db.task_table_postgres
         self.refiner = TaskRefiner()
 
     async def heartbeat_handler(self, action, data):
@@ -170,10 +168,6 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
 
     async def get_task(self, flow_id, run_key, step_name, task_key, attempt_id=None):
         "Fetches task from DB. Specifying attempt_id will fetch the specific attempt. Otherwise the newest attempt is returned."
-
-        if not self._pool:
-            self._pool = await AsyncPostgresDB.get_instance().create_pool()
-
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the task
         # and we can not broadcast an up-to-date status.
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
@@ -197,8 +191,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             order=["attempt_id DESC"],
             fetch_single=True,
             enable_joins=True,
-            postprocess=self.refiner.postprocess,
-            pool=self._pool
+            postprocess=self.refiner.postprocess
         )
         return result.body if result.response_code == 200 else None
 

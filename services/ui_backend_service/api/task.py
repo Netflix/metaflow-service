@@ -6,7 +6,8 @@ from .data_refiner import TaskRefiner
 
 
 class TaskApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/tasks",
@@ -27,7 +28,7 @@ class TaskApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts",
             self.get_task_attempts,
         )
-        self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
+        self._async_table = self.db.task_table_postgres
         self.refiner = TaskRefiner()
 
     @handle_exceptions
@@ -192,7 +193,8 @@ class TaskApi(object):
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess)
+                                  postprocess=self.refiner.postprocess
+                                  )
 
     @handle_exceptions
     async def get_task_attempts(self, request):

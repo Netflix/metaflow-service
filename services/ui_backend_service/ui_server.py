@@ -24,7 +24,7 @@ from .api.heartbeat_monitor import RunHeartbeatMonitor, TaskHeartbeatMonitor
 from .cache.store import CacheStore
 from .frontend import Frontend
 
-from services.data.postgres_async_db import AsyncPostgresDB
+from services.data.postgres_async_db import _AsyncPostgresDB
 from services.utils import DBConfiguration, logging
 
 from pyee import AsyncIOEventEmitter
@@ -38,35 +38,45 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     loop = loop or asyncio.get_event_loop()
     app = web.Application(loop=loop)
-    async_db = AsyncPostgresDB()
+
+    async_db = _AsyncPostgresDB('ui')
     loop.run_until_complete(async_db._init(db_conf))
 
     event_emitter = AsyncIOEventEmitter()
-    cache_store = CacheStore(event_emitter=event_emitter)
+
+    async_db_cache = _AsyncPostgresDB('ui:cache')
+    loop.run_until_complete(async_db_cache._init(db_conf))
+    cache_store = CacheStore(event_emitter=event_emitter, db=async_db_cache)
     app.on_startup.append(cache_store.start_caches)
     app.on_cleanup.append(cache_store.stop_caches)
 
     if FEATURE_DB_LISTEN_ENABLE:
-        ListenNotify(app, event_emitter)
+        async_db_notify = _AsyncPostgresDB('ui:notify')
+        loop.run_until_complete(async_db_notify._init(db_conf))
+        ListenNotify(app, event_emitter, db=async_db_notify)
 
     if FEATURE_HEARTBEAT_ENABLE:
-        RunHeartbeatMonitor(event_emitter)
-        TaskHeartbeatMonitor(event_emitter)
+        async_db_heartbeat = _AsyncPostgresDB('ui:heartbeat')
+        loop.run_until_complete(async_db_heartbeat._init(db_conf))
+        RunHeartbeatMonitor(event_emitter, db=async_db_heartbeat)
+        TaskHeartbeatMonitor(event_emitter, db=async_db_heartbeat)
 
     if FEATURE_WS_ENABLE:
-        Websocket(app, event_emitter)
+        async_db_ws = _AsyncPostgresDB('ui:websocket')
+        loop.run_until_complete(async_db_ws._init(db_conf))
+        Websocket(app, event_emitter, db=async_db_ws)
 
-    FlowApi(app)
-    RunApi(app)
-    StepApi(app)
-    TaskApi(app)
-    MetadataApi(app)
-    ArtificatsApi(app)
-    TagApi(app)
-    ArtifactSearchApi(app)
-    DagApi(app)
+    FlowApi(app, async_db)
+    RunApi(app, async_db)
+    StepApi(app, async_db)
+    TaskApi(app, async_db)
+    MetadataApi(app, async_db)
+    ArtificatsApi(app, async_db)
+    TagApi(app, async_db)
+    ArtifactSearchApi(app, async_db)
+    DagApi(app, async_db)
 
-    LogApi(app)
+    LogApi(app, async_db)
     AdminApi(app)
 
     setup_swagger(app,
