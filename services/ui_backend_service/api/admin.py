@@ -2,7 +2,13 @@ from aiohttp import web
 import json
 import os
 from multidict import MultiDict
-from services.utils import METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER
+from services.utils import METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER, SERVICE_COMMIT_HASH, SERVICE_BUILD_TIMESTAMP
+
+UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
+    metadata_v=METADATA_SERVICE_VERSION,
+    timestamp=SERVICE_BUILD_TIMESTAMP or "",
+    commit=SERVICE_COMMIT_HASH or ""
+)
 
 
 class AdminApi(object):
@@ -25,7 +31,7 @@ class AdminApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        return web.Response(text=str(METADATA_SERVICE_VERSION))
+        return web.Response(text=str(UI_SERVICE_VERSION))
 
     async def ping(self, request):
         """
