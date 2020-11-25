@@ -757,6 +757,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             FROM {artifact_table} as task_ok
             LEFT JOIN {metadata_table} as attempt ON (
                 task_ok.flow_id = attempt.flow_id AND
+                task_ok.run_number = attempt.run_number AND
                 task_ok.step_name = attempt.step_name AND
                 task_ok.task_id = attempt.task_id AND
                 attempt.field_name = 'attempt' AND
@@ -764,6 +765,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {metadata_table} as done ON (
                 task_ok.flow_id = done.flow_id AND
+                task_ok.run_number = done.run_number AND
                 task_ok.step_name = done.step_name AND
                 task_ok.task_id = done.task_id AND
                 done.field_name = 'attempt-done' AND
@@ -771,6 +773,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {metadata_table} as attempt_ok ON (
                 task_ok.flow_id = attempt_ok.flow_id AND
+                task_ok.run_number = attempt_ok.run_number AND
                 task_ok.step_name = attempt_ok.step_name AND
                 task_ok.task_id = attempt_ok.task_id AND
                 attempt_ok.field_name = 'attempt_ok' AND
@@ -778,6 +781,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
                 task_ok.flow_id = foreach_stack.flow_id AND
+                task_ok.run_number = foreach_stack.run_number AND
                 task_ok.step_name = foreach_stack.step_name AND
                 task_ok.task_id = foreach_stack.task_id AND
                 foreach_stack.name = '_foreach_stack' AND
