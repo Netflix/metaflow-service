@@ -11,11 +11,12 @@ HEARTBEAT_INTERVAL = 10  # interval of heartbeats, in seconds
 
 
 class HeartbeatMonitor(object):
-    def __init__(self, event_name, event_emitter=None):
+    def __init__(self, event_name, event_emitter=None, db=AsyncPostgresDB.get_instance()):
         self.watched = {}
         # Handle HB Events
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         event_emitter.on(event_name, self.heartbeat_handler)
+        self.db = db
 
         # Start heartbeat watcher
         self.loop = asyncio.get_event_loop()
@@ -67,14 +68,15 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
       "run-heartbeat", "complete" run_id -> removes run from heartbeat checks
     '''
 
-    def __init__(self, event_emitter=None):
+    def __init__(self, event_emitter=None, db=None):
         # Init the abstract class
         super().__init__(
             event_name="run-heartbeat",
-            event_emitter=event_emitter
+            event_emitter=event_emitter,
+            db=db
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
-        self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._run_table = self.db.run_table_postgres
 
     async def heartbeat_handler(self, action, run_id):
         if action == "update":
@@ -130,14 +132,15 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
       "task-heartbeat", "complete" data -> removes task from heartbeat checks
     '''
 
-    def __init__(self, event_emitter=None):
+    def __init__(self, event_emitter=None, db=None):
         # Init the abstract class
         super().__init__(
             event_name="task-heartbeat",
-            event_emitter=event_emitter
+            event_emitter=event_emitter,
+            db=db
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
-        self._task_table = AsyncPostgresDB.get_instance().task_table_postgres
+        self._task_table = self.db.task_table_postgres
         self.refiner = TaskRefiner()
 
     async def heartbeat_handler(self, action, data):
