@@ -91,7 +91,12 @@ class GetArtifacts(CacheAction):
                                 # TODO: Figure out a way to store the artifact content without decoding?
                                 # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
                                 # so we can not rely on the file existing if we only return a filepath as a cached response
-                                results[artifact_key] = json.dumps([True, decode(artifact_data.path)])
+                                content = decode(artifact_data.path)
+                                results[artifact_key] = json.dumps([True, content])
+                            except TypeError:
+                                # In case the artifact was of a type that can not be json serialized,
+                                # we try casting it to a string first.
+                                results[artifact_key] = json.dumps([True, str(content)])
                             except Exception as ex:
                                 # Exceptions might be fixable with configuration changes or other measures,
                                 # therefore we do not want to write anything to the cache for these artifacts.
