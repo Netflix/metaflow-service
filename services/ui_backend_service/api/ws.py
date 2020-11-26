@@ -139,30 +139,36 @@ class Websocket(object):
         )
 
     async def websocket_handler(self, request):
+        # TODO: Consider using options autoping=True and heartbeat=20 if supported by clients.
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
         while not ws.closed:
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
-                    try:
-                        payload = json.loads(msg.data)
-                        op_type = payload.get("type")
-                        resource = payload.get("resource")
-                        uuid = payload.get("uuid")
-                        since = payload.get("since")
-                        if since is not None and str(since).isnumeric():
-                            since = int(since)
-                        else:
-                            since = None
+                    # Custom ping message handling.
+                    # If someone is pinging, lets answer with pong rightaway.
+                    if msg.data == "__ping__":
+                        await ws.send_str("__pong__")
+                    else:
+                        try:
+                            payload = json.loads(msg.data)
+                            op_type = payload.get("type")
+                            resource = payload.get("resource")
+                            uuid = payload.get("uuid")
+                            since = payload.get("since")
+                            if since is not None and str(since).isnumeric():
+                                since = int(since)
+                            else:
+                                since = None
 
-                        if op_type == SUBSCRIBE and uuid and resource:
-                            await self.subscribe_to(ws, uuid, resource, since)
-                        elif op_type == UNSUBSCRIBE and uuid:
-                            await self.unsubscribe_from(ws, uuid)
+                            if op_type == SUBSCRIBE and uuid and resource:
+                                await self.subscribe_to(ws, uuid, resource, since)
+                            elif op_type == UNSUBSCRIBE and uuid:
+                                await self.unsubscribe_from(ws, uuid)
 
-                    except Exception as err:
-                        print(err, flush=True)
+                        except Exception as err:
+                            print(err, flush=True)
 
         # Always remove clients from listeners
         await self.handle_disconnect(ws)
