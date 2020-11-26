@@ -8,7 +8,7 @@ from .get_artifacts_action import GetArtifacts
 import asyncio
 import time
 import os
-import logging
+from services.utils import logging
 from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE, FEATURE_MODEL_EXPAND
 
 # Tagged logger

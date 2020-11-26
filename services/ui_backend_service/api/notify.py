@@ -2,6 +2,7 @@ import json
 import asyncio
 from typing import Dict, List
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.utils import logging
 from pyee import AsyncIOEventEmitter
 
 
@@ -9,6 +10,7 @@ class ListenNotify(object):
     def __init__(self, app, event_emitter=None, db=AsyncPostgresDB.get_instance()):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
+        self.logger = logging.getLogger("ListenNotify")
 
         self.loop = asyncio.get_event_loop()
         self.loop.create_task(self._init(self.db.pool))
@@ -89,8 +91,8 @@ class ListenNotify(object):
                         # And remove possible heartbeat watchers for completed runs
                         self.event_emitter.emit("run-heartbeat", "complete", data['run_number'])
 
-        except Exception as err:
-            print(err, flush=True)
+        except Exception:
+            self.logger.exception("Exception occurred")
 
 
 def resource_list(table_name: str, data: Dict):
