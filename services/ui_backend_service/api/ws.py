@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Callable
 
 from .utils import resource_conditions, TTLQueue
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.utils import logging
 from pyee import AsyncIOEventEmitter
 from .data_refiner import TaskRefiner
 
@@ -53,6 +54,7 @@ class Websocket(object):
         self.db = db
         self.queue = TTLQueue(queue_ttl)
         self.task_refiner = TaskRefiner()
+        self.logger = logging.getLogger("Websocket")
 
         event_emitter.on('notify', self.event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
@@ -146,12 +148,12 @@ class Websocket(object):
         while not ws.closed:
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
-                    # Custom ping message handling.
-                    # If someone is pinging, lets answer with pong rightaway.
-                    if msg.data == "__ping__":
-                        await ws.send_str("__pong__")
-                    else:
-                        try:
+                    try:
+                        # Custom ping message handling.
+                        # If someone is pinging, lets answer with pong rightaway.
+                        if msg.data == "__ping__":
+                            await ws.send_str("__pong__")
+                        else:
                             payload = json.loads(msg.data)
                             op_type = payload.get("type")
                             resource = payload.get("resource")
@@ -166,9 +168,8 @@ class Websocket(object):
                                 await self.subscribe_to(ws, uuid, resource, since)
                             elif op_type == UNSUBSCRIBE and uuid:
                                 await self.unsubscribe_from(ws, uuid)
-
-                        except Exception as err:
-                            print(err, flush=True)
+                    except Exception:
+                        self.logger.exception("Exception occurred.")
 
         # Always remove clients from listeners
         await self.handle_disconnect(ws)

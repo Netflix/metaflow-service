@@ -6,7 +6,7 @@ import json
 import math
 import time
 import datetime
-import logging
+from services.utils import logging
 from typing import List, Callable
 from asyncio import iscoroutinefunction
 
