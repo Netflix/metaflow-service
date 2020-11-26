@@ -294,7 +294,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         return web_response(status, res)
     else:
         status, res = format_response_list(
-            request, results, page, pagination.pages_total)
+            request, results, page, pagination.pages_total if pagination else 1)
         return web_response(status, res)
 
 
