@@ -72,7 +72,7 @@ class GetArtifacts(CacheAction):
         artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
         result_key = [key for key in keys if key.startswith('parameters:result')][0]
 
-        # Lambdas for streaming status updates.
+        # Helper function for streaming status updates.
         def stream_error(err, id, traceback=None):
             return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 

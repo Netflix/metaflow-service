@@ -84,7 +84,7 @@ class SearchArtifacts(CacheAction):
         artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
         result_key = [key for key in keys if key.startswith('search:result')][0]
 
-        # Lambdas for streaming status updates.
+        # Helper functions for streaming status updates.
         def stream_progress(num):
             return stream_output({"type": "progress", "fraction": num})
 
