@@ -58,7 +58,7 @@ class Websocket(object):
         app.router.add_route('GET', '/ws', self.websocket_handler)
         self.loop = asyncio.get_event_loop()
 
-    async def event_handler(self, operation: str, resources: List[str], data: Dict, table=None, filter_dict: Dict = {}):
+    async def event_handler(self, operation: str, resources: List[str], data: Dict, table_name=None, filter_dict: Dict = {}):
         """Either receives raw data from table triggers listener and either performs a database load
         before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
         """
@@ -66,8 +66,9 @@ class Websocket(object):
         if any(subscription.resource in resources for subscription in self.subscriptions):
             # load the data and postprocessor for broadcasting if table
             # is provided (otherwise data has already been loaded in advance)
-            if table:
-                _postprocess = await self.get_table_postprocessor(table.table_name)
+            if table_name:
+                table = await self.db.get_table_by_name(table_name)
+                _postprocess = await self.get_table_postprocessor(table_name)
                 _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
             else:
                 _data = data
@@ -118,7 +119,9 @@ class Websocket(object):
             # Subtract 1 second to make sure all events are included
             event_queue = await self.queue.values_since(since)
             for _, event in event_queue:
-                await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
+                self.loop.create_task(
+                    await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
+                )
 
     async def unsubscribe_from(self, ws, uuid: str = None):
         if uuid:
