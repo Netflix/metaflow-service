@@ -168,7 +168,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
                 self.watched[key] = heartbeat_ts
 
-    async def get_task(self, flow_id, run_key, step_name, task_key, attempt_id=None):
+    async def get_task(self, flow_id, run_key, step_name, task_key, attempt_id=None, postprocess=None):
         "Fetches task from DB. Specifying attempt_id will fetch the specific attempt. Otherwise the newest attempt is returned."
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the task
         # and we can not broadcast an up-to-date status.
@@ -194,13 +194,13 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             fetch_single=True,
             enable_joins=True,
             expanded=FEATURE_MODEL_EXPAND,
-            postprocess=self.refiner.postprocess
+            postprocess=postprocess
         )
         return result.body if result.response_code == 200 else None
 
     async def load_and_broadcast(self, key):
         flow_id, run_number, step_name, task_id, attempt_id = self.decode_key_ids(key)
-        task = await self.get_task(flow_id, run_number, step_name, task_id, attempt_id)
+        task = await self.get_task(flow_id, run_number, step_name, task_id, attempt_id, postprocess=self.refiner.postprocess)
         resources = resource_list(self._task_table.table_name, task) if task else None
         if resources and task['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.

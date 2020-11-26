@@ -25,7 +25,7 @@ class ListenNotify(object):
             await cur.execute("LISTEN notify")
             while True:
                 msg = await conn.notifies.get()
-                await self.handle_trigger_msg(msg)
+                self.loop.create_task(self.handle_trigger_msg(msg))
 
     async def handle_trigger_msg(self, msg: str):
         try:
@@ -124,4 +124,4 @@ def resource_list(table_name: str, data: Dict):
 
 async def _broadcast(event_emitter, operation: str, table, data: Dict, filter_dict={}):
     _resources = resource_list(table.table_name, data)
-    event_emitter.emit('notify', operation, _resources, data, table, filter_dict)
+    event_emitter.emit('notify', operation, _resources, data, table.table_name, filter_dict)
