@@ -7,7 +7,8 @@ from .utils import find_records
 
 
 class ArtificatsApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts",
@@ -23,7 +24,7 @@ class ArtificatsApi(object):
             "/flows/{flow_id}/runs/{run_number}/artifacts",
             self.get_artifacts_by_run,
         )
-        self._async_table = AsyncPostgresDB.get_instance().artifact_table_postgres
+        self._async_table = self.db.artifact_table_postgres
 
     @handle_exceptions
     async def get_artifacts_by_task(self, request):

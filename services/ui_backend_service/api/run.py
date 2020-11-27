@@ -8,7 +8,8 @@ import json
 
 
 class RunApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route(
             "GET", "/runs", self.get_all_runs)
         app.router.add_route(
@@ -18,8 +19,8 @@ class RunApi(object):
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/parameters", self.get_run_parameters)
 
-        self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
-        self._artifact_table = AsyncPostgresDB.get_instance().artifact_table_postgres
+        self._async_table = self.db.run_table_postgres
+        self._artifact_table = self.db.artifact_table_postgres
         self._artifact_store = CacheStore().artifact_cache
 
     @handle_exceptions

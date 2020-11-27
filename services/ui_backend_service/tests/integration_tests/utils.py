@@ -1,5 +1,5 @@
 from aiohttp import web
-from pyee import ExecutorEventEmitter
+from pyee import AsyncIOEventEmitter
 import json
 import datetime
 
@@ -33,7 +33,7 @@ TIMEOUT_FUTURE = 0.1
 
 def init_app(loop, aiohttp_client, queue_ttl=30):
     app = web.Application()
-    app.event_emitter = ExecutorEventEmitter()
+    app.event_emitter = AsyncIOEventEmitter()
 
     # Migration routes as a subapp
     migration_app = web.Application()

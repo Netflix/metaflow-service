@@ -10,6 +10,8 @@ import pickle
 from gzip import GzipFile
 from itertools import islice
 
+from ..features import FEATURE_S3_DISABLE
+
 
 def batchiter(it, batch_size):
     it = iter(it)
@@ -35,73 +37,85 @@ class MetaflowS3CredentialsMissing(MetaflowException):
     headline = 'could not locate s3 credentials'
 
 
-class NoRetryS3(S3):
-    '''Custom S3 class with no retries for quick failing.
-    Base implementation is the metaflow library S3 client
+if FEATURE_S3_DISABLE:
+    class NoRetryS3(S3):
+        def _read_many_files(self, op, prefixes, **options):
+            raise MetaflowS3Exception("S3 disabled.")
 
-    Used only for get() and get_many() operations.
-    '''
+        def _one_boto_op(self, op, url):
+            raise MetaflowS3Exception("S3 disabled.")
 
-    def _one_boto_op(self, op, url):
-        error = ''
-        tmp = NamedTemporaryFile(dir=self._tmpdir,
-                                 prefix='metaflow.s3.one_file.',
-                                 delete=False)
-        try:
-            s3, _ = get_s3_client()
-            op(s3, tmp.name)
-            return tmp.name
-        except ClientError as err:
-            error_code = s3op.normalize_client_error(err)
-            if error_code == 404:
-                raise MetaflowS3NotFound(url)
-            elif error_code == 403:
-                raise MetaflowS3AccessDenied(url)
-            elif error_code == 'NoSuchBucket':
-                raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
-            error = str(err)
-        except NoCredentialsError as err:
-            raise MetaflowS3CredentialsMissing(err)
-        except Exception as ex:
-            # TODO specific error message for out of disk space
-            error = str(ex)
-        os.unlink(tmp.name)
-        raise MetaflowS3Exception("S3 operation failed.\n"
-                                  "Key requested: %s\n"
-                                  "Error: %s" % (url, error))
+        def _s3op_with_retries(self, mode, **options):
+            return None, "S3 disabled."
 
-    def _s3op_with_retries(self, mode, **options):
+else:
+    class NoRetryS3(S3):
+        '''Custom S3 class with no retries for quick failing.
+        Base implementation is the metaflow library S3 client
 
-        cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
-        for key, value in options.items():
-            key = key.replace('_', '-')
-            if isinstance(value, bool):
-                if value:
-                    cmdline.append('--%s' % key)
-                else:
-                    cmdline.append('--no-%s' % key)
-            else:
-                cmdline.extend(('--%s' % key, value))
+        Used only for get() and get_many() operations.
+        '''
 
-        with NamedTemporaryFile(dir=self._tmpdir,
-                                mode='wb+',
-                                delete=not debug.s3client,
-                                prefix='metaflow.s3op.stderr') as stderr:
+        def _one_boto_op(self, op, url):
+            error = ''
+            tmp = NamedTemporaryFile(dir=self._tmpdir,
+                                     prefix='metaflow.s3.one_file.',
+                                     delete=False)
             try:
-                debug.s3client_exec(cmdline)
-                stdout = subprocess.check_output(cmdline,
-                                                 cwd=self._tmpdir,
-                                                 stderr=stderr.file)
-                return stdout, None
-            except subprocess.CalledProcessError as ex:
-                stderr.seek(0)
-                err_out = stderr.read().decode('utf-8', errors='replace')
-                stderr.seek(0)
-                if ex.returncode == s3op.ERROR_URL_NOT_FOUND:
-                    raise MetaflowS3NotFound(err_out)
-                elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
-                    raise MetaflowS3AccessDenied(err_out)
-                elif ex.returncode == s3op.ERROR_MISSING_CREDENTIALS:
-                    raise MetaflowS3CredentialsMissing(err_out)
+                s3, _ = get_s3_client()
+                op(s3, tmp.name)
+                return tmp.name
+            except ClientError as err:
+                error_code = s3op.normalize_client_error(err)
+                if error_code == 404:
+                    raise MetaflowS3NotFound(url)
+                elif error_code == 403:
+                    raise MetaflowS3AccessDenied(url)
+                elif error_code == 'NoSuchBucket':
+                    raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
+                error = str(err)
+            except NoCredentialsError as err:
+                raise MetaflowS3CredentialsMissing(err)
+            except Exception as ex:
+                # TODO specific error message for out of disk space
+                error = str(ex)
+            os.unlink(tmp.name)
+            raise MetaflowS3Exception("S3 operation failed.\n"
+                                      "Key requested: %s\n"
+                                      "Error: %s" % (url, error))
 
-        return None, err_out
+        def _s3op_with_retries(self, mode, **options):
+
+            cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
+            for key, value in options.items():
+                key = key.replace('_', '-')
+                if isinstance(value, bool):
+                    if value:
+                        cmdline.append('--%s' % key)
+                    else:
+                        cmdline.append('--no-%s' % key)
+                else:
+                    cmdline.extend(('--%s' % key, value))
+
+            with NamedTemporaryFile(dir=self._tmpdir,
+                                    mode='wb+',
+                                    delete=not debug.s3client,
+                                    prefix='metaflow.s3op.stderr') as stderr:
+                try:
+                    debug.s3client_exec(cmdline)
+                    stdout = subprocess.check_output(cmdline,
+                                                     cwd=self._tmpdir,
+                                                     stderr=stderr.file)
+                    return stdout, None
+                except subprocess.CalledProcessError as ex:
+                    stderr.seek(0)
+                    err_out = stderr.read().decode('utf-8', errors='replace')
+                    stderr.seek(0)
+                    if ex.returncode == s3op.ERROR_URL_NOT_FOUND:
+                        raise MetaflowS3NotFound(err_out)
+                    elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
+                        raise MetaflowS3AccessDenied(err_out)
+                    elif ex.returncode == s3op.ERROR_MISSING_CREDENTIALS:
+                        raise MetaflowS3CredentialsMissing(err_out)
+
+            return None, err_out

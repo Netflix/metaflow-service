@@ -11,13 +11,16 @@ from services.utils import handle_exceptions, web_response
 
 from aiohttp import web
 
+from ..features import FEATURE_MODEL_EXPAND
+
 
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
 
 
 class LogApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out",
@@ -28,7 +31,7 @@ class LogApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/err",
             self.get_task_log_stderr,
         )
-        self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
+        self._async_table = self.db.metadata_table_postgres
 
     @handle_exceptions
     async def get_task_log_stdout(self, request):
@@ -162,7 +165,8 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
                         "{task_id_key} = %s".format(task_id_key=task_id_key),
                         "field_name = %s"],
             values=[flow_name, run_id_value, step_name, task_id_value, field_name], limit=0, offset=0,
-            order=["ts_epoch DESC"], groups=None, fetch_single=False, enable_joins=True
+            order=["ts_epoch DESC"], groups=None, fetch_single=False, enable_joins=True,
+            expanded=FEATURE_MODEL_EXPAND
         )
         if results.response_code == 200:
             if attempt_id is None and len(results.body) > 0:

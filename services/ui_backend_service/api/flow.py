@@ -4,10 +4,11 @@ from .utils import find_records
 
 
 class FlowApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route("GET", "/flows", self.get_all_flows)
         app.router.add_route("GET", "/flows/{flow_id}", self.get_flow)
-        self._async_table = AsyncPostgresDB.get_instance().flow_table_postgres
+        self._async_table = self.db.flow_table_postgres
 
     @handle_exceptions
     async def get_flow(self, request):

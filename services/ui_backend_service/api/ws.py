@@ -9,10 +9,13 @@ from typing import List, Dict, Any, Callable
 
 from .utils import resource_conditions, TTLQueue
 from services.data.postgres_async_db import AsyncPostgresDB
-from pyee import ExecutorEventEmitter
+from services.utils import logging
+from pyee import AsyncIOEventEmitter
 from .data_refiner import TaskRefiner
 
 from throttler import throttle_simultaneous
+
+from ..features import FEATURE_MODEL_EXPAND
 
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
 WS_POSTPROCESS_CONCURRENCY_LIMIT = int(os.environ.get("WS_POSTPROCESS_CONCURRENCY_LIMIT", 8))
@@ -46,32 +49,31 @@ class Websocket(object):
     '''
     subscriptions: List[WSSubscription] = []
 
-    def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS):
-        self.app = app
-        self.event_emitter = event_emitter or ExecutorEventEmitter()
-        self.db = AsyncPostgresDB.get_instance()
+    def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, db=AsyncPostgresDB.get_instance()):
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
+        self.db = db
         self.queue = TTLQueue(queue_ttl)
         self.task_refiner = TaskRefiner()
+        self.logger = logging.getLogger("Websocket")
 
-        event_emitter.on('notify', self._event_handler)
+        event_emitter.on('notify', self.event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
         self.loop = asyncio.get_event_loop()
 
-    def _event_handler(self, *args, **kwargs):
-        """Wrapper to run coroutine event handler code threadsafe in a loop,
-        as the ExecutorEventEmitter does not accept coroutines as handlers.
-        """
-        asyncio.run_coroutine_threadsafe(self.event_handler(*args, **kwargs), self.loop)
-
-    async def event_handler(self, operation: str, resources: List[str], data: Dict, table=None, filter_dict: Dict = {}):
+    async def event_handler(self, operation: str, resources: List[str], data: Dict, table_name=None, filter_dict: Dict = {}):
         """Either receives raw data from table triggers listener and either performs a database load
         before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
         """
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
         if any(subscription.resource in resources for subscription in self.subscriptions):
-            # load the data and postprocessor for broadcasting
-            _postprocess = await self.get_table_postprocessor(table.table_name)
-            _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess) if table else data
+            # load the data and postprocessor for broadcasting if table
+            # is provided (otherwise data has already been loaded in advance)
+            if table_name:
+                table = await self.db.get_table_by_name(table_name)
+                _postprocess = await self.get_table_postprocessor(table_name)
+                _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
+            else:
+                _data = data
             # Append event to the queue so that we can later dispatch them in case of disconnections
             #
             # NOTE: server instance specific ws queue will not work when scaling across multiple instances.
@@ -119,7 +121,9 @@ class Websocket(object):
             # Subtract 1 second to make sure all events are included
             event_queue = await self.queue.values_since(since)
             for _, event in event_queue:
-                await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
+                self.loop.create_task(
+                    await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
+                )
 
     async def unsubscribe_from(self, ws, uuid: str = None):
         if uuid:
@@ -140,6 +144,7 @@ class Websocket(object):
         )
 
     async def websocket_handler(self, request):
+        # TODO: Consider using options autoping=True and heartbeat=20 if supported by clients.
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
@@ -147,23 +152,27 @@ class Websocket(object):
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
                     try:
-                        payload = json.loads(msg.data)
-                        op_type = payload.get("type")
-                        resource = payload.get("resource")
-                        uuid = payload.get("uuid")
-                        since = payload.get("since")
-                        if since is not None and str(since).isnumeric():
-                            since = int(since)
+                        # Custom ping message handling.
+                        # If someone is pinging, lets answer with pong rightaway.
+                        if msg.data == "__ping__":
+                            await ws.send_str("__pong__")
                         else:
-                            since = None
+                            payload = json.loads(msg.data)
+                            op_type = payload.get("type")
+                            resource = payload.get("resource")
+                            uuid = payload.get("uuid")
+                            since = payload.get("since")
+                            if since is not None and str(since).isnumeric():
+                                since = int(since)
+                            else:
+                                since = None
 
-                        if op_type == SUBSCRIBE and uuid and resource:
-                            await self.subscribe_to(ws, uuid, resource, since)
-                        elif op_type == UNSUBSCRIBE and uuid:
-                            await self.unsubscribe_from(ws, uuid)
-
-                    except Exception as err:
-                        print(err, flush=True)
+                            if op_type == SUBSCRIBE and uuid and resource:
+                                await self.subscribe_to(ws, uuid, resource, since)
+                            elif op_type == UNSUBSCRIBE and uuid:
+                                await self.unsubscribe_from(ws, uuid)
+                    except Exception:
+                        self.logger.exception("Exception occurred.")
 
         # Always remove clients from listeners
         await self.handle_disconnect(ws)
@@ -194,6 +203,8 @@ async def load_data_from_db(table, data: Dict[str, Any],
 
     results, _ = await table.find_records(
         conditions=conditions, values=values, fetch_single=True,
-        enable_joins=True, postprocess=postprocess
+        enable_joins=True,
+        expanded=FEATURE_MODEL_EXPAND,
+        postprocess=postprocess
     )
     return results.body

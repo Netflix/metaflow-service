@@ -7,13 +7,16 @@ from ..cache.store import CacheStore
 from aiohttp import web
 import json
 
+from ..features import FEATURE_MODEL_EXPAND
+
 
 class DagApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/dag", self.get_run_dag
         )
-        self._metadata_table = AsyncPostgresDB.get_instance().metadata_table_postgres
+        self._metadata_table = self.db.metadata_table_postgres
         self._dag_store = CacheStore().dag_cache
 
     @handle_exceptions
@@ -54,7 +57,7 @@ class DagApi(object):
             conditions=["flow_id = %s", "{run_id_key} = %s".format(
                 run_id_key=run_id_key), "field_name = %s"],
             values=[flow_name, run_id_value, "code-package"],
-            fetch_single=True
+            fetch_single=True, expanded=FEATURE_MODEL_EXPAND
         )
         if not db_response.response_code == 200:
             status, body = format_response(request, db_response)
@@ -70,7 +73,7 @@ class DagApi(object):
             async for event in dag.stream():
                 if event["type"] == "error":
                     # raise error, there was an exception during processing.
-                    raise GenerateDAGFailed(event["message"], event["id"])
+                    raise GenerateDAGFailed(event["message"], event["id"], event["traceback"])
             await dag.wait()  # wait until results are ready
         dag = dag.get()
         response = DBResponse(200, dag)
@@ -80,9 +83,10 @@ class DagApi(object):
 
 
 class GenerateDAGFailed(Exception):
-    def __init__(self, msg="Failed to process DAG", id="failed-to-process-dag"):
+    def __init__(self, msg="Failed to process DAG", id="failed-to-process-dag", traceback_str=None):
         self.message = msg
         self.id = id
+        self.traceback_str = traceback_str
 
     def __str__(self):
         return self.message

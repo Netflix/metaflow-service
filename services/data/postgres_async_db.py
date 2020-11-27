@@ -6,6 +6,7 @@ import json
 import math
 import time
 import datetime
+from services.utils import logging
 from typing import List, Callable
 from asyncio import iscoroutinefunction
 
@@ -14,13 +15,16 @@ from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
+AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
+FEATURE_DB_TRIGGER_DISABLE = os.environ.get("FEATURE_DB_TRIGGER_DISABLE", 0) == "1"
+FEATURE_JOIN_DISABLE = os.environ.get("FEATURE_JOIN_DISABLE", 0) == "1"
+
 WAIT_TIME = 10
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
 
 
-class AsyncPostgresDB(object):
+class _AsyncPostgresDB(object):
     connection = None
-    __instance = None
     flow_table_postgres = None
     run_table_postgres = None
     step_table_postgres = None
@@ -30,25 +34,17 @@ class AsyncPostgresDB(object):
 
     pool = None
 
-    @staticmethod
-    def get_instance():
-        if AsyncPostgresDB.__instance is None:
-            AsyncPostgresDB()
-        return AsyncPostgresDB.__instance
-
-    def __init__(self):
-        if self.__instance is not None:
-            return
-
-        AsyncPostgresDB.__instance = self
+    def __init__(self, name='global'):
+        self.name = name
+        self.logger = logging.getLogger("AsyncPostgresDB:{name}".format(name=self.name))
 
         tables = []
-        self.flow_table_postgres = AsyncFlowTablePostgres()
-        self.run_table_postgres = AsyncRunTablePostgres()
-        self.step_table_postgres = AsyncStepTablePostgres()
-        self.task_table_postgres = AsyncTaskTablePostgres()
-        self.artifact_table_postgres = AsyncArtifactTablePostgres()
-        self.metadata_table_postgres = AsyncMetadataTablePostgres()
+        self.flow_table_postgres = AsyncFlowTablePostgres(self)
+        self.run_table_postgres = AsyncRunTablePostgres(self)
+        self.step_table_postgres = AsyncStepTablePostgres(self)
+        self.task_table_postgres = AsyncTaskTablePostgres(self)
+        self.artifact_table_postgres = AsyncArtifactTablePostgres(self)
+        self.metadata_table_postgres = AsyncMetadataTablePostgres(self)
         tables.append(self.flow_table_postgres)
         tables.append(self.run_table_postgres)
         tables.append(self.step_table_postgres)
@@ -63,16 +59,27 @@ class AsyncPostgresDB(object):
         retries = 3
         for i in range(retries):
             try:
-                self.pool = await aiopg.create_pool(db_conf.dsn)
+                self.pool = await aiopg.create_pool(
+                    db_conf.dsn,
+                    minsize=db_conf.pool_min,
+                    maxsize=db_conf.pool_max,
+                    echo=AIOPG_ECHO)
 
                 # Clean existing trigger functions before creating new ones
-                await PostgresUtils.function_cleanup()
+                await PostgresUtils.function_cleanup(self)
 
                 for table in self.tables:
                     await table._init()
 
+                self.logger.info(
+                    "Connection established.\n"
+                    "   Pool min: {pool_min} max: {pool_max}\n".format(
+                        pool_min=self.pool.minsize,
+                        pool_max=self.pool.maxsize))
+
                 break  # Break the retry loop
             except Exception as e:
+                self.logger.exception("Exception occured")
                 if retries - i < 1:
                     raise e
                 time.sleep(1)
@@ -123,7 +130,7 @@ class AsyncPostgresDB(object):
 
         try:
             with (
-                await AsyncPostgresDB.get_instance().pool.cursor(
+                await self.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
@@ -132,10 +139,27 @@ class AsyncPostgresDB(object):
                 cur.close()
                 return len(records) > 0
         except:
+            self.logger.exception("Exception occured")
             return False
 
 
+class AsyncPostgresDB(object):
+    __instance = None
+
+    @staticmethod
+    def get_instance():
+        return AsyncPostgresDB()
+
+    def __init__(self):
+        if not AsyncPostgresDB.__instance:
+            AsyncPostgresDB.__instance = _AsyncPostgresDB()
+
+    def __getattribute__(self, name):
+        return getattr(AsyncPostgresDB.__instance, name)
+
+
 class AsyncPostgresTable(object):
+    db = None
     table_name = None
     schema_version = 1
     keys: List[str] = []
@@ -150,14 +174,15 @@ class AsyncPostgresTable(object):
     _base_query = "SELECT {0} from"
     _row_type = None
 
-    def __init__(self):
+    def __init__(self, db: _AsyncPostgresDB = None):
+        self.db = db
         if self.table_name is None or self._command is None:
             raise NotImplementedError(
                 "need to specify table name and create command")
 
     async def _init(self):
-        await PostgresUtils.create_if_missing(self.table_name, self._command)
-        await PostgresUtils.trigger_notify(table_name=self.table_name, keys=self.primary_keys)
+        await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
+        await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.primary_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
@@ -175,6 +200,9 @@ class AsyncPostgresTable(object):
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
+        if FEATURE_JOIN_DISABLE:
+            enable_joins = False
+
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -254,7 +282,7 @@ class AsyncPostgresTable(object):
                           expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
         try:
             with (
-                await AsyncPostgresDB.get_instance().pool.cursor(
+                await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
@@ -271,6 +299,7 @@ class AsyncPostgresTable(object):
                 if len(records) > 0 and "count_total" in records[0]:
                     count_total = int(records[0]["count_total"])
 
+                # Will raise IndexError in case fetch_single=True and there's no results
                 body = rows[0] if fetch_single else rows
 
                 pagination = DBPagination(
@@ -278,13 +307,16 @@ class AsyncPostgresTable(object):
                     offset=offset,
                     count=count,
                     count_total=count_total,
-                    page=math.floor(offset / max(limit, 1)) + 1,
-                    pages_total=max(math.ceil(count_total / max(limit, 1)), 1),
+                    page=math.floor(int(offset) / max(int(limit), 1)) + 1,
+                    pages_total=max(math.ceil(count_total / max(int(limit), 1)), 1),
                 )
 
                 cur.close()
                 return DBResponse(response_code=200, body=body), pagination
+        except IndexError as error:
+            return aiopg_exception_handling(error), None
         except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error), None
 
     async def get_tags(self):
@@ -293,7 +325,7 @@ class AsyncPostgresTable(object):
 
         try:
             with (
-                await AsyncPostgresDB.get_instance().pool.cursor(
+                await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
@@ -306,6 +338,7 @@ class AsyncPostgresTable(object):
                 cur.close()
                 return DBResponse(response_code=200, body=tags)
         except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
     async def create_record(self, record_dict):
@@ -336,7 +369,7 @@ class AsyncPostgresTable(object):
         try:
             response_body = {}
             with (
-                await AsyncPostgresDB.get_instance().pool.cursor(
+                await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
@@ -353,6 +386,7 @@ class AsyncPostgresTable(object):
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
         except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
     async def update_row(self, filter_dict={}, update_dict={}):
@@ -382,7 +416,7 @@ class AsyncPostgresTable(object):
         """.format(self.table_name, set_clause, where_clause)
         try:
             with (
-                await AsyncPostgresDB.get_instance().pool.cursor(
+                await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
@@ -398,13 +432,14 @@ class AsyncPostgresTable(object):
                 cur.close()
                 return DBResponse(response_code=200, body=body)
         except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
 
 class PostgresUtils(object):
     @staticmethod
-    async def create_if_missing(table_name, command):
-        with (await AsyncPostgresDB.get_instance().pool.cursor()) as cur:
+    async def create_if_missing(db: _AsyncPostgresDB, table_name, command):
+        with (await db.pool.cursor()) as cur:
             try:
                 await cur.execute(
                     "select * from information_schema.tables where table_name=%s",
@@ -418,7 +453,7 @@ class PostgresUtils(object):
     # todo add method to check schema version
 
     @staticmethod
-    async def function_cleanup():
+    async def function_cleanup(db: _AsyncPostgresDB):
         name_prefix = "notify_ui"
         _command = """
         DO $$DECLARE r RECORD;
@@ -433,18 +468,18 @@ class PostgresUtils(object):
             prefix=name_prefix
         )
 
-        with (await AsyncPostgresDB.get_instance().pool.cursor()) as cur:
+        with (await db.pool.cursor()) as cur:
             await cur.execute(_command)
             cur.close()
 
     @staticmethod
-    async def trigger_notify(table_name, keys: List[str] = None, schema="public"):
+    async def trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
         if not keys:
             pass
 
         name_prefix = "notify_ui"
         operations = ["INSERT", "UPDATE", "DELETE"]
-        _command = """
+        _commands = ["""
         CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -470,20 +505,33 @@ class PostgresUtils(object):
             RETURN rec;
             END;
         $$;
-
-        DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};
-        CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
-            FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
         """.format(
             schema=schema,
             prefix=name_prefix,
             table=table_name,
             keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
             events=" OR ".join(operations)
-        )
+        )]
+        _commands += ["DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};".format(
+            schema=schema,
+            prefix=name_prefix,
+            table=table_name
+        )]
 
-        with (await AsyncPostgresDB.get_instance().pool.cursor()) as cur:
-            await cur.execute(_command)
+        if not FEATURE_DB_TRIGGER_DISABLE:
+            _commands += ["""
+                CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
+                    FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
+                """.format(
+                schema=schema,
+                prefix=name_prefix,
+                table=table_name,
+                events=" OR ".join(operations)
+            )]
+
+        with (await db.pool.cursor()) as cur:
+            for _command in _commands:
+                await cur.execute(_command)
             cur.close()
 
 
@@ -781,6 +829,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             FROM {artifact_table} as task_ok
             LEFT JOIN {metadata_table} as attempt ON (
                 task_ok.flow_id = attempt.flow_id AND
+                task_ok.run_number = attempt.run_number AND
                 task_ok.step_name = attempt.step_name AND
                 task_ok.task_id = attempt.task_id AND
                 attempt.field_name = 'attempt' AND
@@ -788,6 +837,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {metadata_table} as done ON (
                 task_ok.flow_id = done.flow_id AND
+                task_ok.run_number = done.run_number AND
                 task_ok.step_name = done.step_name AND
                 task_ok.task_id = done.task_id AND
                 done.field_name = 'attempt-done' AND
@@ -795,6 +845,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {metadata_table} as attempt_ok ON (
                 task_ok.flow_id = attempt_ok.flow_id AND
+                task_ok.run_number = attempt_ok.run_number AND
                 task_ok.step_name = attempt_ok.step_name AND
                 task_ok.task_id = attempt_ok.task_id AND
                 attempt_ok.field_name = 'attempt_ok' AND
@@ -802,6 +853,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
                 task_ok.flow_id = foreach_stack.flow_id AND
+                task_ok.run_number = foreach_stack.run_number AND
                 task_ok.step_name = foreach_stack.step_name AND
                 task_ok.task_id = foreach_stack.task_id AND
                 foreach_stack.name = '_foreach_stack' AND

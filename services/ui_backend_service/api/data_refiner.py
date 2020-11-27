@@ -2,6 +2,8 @@ from ..cache.store import CacheStore
 from services.data.db_utils import DBResponse
 import json
 
+from ..features import FEATURE_REFINE_DISABLE
+
 
 class Refinery(object):
     """Used to refine objects with data only available from S3.
@@ -46,6 +48,9 @@ class Refinery(object):
             return {}
 
     async def _postprocess(self, response: DBResponse):
+        if FEATURE_REFINE_DISABLE:
+            return response
+
         """
         Async post processing callback that can be used as the find_records helpers
         postprocessing parameter.
@@ -86,7 +91,7 @@ class TaskRefiner(Refinery):
             item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
             item.pop('task_ok', None)
 
-            if item['foreach_stack']:
+            if item['foreach_stack'] and len(item['foreach_stack']) > 0 and len(item['foreach_stack'][0]) >= 4:
                 _, _name, _, _index = item['foreach_stack'][0]
                 item['foreach_label'] = "{}[{}]".format(item['task_id'], _index)
             item.pop('foreach_stack', None)

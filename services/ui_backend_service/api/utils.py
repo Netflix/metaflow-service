@@ -7,6 +7,8 @@ from services.data.db_utils import DBResponse
 from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
 
+from ..features import FEATURE_MODEL_EXPAND
+
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
     query = {}
@@ -282,7 +284,9 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
     results, pagination = await async_table.find_records(
         conditions=conditions, values=values, limit=limit, offset=offset,
         order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
-        fetch_single=fetch_single, enable_joins=enable_joins, expanded=False, postprocess=postprocess
+        fetch_single=fetch_single, enable_joins=enable_joins,
+        expanded=FEATURE_MODEL_EXPAND,
+        postprocess=postprocess
     )
 
     if fetch_single:
@@ -290,7 +294,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         return web_response(status, res)
     else:
         status, res = format_response_list(
-            request, results, page, pagination.pages_total)
+            request, results, page, pagination.pages_total if pagination else 1)
         return web_response(status, res)
 
 
