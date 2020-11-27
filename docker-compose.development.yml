@@ -15,6 +15,7 @@ services:
     cap_add:
       - SYS_PTRACE
     environment:
+      - REDIS_HOST=redis
       - MF_METADATA_DB_HOST=db
       - MF_METADATA_DB_PORT=5432
       - MF_METADATA_DB_USER=postgres
@@ -47,6 +48,7 @@ services:
       - FEATURE_MODEL_EXPAND=0
     depends_on:
       - db
+      - redis
   metadata:
     build:
       context: .
@@ -103,5 +105,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  redis:
+    image: "redis:5.0-alpine"
 volumes:
   db_dev_data:
