@@ -5,3 +5,4 @@ pyee==8.0.1
 yarl==1.5.1
 throttler==1.2.0
 aiocache==0.11.1
+aioredis
