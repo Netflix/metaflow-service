@@ -1,5 +1,5 @@
 # from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
-from .utils import decode, batchiter, get_artifact
+from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
 from services.utils import logging
 import aiobotocore
 import json
@@ -46,15 +46,14 @@ async def get_artifacts(locations):
                         # In case the artifact was of a type that can not be json serialized,
                         # we try casting it to a string first.
                         fetched[location] = json.dumps([True, str(content)])
+                    except S3ObjectTooBig:
+                        fetched[location] = json.dumps([False, 'object is too large'])
                     except Exception as ex:
                         # Exceptions might be fixable with configuration changes or other measures,
                         # therefore we do not want to write anything to the cache for these artifacts.
                         logger.exception("exception during parsing")
                         # stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
-                    # else:
-                    #     results[artifact_key] = json.dumps([False, 'object is too large'])
             except Exception:
-                print("Exception unknown...")
                 logger.exception("Unknown Exception")
             # except MetaflowS3AccessDenied as ex:
             #     stream_error(str(ex), "s3-access-denied")
