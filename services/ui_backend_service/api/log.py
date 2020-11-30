@@ -1,6 +1,6 @@
 import os
 import json
-import boto3
+import aiobotocore
 import botocore
 import codecs
 from urllib.parse import urlparse
@@ -195,29 +195,41 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
 
 
 async def read_and_output(bucket, path):
-    s3 = boto3.client('s3')
-    obj = s3.get_object(Bucket=bucket, Key=path)
+    session = aiobotocore.get_session()
+    async with session.create_client('s3') as s3:
+        obj = await s3.get_object(Bucket=bucket, Key=path)
 
     lines = []
-    body = obj['Body']
-    for row, line in enumerate(codecs.getreader('utf-8')(body), start=1):
-        lines.append({
-            'row': row,
-            'line': line.strip(),
-        })
+    async with obj['Body'] as stream:
+        async for row, line in aenumerate(stream, start=1):
+            lines.append({
+                'row': row,
+                'line': line.strip(),
+            })
     return lines
 
 
 async def read_and_output_ws(bucket, path, ws):
-    s3 = boto3.client('s3')
-    obj = s3.get_object(Bucket=bucket, Key=path)
+    session = aiobotocore.get_session()
+    async with session.create_client('s3') as s3:
+        obj = await s3.get_object(Bucket=bucket, Key=path)
 
-    body = obj['Body']
-    for row, line in enumerate(codecs.getreader('utf-8')(body), start=1):
-        await ws.send_str(json.dumps({
-            'row': row,
-            'line': line.strip(),
-        }))
+    async with obj['Body'] as stream:
+        async for row, line in aenumerate(stream, start=1):
+            await ws.send_str(json.dumps({
+                'row': await row,
+                'line': line.strip(),
+            }))
+
+
+async def aenumerate(stream, start=0):
+    i = start
+    while True:
+        line = await stream.read()
+        if not line:
+            break
+        yield i, line
+        i += 1
 
 
 class LogException(Exception):

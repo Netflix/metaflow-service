@@ -1,10 +1,5 @@
-from metaflow.datatools.s3 import MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException, MetaflowException
-from . import s3op
-from metaflow.datatools.s3 import S3, get_s3_client, debug
+# from metaflow.datatools.s3 import MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException, MetaflowException
 from botocore.exceptions import NoCredentialsError, ClientError
-from tempfile import NamedTemporaryFile
-import subprocess
-import sys
 import os
 import pickle
 from urllib.parse import urlparse
@@ -46,13 +41,13 @@ async def get_artifact(cli, location):
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
     path = url.path.lstrip('/')
-    head = cli.head_object(Bucket=bucket, Key=path)
-    size = head['ContentLength']
+    head = await cli.head_object(Bucket=bucket, Key=path)
+    size = await head['ContentLength']
     if size > MAX_SIZE:
         raise S3ObjectTooBig
 
-    art = cli.get_object(Bucket=bucket, Key=path)
-    body = art['Body'].read()
+    art = await cli.get_object(Bucket=bucket, Key=path)
+    body = await art['Body'].read()
     return body
 
 
@@ -64,8 +59,8 @@ async def get_codepackage(cli, location):
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
     path = url.path.lstrip('/')
-    art = cli.get_object(Bucket=bucket, Key=path)
-    body = art['Body'].read()
+    art = await cli.get_object(Bucket=bucket, Key=path)
+    body = await art['Body'].read()
     return body
 
 

@@ -5,7 +5,7 @@ from .custom_flowgraph import FlowGraph  # TODO: change to metaflow.graph when t
 
 # from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
 from .utils import get_codepackage
-import boto3
+import aiobotocore
 import io
 import os
 from aiocache import cached, Cache
@@ -44,25 +44,26 @@ async def get_dag(flow_name, location):
     #     return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
     # get codepackage from S3
-    s3_client = boto3.client('s3')
-    try:
-        codetar = await get_codepackage(s3_client, location)
-        results = generate_dag(flow_name, codetar)
-    # except MetaflowS3AccessDenied as ex:
-    #     stream_error(str(ex), "s3-access-denied")
-    # except MetaflowS3NotFound as ex:
-    #     stream_error(str(ex), "s3-not-found")
-    # except MetaflowS3URLException as ex:
-    #     stream_error(str(ex), "s3-bad-url")
-    # except MetaflowS3CredentialsMissing as ex:
-    #     stream_error(str(ex), "s3-missing-credentials")
-    # except MetaflowS3Exception as ex:
-    #     stream_error(str(ex), "s3-generic-error")
-    # except UnsupportedFlowLanguage as ex:
-    #     stream_error(str(ex), "dag-unsupported-flow-language")
-    except Exception as ex:
-        # stream_error(str(ex), "dag-processing-error")
-        logger.exception("Exception processing dag")
+    session = aiobotocore.get_session()
+    async with session.create_client('s3') as s3_client:
+        try:
+            codetar = await get_codepackage(s3_client, location)
+            results = generate_dag(flow_name, codetar)
+        # except MetaflowS3AccessDenied as ex:
+        #     stream_error(str(ex), "s3-access-denied")
+        # except MetaflowS3NotFound as ex:
+        #     stream_error(str(ex), "s3-not-found")
+        # except MetaflowS3URLException as ex:
+        #     stream_error(str(ex), "s3-bad-url")
+        # except MetaflowS3CredentialsMissing as ex:
+        #     stream_error(str(ex), "s3-missing-credentials")
+        # except MetaflowS3Exception as ex:
+        #     stream_error(str(ex), "s3-generic-error")
+        # except UnsupportedFlowLanguage as ex:
+        #     stream_error(str(ex), "dag-unsupported-flow-language")
+        except Exception as ex:
+            # stream_error(str(ex), "dag-processing-error")
+            logger.exception("Exception processing dag")
 
     return results
 
