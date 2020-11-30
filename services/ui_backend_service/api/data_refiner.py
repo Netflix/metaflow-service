@@ -40,10 +40,7 @@ class Refinery(object):
 
     async def fetch_data(self, locations):
         try:
-            _res = await self.artifact_store.cache.GetArtifacts(locations)
-            if not _res.is_ready():
-                await _res.wait()
-            return _res.get()
+            return await self.artifact_store.get_artifacts(locations)
         except:
             return {}
 

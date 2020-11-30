@@ -3,8 +3,8 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
-from .search_artifacts_action import SearchArtifacts
-from .get_artifacts_action import GetArtifacts
+from .async_get_artifacts import get_artifacts as _get_artifacts
+from .async_search_artifacts import search_artifacts as _search_artifacts
 import asyncio
 import time
 import os
@@ -61,21 +61,28 @@ class ArtifactCacheStore(object):
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
-        if FEATURE_PREFETCH_ENABLE:
-            self.event_emitter.on("preload-artifacts", self.preload_event_handler)
+        # if FEATURE_PREFETCH_ENABLE:
+        #     self.event_emitter.on("preload-artifacts", self.preload_event_handler)
         self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):
-        actions = [SearchArtifacts, GetArtifacts]
-        self.cache = CacheAsyncClient('cache_data/artifact_search',
-                                      actions,
-                                      max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
-                                      max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
-        if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
+        # actions = [SearchArtifacts, GetArtifacts]
+        # self.cache = CacheAsyncClient('cache_data/artifact_search',
+        #                               actions,
+        #                               max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
+        #                               max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
+        # if FEATURE_CACHE_ENABLE:
+        #     await self.cache.start()
 
-        if FEATURE_PREFETCH_ENABLE:
-            asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
+        # if FEATURE_PREFETCH_ENABLE:
+        #     asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
+        pass
+
+    async def get_artifacts(self, locations):
+        return await _get_artifacts(locations)
+
+    async def search_artifacts(self, locations, searchterm):
+        return await _search_artifacts(locations, searchterm)
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
@@ -168,16 +175,16 @@ class ArtifactCacheStore(object):
         if FEATURE_PREFETCH_ENABLE and FEATURE_REFINE_ENABLE:
             # Fetch the values for the given parameters through the cache client.
             locations = [art["location"] for art in db_response.body if "location" in art]
-            _params = await self.cache.GetArtifacts(locations)
-            if not _params.is_ready():
-                async for event in _params.stream():
-                    if event["type"] == "error":
-                        # raise error, there was an exception during processing.
-                        raise GetParametersFailed(event["message"], event["id"], event["traceback"])
-                await _params.wait()  # wait until results are ready
-            _params = _params.get()
-        else:
-            _params = []
+            _params = await self.get_artifacts(locations)
+        #     if not _params.is_ready():
+        #         async for event in _params.stream():
+        #             if event["type"] == "error":
+        #                 # raise error, there was an exception during processing.
+        #                 raise GetParametersFailed(event["message"], event["id"], event["traceback"])
+        #         await _params.wait()  # wait until results are ready
+        #     _params = _params.get()
+        # else:
+        #     _params = []
 
         combined_results = {}
         for art in db_response.body:
