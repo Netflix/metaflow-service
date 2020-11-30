@@ -39,11 +39,8 @@ async def get_artifacts(locations):
                     # if artifact_data.size < MAX_SIZE:
                     try:
                         artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
-                        # TODO: Figure out a way to store the artifact content without decoding?
-                        # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                        # so we can not rely on the file existing if we only return a filepath as a cached response
+
                         content = decode(artifact_data)
-                        logger.info("GOTTEN ARTIFACT CONTENT IS: {}".format(content))
                         fetched[location] = json.dumps([True, content])
                     except TypeError:
                         # In case the artifact was of a type that can not be json serialized,
@@ -52,7 +49,6 @@ async def get_artifacts(locations):
                     except Exception as ex:
                         # Exceptions might be fixable with configuration changes or other measures,
                         # therefore we do not want to write anything to the cache for these artifacts.
-                        print("exception happened when parsing artifact content", flush=True)
                         logger.exception("exception during parsing")
                         # stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
                     # else:

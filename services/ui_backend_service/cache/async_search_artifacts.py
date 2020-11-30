@@ -4,10 +4,12 @@ import hashlib
 from .utils import decode, batchiter, get_artifact
 import json
 import aiobotocore
+from services.utils import logging
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
 
+logger = logging.getLogger('SearchArtifacts')
 
 async def search_artifacts(locations, searchterm):
     # TODO: CACHE output.
@@ -48,11 +50,8 @@ async def search_artifacts(locations, searchterm):
                 for location in locations:
                     # if artifact_data.size < MAX_SIZE:
                     try:
-                        artifact_data = get_artifact(s3_client, location)  # this should preferrably hit a cache.
-                        # TODO: Figure out a way to store the artifact content without decoding?
-                        # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                        # so we can not rely on the file existing if we only return a filepath as a cached response
-                        content = decode(artifact_data.path)
+                        artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
+                        content = decode(artifact_data)
                         fetched[location] = json.dumps([True, content])
                     except TypeError:
                         # In case the artifact was of a type that can not be json serialized,
@@ -66,7 +65,7 @@ async def search_artifacts(locations, searchterm):
                     # else:
                     #     results[artifact_key] = json.dumps([False, 'object is too large'])
             except Exception:
-                print("Exception unknown...")
+                logger.exception('An exception was encountered while searching.')
             # except MetaflowS3AccessDenied as ex:
             #     stream_error(str(ex), "s3-access-denied")
             # except MetaflowS3NotFound as ex:
@@ -97,4 +96,4 @@ async def search_artifacts(locations, searchterm):
             "matches": str(value) == searchterm
         }
 
-    return json.dumps(search_results)
+    return search_results

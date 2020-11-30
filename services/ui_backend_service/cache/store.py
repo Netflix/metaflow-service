@@ -13,11 +13,6 @@ from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_RE
 # Tagged logger
 logger = logging.getLogger("CacheStore")
 
-CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
-CACHE_ARTIFACT_STORAGE_LIMIT = int(os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", 600000))
-CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
-CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", 100000))
-
 
 class CacheStore(object):
     "Singleton class for all the different cache clients that are used to access caches"
@@ -55,8 +50,8 @@ class ArtifactCacheStore(object):
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
-        # if FEATURE_PREFETCH_ENABLE:
-        #     self.event_emitter.on("preload-artifacts", self.preload_event_handler)
+        if FEATURE_PREFETCH_ENABLE:
+            self.event_emitter.on("preload-artifacts", self.preload_event_handler)
         self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):

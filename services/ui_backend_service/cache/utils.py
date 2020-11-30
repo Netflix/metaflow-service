@@ -27,7 +27,7 @@ def batchiter(it, batch_size):
 
 
 def decode(fileobj):
-    "decodes a gzip+pickle compressed object from a file path"
+    "decodes a gzip+pickle compressed object from a bytestring"
     content = gzip.decompress(fileobj)
     obj = pickle.loads(content)
     return obj
@@ -35,15 +35,12 @@ def decode(fileobj):
 
 @cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
 async def get_artifact(cli, location):
-    # TODO: Cache the output!
-    # TODO: Turn this async.
-    # TODO: Have this raise an error on too big of an artifact!
+    # TODO: test that the cache key does not depend on passed in s3_client
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
     path = url.path.lstrip('/')
     head = await cli.head_object(Bucket=bucket, Key=path)
-    size = await head['ContentLength']
-    if size > MAX_SIZE:
+    if head['ContentLength'] > MAX_SIZE:
         raise S3ObjectTooBig
 
     art = await cli.get_object(Bucket=bucket, Key=path)
@@ -53,9 +50,7 @@ async def get_artifact(cli, location):
 
 @cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
 async def get_codepackage(cli, location):
-    # TODO: Cache the output!
-    # TODO: Turn this async.
-    # TODO: Have this raise an error on too big of an artifact!
+    # TODO: test that the cache key does not depend on passed in s3_client
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
     path = url.path.lstrip('/')

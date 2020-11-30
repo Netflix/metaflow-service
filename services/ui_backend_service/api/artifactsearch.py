@@ -33,7 +33,6 @@ class ArtifactSearchApi(object):
         # Search the artifact contents from S3 using the CacheClient
         locations = [art['location'] for art in meta_artifacts]
         res = await self._artifact_store.search_artifacts(locations, value)
-
         # if res.is_ready():
         #     artifact_data = res.get()
         # else:
