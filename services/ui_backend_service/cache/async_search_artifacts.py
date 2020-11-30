@@ -3,8 +3,11 @@ import hashlib
 # from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
 from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
 import json
+import os
 import aiobotocore
 from services.utils import logging
+from aiocache import cached, Cache
+from aiocache.serializers import PickleSerializer
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
@@ -12,8 +15,8 @@ S3_BATCH_SIZE = 512
 logger = logging.getLogger('SearchArtifacts')
 
 
+@cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
 async def search_artifacts(locations, searchterm):
-    # TODO: CACHE output.
     '''
         Fetches artifacts by locations and performs a search against the object contents.
         Caches artifacts based on location, and search results based on a combination of query&artifacts searched
