@@ -44,7 +44,7 @@ class ArtifactSearchApi(object):
         #             await ws.close(code=1011)
         #     await res.wait()
         #     artifact_data = res.get()
-    
+
         results = await search_dict_filter(meta_artifacts, res)
 
         await ws.send_str(json.dumps({"event": {"type": "result", "matches": results}}))

@@ -1,11 +1,9 @@
-import hashlib
 import json
 from tarfile import TarFile
 
-from metaflow import FlowSpec
 from .custom_flowgraph import FlowGraph  # TODO: change to metaflow.graph when the AST-only PR is merged.
 
-from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
+# from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
 from .utils import get_codepackage
 import boto3
 import io

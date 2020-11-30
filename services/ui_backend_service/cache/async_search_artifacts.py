@@ -1,8 +1,6 @@
 import hashlib
 
-from metaflow.client.cache import CacheAction
-from .utils import NoRetryS3
-from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
+# from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
 from .utils import decode, batchiter, get_artifact
 import json
 import boto3

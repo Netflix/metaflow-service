@@ -1,8 +1,11 @@
 aiohttp==3.6.2
 aiohttp-swagger==1.0.15
-boto3==1.15.10
+aiocache==0.11.1
+aiobotocore
+boto3==1.14.44
 pyee==8.0.1
 yarl==1.5.1
 throttler==1.2.0
-aiocache==0.11.1
 aioredis
+wrapt==1.11.2
+metaflow
