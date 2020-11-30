@@ -217,7 +217,7 @@ async def read_and_output_ws(bucket, path, ws):
     async with obj['Body'] as stream:
         async for row, line in aenumerate(stream, start=1):
             await ws.send_str(json.dumps({
-                'row': await row,
+                'row': row,
                 'line': line.strip(),
             }))
 
@@ -225,10 +225,10 @@ async def read_and_output_ws(bucket, path, ws):
 async def aenumerate(stream, start=0):
     i = start
     while True:
-        line = await stream.read()
+        line = await stream.readline()
         if not line:
             break
-        yield i, line
+        yield i, line.decode('utf-8')
         i += 1
 
 
