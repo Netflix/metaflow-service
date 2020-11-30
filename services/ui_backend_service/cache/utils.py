@@ -146,6 +146,19 @@ async def get_artifact(cli, location):
     return body
 
 
+@cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
+async def get_codepackage(cli, location):
+    # TODO: Cache the output!
+    # TODO: Turn this async.
+    # TODO: Have this raise an error on too big of an artifact!
+    url = urlparse(location, allow_fragments=False)
+    bucket = url.netloc
+    path = url.path.lstrip('/')
+    art = cli.get_object(Bucket=bucket, Key=path)
+    body = art['Body'].read()
+    return body
+
+
 class S3ObjectTooBig(Exception):
     def __str__(self):
         return "S3 Object being fetched is above the allowed threshold."

@@ -1,10 +1,10 @@
-from .generate_dag_action import GenerateDag
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .async_get_artifacts import get_artifacts as _get_artifacts
 from .async_search_artifacts import search_artifacts as _search_artifacts
+from .async_generate_dag import get_dag
 import asyncio
 import time
 import os
@@ -41,9 +41,9 @@ class CacheStore(object):
             await self.artifact_cache.start_cache()
             await self.dag_cache.start_cache()
 
-        async def stop_caches(self, app):
-            await self.artifact_cache.stop_cache()
-            await self.dag_cache.stop_cache()
+        # async def stop_caches(self, app):
+        #     await self.artifact_cache.stop_cache()
+        #     await self.dag_cache.stop_cache()
 
 
 # Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
@@ -56,7 +56,6 @@ class ArtifactCacheStore(object):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self._artifact_table = db.artifact_table_postgres
         self._run_table = db.run_table_postgres
-        self.cache = None
         self.loop = asyncio.get_event_loop()
 
         # Bind an event handler for when we want to preload artifacts for
@@ -66,14 +65,6 @@ class ArtifactCacheStore(object):
         self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):
-        # actions = [SearchArtifacts, GetArtifacts]
-        # self.cache = CacheAsyncClient('cache_data/artifact_search',
-        #                               actions,
-        #                               max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
-        #                               max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
-        # if FEATURE_CACHE_ENABLE:
-        #     await self.cache.start()
-
         # if FEATURE_PREFETCH_ENABLE:
         #     asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
         pass
@@ -95,7 +86,7 @@ class ArtifactCacheStore(object):
 
         logger.info("preloading {} artifacts".format(len(artifact_locations)))
 
-        res = await self.cache.GetArtifacts(artifact_locations)
+        res = await self.get_artifacts(artifact_locations)
         async for event in res.stream():
             if event["type"] == "error":
                 logger.error(event)
@@ -212,9 +203,6 @@ class ArtifactCacheStore(object):
         "Handler for event-emitter for preloading artifacts for a run id"
         asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
 
-    async def stop_cache(self):
-        await self.cache.stop()
-
 
 class DAGCacheStore(object):
     def __init__(self, db):
@@ -222,16 +210,17 @@ class DAGCacheStore(object):
         self.cache = None
 
     async def start_cache(self):
-        actions = [GenerateDag]
-        self.cache = CacheAsyncClient('cache_data/dag',
-                                      actions,
-                                      max_size=CACHE_DAG_STORAGE_LIMIT,
-                                      max_actions=CACHE_DAG_MAX_ACTIONS)
-        if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
-
-    async def stop_cache(self):
-        await self.cache.stop()
+        # actions = [GenerateDag]
+        # self.cache = CacheAsyncClient('cache_data/dag',
+        #                               actions,
+        #                               max_size=CACHE_DAG_STORAGE_LIMIT,
+        #                               max_actions=CACHE_DAG_MAX_ACTIONS)
+        # if FEATURE_CACHE_ENABLE:
+        #     await self.cache.start()
+        pass
+    
+    async def generate_dag(self, flow_name, codepackage_location):
+        return await get_dag(flow_name, codepackage_location)
 
 
 class GetParametersFailed(Exception):
