@@ -4,21 +4,13 @@ from aiocache.serializers import PickleSerializer
 from ..features import FEATURE_CACHE_ENABLE, FEATURE_CACHE_DISABLE
 
 
-default_config = {
-    'default': {
-        'cache': "aiocache.SimpleMemoryCache",
-        'serializer': {
-            'class': "aiocache.serializers.StringSerializer"
-        }
-    }
-}
-
 REDIS_ENDPOINT = os.environ.get("REDIS_HOST", None)
+REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 redis_config = {
     'default': {
         'cache': "aiocache.RedisCache",
         'endpoint': REDIS_ENDPOINT,
-        'port': 6379,
+        'port': REDIS_PORT,
         'serializer': {
             'class': "aiocache.serializers.PickleSerializer"
         }
