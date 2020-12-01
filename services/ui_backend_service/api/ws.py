@@ -122,7 +122,7 @@ class Websocket(object):
             event_queue = await self.queue.values_since(since)
             for _, event in event_queue:
                 self.loop.create_task(
-                    await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
+                    self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
                 )
 
     async def unsubscribe_from(self, ws, uuid: str = None):
