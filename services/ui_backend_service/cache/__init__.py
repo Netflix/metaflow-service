@@ -17,7 +17,7 @@ redis_config = {
     'default': {
         'cache': "aiocache.RedisCache",
         'endpoint': REDIS_ENDPOINT,
-        'port': 6378,
+        'port': 6379,
         'serializer': {
             'class': "aiocache.serializers.PickleSerializer"
         }
@@ -25,7 +25,7 @@ redis_config = {
 }
 
 if REDIS_ENDPOINT and FEATURE_CACHE_ENABLE:
-  caches.set_config(redis_config)
+    caches.set_config(redis_config)
 
 if FEATURE_CACHE_DISABLE:
   os.environ['AIOCACHE_DISABLE'] = "1"

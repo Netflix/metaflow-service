@@ -12,7 +12,7 @@ TTL = os.environ.get("BULK_ARTIFACT_GET_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Def
 logger = logging.getLogger("GetArtifacts")
 
 
-@cached(ttl=TTL)
+@cached(ttl=TTL, alias="default")
 async def get_artifacts(locations):
     '''
     Fetches artifacts by locations returning their contents.

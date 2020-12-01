@@ -8,15 +8,14 @@ from .utils import get_codepackage
 import aiobotocore
 import io
 import os
-from aiocache import cached, Cache
-from aiocache.serializers import PickleSerializer
+from . import cached
 
 from services.utils import logging
 
 logger = logging.getLogger("GenerateDag")
 
 
-@cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
+@cached(alias="default")
 async def get_dag(flow_name, location):
     '''
         Generates a DAG for a given codepackage tarball location and Flow name.

@@ -30,10 +30,10 @@ def decode(fileobj):
     obj = pickle.loads(content)
     return obj
 
-
-@cached()
+# NOTE: caching requires the key_builder because we do not want to have the s3_client instance 
+# as part of the cache key.
+@cached(alias="default", key_builder=lambda func, cli, loc: "artifact:{}".format(loc))
 async def get_artifact(cli, location):
-    # TODO: test that the cache key does not depend on passed in s3_client
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
     path = url.path.lstrip('/')
@@ -45,10 +45,10 @@ async def get_artifact(cli, location):
     body = await art['Body'].read()
     return body
 
-
-@cached()
+# NOTE: caching requires the key_builder because we do not want to have the s3_client instance 
+# as part of the cache key.
+@cached(alias="default", key_builder=lambda func, cli, loc: "codepackage:{}".format(loc))
 async def get_codepackage(cli, location):
-    # TODO: test that the cache key does not depend on passed in s3_client
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
     path = url.path.lstrip('/')

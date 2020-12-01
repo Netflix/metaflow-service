@@ -15,7 +15,7 @@ TTL = os.environ.get("SEARCH_RESULT_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Default
 logger = logging.getLogger('SearchArtifacts')
 
 
-@cached(ttl=TTL)
+@cached(ttl=TTL, alias="default")
 async def search_artifacts(locations, searchterm):
     '''
         Fetches artifacts by locations and performs a search against the object contents.
