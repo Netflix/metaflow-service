@@ -8,6 +8,7 @@ services:
     volumes:
       - .:/app
     environment:
+      - REDIS_HOST=redis_test
       - MF_METADATA_DB_HOST=db_test
       - MF_METADATA_DB_PORT=5432
       - MF_METADATA_DB_USER=test
@@ -16,6 +17,7 @@ services:
       - MF_MIGRATION_ENDPOINTS_ENABLED=1
     depends_on:
       - db_test
+      - redis_test
   db_test:
     container_name: db_test
     image: "postgres:11"
@@ -25,3 +27,5 @@ services:
       POSTGRES_DB: test
     ports:
       - "5432:5432"
+  redis_test:
+    image: "redis:5.0-alpine"
