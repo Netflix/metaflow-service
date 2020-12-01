@@ -82,5 +82,4 @@ async def get_artifacts(locations):
         if success:
             collected[key] = value
 
-    logger.info("COLLECTION IS:{}".format(collected))
     return collected
