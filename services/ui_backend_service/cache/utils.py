@@ -6,9 +6,7 @@ from urllib.parse import urlparse
 import gzip
 from itertools import islice
 from services.utils import logging
-
-from aiocache import cached, Cache, caches
-from aiocache.serializers import PickleSerializer
+from . import cached
 
 from ..features import FEATURE_S3_DISABLE
 MAX_SIZE = 4096
@@ -33,7 +31,7 @@ def decode(fileobj):
     return obj
 
 
-@cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
+@cached()
 async def get_artifact(cli, location):
     # TODO: test that the cache key does not depend on passed in s3_client
     url = urlparse(location, allow_fragments=False)
@@ -48,7 +46,7 @@ async def get_artifact(cli, location):
     return body
 
 
-@cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
+@cached()
 async def get_codepackage(cli, location):
     # TODO: test that the cache key does not depend on passed in s3_client
     url = urlparse(location, allow_fragments=False)

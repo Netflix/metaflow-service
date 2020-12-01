@@ -6,16 +6,16 @@ import json
 import os
 import aiobotocore
 from services.utils import logging
-from aiocache import cached, Cache
-from aiocache.serializers import PickleSerializer
+from . import cached
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
+TTL = os.environ.get("SEARCH_RESULT_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Default TTL to one day
 
 logger = logging.getLogger('SearchArtifacts')
 
 
-@cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
+@cached(ttl=TTL)
 async def search_artifacts(locations, searchterm):
     '''
         Fetches artifacts by locations and performs a search against the object contents.

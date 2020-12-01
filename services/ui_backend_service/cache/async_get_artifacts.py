@@ -4,15 +4,15 @@ from services.utils import logging
 import aiobotocore
 import json
 import os
-from aiocache import cached, Cache
-from aiocache.serializers import PickleSerializer
+from . import cached
 
-MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
+TTL = os.environ.get("BULK_ARTIFACT_GET_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Default TTL to one day
+
 logger = logging.getLogger("GetArtifacts")
 
 
-@cached(cache=Cache.REDIS, serializer=PickleSerializer(), endpoint=os.environ.get("REDIS_HOST"))
+@cached(ttl=TTL)
 async def get_artifacts(locations):
     '''
     Fetches artifacts by locations returning their contents.
@@ -36,7 +36,6 @@ async def get_artifacts(locations):
         for locations in batchiter(s3_locations, S3_BATCH_SIZE):
             try:
                 for location in locations:
-                    # if artifact_data.size < MAX_SIZE:
                     try:
                         artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
 
