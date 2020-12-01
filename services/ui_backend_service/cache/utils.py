@@ -9,6 +9,8 @@ from services.utils import logging
 from . import cached
 
 from ..features import FEATURE_S3_DISABLE
+
+
 MAX_SIZE = 4096
 
 logger = logging.getLogger("Cache.Utils")
@@ -30,7 +32,8 @@ def decode(fileobj):
     obj = pickle.loads(content)
     return obj
 
-# NOTE: caching requires the key_builder because we do not want to have the s3_client instance 
+
+# NOTE: caching requires the key_builder because we do not want to have the s3_client instance
 # as part of the cache key.
 @cached(alias="default", key_builder=lambda func, cli, loc: "artifact:{}".format(loc))
 async def get_artifact(cli, location):
@@ -45,7 +48,8 @@ async def get_artifact(cli, location):
     body = await art['Body'].read()
     return body
 
-# NOTE: caching requires the key_builder because we do not want to have the s3_client instance 
+
+# NOTE: caching requires the key_builder because we do not want to have the s3_client instance
 # as part of the cache key.
 @cached(alias="default", key_builder=lambda func, cli, loc: "codepackage:{}".format(loc))
 async def get_codepackage(cli, location):

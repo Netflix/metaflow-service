@@ -3,6 +3,7 @@ from aiocache import cached, Cache, caches
 from aiocache.serializers import PickleSerializer
 from ..features import FEATURE_CACHE_ENABLE, FEATURE_CACHE_DISABLE
 
+
 default_config = {
     'default': {
         'cache': "aiocache.SimpleMemoryCache",
@@ -28,4 +29,4 @@ if REDIS_ENDPOINT and FEATURE_CACHE_ENABLE:
     caches.set_config(redis_config)
 
 if FEATURE_CACHE_DISABLE:
-  os.environ['AIOCACHE_DISABLE'] = "1"
+    os.environ['AIOCACHE_DISABLE'] = "1"
