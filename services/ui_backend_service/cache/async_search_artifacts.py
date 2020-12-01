@@ -15,7 +15,13 @@ TTL = os.environ.get("SEARCH_RESULT_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Default
 logger = logging.getLogger('SearchArtifacts')
 
 
-@cached(ttl=TTL, alias="default")
+def cache_search_key(function, locations, searchterm):
+    "cache key generator for search results. Used to keep the cache keys as short as possible"
+    _string = "-".join(locations) + searchterm
+    return "artifactsearch:{}".format(hashlib.sha1(_string.encode('utf-8')).hexdigest())
+
+
+@cached(ttl=TTL, alias="default", key_builder=cache_search_key)
 async def search_artifacts(locations, searchterm):
     '''
         Fetches artifacts by locations and performs a search against the object contents.

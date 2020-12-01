@@ -1,4 +1,5 @@
 # from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
+import hashlib
 from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
 from services.utils import logging
 import aiobotocore
@@ -12,7 +13,13 @@ TTL = os.environ.get("BULK_ARTIFACT_GET_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Def
 logger = logging.getLogger("GetArtifacts")
 
 
-@cached(ttl=TTL, alias="default")
+def cache_artifacts_key(function, locations):
+    "cache key generator for bulk artifact get results. Used to keep the cache keys as short as possible"
+    _string = "-".join(locations)
+    return "getartifacts:{}".format(hashlib.sha1(_string.encode('utf-8')).hexdigest())
+
+
+@cached(ttl=TTL, alias="default", key_builder=cache_artifacts_key)
 async def get_artifacts(locations):
     '''
     Fetches artifacts by locations returning their contents.
