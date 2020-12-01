@@ -15,7 +15,7 @@ logger = logging.getLogger("CacheStore")
 
 
 class CacheStore(object):
-    "Singleton class for all the different cache clients that are used to access caches"
+    "Singleton class for all the different caches"
     instance = None
 
     def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
