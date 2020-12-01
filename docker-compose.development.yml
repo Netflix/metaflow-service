@@ -63,6 +63,7 @@ services:
       - MF_METADATA_HOST=${MF_METADATA_HOST:-0.0.0.0}
       - MF_MIGRATION_PORT=${MF_MIGRATION_PORT:-8082}
       - FEATURE_DB_TRIGGER_DISABLE=0
+      - LOGLEVEL=WARNING
     depends_on:
       - migration
   migration:
