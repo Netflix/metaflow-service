@@ -45,7 +45,8 @@ async def get_artifact(cli, location):
         raise S3ObjectTooBig
 
     art = await cli.get_object(Bucket=bucket, Key=path)
-    body = await art['Body'].read()
+    async with art['Body'] as stream:
+        body = await stream.read()
     return body
 
 
@@ -57,7 +58,8 @@ async def get_codepackage(cli, location):
     bucket = url.netloc
     path = url.path.lstrip('/')
     art = await cli.get_object(Bucket=bucket, Key=path)
-    body = await art['Body'].read()
+    async with art['Body'] as stream:
+        body = await stream.read()
     return body
 
 
