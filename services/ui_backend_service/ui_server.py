@@ -115,7 +115,7 @@ def main():
 
 def async_loop_error_handler(loop, context):
     msg = context.get("exception", context["message"])
-    logging.error("Encountered an exception: {}".format(msg))
+    logging.error("Encountered an exception: {}\n{}".format(msg, context))
 
 
 def async_loop_signal_handler(signal):
