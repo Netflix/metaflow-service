@@ -18,7 +18,14 @@ class Refinery(object):
         self.field_names = field_names
 
     async def refine_record(self, record):
-        locations = [record[field] for field in self.field_names if field in record]
+        locations = [record[field]
+                     for field in self.field_names
+                     if field in record
+                     if record[field] and record[field].startswith("s3://")
+                     ]
+        if not locations:
+            return record
+
         data = await self.fetch_data(locations)
         _rec = record
         for k, v in _rec.items():
@@ -27,7 +34,15 @@ class Refinery(object):
         return _rec
 
     async def refine_records(self, records):
-        locations = [record[field] for field in self.field_names for record in records if field in record]
+        locations = [record[field]
+                     for field in self.field_names
+                     for record in records
+                     if field in record
+                     if record[field] and record[field].startswith("s3://")
+                     ]
+        if not locations:
+            return records
+
         data = await self.fetch_data(locations)
 
         _recs = []
