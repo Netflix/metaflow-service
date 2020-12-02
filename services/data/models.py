@@ -171,7 +171,7 @@ class TaskRow(object):
     user_name: str = None
     status: str = None
     task_ok: str = None
-    foreach_stack: int = None
+    foreach_stack: str = None
     ts_epoch: int = 0
     started_at: int = None
     finished_at: int = None
