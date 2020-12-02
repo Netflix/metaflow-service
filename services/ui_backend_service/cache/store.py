@@ -9,6 +9,7 @@ import time
 import os
 from services.utils import logging
 from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE, FEATURE_MODEL_EXPAND
+import aiobotocore
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -47,6 +48,7 @@ class ArtifactCacheStore(object):
         self._artifact_table = db.artifact_table_postgres
         self._run_table = db.run_table_postgres
         self.loop = asyncio.get_event_loop()
+        self.session = aiobotocore.get_session()
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
@@ -59,10 +61,10 @@ class ArtifactCacheStore(object):
             asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
 
     async def get_artifacts(self, locations):
-        return await _get_artifacts(locations)
+        return await _get_artifacts(self.session, locations)
 
     async def search_artifacts(self, locations, searchterm):
-        return await _search_artifacts(locations, searchterm)
+        return await _search_artifacts(self.session, locations, searchterm)
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
@@ -197,6 +199,7 @@ class DAGCacheStore(object):
     def __init__(self, db):
         self._run_table = db.run_table_postgres
         self.cache = None
+        self.session = aiobotocore.get_session()
 
     async def start_cache(self):
         pass

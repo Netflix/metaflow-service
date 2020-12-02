@@ -15,14 +15,14 @@ TTL = os.environ.get("SEARCH_RESULT_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Default
 logger = logging.getLogger('SearchArtifacts')
 
 
-def cache_search_key(function, locations, searchterm):
+def cache_search_key(function, session, locations, searchterm):
     "cache key generator for search results. Used to keep the cache keys as short as possible"
     _string = "-".join(locations) + searchterm
     return "artifactsearch:{}".format(hashlib.sha1(_string.encode('utf-8')).hexdigest())
 
 
 @cached(ttl=TTL, alias="default", key_builder=cache_search_key)
-async def search_artifacts(locations, searchterm):
+async def search_artifacts(boto_session, locations, searchterm):
     '''
         Fetches artifacts by locations and performs a search against the object contents.
         Caches artifacts based on location, and search results based on a combination of query&artifacts searched
@@ -53,8 +53,7 @@ async def search_artifacts(locations, searchterm):
     s3_locations = [loc for loc in locations if loc.startswith("s3://")]
     num_s3_batches = max(1, len(locations) // S3_BATCH_SIZE)
     fetched = {}
-    session = aiobotocore.get_session()
-    async with session.create_client('s3') as s3_client:
+    async with boto_session.create_client('s3') as s3_client:
         for locations in batchiter(s3_locations, S3_BATCH_SIZE):
             try:
                 for location in locations:

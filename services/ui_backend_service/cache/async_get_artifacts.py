@@ -13,14 +13,14 @@ TTL = os.environ.get("BULK_ARTIFACT_GET_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Def
 logger = logging.getLogger("GetArtifacts")
 
 
-def cache_artifacts_key(function, locations):
+def cache_artifacts_key(function, session, locations):
     "cache key generator for bulk artifact get results. Used to keep the cache keys as short as possible"
     _string = "-".join(locations)
     return "getartifacts:{}".format(hashlib.sha1(_string.encode('utf-8')).hexdigest())
 
 
 @cached(ttl=TTL, alias="default", key_builder=cache_artifacts_key)
-async def get_artifacts(locations):
+async def get_artifacts(boto_session, locations):
     '''
     Fetches artifacts by locations returning their contents.
     Caches artifacts based on location, and results based on list of artifacts requested.
@@ -38,8 +38,7 @@ async def get_artifacts(locations):
     # Fetch the S3 locations data
     s3_locations = [loc for loc in locations if loc.startswith("s3://")]
     fetched = {}
-    session = aiobotocore.get_session()
-    async with session.create_client('s3') as s3_client:
+    async with boto_session.create_client('s3') as s3_client:
         for locations in batchiter(s3_locations, S3_BATCH_SIZE):
             try:
                 for location in locations:
