@@ -9,6 +9,9 @@ from .notify import resource_list
 from .data_refiner import TaskRefiner
 
 HEARTBEAT_INTERVAL = 10  # interval of heartbeats, in seconds
+# Limits the number of async tasks spawned simultaneously.
+# Important for limiting db getters to avoid timeouts due to connection pool issues.
+CONCURRENCY_LIMIT = 10
 
 
 class HeartbeatMonitor(object):
@@ -18,6 +21,7 @@ class HeartbeatMonitor(object):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         event_emitter.on(event_name, self.heartbeat_handler)
         self.db = db
+        self.semaphore = asyncio.BoundedSemaphore(CONCURRENCY_LIMIT)
 
         # Start heartbeat watcher
         self.loop = asyncio.get_event_loop()
@@ -47,6 +51,7 @@ class HeartbeatMonitor(object):
         '''
         while True:
             time_now = int(datetime.datetime.utcnow().timestamp())  # same format as the metadata heartbeat uses
+            print("ITEMS IN WATCHLIST:{}".format(len(self.watched)), flush=True)
             for key, hb in list(self.watched.items()):
                 if time_now - hb > HEARTBEAT_INTERVAL * 2:
                     self.loop.create_task(self.load_and_broadcast(key))
@@ -102,13 +107,14 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
         # Currently this restricts the use of expanded=True
         run_id_key, run_id_value = translate_run_key(run_key)
-        result, _ = await self._run_table.find_records(
-            conditions=["{column} = %s".format(column=run_id_key)],
-            values=[run_id_value],
-            fetch_single=True,
-            enable_joins=True,
-            expanded=FEATURE_MODEL_EXPAND
-        )
+        async with self.semaphore:
+            result, _ = await self._run_table.find_records(
+                conditions=["{column} = %s".format(column=run_id_key)],
+                values=[run_id_value],
+                fetch_single=True,
+                enable_joins=True,
+                expanded=FEATURE_MODEL_EXPAND
+            )
         return result.body if result.response_code == 200 else None
 
     async def load_and_broadcast(self, key):
@@ -187,15 +193,16 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             conditions.append("attempt_id = %s")
             values.append(attempt_id)
 
-        result, _ = await self._task_table.find_records(
-            conditions=conditions,
-            values=values,
-            order=["attempt_id DESC"],
-            fetch_single=True,
-            enable_joins=True,
-            expanded=FEATURE_MODEL_EXPAND,
-            postprocess=postprocess
-        )
+        async with self.semaphore:
+            result, _ = await self._task_table.find_records(
+                conditions=conditions,
+                values=values,
+                order=["attempt_id DESC"],
+                fetch_single=True,
+                enable_joins=True,
+                expanded=FEATURE_MODEL_EXPAND,
+                postprocess=postprocess
+            )
         return result.body if result.response_code == 200 else None
 
     async def load_and_broadcast(self, key):
