@@ -13,12 +13,12 @@ from services.utils import logging
 from pyee import AsyncIOEventEmitter
 from .data_refiner import TaskRefiner
 
-from throttler import throttle_simultaneous
-
 from ..features import FEATURE_MODEL_EXPAND
 
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
-WS_POSTPROCESS_CONCURRENCY_LIMIT = int(os.environ.get("WS_POSTPROCESS_CONCURRENCY_LIMIT", 8))
+# Limits the number of async tasks spawned simultaneously.
+# Important for limiting db getters to avoid timeouts due to connection pool issues.
+WS_CONCURRENCY_LIMIT = int(os.environ.get("WS_CONCURRENCY_LIMIT", 10))
 
 SUBSCRIBE = 'SUBSCRIBE'
 UNSUBSCRIBE = 'UNSUBSCRIBE'
@@ -59,36 +59,38 @@ class Websocket(object):
         event_emitter.on('notify', self.event_handler)
         app.router.add_route('GET', '/ws', self.websocket_handler)
         self.loop = asyncio.get_event_loop()
+        self.semaphore = asyncio.BoundedSemaphore(WS_CONCURRENCY_LIMIT)
 
     async def event_handler(self, operation: str, resources: List[str], data: Dict, table_name=None, filter_dict: Dict = {}):
         """Either receives raw data from table triggers listener and either performs a database load
         before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
         """
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
-        if any(subscription.resource in resources for subscription in self.subscriptions):
-            # load the data and postprocessor for broadcasting if table
-            # is provided (otherwise data has already been loaded in advance)
-            if table_name:
-                table = await self.db.get_table_by_name(table_name)
-                _postprocess = await self.get_table_postprocessor(table_name)
-                _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
-            else:
-                _data = data
-            # Append event to the queue so that we can later dispatch them in case of disconnections
-            #
-            # NOTE: server instance specific ws queue will not work when scaling across multiple instances.
-            # but on the other hand loading data and pushing everything into the queue for every server instance is also
-            # a suboptimal solution.
-            await self.queue.append({
-                'operation': operation,
-                'resources': resources,
-                'data': _data
-            })
-            for subscription in self.subscriptions:
-                if not subscription.disconnected_ts:
-                    await self._event_subscription(subscription, operation, resources, _data)
-                elif subscription.disconnected_ts and time.time() - subscription.disconnected_ts > WS_QUEUE_TTL_SECONDS:
-                    await self.unsubscribe_from(subscription.ws, subscription.uuid)
+        async with self.semaphore:
+            if any(subscription.resource in resources for subscription in self.subscriptions):
+                # load the data and postprocessor for broadcasting if table
+                # is provided (otherwise data has already been loaded in advance)
+                if table_name:
+                    table = await self.db.get_table_by_name(table_name)
+                    _postprocess = await self.get_table_postprocessor(table_name)
+                    _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
+                else:
+                    _data = data
+                # Append event to the queue so that we can later dispatch them in case of disconnections
+                #
+                # NOTE: server instance specific ws queue will not work when scaling across multiple instances.
+                # but on the other hand loading data and pushing everything into the queue for every server instance is also
+                # a suboptimal solution.
+                await self.queue.append({
+                    'operation': operation,
+                    'resources': resources,
+                    'data': _data
+                })
+                for subscription in self.subscriptions:
+                    if not subscription.disconnected_ts:
+                        await self._event_subscription(subscription, operation, resources, _data)
+                    elif subscription.disconnected_ts and time.time() - subscription.disconnected_ts > WS_QUEUE_TTL_SECONDS:
+                        await self.unsubscribe_from(subscription.ws, subscription.uuid)
 
     async def _event_subscription(self, subscription: WSSubscription, operation: str, resources: List[str], data: Dict):
         for resource in resources:
@@ -178,7 +180,6 @@ class Websocket(object):
         await self.handle_disconnect(ws)
         return ws
 
-    @throttle_simultaneous(count=8)
     async def get_table_postprocessor(self, table_name):
         if table_name == self.db.task_table_postgres.table_name:
             return self.task_refiner.postprocess
