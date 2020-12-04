@@ -11,6 +11,8 @@ redis_config = {
         'cache': "aiocache.RedisCache",
         'endpoint': REDIS_ENDPOINT,
         'port': REDIS_PORT,
+        'pool_min_size': 10,
+        'pool_max_size': 100,
         'serializer': {
             'class': "aiocache.serializers.PickleSerializer"
         }

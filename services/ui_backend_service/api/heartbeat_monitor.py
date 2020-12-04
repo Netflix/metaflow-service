@@ -51,7 +51,6 @@ class HeartbeatMonitor(object):
         '''
         while True:
             time_now = int(datetime.datetime.utcnow().timestamp())  # same format as the metadata heartbeat uses
-            print("ITEMS IN WATCHLIST:{}".format(len(self.watched)), flush=True)
             for key, hb in list(self.watched.items()):
                 if time_now - hb > HEARTBEAT_INTERVAL * 2:
                     self.loop.create_task(self.load_and_broadcast(key))
