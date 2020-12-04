@@ -11,6 +11,10 @@ from services.utils import logging
 from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE, FEATURE_MODEL_EXPAND
 import aiobotocore
 
+# Limits the number of async tasks spawned simultaneously.
+# Important for limiting db getters to avoid timeouts due to connection pool issues.
+CONCURRENCY_LIMIT = 10
+
 # Tagged logger
 logger = logging.getLogger("CacheStore")
 
@@ -49,6 +53,7 @@ class ArtifactCacheStore(object):
         self._run_table = db.run_table_postgres
         self.loop = asyncio.get_event_loop()
         self.session = aiobotocore.get_session()
+        self.semaphore = asyncio.BoundedSemaphore(CONCURRENCY_LIMIT)
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
@@ -61,10 +66,12 @@ class ArtifactCacheStore(object):
             asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
 
     async def get_artifacts(self, locations):
-        return await _get_artifacts(self.session, locations)
+        async with self.semaphore:
+            return await _get_artifacts(self.session, locations)
 
     async def search_artifacts(self, locations, searchterm):
-        return await _search_artifacts(self.session, locations, searchterm)
+        async with self.semaphore:
+            return await _search_artifacts(self.session, locations, searchterm)
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
