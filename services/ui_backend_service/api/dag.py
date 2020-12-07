@@ -69,23 +69,7 @@ class DagApi(object):
 
         # Fetch or Generate the DAG from the codepackage.
         dag = await self._dag_store.generate_dag(flow_name, codepackage_loc)
-        # if not dag.is_ready():
-        #     async for event in dag.stream():
-        #         if event["type"] == "error":
-        #             # raise error, there was an exception during processing.
-        #             raise GenerateDAGFailed(event["message"], event["id"], event["traceback"])
-        #     await dag.wait()  # wait until results are ready
         response = DBResponse(200, dag)
         status, body = format_response(request, response)
 
         return web_response(status, body)
-
-
-class GenerateDAGFailed(Exception):
-    def __init__(self, msg="Failed to process DAG", id="failed-to-process-dag", traceback_str=None):
-        self.message = msg
-        self.id = id
-        self.traceback_str = traceback_str
-
-    def __str__(self):
-        return self.message
