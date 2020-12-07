@@ -58,8 +58,8 @@ async def search_artifacts(boto_session, locations, searchterm):
             try:
                 for location in locations:
                     # if artifact_data.size < MAX_SIZE:
+                    artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
                     try:
-                        artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
                         content = decode(artifact_data)
                         fetched[location] = json.dumps([True, content])
                     except TypeError:
