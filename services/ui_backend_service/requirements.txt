@@ -2,7 +2,11 @@ aiohttp==3.6.2
 aiohttp-swagger==1.0.15
 aiocache==0.11.1
 aiobotocore
+aioredis
 pyee==8.0.1
 yarl==1.5.1
-throttler==1.2.0
-aioredis
+# pinned requirements to be able to include metaflow client library for the time being.
+# metaflow is required to successfully read pickled artifact contents.
+boto3==1.14.44
+wrapt==1.11.1
+metaflow
