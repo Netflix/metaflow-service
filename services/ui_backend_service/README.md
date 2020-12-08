@@ -37,6 +37,10 @@ Enable built-in UI bundle serving (assumes assets are located inside `ui/` folde
 
 - `UI_ENABLED` [defaults to 0]
 
+Use path prefix in case UI service is served under non-root path (`example.com/api/`):
+
+- `PATH_PREFIX=/api` [defaults to None]
+
 This also works as a Docker build argument to download and install latest or specific UI release:
 
 > ```sh

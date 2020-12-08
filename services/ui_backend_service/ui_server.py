@@ -33,11 +33,14 @@ from .doc import swagger_definitions, swagger_description
 
 from .features import FEATURE_DB_LISTEN_ENABLE, FEATURE_WS_ENABLE, FEATURE_HEARTBEAT_ENABLE
 
+PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
+
 
 def app(loop=None, db_conf: DBConfiguration = None):
 
     loop = loop or asyncio.get_event_loop()
-    app = web.Application(loop=loop)
+    _app = web.Application(loop=loop)
+    app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
 
     async_db = _AsyncPostgresDB('ui')
     loop.run_until_complete(async_db._init(db_conf))
@@ -88,7 +91,10 @@ def app(loop=None, db_conf: DBConfiguration = None):
         # This has to be placed last due to catch-all route
         Frontend(app)
 
-    return app
+    if len(PATH_PREFIX) > 0:
+        _app.add_subapp(PATH_PREFIX, app)
+
+    return _app
 
 
 def main():
