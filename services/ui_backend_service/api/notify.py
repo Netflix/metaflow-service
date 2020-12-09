@@ -17,15 +17,14 @@ class ListenNotify(object):
 
     async def _init(self, pool):
         async with pool.acquire() as conn1:
-            listener = self.listen(conn1)
-            await asyncio.gather(listener)
+            await self.listen(conn1)
 
     async def listen(self, conn):
         async with conn.cursor() as cur:
             await cur.execute("LISTEN notify")
             while True:
                 msg = await conn.notifies.get()
-                self.loop.create_task(self.handle_trigger_msg(msg))
+                await self.handle_trigger_msg(msg)
 
     async def handle_trigger_msg(self, msg: str):
         try:
