@@ -47,7 +47,7 @@ async def get_artifact(cli, location):
     art = await cli.get_object(Bucket=bucket, Key=path)
     async with art['Body'] as stream:
         body = await stream.read()
-    return body
+        return body
 
 
 # NOTE: caching requires the key_builder because we do not want to have the s3_client instance
@@ -60,7 +60,7 @@ async def get_codepackage(cli, location):
     art = await cli.get_object(Bucket=bucket, Key=path)
     async with art['Body'] as stream:
         body = await stream.read()
-    return body
+        return body
 
 
 class S3ObjectTooBig(Exception):
