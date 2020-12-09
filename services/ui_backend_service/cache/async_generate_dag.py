@@ -5,6 +5,7 @@ from .custom_flowgraph import FlowGraph  # TODO: change to metaflow.graph when t
 
 from .utils import get_codepackage
 import aiobotocore
+from botocore.exceptions import ClientError
 import io
 import os
 from . import cached

@@ -5,12 +5,14 @@ import aiobotocore
 from botocore.exceptions import ClientError
 import json
 import os
+import asyncio
 from . import cached
 
 S3_BATCH_SIZE = 512
 TTL = os.environ.get("BULK_ARTIFACT_GET_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Default TTL to one day
 
 logger = logging.getLogger("GetArtifacts")
+semaphore = asyncio.BoundedSemaphore(100)
 
 
 def cache_artifacts_key(function, session, locations):
@@ -38,20 +40,21 @@ async def get_artifacts(boto_session, locations):
         for locations in batchiter(s3_locations, S3_BATCH_SIZE):
             try:
                 for location in locations:
-                    artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
-                    try:
-                        content = decode(artifact_data)
-                        fetched[location] = json.dumps([True, content])
-                    except TypeError:
-                        # In case the artifact was of a type that can not be json serialized,
-                        # we try casting it to a string first.
-                        fetched[location] = json.dumps([True, str(content)])
-                    except S3ObjectTooBig:
-                        fetched[location] = json.dumps([False, 'object is too large'])
-                    except Exception:
-                        # Exceptions might be fixable with configuration changes or other measures,
-                        # therefore we do not want to write anything to the cache for these artifacts.
-                        logger.exception("exception during parsing")
+                    async with semaphore:
+                        artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
+                        try:
+                            content = decode(artifact_data)
+                            fetched[location] = json.dumps([True, content])
+                        except TypeError:
+                            # In case the artifact was of a type that can not be json serialized,
+                            # we try casting it to a string first.
+                            fetched[location] = json.dumps([True, str(content)])
+                        except S3ObjectTooBig:
+                            fetched[location] = json.dumps([False, 'object is too large'])
+                        except Exception:
+                            # Exceptions might be fixable with configuration changes or other measures,
+                            # therefore we do not want to write anything to the cache for these artifacts.
+                            logger.exception("exception during parsing")
             except ClientError:
                 logger.exception("S3 access failed.")
             except Exception:
