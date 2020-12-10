@@ -212,7 +212,7 @@ class DAGCacheStore(object):
         pass
 
     async def generate_dag(self, flow_name, codepackage_location):
-        return await get_dag(flow_name, codepackage_location)
+        return await get_dag(self.session, flow_name, codepackage_location)
 
 
 class GetParametersFailed(Exception):
