@@ -1,11 +1,10 @@
+import asyncio
 import hashlib
-from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
-from services.utils import logging
-import aiobotocore
-from botocore.exceptions import ClientError
 import json
 import os
-import asyncio
+from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
+from services.utils import logging
+from botocore.exceptions import ClientError
 from . import cached
 
 S3_BATCH_SIZE = 512
