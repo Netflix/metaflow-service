@@ -23,8 +23,13 @@ class ListenNotify(object):
         async with conn.cursor() as cur:
             await cur.execute("LISTEN notify")
             while True:
-                msg = await conn.notifies.get()
-                await self.handle_trigger_msg(msg)
+                try:
+                    msg = conn.notifies.get_nowait()
+                    await self.handle_trigger_msg(msg)
+                except asyncio.QueueEmpty as e:
+                    await asyncio.sleep(0.1)
+                except Exception as e:
+                    logging.exception(e)
 
     async def handle_trigger_msg(self, msg: str):
         try:
