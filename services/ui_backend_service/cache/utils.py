@@ -7,6 +7,7 @@ import gzip
 from itertools import islice
 from services.utils import logging
 from . import cached
+from ..api.utils import wrap_s3_errors
 
 from ..features import FEATURE_S3_DISABLE
 
@@ -36,6 +37,7 @@ def decode(fileobj):
 # NOTE: caching requires the key_builder because we do not want to have the s3_client instance
 # as part of the cache key.
 @cached(alias="default", key_builder=lambda func, cli, loc: "artifact:{}".format(loc))
+@wrap_s3_errors
 async def get_artifact(cli, location):
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
@@ -53,6 +55,7 @@ async def get_artifact(cli, location):
 # NOTE: caching requires the key_builder because we do not want to have the s3_client instance
 # as part of the cache key.
 @cached(alias="default", key_builder=lambda func, cli, loc: "codepackage:{}".format(loc))
+@wrap_s3_errors
 async def get_codepackage(cli, location):
     url = urlparse(location, allow_fragments=False)
     bucket = url.netloc
