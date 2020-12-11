@@ -338,8 +338,12 @@ def wrap_s3_errors(func):
                 404: "s3-not-found",
                 400: "s3-bad-url"
             }
-            status = ex.response['Error']['HTTPStatusCode']
-            ex.id = ids[status] if status in ids else "s3-generic-error"
+            # Try to set a descriptive error id for the exception.
+            try:
+                status = ex.response['ResponseMetadata']['HTTPStatusCode']
+                ex.id = ids[status]
+            except Exception:
+                ex.id = 's3-generic-error'
             raise ex
         except NoCredentialsError as ex:
             ex.id = "s3-missing-credentials"
