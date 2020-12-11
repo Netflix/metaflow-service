@@ -69,9 +69,9 @@ class ArtifactCacheStore(object):
         async with self.semaphore:
             return await _get_artifacts(self.session, locations)
 
-    async def search_artifacts(self, locations, searchterm):
+    async def search_artifacts(self, locations, searchterm, stream_output=None):
         async with self.semaphore:
-            return await _search_artifacts(self.session, locations, searchterm)
+            return await _search_artifacts(self.session, locations, searchterm, stream_output)
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"

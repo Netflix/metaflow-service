@@ -4,7 +4,6 @@ import hashlib
 from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
 import json
 import os
-import aiobotocore
 from services.utils import logging
 from . import cached
 
@@ -15,14 +14,14 @@ TTL = os.environ.get("SEARCH_RESULT_CACHE_TTL_SECONDS", 60 * 60 * 24)  # Default
 logger = logging.getLogger('SearchArtifacts')
 
 
-def cache_search_key(function, session, locations, searchterm):
+def cache_search_key(function, session, locations, searchterm, stream_output):
     "cache key generator for search results. Used to keep the cache keys as short as possible"
     _string = "-".join(locations) + searchterm
     return "artifactsearch:{}".format(hashlib.sha1(_string.encode('utf-8')).hexdigest())
 
 
 @cached(ttl=TTL, alias="default", key_builder=cache_search_key)
-async def search_artifacts(boto_session, locations, searchterm):
+async def search_artifacts(boto_session, locations, searchterm, stream_output=None):
     '''
         Fetches artifacts by locations and performs a search against the object contents.
         Caches artifacts based on location, and search results based on a combination of query&artifacts searched
@@ -40,11 +39,13 @@ async def search_artifacts(boto_session, locations, searchterm):
         '''
 
     # Helper functions for streaming status updates.
-    # def stream_progress(num):
-    #     return stream_output({"type": "progress", "fraction": num})
+    async def stream_progress(num):
+        if stream_output:
+            await stream_output({"type": "progress", "fraction": num})
 
-    # def stream_error(err, id):
-    #     return stream_output({"type": "error", "message": err, "id": id})
+    async def stream_error(err, id):
+        if stream_output:
+            await stream_output({"type": "error", "message": err, "id": id})
 
     # Make a list of artifact locations that require fetching (not cached previously)
     # locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
@@ -54,10 +55,9 @@ async def search_artifacts(boto_session, locations, searchterm):
     num_s3_batches = max(1, len(locations) // S3_BATCH_SIZE)
     fetched = {}
     async with boto_session.create_client('s3') as s3_client:
-        for locations in batchiter(s3_locations, S3_BATCH_SIZE):
+        for current_batch_number, locations in enumerate(batchiter(s3_locations, S3_BATCH_SIZE), start=1):
             try:
                 for location in locations:
-                    # if artifact_data.size < MAX_SIZE:
                     artifact_data = await get_artifact(s3_client, location)  # this should preferrably hit a cache.
                     try:
                         content = decode(artifact_data)
@@ -72,9 +72,11 @@ async def search_artifacts(boto_session, locations, searchterm):
                         # Exceptions might be fixable with configuration changes or other measures,
                         # therefore we do not want to write anything to the cache for these artifacts.
                         logger.exception("exception happened when parsing artifact content")
-                        # stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
-            except Exception:
+                        await stream_error(str(ex), "artifact-handle-failed")
+                await stream_progress(current_batch_number / num_s3_batches)
+            except Exception as ex:
                 logger.exception('An exception was encountered while searching.')
+                await stream_error(str(ex), "generic-error")
             # except MetaflowS3AccessDenied as ex:
             #     stream_error(str(ex), "s3-access-denied")
             # except MetaflowS3NotFound as ex:
@@ -88,7 +90,7 @@ async def search_artifacts(boto_session, locations, searchterm):
     # Skip the inaccessible locations
     other_locations = [loc for loc in locations if not loc.startswith("s3://")]
     for loc in other_locations:
-        # stream_error("Artifact is not accessible", "artifact-not-accessible")
+        await stream_error("Artifact is not accessible", "artifact-not-accessible")
         fetched[loc] = json.dumps([False, 'object is not accessible'])
 
     # Perform search on loaded artifacts.

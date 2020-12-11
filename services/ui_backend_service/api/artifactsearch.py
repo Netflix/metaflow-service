@@ -32,21 +32,20 @@ class ArtifactSearchApi(object):
 
         # Search the artifact contents from S3 using the CacheClient
         locations = [art['location'] for art in meta_artifacts]
-        res = await self._artifact_store.search_artifacts(locations, value)
-        # if res.is_ready():
-        #     artifact_data = res.get()
-        # else:
-        #     async for event in res.stream():
-        #         await ws.send_str(json.dumps(event))
-        #         if event["event"]["type"] == "error":
-        #             # close websocket if an error is encountered.
-        #             await ws.close(code=1011)
-        #     await res.wait()
-        #     artifact_data = res.get()
 
-        results = await search_dict_filter(meta_artifacts, res)
+        async def stream_callback(msg):
+            "callback to handle realtime messages from search"
+            await ws.send_str(json.dumps({"event": msg}))
 
-        await ws.send_str(json.dumps({"event": {"type": "result", "matches": results}}))
+        try:
+            res = await self._artifact_store.search_artifacts(locations, value, stream_callback)
+
+            results = await search_dict_filter(meta_artifacts, res)
+
+            await ws.send_str(json.dumps({"event": {"type": "result", "matches": results}}))
+        except Exception:
+            # close websocket if something went wrong.
+            await ws.close(code=1011)
 
         return ws
 
