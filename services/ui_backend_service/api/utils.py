@@ -6,6 +6,8 @@ from typing import Callable, List, Dict
 from services.data.db_utils import DBResponse
 from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
+from functools import wraps
+from botocore.exceptions import ClientError, NoCredentialsError
 
 from ..features import FEATURE_MODEL_EXPAND
 
@@ -321,3 +323,26 @@ class TTLQueue:
 
     async def values_since(self, since_epoch: int):
         return [value for value in await self.values() if value[0] >= since_epoch]
+
+
+def wrap_s3_errors(func):
+    "Sets id property on caught s3 client errors for enriched api error 500 responses."
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except ClientError as ex:
+            ids = {
+                403: "s3-access-denied",
+                404: "s3-not-found",
+                400: "s3-bad-url"
+            }
+            status = ex.response['Error']['HTTPStatusCode']
+            ex.id = ids[status] if status in ids else "s3-generic-error"
+            raise ex
+        except NoCredentialsError as ex:
+            ex.id = "s3-missing-credentials"
+            raise ex
+
+    return wrapper
