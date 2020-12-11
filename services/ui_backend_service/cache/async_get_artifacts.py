@@ -4,7 +4,6 @@ import json
 import os
 from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
 from services.utils import logging
-from botocore.exceptions import ClientError
 from . import cached
 
 S3_BATCH_SIZE = 512
@@ -54,20 +53,9 @@ async def get_artifacts(boto_session, locations):
                             # Exceptions might be fixable with configuration changes or other measures,
                             # therefore we do not want to write anything to the cache for these artifacts.
                             logger.exception("exception during parsing")
-            except ClientError:
-                logger.exception("S3 access failed.")
             except Exception:
-                logger.exception("Unknown Exception")
-            # except MetaflowS3AccessDenied as ex:
-            #     stream_error(str(ex), "s3-access-denied")
-            # except MetaflowS3NotFound as ex:
-            #     stream_error(str(ex), "s3-not-found")
-            # except MetaflowS3URLException as ex:
-            #     stream_error(str(ex), "s3-bad-url")
-            # except MetaflowS3CredentialsMissing as ex:
-            #     stream_error(str(ex), "s3-missing-credentials")
-            # except MetaflowS3Exception as ex:
-            #     stream_error(str(ex), "s3-generic-error", get_traceback_str())
+                logger.exception("Exception occurred with getting artifacts")
+
     # Skip the inaccessible locations
     other_locations = [loc for loc in locations if not loc.startswith("s3://")]
     for loc in other_locations:

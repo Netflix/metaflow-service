@@ -1,9 +1,7 @@
 import hashlib
-
-# from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
-from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
 import json
 import os
+from .utils import decode, batchiter, get_artifact, S3ObjectTooBig
 from services.utils import logging
 from . import cached
 
@@ -76,17 +74,8 @@ async def search_artifacts(boto_session, locations, searchterm, stream_output=No
                 await stream_progress(current_batch_number / num_s3_batches)
             except Exception as ex:
                 logger.exception('An exception was encountered while searching.')
-                await stream_error(str(ex), "generic-error")
-            # except MetaflowS3AccessDenied as ex:
-            #     stream_error(str(ex), "s3-access-denied")
-            # except MetaflowS3NotFound as ex:
-            #     stream_error(str(ex), "s3-not-found")
-            # except MetaflowS3URLException as ex:
-            #     stream_error(str(ex), "s3-bad-url")
-            # except MetaflowS3CredentialsMissing as ex:
-            #     stream_error(str(ex), "s3-missing-credentials")
-            # except MetaflowS3Exception as ex:
-            #     stream_error(str(ex), "s3-generic-error", get_traceback_str())
+                err_id = getattr(ex, "id", "generic-error")
+                await stream_error(str(ex), err_id)
     # Skip the inaccessible locations
     other_locations = [loc for loc in locations if not loc.startswith("s3://")]
     for loc in other_locations:
