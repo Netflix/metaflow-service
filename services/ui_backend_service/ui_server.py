@@ -43,7 +43,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
 
     async_db = _AsyncPostgresDB('ui')
-    loop.run_until_complete(async_db._init(db_conf))
+    loop.run_until_complete(async_db._init(db_conf=db_conf, create_triggers=True))
 
     event_emitter = AsyncIOEventEmitter()
 

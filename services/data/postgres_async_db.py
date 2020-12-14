@@ -16,7 +16,6 @@ from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
-FEATURE_DB_TRIGGER_DISABLE = os.environ.get("FEATURE_DB_TRIGGER_DISABLE", 0) == "1"
 
 WAIT_TIME = 10
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
@@ -32,6 +31,7 @@ class _AsyncPostgresDB(object):
     metadata_table_postgres = None
 
     pool = None
+    db_conf: DBConfiguration = None
 
     def __init__(self, name='global'):
         self.name = name
@@ -52,7 +52,7 @@ class _AsyncPostgresDB(object):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration):
+    async def _init(self, db_conf: DBConfiguration, create_triggers=False):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
         retries = 3
@@ -65,10 +65,12 @@ class _AsyncPostgresDB(object):
                     echo=AIOPG_ECHO)
 
                 # Clean existing trigger functions before creating new ones
-                await PostgresUtils.function_cleanup(self)
+                if create_triggers:
+                    self.logger.info("Cleanup existing notify triggers")
+                    await PostgresUtils.function_cleanup(self)
 
                 for table in self.tables:
-                    await table._init()
+                    await table._init(create_triggers=create_triggers)
 
                 self.logger.info(
                     "Connection established.\n"
@@ -179,9 +181,13 @@ class AsyncPostgresTable(object):
             raise NotImplementedError(
                 "need to specify table name and create command")
 
-    async def _init(self):
+    async def _init(self, create_triggers=False):
         await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
-        await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.primary_keys)
+        if create_triggers:
+            self.db.logger.info(
+                "Create notify trigger for {table_name}\n   Keys: {keys}".format(
+                    table_name=self.table_name, keys=self.primary_keys))
+            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.primary_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
@@ -515,16 +521,15 @@ class PostgresUtils(object):
             table=table_name
         )]
 
-        if not FEATURE_DB_TRIGGER_DISABLE:
-            _commands += ["""
-                CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
-                    FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
-                """.format(
-                schema=schema,
-                prefix=name_prefix,
-                table=table_name,
-                events=" OR ".join(operations)
-            )]
+        _commands += ["""
+            CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
+                FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
+            """.format(
+            schema=schema,
+            prefix=name_prefix,
+            table=table_name,
+            events=" OR ".join(operations)
+        )]
 
         with (await db.pool.cursor()) as cur:
             for _command in _commands:
