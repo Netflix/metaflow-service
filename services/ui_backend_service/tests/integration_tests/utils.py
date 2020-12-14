@@ -216,7 +216,6 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
     assert data == expected_data
 
 
-
 def get_heartbeat_ts(offset=5):
     "Return a heartbeat timestamp with the given offset in seconds. Default offset is 5 seconds"
     return int(datetime.datetime.utcnow().timestamp()) + offset
