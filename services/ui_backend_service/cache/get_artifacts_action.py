@@ -24,7 +24,7 @@ class GetArtifacts(CacheAction):
 
     @classmethod
     def format_request(cls, locations):
-        unique_locs = list(frozenset(loc for loc in locations if isinstance(loc, str)))
+        unique_locs = list(frozenset(sorted(loc for loc in locations if isinstance(loc, str))))
         msg = {
             'artifact_locations': unique_locs,
         }

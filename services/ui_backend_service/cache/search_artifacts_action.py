@@ -29,7 +29,7 @@ class SearchArtifacts(CacheAction):
 
     @classmethod
     def format_request(cls, locations, searchterm):
-        unique_locs = list(frozenset(locations))
+        unique_locs = list(frozenset(sorted(locations)))
         msg = {
             'artifact_locations': unique_locs,
             'searchterm': searchterm
@@ -39,7 +39,7 @@ class SearchArtifacts(CacheAction):
         for location in unique_locs:
             artifact_keys.append(artifact_cache_id(location))
 
-        request_id = lookup_id(locations, searchterm)
+        request_id = lookup_id(unique_locs, searchterm)
         stream_key = 'search:stream:%s' % request_id
         result_key = 'search:result:%s' % request_id
 
