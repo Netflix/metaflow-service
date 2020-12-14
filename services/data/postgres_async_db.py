@@ -17,7 +17,6 @@ from services.utils import DBConfiguration
 
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 FEATURE_DB_TRIGGER_DISABLE = os.environ.get("FEATURE_DB_TRIGGER_DISABLE", 0) == "1"
-FEATURE_JOIN_DISABLE = os.environ.get("FEATURE_JOIN_DISABLE", 0) == "1"
 
 WAIT_TIME = 10
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
@@ -200,8 +199,6 @@ class AsyncPostgresTable(object):
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
-        if FEATURE_JOIN_DISABLE:
-            enable_joins = False
 
         # Grouping not enabled
         if groups is None or len(groups) == 0:
