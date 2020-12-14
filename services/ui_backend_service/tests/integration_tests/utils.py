@@ -68,7 +68,7 @@ async def init_db(cli):
     assert status["is_up_to_date"] is True
 
     db = AsyncPostgresDB.get_instance()
-    await db._init(db_conf)
+    await db._init(db_conf=db_conf, create_triggers=True)
     return db
 
 

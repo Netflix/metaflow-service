@@ -20,6 +20,10 @@ AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 WAIT_TIME = 10
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
 
+# Create database triggers automatically, disabled by default
+# Enable with env variable `DB_TRIGGER_CREATE=1`
+DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
+
 
 class _AsyncPostgresDB(object):
     connection = None
@@ -52,7 +56,7 @@ class _AsyncPostgresDB(object):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration, create_triggers=False):
+    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
         retries = 3
@@ -181,7 +185,7 @@ class AsyncPostgresTable(object):
             raise NotImplementedError(
                 "need to specify table name and create command")
 
-    async def _init(self, create_triggers=False):
+    async def _init(self, create_triggers: bool):
         await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
         if create_triggers:
             self.db.logger.info(
