@@ -7,8 +7,6 @@ from services.data.db_utils import DBResponse
 from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
 
-from ..features import FEATURE_MODEL_EXPAND
-
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
     query = {}
@@ -285,7 +283,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         conditions=conditions, values=values, limit=limit, offset=offset,
         order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
         fetch_single=fetch_single, enable_joins=enable_joins,
-        expanded=FEATURE_MODEL_EXPAND,
+        expanded=True,
         postprocess=postprocess
     )
 

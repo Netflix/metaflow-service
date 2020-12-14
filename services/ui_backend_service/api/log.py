@@ -11,8 +11,6 @@ from services.utils import handle_exceptions, web_response
 
 from aiohttp import web
 
-from ..features import FEATURE_MODEL_EXPAND
-
 
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
@@ -166,7 +164,7 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
                         "field_name = %s"],
             values=[flow_name, run_id_value, step_name, task_id_value, field_name], limit=0, offset=0,
             order=["ts_epoch DESC"], groups=None, fetch_single=False, enable_joins=True,
-            expanded=FEATURE_MODEL_EXPAND
+            expanded=True
         )
         if results.response_code == 200:
             if attempt_id is None and len(results.body) > 0:

@@ -44,7 +44,6 @@ services:
       - FEATURE_DB_LISTEN_DISABLE=0
       - FEATURE_DB_TRIGGER_DISABLE=0
       - FEATURE_JOIN_DISABLE=0
-      - FEATURE_MODEL_EXPAND=0
     depends_on:
       - db
   metadata:
