@@ -33,7 +33,7 @@ async def get_artifacts(boto_session, locations):
     '''
     # drop duplicates and non-string locations as inactionable.
     locations = list(frozenset(loc for loc in locations if isinstance(loc, str)))
-    
+
     # Fetch the S3 locations data
     s3_locations = [loc for loc in locations if loc.startswith("s3://")]
     fetched = {}
