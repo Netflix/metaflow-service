@@ -85,7 +85,7 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -144,7 +144,7 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -193,7 +193,7 @@ class TaskApi(object):
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -257,5 +257,12 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
+
+    def get_postprocessor(self, request):
+        "pass query param &postprocess=true to enable postprocessing of S3 content. Otherwise returns None as postprocessor"
+        if request.query.get("postprocess", False) in ["true", "True", "1"]:
+            return self.refiner.postprocess
+        else:
+            return None
