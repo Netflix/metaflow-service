@@ -31,7 +31,11 @@ async def test_list_steps(cli, db):
 
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps".format(**_step), 200, [_step])
+    _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps".format(**_step), 200, None)
+
+    assert len(data) == 1
+    assert data[0]['run_number'] == int(_run.get('run_number'))
+    assert data[0]['step_name'] == 'step'
 
 
 async def test_single_step(cli, db):
@@ -39,6 +43,9 @@ async def test_single_step(cli, db):
 
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
-    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}".format(**_step), 200, _step)
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}".format(**_step), 200, None)
+
+    assert data['run_number'] == int(_run.get('run_number'))
+    assert data['step_name'] == 'step'

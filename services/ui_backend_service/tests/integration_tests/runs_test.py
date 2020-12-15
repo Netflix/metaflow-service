@@ -46,8 +46,17 @@ async def test_list_runs_non_numerical(cli, db):
     _run = (await add_run(db, flow_id=_flow.get("flow_id"), run_id="hello")).body
     _run["status"] = "running"
 
-    await _test_list_resources(cli, db, "/runs", 200, [_run])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs".format(**_flow), 200, [_run])
+    _, data = await _test_list_resources(cli, db, "/runs", 200, None)
+
+    assert len(data) == 1
+    assert data[0]['run_id'] == 'hello'
+    assert data[0]['run_number'] != 'hello'
+
+    _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs".format(**_flow), 200, None)
+
+    assert len(data) == 1
+    assert data[0]['run_id'] == 'hello'
+    assert data[0]['run_number'] != 'hello'
 
 
 async def test_single_run(cli, db):
@@ -67,7 +76,10 @@ async def test_single_run_non_numerical(cli, db):
     _run = (await add_run(db, flow_id=_flow.get("flow_id"), run_id="hello")).body
     _run["status"] = "running"
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/hello".format(**_run), 200, _run)
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/hello".format(**_run), 200, None)
+
+    assert data['run_id'] == 'hello'
+    assert data['run_number'] != 'hello'
 
 
 async def test_run_status_with_heartbeat(cli, db):
