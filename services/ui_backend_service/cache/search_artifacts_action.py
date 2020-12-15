@@ -163,7 +163,7 @@ class SearchArtifacts(CacheAction):
 
 def lookup_id(locations, searchterm):
     "construct a unique id to be used with stream_key and result_key"
-    _string = "-".join(locations) + searchterm
+    _string = "-".join(list(frozenset(sorted(locations)))) + searchterm
     return hashlib.sha1(_string.encode('utf-8')).hexdigest()
 
 

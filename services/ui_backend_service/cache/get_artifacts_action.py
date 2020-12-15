@@ -142,7 +142,7 @@ class GetArtifacts(CacheAction):
 
 def lookup_id(locations):
     "construct a unique id to be used with stream_key and result_key"
-    _string = "-".join(locations)
+    _string = "-".join(list(frozenset(sorted(locations))))
     return hashlib.sha1(_string.encode('utf-8')).hexdigest()
 
 
