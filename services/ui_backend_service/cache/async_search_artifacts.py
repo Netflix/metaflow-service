@@ -14,7 +14,8 @@ logger = logging.getLogger('SearchArtifacts')
 
 def cache_search_key(function, session, locations, searchterm, stream_output):
     "cache key generator for search results. Used to keep the cache keys as short as possible"
-    _string = "-".join(locations) + searchterm
+    uniq_locs = list(frozenset(sorted(loc for loc in locations if isinstance(loc, str))))
+    _string = "-".join(uniq_locs) + searchterm
     return "artifactsearch:{}".format(hashlib.sha1(_string.encode('utf-8')).hexdigest())
 
 
@@ -45,8 +46,8 @@ async def search_artifacts(boto_session, locations, searchterm, stream_output=No
         if stream_output:
             await stream_output({"type": "error", "message": err, "id": id})
 
-    # Make a list of artifact locations that require fetching (not cached previously)
-    # locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
+    # drop duplicates and non-string locations as inactionable.
+    locations = list(frozenset(loc for loc in locations if isinstance(loc, str)))
 
     # Fetch the S3 locations data
     s3_locations = [loc for loc in locations if loc.startswith("s3://")]

@@ -15,7 +15,8 @@ semaphore = asyncio.BoundedSemaphore(100)
 
 def cache_artifacts_key(function, session, locations):
     "cache key generator for bulk artifact get results. Used to keep the cache keys as short as possible"
-    _string = "-".join(locations)
+    uniq_locs = list(frozenset(sorted(loc for loc in locations if isinstance(loc, str))))
+    _string = "-".join(uniq_locs)
     return "getartifacts:{}".format(hashlib.sha1(_string.encode('utf-8')).hexdigest())
 
 
@@ -30,7 +31,9 @@ async def get_artifacts(boto_session, locations):
             "s3_location": "contents"
         }
     '''
-
+    # drop duplicates and non-string locations as inactionable.
+    locations = list(frozenset(loc for loc in locations if isinstance(loc, str)))
+    
     # Fetch the S3 locations data
     s3_locations = [loc for loc in locations if loc.startswith("s3://")]
     fetched = {}
