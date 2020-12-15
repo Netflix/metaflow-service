@@ -203,18 +203,8 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
     body = await resp.json()
     data = body.get("data")
 
-    try:
-        assert resp.status == expected_status
-    except AssertionError as ex:
-        print("expected status: {0} but got status: {1}".format(resp.status, expected_status))
-        raise ex from None
-
-    try:
-        assert data == expected_data
-    except AssertionError as ex:
-        print("Expected data to be:\n", expected_data)
-        print("Instead got data:\n", data)
-        raise ex from None
+    assert resp.status == expected_status
+    assert data == expected_data
 
 
 async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}):
@@ -222,18 +212,8 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
     body = await resp.json()
     data = body.get("data")
 
-    try:
-        assert resp.status == expected_status
-    except AssertionError as ex:
-        print("expected status: {0} but got status: {1}".format(resp.status, expected_status))
-        raise ex from None
-
-    try:
-        assert data == expected_data
-    except AssertionError as ex:
-        print("Expected data to be:\n", expected_data)
-        print("Instead got data:\n", data)
-        raise ex from None
+    assert resp.status == expected_status
+    assert data == expected_data
 
 
 def get_heartbeat_ts(offset=5):
