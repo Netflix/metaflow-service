@@ -15,8 +15,6 @@ from .data_refiner import TaskRefiner
 
 from throttler import throttle_simultaneous
 
-from ..features import FEATURE_MODEL_EXPAND
-
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
 WS_POSTPROCESS_CONCURRENCY_LIMIT = int(os.environ.get("WS_POSTPROCESS_CONCURRENCY_LIMIT", 8))
 
@@ -204,7 +202,7 @@ async def load_data_from_db(table, data: Dict[str, Any],
     results, _ = await table.find_records(
         conditions=conditions, values=values, fetch_single=True,
         enable_joins=True,
-        expanded=FEATURE_MODEL_EXPAND,
+        expanded=True,
         postprocess=postprocess
     )
     return results.body
