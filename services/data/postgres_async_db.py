@@ -252,7 +252,7 @@ class AsyncPostgresTable(object):
                 {where}
             ) G
             {group_limit}
-            ORDER BY {group_by} ASC
+            ORDER BY {group_by} ASC NULLS LAST
             {limit}
             {offset}
             """
@@ -614,7 +614,15 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             artifact_table="artifact_v3"
         ),
     ]
-    select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys]
+    # User should be considered NULL when 'user:*' tag is missing
+    # This is usually the case with AWS Step Functions
+    select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys] \
+        + ["""
+            (CASE
+                WHEN system_tags ? CONCAT('user:', user_name)
+                THEN user_name
+                ELSE NULL
+            END) AS real_user"""]
     join_columns = [
         """
         (CASE
