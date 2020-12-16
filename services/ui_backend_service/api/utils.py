@@ -183,6 +183,7 @@ operators_to_sql = {
     "co": "{} ILIKE %s",      # contains
     "sw": "{} ILIKE %s",      # starts with
     "ew": "{} ILIKE %s",      # ends with
+    "is": "{} IS %s",         # IS
 }
 
 operators_to_sql_values = {
@@ -195,6 +196,7 @@ operators_to_sql_values = {
     "co": "%{}%",
     "sw": "{}%",
     "ew": "%{}",
+    "is": "{}",
 }
 
 
@@ -229,11 +231,11 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
 
         conditions.append(
             "({})".format(" OR ".join(
-                map(lambda _: operators_to_sql[operator].format(field), vals)
+                map(lambda v: operators_to_sql["is" if v == "null" else operator].format(field), vals)
             ))
         )
         values += map(
-            lambda v: operators_to_sql_values[operator].format(v), vals)
+            lambda v: None if v == "null" else operators_to_sql_values[operator].format(v), vals)
 
     return conditions, values
 
