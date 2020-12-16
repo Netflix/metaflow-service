@@ -32,6 +32,7 @@ async def test_list_runs(cli, db):
 
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _run["status"] = "running"
+    _run["real_user"] = None
 
     await _test_list_resources(cli, db, "/runs", 200, [_run])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs".format(**_flow), 200, [_run])
@@ -65,6 +66,7 @@ async def test_single_run(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _run["status"] = "running"
+    _run["real_user"] = None
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
 
@@ -90,6 +92,7 @@ async def test_run_status_with_heartbeat(cli, db):
     # A run with no end task and an expired heartbeat should count as failed.
     _run_failed = (await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=1)).body
     _run_failed["status"] = "failed"
+    _run_failed["real_user"] = None
     _run_failed["last_heartbeat_ts"] = 1
     # NOTE: heartbeat_ts and ts_epoch have different units.
     _run_failed["duration"] = _run_failed["last_heartbeat_ts"] * 1000 - _run_failed["ts_epoch"]
@@ -101,6 +104,7 @@ async def test_run_status_with_heartbeat(cli, db):
     _beat = get_heartbeat_ts()
     _run_running = (await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=_beat)).body
     _run_running["status"] = "running"
+    _run_running["real_user"] = None
     _run_running["last_heartbeat_ts"] = _beat
     # NOTE: heartbeat_ts and ts_epoch have different units.
     _run_running["duration"] = _run_running["last_heartbeat_ts"] * 1000 - _run_running["ts_epoch"]
@@ -128,6 +132,7 @@ async def test_run_status_with_heartbeat(cli, db):
         })).body
 
     _run_complete["status"] = "completed"
+    _run_complete["real_user"] = None
     _run_complete["finished_at"] = _artifact["ts_epoch"]
     _run_complete["duration"] = _run_complete["finished_at"] - _run_complete["ts_epoch"]
 
@@ -142,6 +147,7 @@ async def test_old_run_status_without_heartbeat(cli, db):
     # A run with epoch and no end step _task_ok should count as running.
     _run_running = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _run_running["status"] = "running"
+    _run_running["real_user"] = None
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_running), 200, _run_running)
 
@@ -165,6 +171,7 @@ async def test_old_run_status_without_heartbeat(cli, db):
         })).body
 
     _run_complete["status"] = "completed"
+    _run_complete["real_user"] = None
     _run_complete["finished_at"] = _artifact["ts_epoch"]
     _run_complete["duration"] = _run_complete["finished_at"] - _run_complete["ts_epoch"]
 
@@ -187,6 +194,7 @@ async def test_old_run_status_without_heartbeat(cli, db):
     # finished at should be the start time + cutoff period
     _run_failed["finished_at"] = _run_failed["ts_epoch"] + (60 * 60 * 24 * 14 * 1000)
     _run_failed["status"] = "failed"
+    _run_failed["real_user"] = None
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_failed), 200, _run_failed)
 
@@ -232,6 +240,7 @@ async def test_single_run_attempt_ok_completed(cli, db):
 
     # We are expecting run status 'completed'
     _run["status"] = "completed"
+    _run["real_user"] = None
     _run["finished_at"] = _artifact["ts_epoch"]
     _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
 
@@ -279,6 +288,7 @@ async def test_single_run_attempt_ok_failed(cli, db):
 
     # We are expecting run status 'completed'
     _run["status"] = "failed"
+    _run["real_user"] = None
     _run["finished_at"] = _artifact["ts_epoch"]
     _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
 

@@ -41,7 +41,7 @@ class RunRow(object):
         self,
         flow_id,
         user_name,
-        real_user,
+        real_user=None,
         run_number=None,
         run_id=None,
         status=None,
