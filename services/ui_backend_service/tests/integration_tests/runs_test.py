@@ -38,6 +38,33 @@ async def test_list_runs(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs".format(**_flow), 200, [_run])
 
 
+async def test_list_runs_real_user(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"), user_name="hello", system_tags=["user:hello"])).body
+    _run["status"] = "running"
+    _run["real_user"] = "hello"
+
+    await _test_list_resources(cli, db, "/runs", 200, [_run])
+
+
+async def test_list_runs_real_user_none(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+
+    async def _test_run_with_user(expected_user: str = None, user_name: str = None, tag: str = None):
+        _run = (await add_run(db, flow_id=_flow.get("flow_id"), user_name=user_name, system_tags=["user:" + tag] if tag else [])).body
+        _run["status"] = "running"
+        _run["real_user"] = expected_user
+
+        await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
+
+    await _test_run_with_user(expected_user="foo", user_name="foo", tag="foo")
+
+    await _test_run_with_user(expected_user=None, user_name="foo")
+    await _test_run_with_user(expected_user=None, tag="foo")
+    await _test_run_with_user(expected_user=None, user_name="foo", tag="bar")
+
+
 async def test_list_runs_non_numerical(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
 
