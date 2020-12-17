@@ -110,6 +110,8 @@ class Websocket(object):
         await self.unsubscribe_from(ws, uuid)
 
         # Create new subscription
+        # TODO: this is only for testing purposes, a quick and dirty cleanup of invalid query params!
+        resource = resource.replace("&postprocess=false", "")
         _resource, query, conditions, values = resource_conditions(resource)
         subscription = WSSubscription(
             ws=ws, fullpath=resource, resource=_resource, query=query, uuid=uuid,
