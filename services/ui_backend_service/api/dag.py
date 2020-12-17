@@ -7,8 +7,6 @@ from ..cache.store import CacheStore
 from aiohttp import web
 import json
 
-from ..features import FEATURE_MODEL_EXPAND
-
 
 class DagApi(object):
     def __init__(self, app, db=AsyncPostgresDB.get_instance()):
@@ -57,7 +55,7 @@ class DagApi(object):
             conditions=["flow_id = %s", "{run_id_key} = %s".format(
                 run_id_key=run_id_key), "field_name = %s"],
             values=[flow_name, run_id_value, "code-package"],
-            fetch_single=True, expanded=FEATURE_MODEL_EXPAND
+            fetch_single=True, expanded=True
         )
         if not db_response.response_code == 200:
             status, body = format_response(request, db_response)

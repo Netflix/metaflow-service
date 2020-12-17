@@ -47,8 +47,12 @@ async def test_list_tasks_non_numerical(cli, db):
 
     _task = await create_task(db, step=_step, task_name="bar")
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
+    _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, None)
+    _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, None)
+
+    assert len(data) == 1
+    assert data[0]['task_name'] == 'bar'
+    assert data[0]['task_id'] != 'bar'
 
 
 async def test_single_task(cli, db):
@@ -62,8 +66,10 @@ async def test_single_task(cli, db):
 async def test_single_task_non_numerical(cli, db):
     _task = await create_task(db, task_name="bar")
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/bar".format(**_task), 200, _task)
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/bar".format(**_task), 200, None)
+
+    assert data['task_name'] == 'bar'
+    assert data['task_id'] != 'bar'
 
 
 async def test_list_old_metadata_task_attempts(cli, db):
@@ -270,7 +276,7 @@ async def create_ok_artifact_for_task(db, task, attempt=0):
     return _task
 
 
-async def create_task(db, step=None, status="running", task_name=None, last_heartbeat_ts=None):
+async def create_task(db, step=None, status="running", task_id=None, task_name=None, last_heartbeat_ts=None):
     "Creates and returns a task with specific status. Optionally creates the task for a specific step if provided."
     if not step:
         _flow = (await add_flow(db, flow_id="HelloFlow")).body
@@ -286,6 +292,7 @@ async def create_task(db, step=None, status="running", task_name=None, last_hear
         flow_id=step.get("flow_id"),
         run_number=step.get("run_number"),
         step_name=step.get("step_name"),
+        task_id=task_id,
         task_name=task_name,
         last_heartbeat_ts=last_heartbeat_ts)
     ).body
