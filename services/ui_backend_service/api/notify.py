@@ -26,10 +26,10 @@ class ListenNotify(object):
                 try:
                     msg = conn.notifies.get_nowait()
                     await self.handle_trigger_msg(msg)
-                except asyncio.QueueEmpty as e:
+                except asyncio.QueueEmpty:
                     await asyncio.sleep(0.1)
-                except Exception as e:
-                    logging.exception(e)
+                except Exception:
+                    self.logger.exception("Exception when listening to notify.")
 
     async def handle_trigger_msg(self, msg: str):
         try:

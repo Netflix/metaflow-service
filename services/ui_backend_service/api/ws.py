@@ -13,7 +13,6 @@ from services.utils import logging
 from pyee import AsyncIOEventEmitter
 from .data_refiner import TaskRefiner
 
-from ..features import FEATURE_MODEL_EXPAND
 
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
 # Limits the number of async tasks spawned simultaneously.
@@ -205,7 +204,7 @@ async def load_data_from_db(table, data: Dict[str, Any],
     results, _ = await table.find_records(
         conditions=conditions, values=values, fetch_single=True,
         enable_joins=True,
-        expanded=FEATURE_MODEL_EXPAND,
+        expanded=True,
         postprocess=postprocess
     )
     return results.body

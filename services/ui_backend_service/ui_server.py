@@ -36,6 +36,11 @@ from .features import FEATURE_DB_LISTEN_ENABLE, FEATURE_WS_ENABLE, FEATURE_HEART
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
 
+# Create database triggers automatically, enabled by default
+# Disable with env variable `DB_TRIGGER_CREATE=0`
+DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", "1") == "1"
+
+
 def app(loop=None, db_conf: DBConfiguration = None):
 
     loop = loop or asyncio.get_event_loop()
@@ -43,7 +48,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
 
     async_db = _AsyncPostgresDB('ui')
-    loop.run_until_complete(async_db._init(db_conf))
+    loop.run_until_complete(async_db._init(db_conf=db_conf, create_triggers=DB_TRIGGER_CREATE))
 
     event_emitter = AsyncIOEventEmitter()
 

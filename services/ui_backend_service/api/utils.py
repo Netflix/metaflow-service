@@ -9,8 +9,6 @@ from collections import deque
 from functools import wraps
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from ..features import FEATURE_MODEL_EXPAND
-
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
     query = {}
@@ -187,6 +185,7 @@ operators_to_sql = {
     "co": "{} ILIKE %s",      # contains
     "sw": "{} ILIKE %s",      # starts with
     "ew": "{} ILIKE %s",      # ends with
+    "is": "{} IS %s",         # IS
 }
 
 operators_to_sql_values = {
@@ -199,6 +198,7 @@ operators_to_sql_values = {
     "co": "%{}%",
     "sw": "{}%",
     "ew": "%{}",
+    "is": "{}",
 }
 
 
@@ -233,11 +233,11 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
 
         conditions.append(
             "({})".format(" OR ".join(
-                map(lambda _: operators_to_sql[operator].format(field), vals)
+                map(lambda v: operators_to_sql["is" if v == "null" else operator].format(field), vals)
             ))
         )
         values += map(
-            lambda v: operators_to_sql_values[operator].format(v), vals)
+            lambda v: None if v == "null" else operators_to_sql_values[operator].format(v), vals)
 
     return conditions, values
 
@@ -287,7 +287,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         conditions=conditions, values=values, limit=limit, offset=offset,
         order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
         fetch_single=fetch_single, enable_joins=enable_joins,
-        expanded=FEATURE_MODEL_EXPAND,
+        expanded=True,
         postprocess=postprocess
     )
 

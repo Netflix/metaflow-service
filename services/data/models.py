@@ -31,6 +31,7 @@ class RunRow(object):
     run_number: int = None
     run_id: str = None
     user_name: str = None
+    real_user: str = None
     status: str = None
     ts_epoch: int = 0
     finished_at: int = None
@@ -40,6 +41,7 @@ class RunRow(object):
         self,
         flow_id,
         user_name,
+        real_user=None,
         run_number=None,
         run_id=None,
         status=None,
@@ -53,6 +55,7 @@ class RunRow(object):
     ):
         self.flow_id = flow_id
         self.user_name = user_name
+        self.real_user = real_user
         self.run_number = run_number
         self.run_id = run_id
         self.status = status
@@ -74,6 +77,7 @@ class RunRow(object):
                 "run_number": self.run_number,
                 "run_id": self.run_id,
                 "user_name": self.user_name,
+                "real_user": self.real_user,
                 "status": self.status,
                 "ts_epoch": self.ts_epoch,
                 "finished_at": self.finished_at,

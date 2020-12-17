@@ -39,9 +39,6 @@ services:
       - FEATURE_WS_DISABLE=0
       - FEATURE_HEARTBEAT_DISABLE=0
       - FEATURE_DB_LISTEN_DISABLE=0
-      - FEATURE_DB_TRIGGER_DISABLE=0
-      - FEATURE_JOIN_DISABLE=0
-      - FEATURE_MODEL_EXPAND=0
     depends_on:
       - db
       - redis
@@ -62,8 +59,6 @@ services:
       - MF_METADATA_PORT=${MF_METADATA_PORT:-8080}
       - MF_METADATA_HOST=${MF_METADATA_HOST:-0.0.0.0}
       - MF_MIGRATION_PORT=${MF_MIGRATION_PORT:-8082}
-      - FEATURE_DB_TRIGGER_DISABLE=0
-      - LOGLEVEL=WARNING
     depends_on:
       - migration
   migration:

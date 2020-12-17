@@ -33,6 +33,12 @@ Optionally you can also overrider the host and port the service runs on
 - MF_MIGRATION_PORT [defaults to 8082]
 - MF_METADATA_HOST [defaults to 0.0.0.0]
 
+Create triggers to broadcast any database changes via `pg_notify` on channel `NOTIFY`:
+
+- DB_TRIGGER_CREATE
+  - [`metadata_service` defaults to 0]
+  - [`ui_backend_service` defaults to 1]
+
 > ```sh
 > pip3 install ./
 > python3 -m services.metadata_service.server
