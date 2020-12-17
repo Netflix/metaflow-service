@@ -3,6 +3,7 @@ from services.data.db_utils import DBResponse
 import json
 
 from ..features import FEATURE_REFINE_DISABLE
+from services.utils import logging
 
 
 class Refinery(object):
@@ -16,6 +17,7 @@ class Refinery(object):
     def __init__(self, field_names):
         self.artifact_store = CacheStore().artifact_cache
         self.field_names = field_names
+        self.logger = logging.getLogger("DataRefiner")
 
     async def refine_record(self, record):
         locations = [record[field] for field in self.field_names if field in record]
@@ -45,6 +47,7 @@ class Refinery(object):
                 await _res.wait()
             return _res.get()
         except:
+            self.logger.exception("Exception when fetching artifact data from cache")
             return {}
 
     async def _postprocess(self, response: DBResponse):
