@@ -1,5 +1,5 @@
 from aiohttp import web
-from pyee import ExecutorEventEmitter
+from pyee import AsyncIOEventEmitter
 import json
 import datetime
 
@@ -33,7 +33,7 @@ TIMEOUT_FUTURE = 0.1
 
 def init_app(loop, aiohttp_client, queue_ttl=30):
     app = web.Application()
-    app.event_emitter = ExecutorEventEmitter()
+    app.event_emitter = AsyncIOEventEmitter()
 
     # Migration routes as a subapp
     migration_app = web.Application()
@@ -68,7 +68,7 @@ async def init_db(cli):
     assert status["is_up_to_date"] is True
 
     db = AsyncPostgresDB.get_instance()
-    await db._init(db_conf)
+    await db._init(db_conf=db_conf, create_triggers=True)
     return db
 
 
@@ -198,23 +198,57 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
 # Resource helpers begin
 
 
+def _fill_missing_resource_data(_item):
+    if 'run_number' in _item:
+        try:
+            _item['run_number'] = int(_item['run_number'])
+        except:
+            pass
+        if 'run_id' not in _item:
+            _item['run_id'] = None
+
+    if 'task_id' in _item:
+        try:
+            _item['task_id'] = int(_item['task_id'])
+        except:
+            pass
+        if 'task_name' not in _item:
+            _item['task_name'] = None
+
+    return _item
+
+
+def _compare_dict_lists(list_a, list_b):
+    for i in range(len(list_a)):
+        if not _compare_dicts(list_a[i], list_b[i]):
+            return False
+    return True
+
+
+def _compare_dicts(dict_a, dict_b):
+    for a, b in zip(sorted(dict_a.items()), sorted(dict_b.items())):
+        if a != b:
+            return False
+    return True
+
+
 async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[]):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
 
-    try:
-        assert resp.status == expected_status
-    except AssertionError as ex:
-        print("expected status: {0} but got status: {1}".format(resp.status, expected_status))
-        raise ex from None
+    if not expected_status:
+        return resp.status, data
 
-    try:
-        assert data == expected_data
-    except AssertionError as ex:
-        print("Expected data to be:\n", expected_data)
-        print("Instead got data:\n", data)
-        raise ex from None
+    assert resp.status == expected_status
+
+    if not expected_data:
+        return resp.status, data
+
+    expected_data[:] = map(_fill_missing_resource_data, expected_data)
+    assert _compare_dict_lists(data, expected_data)
+
+    return resp.status, data
 
 
 async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}):
@@ -222,18 +256,18 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
     body = await resp.json()
     data = body.get("data")
 
-    try:
-        assert resp.status == expected_status
-    except AssertionError as ex:
-        print("expected status: {0} but got status: {1}".format(resp.status, expected_status))
-        raise ex from None
+    if not expected_status:
+        return resp.status, data
 
-    try:
-        assert data == expected_data
-    except AssertionError as ex:
-        print("Expected data to be:\n", expected_data)
-        print("Instead got data:\n", data)
-        raise ex from None
+    assert resp.status == expected_status
+
+    if not expected_data:
+        return resp.status, data
+
+    expected_data = _fill_missing_resource_data(expected_data)
+    assert _compare_dicts(data, expected_data)
+
+    return resp.status, data
 
 
 def get_heartbeat_ts(offset=5):

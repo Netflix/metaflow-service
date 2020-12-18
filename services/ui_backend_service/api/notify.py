@@ -2,21 +2,20 @@ import json
 import asyncio
 from typing import Dict, List
 from services.data.postgres_async_db import AsyncPostgresDB
-from pyee import ExecutorEventEmitter
+from services.utils import logging
+from pyee import AsyncIOEventEmitter
 
 
 class ListenNotify(object):
-    def __init__(self, app, event_emitter=None):
-        self.app = app
-        self.event_emitter = event_emitter or ExecutorEventEmitter()
-        self.db = AsyncPostgresDB.get_instance()
+    def __init__(self, app, event_emitter=None, db=AsyncPostgresDB.get_instance()):
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
+        self.db = db
+        self.logger = logging.getLogger("ListenNotify")
 
         self.loop = asyncio.get_event_loop()
-        self.loop.create_task(self._init())
+        self.loop.create_task(self._init(self.db.pool))
 
-    async def _init(self):
-        pool = self.db.pool
-
+    async def _init(self, pool):
         async with pool.acquire() as conn1:
             listener = self.listen(conn1)
             await asyncio.gather(listener)
@@ -25,8 +24,13 @@ class ListenNotify(object):
         async with conn.cursor() as cur:
             await cur.execute("LISTEN notify")
             while True:
-                msg = await conn.notifies.get()
-                await self.handle_trigger_msg(msg)
+                try:
+                    msg = conn.notifies.get_nowait()
+                    self.loop.create_task(self.handle_trigger_msg(msg))
+                except asyncio.QueueEmpty:
+                    await asyncio.sleep(0.1)
+                except Exception:
+                    self.logger.exception("Exception when listening to notify.")
 
     async def handle_trigger_msg(self, msg: str):
         try:
@@ -107,8 +111,8 @@ class ListenNotify(object):
                         # And remove possible heartbeat watchers for completed runs
                         self.event_emitter.emit("run-heartbeat", "complete", data['run_number'])
 
-        except Exception as err:
-            print(err, flush=True)
+        except Exception:
+            self.logger.exception("Exception occurred")
 
 
 def resource_list(table_name: str, data: Dict):
@@ -140,4 +144,4 @@ def resource_list(table_name: str, data: Dict):
 
 async def _broadcast(event_emitter, operation: str, table, data: Dict, filter_dict={}):
     _resources = resource_list(table.table_name, data)
-    event_emitter.emit('notify', operation, _resources, data, table, filter_dict)
+    event_emitter.emit('notify', operation, _resources, data, table.table_name, filter_dict)

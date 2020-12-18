@@ -2,7 +2,13 @@ from aiohttp import web
 import json
 import os
 from multidict import MultiDict
-from services.utils import METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER
+from services.utils import web_response, METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER, SERVICE_COMMIT_HASH, SERVICE_BUILD_TIMESTAMP
+
+UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
+    metadata_v=METADATA_SERVICE_VERSION,
+    timestamp=SERVICE_BUILD_TIMESTAMP or "",
+    commit=SERVICE_COMMIT_HASH or ""
+)
 
 
 class AdminApi(object):
@@ -10,6 +16,13 @@ class AdminApi(object):
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)
         app.router.add_route("GET", "/links", self.links)
+
+        defaults = [
+            {"href": 'https://docs.metaflow.org/', "label": 'Metaflow documentation'},
+            {"href": 'https://github.com/Netflix/metaflow', "label": 'Github'}
+        ]
+
+        self.navigation_links = _load_links_file() or defaults
 
     async def version(self, request):
         """
@@ -25,7 +38,7 @@ class AdminApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        return web.Response(text=str(METADATA_SERVICE_VERSION))
+        return web.Response(text=str(UI_SERVICE_VERSION))
 
     async def ping(self, request):
         """
@@ -60,14 +73,8 @@ class AdminApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        defaults = [
-            {"href": 'https://docs.metaflow.org/', "label": 'Metaflow documentation'},
-            {"href": 'https://github.com/Netflix/metaflow', "label": 'Github'}
-        ]
-        custom_links = _load_links_file()
 
-        links = custom_links if custom_links else defaults
-        return web.Response(status=200, body=json.dumps(links))
+        return web_response(status=200, body=self.navigation_links)
 
 
 def _load_links_file():

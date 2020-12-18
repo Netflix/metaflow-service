@@ -3,9 +3,10 @@ from services.utils import handle_exceptions, web_response
 
 
 class TagApi(object):
-    def __init__(self, app):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+        self.db = db
         app.router.add_route("GET", "/tags", self.get_all_tags)
-        self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._async_table = self.db.run_table_postgres
 
     @handle_exceptions
     async def get_all_tags(self, request):

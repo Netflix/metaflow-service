@@ -37,6 +37,10 @@ Enable built-in UI bundle serving (assumes assets are located inside `ui/` folde
 
 - `UI_ENABLED` [defaults to 0]
 
+Use path prefix in case UI service is served under non-root path (`example.com/api/`):
+
+- `PATH_PREFIX=/api` [defaults to None]
+
 This also works as a Docker build argument to download and install latest or specific UI release:
 
 > ```sh
@@ -51,6 +55,16 @@ Configure amount of runs to prefetch during server startup (artifact cache):
 
 - `PREFETCH_RUNS_SINCE` [in seconds, defaults to 2 days ago (86400 * 2 seconds)]
 - `PREFETCH_RUNS_LIMIT` [defaults to 50]
+
+Configure the amount of concurrent cache actions. This works similar to a database connection pool.
+
+- `CACHE_ARTIFACT_MAX_ACTIONS` [max number of artifact cache actions. Defaults to 16]
+- `CACHE_DAG_MAX_ACTIONS` [max number of DAG cache actions. Defaults to 16]
+
+Configure the maximum usable space by the cache:
+
+- `CACHE_ARTIFACT_STORAGE_LIMIT` [in bytes, defaults to 600000]
+- `CACHE_DAG_STORAGE_LIMIT` [in bytes, defaults to 100000]
 
 Running the service without Docker (from project root):
 
@@ -87,6 +101,7 @@ This affects API responses where meta links are provided as a response.
 /runs?_group=user_name&_limit=2                             Group by `user_name` and limit each group to `2` runs
 /runs?_group=flow_id&_order=flow_id,run_number              Group by `flow_id` and order by `flow_id & run_number`
 /runs?_group=flow_id&user_name=dipper                       List runs by `dipper` and group by `flow_id`
+/runs?real_user=null                                        `real_user` is NULL
 
 /flows/HelloFlow/runs?run_number=40                         `run_number` equals `40`
 /flows/HelloFlow/runs?run_number:eq=40                      `run_number` equals `40`
@@ -117,6 +132,7 @@ ge = greater than ewquals   >=
 co = contains               *string*
 sw = starts with            ^string*
 ew = ends with              *string$
+is = is                     IS
 ```
 
 ## Custom Navigation links for UI

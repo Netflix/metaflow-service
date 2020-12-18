@@ -36,7 +36,7 @@ async def db(cli):
 def _set_notify_handler(cli, loop):
     should_call = Future(loop=loop)
 
-    def event_handler(operation: str, resources: List[str], result: Dict, table, filter_dict):
+    async def event_handler(operation: str, resources: List[str], result: Dict, table, filter_dict):
         should_call.set_result([operation, resources, result])
     cli.server.app.event_emitter.once('notify', event_handler)
 
@@ -142,7 +142,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     # Add artifact (Task will be done)
     _should_call_task_done = Future(loop=loop)
 
-    def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
+    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if not _should_call_task_done.done():
             _should_call_task_done.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
@@ -168,7 +168,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     _should_call_task_done = Future(loop=loop)
     _should_call_run_done = Future(loop=loop)
 
-    def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
+    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if operation == "UPDATE":
             if "/runs" in resources:
                 _should_call_run_done.set_result(
@@ -240,7 +240,7 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
 
     _should_call_task_done = Future(loop=loop)
 
-    def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
+    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if not _should_call_task_done.done():
             _should_call_task_done.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
@@ -265,7 +265,7 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     # Add artifact with attempt_id = 1 (Task will be done)
     _should_call_task_done = Future(loop=loop)
 
-    def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
+    async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if not _should_call_task_done.done():
             _should_call_task_done.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)

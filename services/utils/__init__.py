@@ -9,11 +9,21 @@ from multidict import MultiDict
 from aiohttp import web
 from functools import wraps
 from typing import Dict
+import logging
 
 version = pkg_resources.require("metadata_service")[0].version
 
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
+
+# The latest commit hash of the repository, if set as an environment variable.
+SERVICE_COMMIT_HASH = os.environ.get("BUILD_COMMIT_HASH", None)
+# Build time of service, if set as an environment variable.
+SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
+
+# Setup log level based on environment variable
+log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
+logging.basicConfig(level=log_level)
 
 
 async def read_body(request_content):
@@ -42,11 +52,11 @@ def get_traceback_str():
     )
 
 
-def http_500(msg, id):
+def http_500(msg, id, traceback_str=get_traceback_str()):
     # NOTE: worth considering if we want to expose tracebacks in the future in the api messages.
     body = {
         'id': id,
-        'traceback': get_traceback_str(),
+        'traceback': traceback_str,
         'detail': msg,
         'status': 500,
         'title': 'Internal Server Error',
@@ -64,8 +74,12 @@ def handle_exceptions(func):
         try:
             return await func(*args, **kwargs)
         except Exception as err:
-            err_id = getattr(err, 'id', 'generic-error')  # pass along an id for the error
-            return http_500(str(err), err_id)
+            # pass along an id for the error
+            err_id = getattr(err, 'id', 'generic-error')
+            # either use provided traceback from subprocess, or generate trace from current process
+            err_trace = getattr(err, 'traceback_str', None) or get_traceback_str()
+            logging.error(err_trace)
+            return http_500(str(err), err_id, err_trace)
 
     return wrapper
 
@@ -130,6 +144,11 @@ class DBConfiguration(object):
     password: str = None
     database_name: str = None
 
+    # aiopg default pool sizes
+    # https://aiopg.readthedocs.io/en/stable/_modules/aiopg/pool.html#create_pool
+    pool_min: int = 1
+    pool_max: int = 10
+
     _dsn: str = None
 
     def __init__(self,
@@ -140,7 +159,7 @@ class DBConfiguration(object):
                  password: str = "postgres",
                  database_name: str = "postgres",
                  prefix="MF_METADATA_DB_"):
-        table = str.maketrans({"'": r"\'", "`": r"\`"})
+        table = str.maketrans({"'": "\'", "`": r"\`"})
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
 
@@ -151,6 +170,9 @@ class DBConfiguration(object):
             prefix + "PSWD", password).translate(table)
         self.database_name = os.environ.get(
             prefix + "NAME", database_name).translate(table)
+
+        self.pool_min = int(os.environ.get(prefix + "POOL_MIN", self.pool_min))
+        self.pool_max = int(os.environ.get(prefix + "POOL_MAX", self.pool_max))
 
     @property
     def dsn(self):
