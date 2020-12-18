@@ -797,8 +797,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
     trigger_keys = primary_keys
     # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
-    # the older metadata service not recording separate metadata for task attempts. This is also the
-    # reason why we must join through the artifacts table, instead of directly from metadata.
+    # the older metadata service not recording separate metadata for task attempts. This is why
+    # we must construct the attempts through a union on available data between the metadata
+    # and artifact tables.
     joins = [
         """
         LEFT JOIN (
@@ -821,6 +822,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             ) as attempt_meta
             LEFT JOIN {metadata_table} as start ON (
                 attempt_meta.flow_id = start.flow_id AND
+                attempt_meta.run_number = start.run_number AND
                 attempt_meta.step_name = start.step_name AND
                 attempt_meta.task_id = start.task_id AND
                 start.field_name = 'attempt' AND
@@ -828,6 +830,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {metadata_table} as done ON (
                 attempt_meta.flow_id = done.flow_id AND
+                attempt_meta.run_number = done.run_number AND
                 attempt_meta.step_name = done.step_name AND
                 attempt_meta.task_id = done.task_id AND
                 done.field_name = 'attempt-done' AND
