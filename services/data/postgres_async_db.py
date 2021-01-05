@@ -854,6 +854,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             )
             LEFT JOIN {artifact_table} as task_ok ON (
                 attempt_meta.flow_id = task_ok.flow_id AND
+                attempt_meta.run_number = task_ok.run_number AND
                 attempt_meta.step_name = task_ok.step_name AND
                 attempt_meta.task_id = task_ok.task_id AND
                 task_ok.name = '_task_ok' AND
