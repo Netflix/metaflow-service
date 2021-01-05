@@ -136,10 +136,13 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
-            artifacts.body)
+        if artifacts.response_code == 200:
+            body = ArtificatsApi._filter_artifacts_by_attempt_id(
+                artifacts.body)
+        else:
+            body = artifacts.body
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
+            status=artifacts.response_code, body=json.dumps(body)
         )
 
     async def get_artifacts_by_step(self, request):
@@ -180,10 +183,13 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name
         )
 
-        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
-            artifacts.body)
+        if artifacts.response_code == 200:
+            body = ArtificatsApi._filter_artifacts_by_attempt_id(
+                artifacts.body)
+        else:
+            body = artifacts.body
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
+            status=artifacts.response_code, body=json.dumps(body)
         )
 
     async def get_artifacts_by_run(self, request):
@@ -215,10 +221,13 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
-            artifacts.body)
+        if artifacts.response_code == 200:
+            body = ArtificatsApi._filter_artifacts_by_attempt_id(
+                artifacts.body)
+        else:
+            body = artifacts.body
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
+            status=artifacts.response_code, body=json.dumps(body)
         )
 
     async def create_artifacts(self, request):
