@@ -137,7 +137,7 @@ class ArtificatsApi(object):
         )
 
         filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
-            artifacts.body)
+            artifacts)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )
@@ -181,7 +181,7 @@ class ArtificatsApi(object):
         )
 
         filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
-            artifacts.body)
+            artifacts)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )
@@ -216,7 +216,7 @@ class ArtificatsApi(object):
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
         filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
-            artifacts.body)
+            artifacts)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )
@@ -352,9 +352,11 @@ class ArtificatsApi(object):
 
     @staticmethod
     def _filter_artifacts_by_attempt_id(artifacts):
-        attempt_id = ArtificatsApi._get_latest_attempt_id(artifacts)
+        if artifacts.response_code != 200:
+            return artifacts.body
+        attempt_id = ArtificatsApi._get_latest_attempt_id(artifacts.body)
         result = []
-        for artifact in artifacts:
+        for artifact in artifacts.body:
             if artifact['attempt_id'] == attempt_id:
                 result.append(artifact)
 
