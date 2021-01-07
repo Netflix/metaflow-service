@@ -280,8 +280,40 @@ async def test_task_attempts_with_attempt_metadata(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
 
 
-async def test_test(cli, db):
-    pass
+async def test_task_attempt_statuses_with_attempt_ok_failed(cli, db):
+    _task = await create_task(db)
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+    _attempt_first = await create_task_attempt_metadata(db, _task)
+    _artifact_first = await create_ok_artifact_for_task(db, _task)
+    _attempt_done_first = await create_task_attempt_done_metadata(db, _task)
+    await create_task_attempt_ok_metadata(db, _task, 0, False)  # status = 'failed'
+
+    _attempt_second = await create_task_attempt_metadata(db, _task, attempt=1)
+    _attempt_done_second = await create_task_attempt_done_metadata(db, _task, attempt=1)
+    await create_task_attempt_ok_metadata(db, _task, 1, True)  # status = 'completed'
+
+    _task_first_attempt = dict(_task)
+    _task_second_attempt = dict(_task)
+
+    _task_first_attempt['attempt_id'] = 0
+    _task_first_attempt['status'] = 'failed'
+    _task_first_attempt['started_at'] = _attempt_first['ts_epoch']
+    _task_first_attempt['finished_at'] = _attempt_done_first['ts_epoch']
+    _task_first_attempt['duration'] = _task_first_attempt['finished_at'] \
+        - _task_first_attempt['started_at']
+
+    _task_second_attempt['attempt_id'] = 1
+    _task_second_attempt['status'] = 'completed'
+    _task_second_attempt['started_at'] = _attempt_second['ts_epoch']
+    _task_second_attempt['finished_at'] = _attempt_done_second['ts_epoch']
+    _task_second_attempt['duration'] = _task_second_attempt['finished_at'] \
+        - _task_second_attempt['started_at']
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
 
 # Resource Helpers / factories
 
