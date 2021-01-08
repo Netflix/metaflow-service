@@ -259,13 +259,15 @@ async def test_task_attempts_with_attempt_metadata(cli, db):
     _artifact_first = await create_ok_artifact_for_task(db, _task)
     _attempt_done_first = await create_task_attempt_done_metadata(db, _task)
 
+    # attempt metadata is written but no artifacts exist yet.
+    # Queries should return a second attempt at this point already!
     _attempt_second = await create_task_attempt_metadata(db, _task, attempt=1)
 
     _task_first_attempt = dict(_task)
     _task_second_attempt = dict(_task)
 
     _task_first_attempt['attempt_id'] = 0
-    _task_first_attempt['status'] = 'completed'
+    _task_first_attempt['status'] = 'completed'  # 'completed' because we cannot determine correct status from S3/metadata
     _task_first_attempt['started_at'] = _attempt_first['ts_epoch']
     _task_first_attempt['finished_at'] = _attempt_done_first['ts_epoch']
     _task_first_attempt['duration'] = _task_first_attempt['finished_at'] \
