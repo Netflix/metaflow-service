@@ -91,7 +91,8 @@ class TaskRefiner(Refinery):
             return response
 
         def _process(item):
-            item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
+            if item['status'] == 'unknown':
+                item['status'] = 'failed' if item['task_ok'] is False else 'completed'
             item.pop('task_ok', None)
 
             if item['foreach_stack'] and len(item['foreach_stack']) > 0 and len(item['foreach_stack'][0]) >= 4:
