@@ -316,6 +316,15 @@ swagger_definitions = {
             "finished_at": custom_param("finished_at", "integer"),
             "duration": custom_param("duration", "integer"),
             "status": custom_param("status", "string"),
+            "postprocess": {
+                "name": "postprocess",
+                "in": "query",
+                "description": "Control whether any postprocessing is done (if applicable) to the requested results\
+                    before returning. This will slow down the request considerably in case it depends on S3 content.",
+                "required": False,
+                "default": False,
+                "type": "boolean",
+            }
         }
     },
     "ResponsesFlow": response_object("#/definitions/ModelsFlow"),
