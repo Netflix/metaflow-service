@@ -55,6 +55,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/ts_epoch'
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
@@ -112,6 +113,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/ts_epoch'
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
@@ -159,6 +161,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Path/run_number'
           - $ref: '#/definitions/Params/Path/step_name'
           - $ref: '#/definitions/Params/Path/task_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
@@ -221,6 +224,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/ts_epoch'
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
