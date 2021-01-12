@@ -92,7 +92,13 @@ class TaskRefiner(Refinery):
 
         def _process(item):
             if item['status'] == 'unknown':
-                item['status'] = 'failed' if item['task_ok'] is False else 'completed'
+                # cover boolean cases explicitly, as S3 refinement might fail,
+                # in which case we want the 'unknown' status to remain.
+                if item['task_ok'] is False:
+                    item['status'] = 'failed'
+                elif item['task_ok'] is True:
+                    item['status'] = 'completed'
+
             item.pop('task_ok', None)
 
             if item['foreach_stack'] and len(item['foreach_stack']) > 0 and len(item['foreach_stack'][0]) >= 4:

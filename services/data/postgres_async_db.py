@@ -873,7 +873,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             WHEN attempt_ok IS FALSE
             THEN 'failed'
             WHEN finished_at IS NOT NULL
-                AND attempt_ok IS NULL 
+                AND attempt_ok IS NULL
             THEN 'unknown'
             WHEN attempt.finished_at IS NOT NULL
             THEN 'completed'
