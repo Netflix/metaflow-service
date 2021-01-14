@@ -18,8 +18,8 @@ class AdminApi(object):
         app.router.add_route("GET", "/links", self.links)
 
         defaults = [
-            {"href": 'https://docs.metaflow.org/', "label": 'Metaflow documentation'},
-            {"href": 'https://github.com/Netflix/metaflow', "label": 'Github'}
+            {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
+            {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
         ]
 
         self.navigation_links = _load_links_file() or defaults
