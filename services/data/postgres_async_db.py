@@ -18,7 +18,7 @@ from services.utils import DBConfiguration
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
 WAIT_TIME = 10
-HEARTBEAT_THRESHOLD = WAIT_TIME * 3  # Add margin in case of client-server communication delays, before marking a heartbeat stale.
+HEARTBEAT_THRESHOLD = WAIT_TIME * 6  # Add margin in case of client-server communication delays, before marking a heartbeat stale.
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
 
 # Create database triggers automatically, disabled by default
