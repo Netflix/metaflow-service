@@ -603,16 +603,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 attempt_ok.field_name = 'attempt_ok' AND
                 attempt_ok.tags ? CONCAT('attempt_id:', artifacts.attempt_id)
             )
-            WHERE
-                artifacts.name = '_task_ok' AND
-                artifacts.step_name = 'end' AND
-                artifacts.attempt_id = (
-                    SELECT MAX(attempt_id) FROM {artifact_table} WHERE
-                        flow_id = artifacts.flow_id AND
-                        run_number = artifacts.run_number AND
-                        task_id = artifacts.task_id AND
-                        step_name = artifacts.step_name
-                )
+            WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
         ) AS artifacts ON (
             {table_name}.flow_id = artifacts.flow_id AND
             {table_name}.run_number = artifacts.run_number
