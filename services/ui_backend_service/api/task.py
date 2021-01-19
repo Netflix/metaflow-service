@@ -2,7 +2,7 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
-from .data_refiner import TaskRefiner
+from data.refiner import TaskRefiner
 
 
 class TaskApi(object):

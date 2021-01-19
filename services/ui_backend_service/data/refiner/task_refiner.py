@@ -1,4 +1,4 @@
-from refinery import Refinery
+from .refinery import Refinery
 from services.data.db_utils import DBResponse
 
 

@@ -5,7 +5,7 @@ from pyee import AsyncIOEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
 from .notify import resource_list
-from .data_refiner import TaskRefiner
+from data.refiner import TaskRefiner
 
 HEARTBEAT_INTERVAL = 10  # interval of heartbeats, in seconds
 

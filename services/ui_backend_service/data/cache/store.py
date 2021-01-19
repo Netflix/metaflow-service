@@ -10,7 +10,7 @@ import time
 import os
 import shutil
 from services.utils import logging
-from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
+from features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")

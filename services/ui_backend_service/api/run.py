@@ -3,7 +3,7 @@ from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import find_records, web_response, format_response
 
-from ..cache.store import CacheStore
+from ..data.cache import CacheStore
 import json
 
 

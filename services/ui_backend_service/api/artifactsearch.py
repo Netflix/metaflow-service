@@ -2,7 +2,7 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 
-from ..cache.store import CacheStore
+from ..data.cache import CacheStore
 from aiohttp import web
 import json
 

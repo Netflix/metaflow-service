@@ -21,7 +21,7 @@ from .api.dag import DagApi
 from .api.ws import Websocket
 from .api.notify import ListenNotify
 from .api.heartbeat_monitor import RunHeartbeatMonitor, TaskHeartbeatMonitor
-from .cache.store import CacheStore
+from .data.cache import CacheStore
 from .frontend import Frontend
 
 from services.data.postgres_async_db import _AsyncPostgresDB

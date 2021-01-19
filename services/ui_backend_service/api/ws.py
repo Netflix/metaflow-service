@@ -11,7 +11,7 @@ from .utils import resource_conditions, TTLQueue
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import logging
 from pyee import AsyncIOEventEmitter
-from .data_refiner import TaskRefiner
+from data.refiner import TaskRefiner
 
 from throttler import throttle_simultaneous
 
