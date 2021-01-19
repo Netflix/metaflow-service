@@ -810,7 +810,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 start.ts_epoch as started_at,
                 COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at,
                 attempt_ok.value::boolean as attempt_ok,
-                foreach_stack.location as foreach_stack
+                foreach_stack.location as foreach_stack,
+                COALESCE(latest_attempt.latest_attempt_id, 0) as latest_attempt_id
             FROM (
                 SELECT a.flow_id, a.run_number, a.step_name, a.task_id, a.attempt_id as attempt_id
                 FROM {artifact_table} AS a
@@ -860,6 +861,17 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.name = '_task_ok' AND
                 attempt_meta.attempt_id = task_ok.attempt_id
             )
+            LEFT JOIN (
+                SELECT m.flow_id, m.run_number, m.step_name, m.task_id, MAX(value::int) as latest_attempt_id
+                FROM {metadata_table} as m
+                WHERE m.field_name = 'attempt'
+                GROUP BY (flow_id, run_number, step_name, task_id)
+            ) as latest_attempt ON (
+                attempt_meta.flow_id = latest_attempt.flow_id AND
+                attempt_meta.run_number = latest_attempt.run_number AND
+                attempt_meta.step_name = latest_attempt.step_name AND
+                attempt_meta.task_id = latest_attempt.task_id
+            )
         ) AS attempt ON (
             {table_name}.flow_id = attempt.flow_id AND
             {table_name}.run_number = attempt.run_number AND
@@ -898,6 +910,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             WHEN attempt.finished_at IS NULL
                 AND {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+            THEN 'failed'
+            WHEN attempt.attempt_id < attempt.latest_attempt_id
             THEN 'failed'
             ELSE 'running'
         END) AS status

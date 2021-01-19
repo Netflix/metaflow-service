@@ -2,7 +2,7 @@ import pytest
 from .utils import (
     init_app, init_db, clean_db,
     add_flow, add_run, add_step, add_task, add_artifact,
-    _test_list_resources, _test_single_resource, add_metadata
+    _test_list_resources, _test_single_resource, add_metadata, get_heartbeat_ts
 )
 pytestmark = [pytest.mark.integration_tests]
 
@@ -317,6 +317,97 @@ async def test_task_attempt_statuses_with_attempt_ok_failed(cli, db):
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
 
+# Test cases from the google docs table.
+
+# status 'completed' tests
+#
+# STATUS: attempt_ok in task metadata for the attempt is set to True
+# STARTED_AT: created_at property for attempt attribute for the attempt in task metadata
+# FINISHED_AT: created_at property for attempt_ok attribute for the attempt in task metadata
+
+
+async def test_task_attempt_status_completed(cli, db):
+    _task = await create_task(db)
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    _attempt = await create_task_attempt_metadata(db, _task, 0)
+    _attempt_ok = await create_task_attempt_ok_metadata(db, _task, 0, True)
+    _attempt_done = await create_task_attempt_done_metadata(db, _task, 0)
+    _task['status'] = 'completed'
+
+    _task['started_at'] = _attempt['ts_epoch']
+
+    _task['finished_at'] = _attempt_done['ts_epoch']
+    _task['duration'] = _task['finished_at'] - _task['started_at']
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+
+# status 'running' tests
+#
+# STATUS 'running':
+# Has all of
+#     Has a start time  (NOTE: this requires 'attempt' metadata to be present)
+#     attempt_ok does not exist in the task metadata
+#     Has logged a heartbeat in the last x minutes (NOTE: we actually rely on heartbeat for running status.)
+#     No subsequent attempt exists
+# STARTED_AT: created_at property for attempt attribute for the attempt in task metadata
+# FINISHED_AT: does not apply (NULL)
+
+async def test_task_attempt_status_running(cli, db):
+    _task = await create_task(db, last_heartbeat_ts=get_heartbeat_ts())  # default status: 'running'
+    _task['duration'] = _task['last_heartbeat_ts'] * 1000 - _task['ts_epoch']
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    _attempt = await create_task_attempt_metadata(db, _task, 0)
+
+    _task['started_at'] = _attempt['ts_epoch']
+
+    _task['finished_at'] = None
+    _task['duration'] = _task['last_heartbeat_ts'] * 1000 - _task['started_at']
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+
+# status 'failed' tests
+#
+# STATUS:
+# Either of
+#     attempt_ok in task metadata for the attempt is set to False
+#     No heartbeat has been logged for the task in the last x minutes and no new attempt has started
+#     A newer attempt exists
+
+# STARTED_AT: created_at property for attempt attribute for the attempt in task metadata
+
+# FINISHED_AT:
+# Either of (in priority)
+#     created_at property for attempt_ok attribute for the attempt in task metadata
+#     The timestamp in the heartbeat column for the task if no subsequent attempt is detected
+#     If a subsequent attempt exists, use the start time of the subsequent attempt
+
+async def test_task_attempt_status_failed_with_existing_subsequent_attempt(cli, db):
+    _task = await create_task(db, last_heartbeat_ts=get_heartbeat_ts())
+    _task['duration'] = _task['last_heartbeat_ts'] * 1000 - _task['ts_epoch']
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+    _first_attempt = dict(_task)
+    _second_attempt = dict(_task)
+    # we explicitly leave out attempt completion metadata for attempt 0 to test that it fails correctly
+    # when attempt 1 exists.
+
+    # ATTEMPT-0
+    _first_attempt_meta = await create_task_attempt_metadata(db, _task, 0)
+    _first_attempt['started_at'] = _first_attempt_meta['ts_epoch']
+    _first_attempt['duration'] = _first_attempt['last_heartbeat_ts'] * 1000 - _first_attempt['started_at']
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_first_attempt])
+
+    # ATTEMPT-1
+    _second_attempt_meta = await create_task_attempt_metadata(db, _task, 1)
+    _second_attempt['attempt_id'] = 1
+    _second_attempt['started_at'] = _second_attempt_meta['ts_epoch']
+    _second_attempt['duration'] = _second_attempt['last_heartbeat_ts'] * 1000 - _second_attempt['started_at']
+    _first_attempt['status'] = 'failed'
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_second_attempt, _first_attempt])
+
+
+
 # Resource Helpers / factories
 
 
@@ -412,7 +503,7 @@ async def create_task_attempt_done_metadata(db, task, attempt: int = 0):
     )
 
 
-async def create_task_attempt_ok_metadata(db, task, attempt_id: int, attempt_ok: bool = None):
+async def create_task_attempt_ok_metadata(db, task, attempt_id: int, attempt_ok: bool = False):
     "Create 'attempt_ok' metadata for a task"
     return await create_metadata_for_task(
         db,
