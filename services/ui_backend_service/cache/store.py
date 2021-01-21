@@ -152,6 +152,7 @@ class ArtifactCacheStore(object):
                 "{run_id_key} = %s".format(run_id_key=run_id_key),
                 "step_name = %s",
                 "name NOT LIKE %s",
+                "name <> %s",
                 "name <> %s"
             ],
             values=[
@@ -159,7 +160,8 @@ class ArtifactCacheStore(object):
                 run_id_value,
                 "_parameters",
                 r"\_%",
-                "name"  # exclude the 'name' parameter as this always exists, and contains the FlowName
+                "name",  # exclude the 'name' parameter as this always exists, and contains the FlowName
+                "script_name"  # exclude the internally used 'script_name' parameter.
             ],
             fetch_single=False,
             expanded=True
