@@ -313,8 +313,6 @@ class AsyncPostgresTable(object):
         except (Exception, psycopg2.DatabaseError):
             self.db.logger.exception("Query Benchmarking failed")
 
-
-
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
         try:
