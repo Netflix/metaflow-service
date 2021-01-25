@@ -6,16 +6,11 @@ import datetime
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration
 
-from services.ui_backend_service.api.flow import FlowApi
-from services.ui_backend_service.api.run import RunApi
-from services.ui_backend_service.api.step import StepApi
-from services.ui_backend_service.api.task import TaskApi
-from services.ui_backend_service.api.metadata import MetadataApi
-from services.ui_backend_service.api.artifact import ArtificatsApi
-from services.ui_backend_service.api.tag import TagApi
-from services.ui_backend_service.api.ws import Websocket
-
-from services.ui_backend_service.api.admin import AdminApi
+from services.ui_backend_service.api import (
+    FlowApi, RunApi, StepApi, TaskApi,
+    MetadataApi, ArtificatsApi, TagApi,
+    Websocket, AdminApi
+)
 
 from services.data.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 

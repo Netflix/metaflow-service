@@ -5,22 +5,18 @@ import signal
 from aiohttp import web
 from aiohttp_swagger import *
 
-from .api.admin import AdminApi
+# routes
+from .api import (
+    AdminApi, FlowApi, RunApi, StepApi, TaskApi,
+    MetadataApi, ArtificatsApi, TagApi, ArtifactSearchApi,
+    LogApi, DagApi
+)
 
-from .api.flow import FlowApi
-from .api.run import RunApi
-from .api.step import StepApi
-from .api.task import TaskApi
-from .api.metadata import MetadataApi
-from .api.artifact import ArtificatsApi
-from .api.tag import TagApi
-from .api.artifactsearch import ArtifactSearchApi
-from .api.log import LogApi
-from .api.dag import DagApi
+# service processes
+from .api import (
+    Websocket, ListenNotify, RunHeartbeatMonitor, TaskHeartbeatMonitor
+)
 
-from .api.ws import Websocket
-from .api.notify import ListenNotify
-from .api.heartbeat_monitor import RunHeartbeatMonitor, TaskHeartbeatMonitor
 from .data.cache import CacheStore
 from .frontend import Frontend
 
