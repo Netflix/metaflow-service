@@ -24,29 +24,22 @@ CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", DISK_SIZ
 
 
 class CacheStore(object):
-    "Singleton class for all the different cache clients that are used to access caches"
-    instance = None
+    '''
+        Collection class for all the different cache clients that are used to access caches.
+        start_caches must be called before being able to access any of the specific caches.
+    '''
 
     def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
-        if not CacheStore.instance:
-            CacheStore.instance = CacheStore.__CacheStore(event_emitter, db)
+        self.artifact_cache = ArtifactCacheStore(event_emitter, db)
+        self.dag_cache = DAGCacheStore(db)
 
-    def __getattribute__(self, name):
-        # delegate attribute calls to the singleton instance.
-        return getattr(CacheStore.instance, name)
+    async def start_caches(self, app):
+        await self.artifact_cache.start_cache()
+        await self.dag_cache.start_cache()
 
-    class __CacheStore(object):
-        def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
-            self.artifact_cache = ArtifactCacheStore(event_emitter, db)
-            self.dag_cache = DAGCacheStore(db)
-
-        async def start_caches(self, app):
-            await self.artifact_cache.start_cache()
-            await self.dag_cache.start_cache()
-
-        async def stop_caches(self, app):
-            await self.artifact_cache.stop_cache()
-            await self.dag_cache.stop_cache()
+    async def stop_caches(self, app):
+        await self.artifact_cache.stop_cache()
+        await self.dag_cache.stop_cache()
 
 
 # Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
