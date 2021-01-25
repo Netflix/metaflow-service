@@ -2,37 +2,36 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 
-from ..data.cache import CacheStore
 from aiohttp import web
 import json
 
 
 class ArtifactSearchApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks
         )
         self._artifact_table = self.db.artifact_table_postgres
         self._run_table = self.db.run_table_postgres
-        self._artifact_store = CacheStore().artifact_cache
+        self._artifact_store = getattr(cache, "artifact_cache", None)
 
-    @handle_exceptions
+    @ handle_exceptions
     async def get_run_tasks(self, request):
         flow_name = request.match_info['flow_id']
-        run_id_key, run_id_value = translate_run_key(
+        run_id_key, run_id_value=translate_run_key(
             request.match_info['run_number'])
-        artifact_name = request.query['key']
-        value = request.query['value']
+        artifact_name=request.query['key']
+        value=request.query['value']
 
-        meta_artifacts = await self.get_run_artifacts(flow_name, run_id_key, run_id_value, artifact_name)
+        meta_artifacts=await self.get_run_artifacts(flow_name, run_id_key, run_id_value, artifact_name)
 
-        ws = web.WebSocketResponse()
+        ws=web.WebSocketResponse()
         await ws.prepare(request)
 
         # Search the artifact contents from S3 using the CacheClient
-        locations = [art['location'] for art in meta_artifacts]
-        res = await self._artifact_store.cache.SearchArtifacts(locations, value)
+        locations=[art['location'] for art in meta_artifacts]
+        res=await self._artifact_store.cache.SearchArtifacts(locations, value)
 
         if res.is_ready():
             artifact_data = res.get()

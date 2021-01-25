@@ -1,8 +1,7 @@
-from ..cache import CacheStore
 from services.data.db_utils import DBResponse
 import json
 
-from features import FEATURE_REFINE_DISABLE
+from services.ui_backend_service.features import FEATURE_REFINE_DISABLE
 from services.utils import logging
 
 
@@ -12,10 +11,11 @@ class Refinery(object):
     Parameters:
     -----------
     field_names: list of field names that contain S3 locations to be replaced with content.
+    cache: An instance of a cache that has the required cache accessors.
     """
 
-    def __init__(self, field_names):
-        self.artifact_store = CacheStore().artifact_cache
+    def __init__(self, field_names, cache=None):
+        self.artifact_store = cache.artifact_cache
         self.field_names = field_names
         self.logger = logging.getLogger("DataRefiner")
 

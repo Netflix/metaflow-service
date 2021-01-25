@@ -67,22 +67,22 @@ def app(loop=None, db_conf: DBConfiguration = None):
         async_db_heartbeat = _AsyncPostgresDB('ui:heartbeat')
         loop.run_until_complete(async_db_heartbeat._init(db_conf))
         RunHeartbeatMonitor(event_emitter, db=async_db_heartbeat)
-        TaskHeartbeatMonitor(event_emitter, db=async_db_heartbeat)
+        TaskHeartbeatMonitor(event_emitter, db=async_db_heartbeat, cache=cache_store)
 
     if FEATURE_WS_ENABLE:
         async_db_ws = _AsyncPostgresDB('ui:websocket')
         loop.run_until_complete(async_db_ws._init(db_conf))
-        Websocket(app, event_emitter, db=async_db_ws)
+        Websocket(app, event_emitter, db=async_db_ws, cache=cache_store)
 
     FlowApi(app, async_db)
-    RunApi(app, async_db)
+    RunApi(app, async_db, cache_store)
     StepApi(app, async_db)
-    TaskApi(app, async_db)
+    TaskApi(app, async_db, cache_store)
     MetadataApi(app, async_db)
     ArtificatsApi(app, async_db)
     TagApi(app, async_db)
-    ArtifactSearchApi(app, async_db)
-    DagApi(app, async_db)
+    ArtifactSearchApi(app, async_db, cache_store)
+    DagApi(app, async_db, cache_store)
 
     LogApi(app, async_db)
     AdminApi(app)

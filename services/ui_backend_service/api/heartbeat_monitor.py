@@ -5,18 +5,19 @@ from pyee import AsyncIOEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
 from .notify import resource_list
-from data.refiner import TaskRefiner
+from ..data.refiner import TaskRefiner
 
 HEARTBEAT_INTERVAL = 10  # interval of heartbeats, in seconds
 
 
 class HeartbeatMonitor(object):
-    def __init__(self, event_name, event_emitter=None, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, event_name, event_emitter=None, db=AsyncPostgresDB.get_instance(), cache=None):
         self.watched = {}
         # Handle HB Events
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         event_emitter.on(event_name, self.heartbeat_handler)
         self.db = db
+        self.cache = cache
 
         # Start heartbeat watcher
         self.loop = asyncio.get_event_loop()
@@ -133,16 +134,17 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
       "task-heartbeat", "complete" data -> removes task from heartbeat checks
     '''
 
-    def __init__(self, event_emitter=None, db=None):
+    def __init__(self, event_emitter=None, db=None, cache=None):
         # Init the abstract class
         super().__init__(
             event_name="task-heartbeat",
             event_emitter=event_emitter,
-            db=db
+            db=db,
+            cache=cache
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._task_table = self.db.task_table_postgres
-        self.refiner = TaskRefiner()
+        self.refiner = TaskRefiner(cache=self.cache)
 
     async def heartbeat_handler(self, action, data):
         if action == "update":

@@ -7,10 +7,14 @@ class TaskRefiner(Refinery):
     Refiner class for postprocessing Task rows.
 
     Fetches specified content from S3 and cleans up unnecessary fields from response.
+
+    Parameters:
+    -----------
+    cache: An instance of a cache that has the required cache accessors.
     """
 
-    def __init__(self):
-        super().__init__(field_names=["task_ok", "foreach_stack"])
+    def __init__(self, cache):
+        super().__init__(field_names=["task_ok", "foreach_stack"], cache=cache)
 
     async def postprocess(self, response: DBResponse):
         """Calls the refiner postprocessing to fetch S3 values for content.
