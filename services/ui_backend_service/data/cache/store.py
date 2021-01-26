@@ -8,42 +8,38 @@ from .get_artifacts_action import GetArtifacts
 import asyncio
 import time
 import os
+import shutil
 from services.utils import logging
-from ..features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
+from features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
 
+DISK_SIZE = shutil.disk_usage("/").total
+
 CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
-CACHE_ARTIFACT_STORAGE_LIMIT = int(os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", 600000))
+CACHE_ARTIFACT_STORAGE_LIMIT = int(os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", DISK_SIZE // 2))
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
-CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", 100000))
+CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", DISK_SIZE // 4))
 
 
 class CacheStore(object):
-    "Singleton class for all the different cache clients that are used to access caches"
-    instance = None
+    '''
+        Collection class for all the different cache clients that are used to access caches.
+        start_caches must be called before being able to access any of the specific caches.
+    '''
 
     def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
-        if not CacheStore.instance:
-            CacheStore.instance = CacheStore.__CacheStore(event_emitter, db)
+        self.artifact_cache = ArtifactCacheStore(event_emitter, db)
+        self.dag_cache = DAGCacheStore(db)
 
-    def __getattribute__(self, name):
-        # delegate attribute calls to the singleton instance.
-        return getattr(CacheStore.instance, name)
+    async def start_caches(self, app):
+        await self.artifact_cache.start_cache()
+        await self.dag_cache.start_cache()
 
-    class __CacheStore(object):
-        def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
-            self.artifact_cache = ArtifactCacheStore(event_emitter, db)
-            self.dag_cache = DAGCacheStore(db)
-
-        async def start_caches(self, app):
-            await self.artifact_cache.start_cache()
-            await self.dag_cache.start_cache()
-
-        async def stop_caches(self, app):
-            await self.artifact_cache.stop_cache()
-            await self.dag_cache.stop_cache()
+    async def stop_caches(self, app):
+        await self.artifact_cache.stop_cache()
+        await self.dag_cache.stop_cache()
 
 
 # Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
@@ -149,6 +145,7 @@ class ArtifactCacheStore(object):
                 "{run_id_key} = %s".format(run_id_key=run_id_key),
                 "step_name = %s",
                 "name NOT LIKE %s",
+                "name <> %s",
                 "name <> %s"
             ],
             values=[
@@ -156,7 +153,8 @@ class ArtifactCacheStore(object):
                 run_id_value,
                 "_parameters",
                 r"\_%",
-                "name"  # exclude the 'name' parameter as this always exists, and contains the FlowName
+                "name",  # exclude the 'name' parameter as this always exists, and contains the FlowName
+                "script_name"  # exclude the internally used 'script_name' parameter.
             ],
             fetch_single=False,
             expanded=True

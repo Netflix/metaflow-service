@@ -6,16 +6,11 @@ import datetime
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration
 
-from services.ui_backend_service.api.flow import FlowApi
-from services.ui_backend_service.api.run import RunApi
-from services.ui_backend_service.api.step import StepApi
-from services.ui_backend_service.api.task import TaskApi
-from services.ui_backend_service.api.metadata import MetadataApi
-from services.ui_backend_service.api.artifact import ArtificatsApi
-from services.ui_backend_service.api.tag import TagApi
-from services.ui_backend_service.api.ws import Websocket
-
-from services.ui_backend_service.api.admin import AdminApi
+from services.ui_backend_service.api import (
+    FlowApi, RunApi, StepApi, TaskApi,
+    MetadataApi, ArtificatsApi, TagApi,
+    Websocket, AdminApi
+)
 
 from services.data.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 
@@ -218,20 +213,6 @@ def _fill_missing_resource_data(_item):
     return _item
 
 
-def _compare_dict_lists(list_a, list_b):
-    for i in range(len(list_a)):
-        if not _compare_dicts(list_a[i], list_b[i]):
-            return False
-    return True
-
-
-def _compare_dicts(dict_a, dict_b):
-    for a, b in zip(sorted(dict_a.items()), sorted(dict_b.items())):
-        if a != b:
-            return False
-    return True
-
-
 async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[]):
     resp = await cli.get(path)
     body = await resp.json()
@@ -246,7 +227,7 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
         return resp.status, data
 
     expected_data[:] = map(_fill_missing_resource_data, expected_data)
-    assert _compare_dict_lists(data, expected_data)
+    assert data == expected_data
 
     return resp.status, data
 
@@ -265,7 +246,7 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
         return resp.status, data
 
     expected_data = _fill_missing_resource_data(expected_data)
-    assert _compare_dicts(data, expected_data)
+    assert data == expected_data
 
     return resp.status, data
 

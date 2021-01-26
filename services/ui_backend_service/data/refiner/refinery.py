@@ -1,8 +1,7 @@
-from ..cache.store import CacheStore
 from services.data.db_utils import DBResponse
 import json
 
-from ..features import FEATURE_REFINE_DISABLE
+from services.ui_backend_service.features import FEATURE_REFINE_DISABLE
 from services.utils import logging
 
 
@@ -12,10 +11,11 @@ class Refinery(object):
     Parameters:
     -----------
     field_names: list of field names that contain S3 locations to be replaced with content.
+    cache: An instance of a cache that has the required cache accessors.
     """
 
-    def __init__(self, field_names):
-        self.artifact_store = CacheStore().artifact_cache
+    def __init__(self, field_names, cache=None):
+        self.artifact_store = cache.artifact_cache
         self.field_names = field_names
         self.logger = logging.getLogger("DataRefiner")
 
@@ -70,39 +70,3 @@ class Refinery(object):
 
         return DBResponse(response_code=response.response_code,
                           body=body)
-
-
-class TaskRefiner(Refinery):
-    """
-    Refiner class for postprocessing Task rows.
-
-    Fetches specified content from S3 and cleans up unnecessary fields from response.
-    """
-
-    def __init__(self):
-        super().__init__(field_names=["task_ok", "foreach_stack"])
-
-    async def postprocess(self, response: DBResponse):
-        """Calls the refiner postprocessing to fetch S3 values for content.
-        Cleans up returned fields, for example by combining 'task_ok' boolean into the 'status'
-        """
-        refined_response = await self._postprocess(response)
-        if response.response_code != 200 or not response.body:
-            return response
-
-        def _process(item):
-            item['status'] = 'failed' if item['status'] == 'completed' and item['task_ok'] is False else item['status']
-            item.pop('task_ok', None)
-
-            if item['foreach_stack'] and len(item['foreach_stack']) > 0 and len(item['foreach_stack'][0]) >= 4:
-                _, _name, _, _index = item['foreach_stack'][0]
-                item['foreach_label'] = "{}[{}]".format(item['task_id'], _index)
-            item.pop('foreach_stack', None)
-            return item
-
-        if isinstance(refined_response.body, list):
-            body = [_process(task) for task in refined_response.body]
-        else:
-            body = _process(refined_response.body)
-
-        return DBResponse(response_code=refined_response.response_code, body=body)

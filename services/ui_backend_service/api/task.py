@@ -2,11 +2,11 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
-from .data_refiner import TaskRefiner
+from ..data.refiner import TaskRefiner
 
 
 class TaskApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
         self.db = db
         app.router.add_route(
             "GET",
@@ -29,7 +29,7 @@ class TaskApi(object):
             self.get_task_attempts,
         )
         self._async_table = self.db.task_table_postgres
-        self.refiner = TaskRefiner()
+        self.refiner = TaskRefiner(cache=cache) if cache else None
 
     @handle_exceptions
     async def get_run_tasks(self, request):
@@ -55,6 +55,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/ts_epoch'
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
@@ -85,7 +86,7 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -112,6 +113,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/ts_epoch'
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
@@ -144,7 +146,7 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -159,6 +161,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Path/run_number'
           - $ref: '#/definitions/Params/Path/step_name'
           - $ref: '#/definitions/Params/Path/task_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
@@ -193,7 +196,7 @@ class TaskApi(object):
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -221,6 +224,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/ts_epoch'
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
+          - $ref: '#/definitions/Params/Custom/postprocess'
         produces:
         - application/json
         responses:
@@ -257,5 +261,12 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.refiner.postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
+
+    def get_postprocessor(self, request):
+        "pass query param &postprocess=true to enable postprocessing of S3 content. Otherwise returns None as postprocessor"
+        if request.query.get("postprocess", False) in ["true", "True", "1"]:
+            return self.refiner.postprocess
+        else:
+            return None

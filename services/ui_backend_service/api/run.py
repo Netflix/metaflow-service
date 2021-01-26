@@ -3,12 +3,11 @@ from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import find_records, web_response, format_response
 
-from ..cache.store import CacheStore
 import json
 
 
 class RunApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/runs", self.get_all_runs)
@@ -21,7 +20,7 @@ class RunApi(object):
 
         self._async_table = self.db.run_table_postgres
         self._artifact_table = self.db.artifact_table_postgres
-        self._artifact_store = CacheStore().artifact_cache
+        self._artifact_store = getattr(cache, "artifact_cache", None)
 
     @handle_exceptions
     async def get_run(self, request):

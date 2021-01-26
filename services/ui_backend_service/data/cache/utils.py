@@ -10,7 +10,7 @@ import pickle
 from gzip import GzipFile
 from itertools import islice
 
-from ..features import FEATURE_S3_DISABLE
+from features import FEATURE_S3_DISABLE
 
 
 def batchiter(it, batch_size):

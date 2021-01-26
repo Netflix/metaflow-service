@@ -18,6 +18,7 @@ from services.utils import DBConfiguration
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
 WAIT_TIME = 10
+HEARTBEAT_THRESHOLD = WAIT_TIME * 6  # Add margin in case of client-server communication delays, before marking a heartbeat stale.
 OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
 
 # Create database triggers automatically, disabled by default
@@ -641,7 +642,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         END) AS finished_at
         """.format(
             table_name=table_name,
-            heartbeat_threshold=WAIT_TIME,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
             cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         ),
         """
@@ -662,7 +663,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         END) AS status
         """.format(
             table_name=table_name,
-            heartbeat_threshold=WAIT_TIME,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
             cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         ),
         """
@@ -808,7 +809,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 attempt_meta.task_id, attempt_meta.attempt_id,
                 task_ok.ts_epoch, task_ok.location,
                 start.ts_epoch as started_at,
-                COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at,
+                COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, start.ts_epoch) as finished_at,
                 attempt_ok.value::boolean as attempt_ok,
                 foreach_stack.location as foreach_stack,
                 COALESCE(latest_attempt.latest_attempt_id, 0) as latest_attempt_id
@@ -905,6 +906,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             THEN 'completed'
             WHEN attempt_ok IS FALSE
             THEN 'failed'
+            WHEN finished_at IS NOT NULL
+                AND attempt_ok IS NULL
+            THEN 'unknown'
             WHEN attempt.finished_at IS NOT NULL
             THEN 'completed'
             WHEN attempt.finished_at IS NULL
@@ -917,7 +921,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         END) AS status
         """.format(
             table_name=table_name,
-            heartbeat_threshold=WAIT_TIME
+            heartbeat_threshold=HEARTBEAT_THRESHOLD
         ),
         """
         (CASE

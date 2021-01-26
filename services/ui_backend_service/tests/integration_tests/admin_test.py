@@ -39,8 +39,8 @@ async def test_version(cli, db):
 
 async def test_links(cli, db):
     default_links = [
-        {"href": 'https://docs.metaflow.org/', "label": 'Metaflow documentation'},
-        {"href": 'https://github.com/Netflix/metaflow', "label": 'Github'}
+        {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
+        {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
     ]
 
     resp = await cli.get("/links")
