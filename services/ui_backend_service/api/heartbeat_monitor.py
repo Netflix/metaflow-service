@@ -102,7 +102,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
         # Currently this restricts the use of expanded=True
         run_id_key, run_id_value = translate_run_key(run_key)
-        result, _ = await self._run_table.find_records(
+        result, *_ = await self._run_table.find_records(
             conditions=["{column} = %s".format(column=run_id_key)],
             values=[run_id_value],
             fetch_single=True,
@@ -188,7 +188,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             conditions.append("attempt_id = %s")
             values.append(attempt_id)
 
-        result, _ = await self._task_table.find_records(
+        result, *_ = await self._task_table.find_records(
             conditions=conditions,
             values=values,
             order=["attempt_id DESC"],

@@ -277,9 +277,12 @@ class AsyncPostgresTable(object):
             ).strip()
 
         # Run benchmarking on query if requested
+        benchmark_results = None
         if benchmark:
-            await self.benchmark_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                     expanded=expanded, limit=limit, offset=offset)
+            benchmark_results = await self.benchmark_sql(
+                select_sql=select_sql, values=values, fetch_single=fetch_single,
+                expanded=expanded, limit=limit, offset=offset
+            )
 
         result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
                                                     expanded=expanded, limit=limit, offset=offset)
@@ -290,7 +293,7 @@ class AsyncPostgresTable(object):
             else:
                 result = postprocess(result)
 
-        return result, pagination
+        return result, pagination, benchmark_results
 
     async def benchmark_sql(self, select_sql: str, values=[], fetch_single=False,
                             expanded=False, limit: int = 0, offset: int = 0):
@@ -309,9 +312,10 @@ class AsyncPostgresTable(object):
                 rows = []
                 for record in records:
                     rows.append(record[0])
-                self.db.logger.info("\n".join(rows))
+                return "\n".join(rows)
         except (Exception, psycopg2.DatabaseError):
             self.db.logger.exception("Query Benchmarking failed")
+            return None
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):

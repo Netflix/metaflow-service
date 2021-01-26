@@ -280,7 +280,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
     ordering = (initial_order or []) + (order or [])
     benchmark = request.query.get("benchmark", False) in ['True', 'true', '1', "t"]
 
-    results, pagination = await async_table.find_records(
+    results, pagination, benchmark_result = await async_table.find_records(
         conditions=conditions, values=values, limit=limit, offset=offset,
         order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
         fetch_single=fetch_single, enable_joins=enable_joins,
@@ -291,10 +291,13 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
 
     if fetch_single:
         status, res = format_response(request, results)
-        return web_response(status, res)
     else:
         status, res = format_response_list(request, results, pagination, page)
-        return web_response(status, res)
+
+    if benchmark_result:
+        res["benchmark_result"] = benchmark_result
+
+    return web_response(status, res)
 
 
 class TTLQueue:
