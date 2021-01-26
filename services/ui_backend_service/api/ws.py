@@ -11,7 +11,7 @@ from .utils import resource_conditions, TTLQueue
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import logging
 from pyee import AsyncIOEventEmitter
-from .data_refiner import TaskRefiner
+from ..data.refiner import TaskRefiner
 
 from throttler import throttle_simultaneous
 
@@ -47,11 +47,11 @@ class Websocket(object):
     '''
     subscriptions: List[WSSubscription] = []
 
-    def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, db=AsyncPostgresDB.get_instance(), cache=None):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
         self.queue = TTLQueue(queue_ttl)
-        self.task_refiner = TaskRefiner()
+        self.task_refiner = TaskRefiner(cache=cache) if cache else None
         self.logger = logging.getLogger("Websocket")
 
         event_emitter.on('notify', self.event_handler)

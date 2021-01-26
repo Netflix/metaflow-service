@@ -2,20 +2,19 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 
-from ..cache.store import CacheStore
 from aiohttp import web
 import json
 
 
 class ArtifactSearchApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks
         )
         self._artifact_table = self.db.artifact_table_postgres
         self._run_table = self.db.run_table_postgres
-        self._artifact_store = CacheStore().artifact_cache
+        self._artifact_store = getattr(cache, "artifact_cache", None)
 
     @handle_exceptions
     async def get_run_tasks(self, request):

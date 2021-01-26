@@ -8,7 +8,7 @@ from .custom_flowgraph import FlowGraph  # TODO: change to metaflow.graph when t
 
 from .utils import NoRetryS3
 from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
-from utils import get_traceback_str
+from services.utils import get_traceback_str
 
 
 class GenerateDag(CacheAction):

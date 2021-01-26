@@ -3,19 +3,18 @@ from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import format_response, web_response
 
-from ..cache.store import CacheStore
 from aiohttp import web
 import json
 
 
 class DagApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/dag", self.get_run_dag
         )
         self._metadata_table = self.db.metadata_table_postgres
-        self._dag_store = CacheStore().dag_cache
+        self._dag_store = getattr(cache, "dag_cache", None)
 
     @handle_exceptions
     async def get_run_dag(self, request):
