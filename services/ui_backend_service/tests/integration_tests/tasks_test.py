@@ -140,12 +140,14 @@ async def test_task_with_attempt_metadata(cli, db):
     _attempt_done_first = await create_task_attempt_done_metadata(db, _task)
     _task['status'] = 'unknown'
     _task['finished_at'] = _attempt_done_first['ts_epoch']
-    _task['duration'] = _task['finished_at'] - _task['started_at']
+    _task['duration'] = _attempt_done_first['ts_epoch'] - _task['started_at']
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
 
-    await create_task_attempt_ok_metadata(db, _task, 0, True)  # status 'completed'
+    _attempt_ok_first = await create_task_attempt_ok_metadata(db, _task, 0, True)  # status 'completed'
     _task['status'] = 'completed'
+    _task['finished_at'] = _attempt_ok_first['ts_epoch']
+    _task['duration'] = _attempt_ok_first['ts_epoch'] - _task['started_at']
     _task['task_ok'] = None  # intended behavior, status refinement location field should remain empty when metadata exists.
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
@@ -200,17 +202,11 @@ async def test_task_with_attempt_ok_completed(cli, db):
 
     _attempt_first = await create_task_attempt_metadata(db, _task)
     _artifact_first = await create_ok_artifact_for_task(db, _task)
-    _task['started_at'] = _attempt_first['ts_epoch']
-    _task['finished_at'] = _artifact_first['ts_epoch']
-    _task['duration'] = _task['finished_at'] - _task['started_at']
-    _task['status'] = 'completed'
-
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
-
     _attempt_ok = await create_task_attempt_ok_metadata(db, _task, 0, True)  # status = 'completed'
-
+    _task['started_at'] = _attempt_first['ts_epoch']
     _task['finished_at'] = _attempt_ok['ts_epoch']
     _task['duration'] = _attempt_ok['ts_epoch'] - _task['started_at']
+    _task['status'] = 'completed'
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
 

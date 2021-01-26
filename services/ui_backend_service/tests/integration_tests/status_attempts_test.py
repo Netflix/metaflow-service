@@ -291,19 +291,6 @@ async def test_attempt_status_failed_attempt_ok_s3(cli, db):
                                                 "value": "0",
                                                 "type": "attempt"})).body
 
-    _metadata_attempt_ok = (await add_metadata(db,
-                                               flow_id=_task.get("flow_id"),
-                                               run_number=_task.get("run_number"),
-                                               run_id=_task.get("run_id"),
-                                               step_name=_task.get("step_name"),
-                                               task_id=_task.get("task_id"),
-                                               task_name=_task.get("task_name"),
-                                               tags=["attempt_id:0"],
-                                               metadata={
-                                                   "field_name": "attempt_ok",
-                                                   "value": "True",
-                                                   "type": "internal_attempt_status"})).body
-
     async def _refine_record(self, record):
         return {**record, "task_ok": False}
 
@@ -311,12 +298,12 @@ async def test_attempt_status_failed_attempt_ok_s3(cli, db):
         "services.ui_backend_service.api.data_refiner.Refinery.refine_record",
         new=_refine_record
     ):
-        _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200)
+        _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}?postprocess=true".format(**_task), 200)
 
         assert data["status"] == "failed"
         assert data["ts_epoch"] == _task["ts_epoch"]
         assert data["started_at"] == _metadata_attempt["ts_epoch"]  # metadata.attempt is present
-        assert data["finished_at"] == _metadata_attempt_ok["ts_epoch"]
+        assert data["finished_at"] == _artifact["ts_epoch"]
 
 
 async def test_attempt_status_failed_heartbeat(cli, db):
