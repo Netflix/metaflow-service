@@ -803,7 +803,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
                 task_ok.location,
                 attempt.ts_epoch as started_at,
-                COALESCE(done.ts_epoch, task_ok.ts_epoch) as finished_at,
+                COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, attempt.ts_epoch) as finished_at,
                 attempt_ok.value::boolean as attempt_ok,
                 foreach_stack.location as foreach_stack
             FROM {artifact_table} as task_ok
