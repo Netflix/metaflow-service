@@ -16,7 +16,7 @@ class ArtifactSearchApi(object):
         self._run_table = self.db.run_table_postgres
         self._artifact_store = getattr(cache, "artifact_cache", None)
 
-    @ handle_exceptions
+    @handle_exceptions
     async def get_run_tasks(self, request):
         flow_name = request.match_info['flow_id']
         run_id_key, run_id_value = translate_run_key(
