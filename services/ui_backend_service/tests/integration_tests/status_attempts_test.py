@@ -295,7 +295,7 @@ async def test_attempt_status_failed_attempt_ok_s3(cli, db):
         return {**record, "task_ok": False}
 
     with mock.patch(
-        "services.ui_backend_service.api.data_refiner.Refinery.refine_record",
+        "services.ui_backend_service.data.refiner.task_refiner.Refinery.refine_record",
         new=_refine_record
     ):
         _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}?postprocess=true".format(**_task), 200)
