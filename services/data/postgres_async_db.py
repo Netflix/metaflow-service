@@ -209,8 +209,8 @@ class AsyncPostgresTable(object):
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
-                           postprocess: Callable[[DBResponse], DBResponse] = None,
-                           benchmark: bool = False) -> (DBResponse, DBPagination):
+                           postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
+        # Alias T is important here which is used to construct ordering and conditions
 
         # Grouping not enabled
         if groups is None or len(groups) == 0:
@@ -226,6 +226,10 @@ class AsyncPostgresTable(object):
             {limit}
             {offset}
             """
+
+            if order:
+                # Order using alias T
+                order = map(lambda o: "T.{}".format(o), order)
 
             select_sql = sql_template.format(
                 keys=",".join(

@@ -48,6 +48,22 @@ async def test_list_runs_real_user(cli, db):
     await _test_list_resources(cli, db, "/runs", 200, [_run])
 
 
+async def test_list_runs_real_user_filter(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"), user_name="hello", system_tags=["user:hello"])).body
+    _run["status"] = "running"
+    _run["user"] = "hello"
+
+    await _test_list_resources(cli, db, "/runs?user=hello", 200, [_run])
+
+
+async def test_list_runs_real_user_filter_null(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    (await add_run(db, flow_id=_flow.get("flow_id"), user_name="foo", system_tags=["user:bar"])).body
+    await _test_list_resources(cli, db, "/runs?user=foo", 200, [])
+
+
 async def test_list_runs_real_user_none(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
 
