@@ -649,7 +649,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 WHEN system_tags ? CONCAT('user:', user_name)
                 THEN user_name
                 ELSE NULL
-            END) AS real_user"""]
+            END) AS user"""]
     join_columns = [
         """
         (CASE
