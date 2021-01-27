@@ -50,15 +50,13 @@ def test_format_response_list():
             "self": "http://test/runs?_limit=10&_page=2",
             "first": "http://test/runs?_limit=10&_page=1",
             "prev": "http://test/runs?_limit=10&_page=1",
-            "next": "http://test/runs?_limit=10&_page=3",
-            "last": "http://test/runs?_limit=10&_page=4"
+            "next": "http://test/runs?_limit=10&_page=3"
         },
         "pages": {
             "self": 2,
             "first": 1,
             "prev": 1,
-            "next": 3,
-            "last": 4
+            "next": 3
         },
         "query": {
             "_limit": "10",
@@ -66,7 +64,7 @@ def test_format_response_list():
         },
     }
 
-    status, response = format_response_list(request, db_response, 2, 4)
+    status, response = format_response_list(request, db_response, 2)
     assert json.dumps(response) == json.dumps(expected_response)
     assert status == 200
 
@@ -191,16 +189,16 @@ def test_builtin_conditions_query_tags_likeany():
 
 def test_custom_conditions_query():
     operators = {
-        "flow_id":      ["flow_id = %s",            "{}"],
-        "flow_id:eq":   ["flow_id = %s",            "{}"],
-        "flow_id:ne":   ["flow_id != %s",           "{}"],
-        "flow_id:lt":   ["flow_id < %s",            "{}"],
-        "flow_id:le":   ["flow_id <= %s",           "{}"],
-        "flow_id:gt":   ["flow_id > %s",            "{}"],
-        "flow_id:ge":   ["flow_id >= %s",           "{}"],
-        "flow_id:co":   ["flow_id ILIKE %s",        "%{}%"],
-        "flow_id:sw":   ["flow_id ILIKE %s",        "{}%"],
-        "flow_id:ew":   ["flow_id ILIKE %s",        "%{}"]
+        "flow_id": ["flow_id = %s", "{}"],
+        "flow_id:eq": ["flow_id = %s", "{}"],
+        "flow_id:ne": ["flow_id != %s", "{}"],
+        "flow_id:lt": ["flow_id < %s", "{}"],
+        "flow_id:le": ["flow_id <= %s", "{}"],
+        "flow_id:gt": ["flow_id > %s", "{}"],
+        "flow_id:ge": ["flow_id >= %s", "{}"],
+        "flow_id:co": ["flow_id ILIKE %s", "%{}%"],
+        "flow_id:sw": ["flow_id ILIKE %s", "{}%"],
+        "flow_id:ew": ["flow_id ILIKE %s", "%{}"]
     }
 
     for op, query in operators.items():

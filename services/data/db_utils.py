@@ -6,7 +6,7 @@ import json
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
 DBPagination = collections.namedtuple(
-    "DBPagination", "limit offset count count_total page pages_total")
+    "DBPagination", "limit offset count page")
 
 
 def aiopg_exception_handling(exception):
