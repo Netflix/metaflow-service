@@ -66,12 +66,7 @@ def response_list(ref_definition: str):
                         "type": "string",
                         "description": "Full URL to next page",
                         "default": "http://localhost:8083/path?_page=2"
-                    },
-                    "last": {
-                        "type": "string",
-                        "description": "Full URL to last page",
-                        "default": "http://localhost:8083/path?_page=99"
-                    },
+                    }
                 }
             },
             "pages": {
@@ -96,12 +91,7 @@ def response_list(ref_definition: str):
                         "type": "integer",
                         "description": "Next page number",
                         "default": 2
-                    },
-                    "last": {
-                        "type": "integer",
-                        "description": "Last page number",
-                        "default": 99
-                    },
+                    }
                 }
             },
             "query": {
