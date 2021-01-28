@@ -227,9 +227,10 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
 
         vals = val.split(",")
 
+        # Refer to services.data.postgres_async_db.py:find_records for alias T
         conditions.append(
             "({})".format(" OR ".join(
-                map(lambda v: operators_to_sql["is" if v == "null" else operator].format(field), vals)
+                map(lambda v: "T." + operators_to_sql["is" if v == "null" else operator].format(field), vals)
             ))
         )
         values += map(

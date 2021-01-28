@@ -245,8 +245,8 @@ def test_custom_conditions_query():
             request, allowed_keys=["flow_id"])
 
         assert len(conditions) == 2
-        assert conditions[0] == "({0} OR {0})".format(where)
-        assert conditions[1] == "({0})".format(where)
+        assert conditions[0] == "(T.{0} OR T.{0})".format(where)
+        assert conditions[1] == "(T.{0})".format(where)
 
         assert len(values) == 3
         assert values[0] == val.format("HelloFlow")
@@ -262,8 +262,8 @@ def test_custom_conditions_query_allow_any_key():
         request, allowed_keys=None)
 
     assert len(conditions) == 2
-    assert conditions[0] == "(flow_id = %s)"
-    assert conditions[1] == "(status = %s)"
+    assert conditions[0] == "(T.flow_id = %s)"
+    assert conditions[1] == "(T.status = %s)"
 
     assert len(values) == 2
     assert values[0] == "HelloFlow"
@@ -280,8 +280,8 @@ def test_resource_conditions():
     assert query.get("status") == "running"
 
     assert len(conditions) == 2
-    assert conditions[0] == "(flow_id = %s)"
-    assert conditions[1] == "(status = %s)"
+    assert conditions[0] == "(T.flow_id = %s)"
+    assert conditions[1] == "(T.status = %s)"
 
     assert len(values) == 2
     assert values[0] == "HelloFlow"

@@ -211,6 +211,7 @@ class AsyncPostgresTable(object):
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
                            benchmark: bool = False) -> (DBResponse, DBPagination):
+        # Alias T is important here which is used to construct ordering and conditions
 
         # Grouping not enabled
         if groups is None or len(groups) == 0:
@@ -226,6 +227,10 @@ class AsyncPostgresTable(object):
             {limit}
             {offset}
             """
+
+            if order:
+                # Order using alias T
+                order = map(lambda o: "T.{}".format(o), order)
 
             select_sql = sql_template.format(
                 keys=",".join(
@@ -649,7 +654,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 WHEN system_tags ? CONCAT('user:', user_name)
                 THEN user_name
                 ELSE NULL
-            END) AS real_user"""]
+            END) AS user"""]
     join_columns = [
         """
         (CASE
