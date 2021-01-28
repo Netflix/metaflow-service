@@ -199,7 +199,7 @@ async def load_data_from_db(table, data: Dict[str, Any],
         conditions.append("{} = %s".format(k))
         values.append(v)
 
-    results, _ = await table.find_records(
+    results, *_ = await table.find_records(
         conditions=conditions, values=values, fetch_single=True,
         enable_joins=True,
         expanded=True,

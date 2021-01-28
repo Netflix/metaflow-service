@@ -3,7 +3,7 @@ from urllib.parse import urlsplit, parse_qsl
 from multidict import MultiDict
 from aiohttp import web
 from typing import Callable, List, Dict
-from services.data.db_utils import DBResponse
+from services.data.db_utils import DBResponse, DBPagination
 from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
 
@@ -25,12 +25,12 @@ def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, 
     return db_response.response_code, response_object
 
 
-def format_response_list(request: web.BaseRequest, db_response: DBResponse, page: int, lastPage: int) -> (int, Dict):
+def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagination: DBPagination, page: int) -> (int, Dict):
     query = {}
     for key in request.query:
         query[key] = request.query.get(key)
 
-    nextPage = min(page + 1, lastPage)
+    nextPage = page + 1 if (pagination.count or 0) >= pagination.limit else None
     prevPage = max(page - 1, 1)
 
     baseurl = format_baseurl(request)
@@ -41,15 +41,13 @@ def format_response_list(request: web.BaseRequest, db_response: DBResponse, page
             "self": "{}{}".format(baseurl, format_qs(query)),
             "first": "{}{}".format(baseurl, format_qs(query, {"_page": 1})),
             "prev": "{}{}".format(baseurl, format_qs(query, {"_page": prevPage})),
-            "next": "{}{}".format(baseurl, format_qs(query, {"_page": nextPage})),
-            "last": "{}{}".format(baseurl, format_qs(query, {"_page": lastPage}))
+            "next": "{}{}".format(baseurl, format_qs(query, {"_page": nextPage})) if nextPage else None
         },
         "pages": {
             "self": page,
             "first": 1,
             "prev": prevPage,
-            "next": nextPage,
-            "last": lastPage
+            "next": nextPage
         },
         "query": query,
     }
@@ -229,9 +227,10 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
 
         vals = val.split(",")
 
+        # Refer to services.data.postgres_async_db.py:find_records for alias T
         conditions.append(
             "({})".format(" OR ".join(
-                map(lambda v: operators_to_sql["is" if v == "null" else operator].format(field), vals)
+                map(lambda v: "T." + operators_to_sql["is" if v == "null" else operator].format(field), vals)
             ))
         )
         values += map(
@@ -280,22 +279,26 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
     conditions = initial_conditions + builtin_conditions + custom_conditions
     values = initial_values + builtin_vals + custom_vals
     ordering = (initial_order or []) + (order or [])
+    benchmark = request.query.get("benchmark", False) in ['True', 'true', '1', "t"]
 
-    results, pagination = await async_table.find_records(
+    results, pagination, benchmark_result = await async_table.find_records(
         conditions=conditions, values=values, limit=limit, offset=offset,
         order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
         fetch_single=fetch_single, enable_joins=enable_joins,
         expanded=True,
-        postprocess=postprocess
+        postprocess=postprocess,
+        benchmark=benchmark
     )
 
     if fetch_single:
         status, res = format_response(request, results)
-        return web_response(status, res)
     else:
-        status, res = format_response_list(
-            request, results, page, pagination.pages_total if pagination else 1)
-        return web_response(status, res)
+        status, res = format_response_list(request, results, pagination, page)
+
+    if benchmark_result:
+        res["benchmark_result"] = benchmark_result
+
+    return web_response(status, res)
 
 
 class TTLQueue:

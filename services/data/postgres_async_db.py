@@ -210,12 +210,14 @@ class AsyncPostgresTable(object):
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
-                           postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
+                           postprocess: Callable[[DBResponse], DBResponse] = None,
+                           benchmark: bool = False) -> (DBResponse, DBPagination):
+        # Alias T is important here which is used to construct ordering and conditions
 
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
-            SELECT *, COUNT(*) OVER() AS count_total FROM (
+            SELECT * FROM (
                 SELECT
                     {keys}
                 FROM {table_name}
@@ -226,6 +228,10 @@ class AsyncPostgresTable(object):
             {limit}
             {offset}
             """
+
+            if order:
+                # Order using alias T
+                order = map(lambda o: "T.{}".format(o), order)
 
             select_sql = sql_template.format(
                 keys=",".join(
@@ -242,7 +248,7 @@ class AsyncPostgresTable(object):
             ).strip()
         else:  # Grouping enabled
             sql_template = """
-            SELECT *, COUNT(*) OVER() AS count_total FROM (
+            SELECT * FROM (
                 SELECT
                     *, ROW_NUMBER() OVER(PARTITION BY {group_by} {order_by})
                 FROM (
@@ -276,6 +282,14 @@ class AsyncPostgresTable(object):
                 offset="OFFSET {}".format(offset) if offset else ""
             ).strip()
 
+        # Run benchmarking on query if requested
+        benchmark_results = None
+        if benchmark:
+            benchmark_results = await self.benchmark_sql(
+                select_sql=select_sql, values=values, fetch_single=fetch_single,
+                expanded=expanded, limit=limit, offset=offset
+            )
+
         result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
                                                     expanded=expanded, limit=limit, offset=offset)
         # Modify the response after the fetch has been executed
@@ -285,7 +299,29 @@ class AsyncPostgresTable(object):
             else:
                 result = postprocess(result)
 
-        return result, pagination
+        return result, pagination, benchmark_results
+
+    async def benchmark_sql(self, select_sql: str, values=[], fetch_single=False,
+                            expanded=False, limit: int = 0, offset: int = 0):
+        "Benchmark and log a given SQL query with EXPLAIN ANALYZE"
+        try:
+            with (
+                await self.db.pool.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor
+                )
+            ) as cur:
+                # Run EXPLAIN ANALYZE on query and log the results.
+                benchmark_sql = "EXPLAIN ANALYZE {}".format(select_sql)
+                await cur.execute(benchmark_sql, values)
+
+                records = await cur.fetchall()
+                rows = []
+                for record in records:
+                    rows.append(record[0])
+                return "\n".join(rows)
+        except (Exception, psycopg2.DatabaseError):
+            self.db.logger.exception("Query Benchmarking failed")
+            return None
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
@@ -304,9 +340,6 @@ class AsyncPostgresTable(object):
                     rows.append(row.serialize(expanded))
 
                 count = len(rows)
-                count_total = 0  # Populated if `count_total` column available
-                if len(records) > 0 and "count_total" in records[0]:
-                    count_total = int(records[0]["count_total"])
 
                 # Will raise IndexError in case fetch_single=True and there's no results
                 body = rows[0] if fetch_single else rows
@@ -315,9 +348,7 @@ class AsyncPostgresTable(object):
                     limit=limit,
                     offset=offset,
                     count=count,
-                    count_total=count_total,
                     page=math.floor(int(offset) / max(int(limit), 1)) + 1,
-                    pages_total=max(math.ceil(count_total / max(int(limit), 1)), 1),
                 )
 
                 cur.close()
@@ -626,7 +657,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 WHEN system_tags ? CONCAT('user:', user_name)
                 THEN user_name
                 ELSE NULL
-            END) AS real_user"""]
+            END) AS user"""]
     join_columns = [
         """
         (CASE

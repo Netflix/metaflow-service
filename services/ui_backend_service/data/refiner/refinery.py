@@ -15,7 +15,7 @@ class Refinery(object):
     """
 
     def __init__(self, field_names, cache=None):
-        self.artifact_store = cache.artifact_cache
+        self.artifact_store = cache.artifact_cache if cache else None
         self.field_names = field_names
         self.logger = logging.getLogger("DataRefiner")
 

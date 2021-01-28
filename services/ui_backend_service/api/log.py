@@ -156,7 +156,7 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
     task_id_key, task_id_value = translate_task_key(task_id)
 
     try:
-        results, _ = await find_records(
+        results, *_ = await find_records(
             conditions=["flow_id = %s",
                         "{run_id_key} = %s".format(run_id_key=run_id_key),
                         "step_name = %s",
