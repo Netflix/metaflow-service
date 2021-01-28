@@ -840,7 +840,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 attempt_meta.task_id, attempt_meta.attempt_id,
                 task_ok.ts_epoch, task_ok.location,
                 start.ts_epoch as started_at,
-                COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, start.ts_epoch) as finished_at,
+                COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) as finished_at,
                 attempt_ok.value::boolean as attempt_ok,
                 foreach_stack.location as foreach_stack,
                 COALESCE(latest_attempt.latest_attempt_id, 0) as latest_attempt_id
