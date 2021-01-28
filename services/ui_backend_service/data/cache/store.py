@@ -92,7 +92,7 @@ class ArtifactCacheStore(object):
                 logger.info(event)
 
     async def get_recent_run_numbers(self):
-        _records, _ = await self._run_table.find_records(
+        _records, *_ = await self._run_table.find_records(
             conditions=["ts_epoch >= %s"],
             values=[int(round(time.time() * 1000)) - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)],
             order=['ts_epoch DESC'],
@@ -111,7 +111,7 @@ class ArtifactCacheStore(object):
 
         artifact_loc_cond = "ds_type = %s"
         artifact_loc = "s3"
-        _records, _ = await self._artifact_table.find_records(
+        _records, *_ = await self._artifact_table.find_records(
             conditions=[run_id_cond, artifact_loc_cond],
             values=[run_ids, artifact_loc],
             expanded=True
@@ -139,7 +139,7 @@ class ArtifactCacheStore(object):
 
         # '_parameters' step has all the parameters as artifacts. only pick the
         # public parameters (no underscore prefix)
-        db_response, _ = await self._artifact_table.find_records(
+        db_response, *_ = await self._artifact_table.find_records(
             conditions=[
                 "flow_id = %s",
                 "{run_id_key} = %s".format(run_id_key=run_id_key),
