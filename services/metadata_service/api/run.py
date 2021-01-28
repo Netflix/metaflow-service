@@ -105,6 +105,8 @@ class RunApi(object):
                     type: object
                 system_tags:
                     type: object
+                ts_epoch:
+                    type: integer
         produces:
         - 'text/plain'
         responses:
@@ -121,6 +123,7 @@ class RunApi(object):
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
+        ts_epoch = body.get("ts_epoch")
 
         run_id = body.get("run_number")
         if run_id and run_id.isnumeric():
@@ -128,7 +131,7 @@ class RunApi(object):
 
         run_row = RunRow(
             flow_id=flow_name, user_name=user, tags=tags,
-            system_tags=system_tags, run_id=run_id
+            system_tags=system_tags, run_id=run_id, ts_epoch=ts_epoch
         )
 
         return await self._async_table.add_run(run_row)

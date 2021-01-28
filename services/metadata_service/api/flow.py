@@ -41,6 +41,8 @@ class FlowApi(object):
                     type: object
                 system_tags:
                     type: object
+                ts_epoch:
+                    type: integer
 
         produces:
         - 'text/plain'
@@ -56,9 +58,10 @@ class FlowApi(object):
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
+        ts_epoch = body.get("ts_epoch")
         flow = FlowRow(
-            flow_id=flow_name, user_name=user, tags=tags, system_tags=system_tags
-        )
+            flow_id=flow_name, user_name=user, ts_epoch=ts_epoch,
+            tags=tags, system_tags=system_tags)
         return await self._async_table.add_flow(flow)
 
     @format_response

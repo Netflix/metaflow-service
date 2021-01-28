@@ -274,6 +274,8 @@ class ArtificatsApi(object):
                         type: object
                     system_tags:
                         type: object
+                    ts_epoch:
+                        type: integer
         produces:
         - 'text/plain'
         responses:
@@ -334,6 +336,7 @@ class ArtificatsApi(object):
                 "user_name": artifact.get("user_name", " "),
                 "tags": artifact.get("tags"),
                 "system_tags": artifact.get("system_tags"),
+                "ts_epoch": artifact.get("ts_epoch"),
             }
             artifact_response = await self._async_table.add_artifact(**values)
             if artifact_response.response_code == 200:

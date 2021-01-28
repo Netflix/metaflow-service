@@ -389,8 +389,9 @@ class AsyncPostgresTable(object):
             values.append(col_val)
 
         # add create ts
-        cols.append("ts_epoch")
-        values.append(get_db_ts_epoch_str())
+        if "ts_epoch" not in cols:
+            cols.append("ts_epoch")
+            values.append(get_db_ts_epoch_str())
 
         str_format = []
         for col in cols:
@@ -597,6 +598,7 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
         dict = {
             "flow_id": flow.flow_id,
             "user_name": flow.user_name,
+            "ts_epoch": flow.ts_epoch,
             "tags": json.dumps(flow.tags),
             "system_tags": json.dumps(flow.system_tags),
         }
@@ -727,6 +729,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         dict = {
             "flow_id": run.flow_id,
             "user_name": run.user_name,
+            "ts_epoch": run.ts_epoch,
             "tags": json.dumps(run.tags),
             "system_tags": json.dumps(run.system_tags),
             "run_id": run.run_id,
@@ -793,6 +796,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             "run_id": step_object.run_id,
             "step_name": step_object.step_name,
             "user_name": step_object.user_name,
+            "ts_epoch": step_object.ts_epoch,
             "tags": json.dumps(step_object.tags),
             "system_tags": json.dumps(step_object.system_tags),
         }
@@ -963,6 +967,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "step_name": task.step_name,
             "task_name": task.task_name,
             "user_name": task.user_name,
+            "ts_epoch": task.ts_epoch,
             "tags": json.dumps(task.tags),
             "system_tags": json.dumps(task.system_tags),
         }
@@ -1058,6 +1063,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         user_name,
         tags,
         system_tags,
+        ts_epoch=None,
     ):
         dict = {
             "flow_id": flow_id,
@@ -1073,6 +1079,8 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             "tags": json.dumps(tags),
             "system_tags": json.dumps(system_tags),
         }
+        if ts_epoch: # Catch None and 0 just in case
+            dict["ts_epoch"] = ts_epoch
         return await self.create_record(dict)
 
     async def get_metadata_in_runs(self, flow_id: str, run_id: str):
@@ -1153,6 +1161,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         attempt_id,
         tags,
         system_tags,
+        ts_epoch=None,
     ):
         dict = {
             "flow_id": flow_id,
@@ -1172,6 +1181,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "tags": json.dumps(tags),
             "system_tags": json.dumps(system_tags),
         }
+        if ts_epoch: # Catch None and 0 just in case
+            dict["ts_epoch"] = ts_epoch
         return await self.create_record(dict)
 
     async def get_artifacts_in_runs(self, flow_id: str, run_id: int):
