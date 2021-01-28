@@ -3,7 +3,7 @@ from urllib.parse import urlsplit, parse_qsl
 from multidict import MultiDict
 from aiohttp import web
 from typing import Callable, List, Dict
-from services.data.db_utils import DBResponse
+from services.data.db_utils import DBResponse, DBPagination
 from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
 
@@ -25,12 +25,12 @@ def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, 
     return db_response.response_code, response_object
 
 
-def format_response_list(request: web.BaseRequest, db_response: DBResponse, page: int, lastPage: int) -> (int, Dict):
+def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagination: DBPagination, page: int) -> (int, Dict):
     query = {}
     for key in request.query:
         query[key] = request.query.get(key)
 
-    nextPage = min(page + 1, lastPage)
+    nextPage = page + 1 if (pagination.count or 0) >= pagination.limit else None
     prevPage = max(page - 1, 1)
 
     baseurl = format_baseurl(request)
@@ -41,15 +41,13 @@ def format_response_list(request: web.BaseRequest, db_response: DBResponse, page
             "self": "{}{}".format(baseurl, format_qs(query)),
             "first": "{}{}".format(baseurl, format_qs(query, {"_page": 1})),
             "prev": "{}{}".format(baseurl, format_qs(query, {"_page": prevPage})),
-            "next": "{}{}".format(baseurl, format_qs(query, {"_page": nextPage})),
-            "last": "{}{}".format(baseurl, format_qs(query, {"_page": lastPage}))
+            "next": "{}{}".format(baseurl, format_qs(query, {"_page": nextPage})) if nextPage else None
         },
         "pages": {
             "self": page,
             "first": 1,
             "prev": prevPage,
-            "next": nextPage,
-            "last": lastPage
+            "next": nextPage
         },
         "query": query,
     }
@@ -293,8 +291,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         status, res = format_response(request, results)
         return web_response(status, res)
     else:
-        status, res = format_response_list(
-            request, results, page, pagination.pages_total if pagination else 1)
+        status, res = format_response_list(request, results, pagination, page)
         return web_response(status, res)
 
 

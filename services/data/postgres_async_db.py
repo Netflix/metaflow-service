@@ -214,7 +214,7 @@ class AsyncPostgresTable(object):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
-            SELECT *, COUNT(*) OVER() AS count_total FROM (
+            SELECT * FROM (
                 SELECT
                     {keys}
                 FROM {table_name}
@@ -241,7 +241,7 @@ class AsyncPostgresTable(object):
             ).strip()
         else:  # Grouping enabled
             sql_template = """
-            SELECT *, COUNT(*) OVER() AS count_total FROM (
+            SELECT * FROM (
                 SELECT
                     *, ROW_NUMBER() OVER(PARTITION BY {group_by} {order_by})
                 FROM (
@@ -303,9 +303,6 @@ class AsyncPostgresTable(object):
                     rows.append(row.serialize(expanded))
 
                 count = len(rows)
-                count_total = 0  # Populated if `count_total` column available
-                if len(records) > 0 and "count_total" in records[0]:
-                    count_total = int(records[0]["count_total"])
 
                 # Will raise IndexError in case fetch_single=True and there's no results
                 body = rows[0] if fetch_single else rows
@@ -314,9 +311,7 @@ class AsyncPostgresTable(object):
                     limit=limit,
                     offset=offset,
                     count=count,
-                    count_total=count_total,
                     page=math.floor(int(offset) / max(int(limit), 1)) + 1,
-                    pages_total=max(math.ceil(count_total / max(int(limit), 1)), 1),
                 )
 
                 cur.close()
