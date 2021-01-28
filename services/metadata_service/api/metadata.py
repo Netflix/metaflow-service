@@ -156,6 +156,8 @@ class MetadataApi(object):
                         type: object
                     system_tags:
                         type: object
+                    ts_epoch:
+                        type: integer
         produces:
         - 'text/plain'
         responses:
@@ -193,6 +195,7 @@ class MetadataApi(object):
                 "user_name": datum.get("user_name"),
                 "tags": datum.get("tags"),
                 "system_tags": datum.get("system_tags"),
+                "ts_epoch": datum.get("ts_epoch"),
             }
             metadata_response = await self._async_table.add_metadata(**values)
             if metadata_response.response_code == 200:

@@ -155,6 +155,8 @@ class TaskApi(object):
                     type: object
                 task_id:
                     type: string
+                ts_epoch:
+                    type: integer
         produces:
         - 'text/plain'
         responses:
@@ -174,6 +176,7 @@ class TaskApi(object):
         tags = body.get("tags")
         system_tags = body.get("system_tags")
         task_name = body.get("task_id")
+        ts_epoch = body.get("ts_epoch")
 
         if task_name and task_name.isnumeric():
             return web.Response(status=400, body=json.dumps(
@@ -190,6 +193,7 @@ class TaskApi(object):
             user_name=user,
             tags=tags,
             system_tags=system_tags,
+            ts_epoch=ts_epoch,
         )
         return await self._async_table.add_task(task)
 

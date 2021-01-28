@@ -130,6 +130,8 @@ class StepApi(object):
                     type: object
                 system_tags:
                     type: object
+                ts_epoch:
+                    type: integer
         produces:
         - text/plain
         responses:
@@ -146,12 +148,13 @@ class StepApi(object):
         user = body.get("user_name", "")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
+        ts_epoch = body.get("ts_epoch")
 
         run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
 
         step_row = StepRow(
             flow_name, run_number, run_id, user, step_name, tags=tags,
-            system_tags=system_tags
+            system_tags=system_tags, ts_epoch=ts_epoch
         )
 
         return await self._async_table.add_step(step_row)
