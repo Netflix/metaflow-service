@@ -95,7 +95,7 @@ def pagination_query(request: web.BaseRequest, allowed_order: List[str] = [], al
                     direction = "DESC"
 
                 if column in allowed_order:
-                    _orders.append("{} {}".format(column, direction))
+                    _orders.append("\"{}\" {}".format(column, direction))
 
             order = _orders
         else:
@@ -112,7 +112,7 @@ def pagination_query(request: web.BaseRequest, allowed_order: List[str] = [], al
         groups = []
         for g in _group.split(","):
             if g in allowed_group:
-                groups.append(g)
+                groups.append("\"{}\"".format(g))
     else:
         groups = None
 
@@ -172,16 +172,16 @@ def builtin_conditions_query_dict(query: MultiDict):
 
 
 operators_to_sql = {
-    "eq": "{} = %s",          # equals
-    "ne": "{} != %s",         # not equals
-    "lt": "{} < %s",          # less than
-    "le": "{} <= %s",         # less than or equals
-    "gt": "{} > %s",          # greater than
-    "ge": "{} >= %s",         # greater than or equals
-    "co": "{} ILIKE %s",      # contains
-    "sw": "{} ILIKE %s",      # starts with
-    "ew": "{} ILIKE %s",      # ends with
-    "is": "{} IS %s",         # IS
+    "eq": "\"{}\" = %s",          # equals
+    "ne": "\"{}\" != %s",         # not equals
+    "lt": "\"{}\" < %s",          # less than
+    "le": "\"{}\" <= %s",         # less than or equals
+    "gt": "\"{}\" > %s",          # greater than
+    "ge": "\"{}\" >= %s",         # greater than or equals
+    "co": "\"{}\" ILIKE %s",      # contains
+    "sw": "\"{}\" ILIKE %s",      # starts with
+    "ew": "\"{}\" ILIKE %s",      # ends with
+    "is": "\"{}\" IS %s",         # IS
 }
 
 operators_to_sql_values = {
@@ -227,10 +227,9 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
 
         vals = val.split(",")
 
-        # Refer to services.data.postgres_async_db.py:find_records for alias T
         conditions.append(
             "({})".format(" OR ".join(
-                map(lambda v: "T." + operators_to_sql["is" if v == "null" else operator].format(field), vals)
+                map(lambda v: operators_to_sql["is" if v == "null" else operator].format(field), vals)
             ))
         )
         values += map(
