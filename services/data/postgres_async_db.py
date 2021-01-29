@@ -129,7 +129,7 @@ class _AsyncPostgresDB(object):
 
         select_sql = "SELECT * FROM (VALUES({values})) T({keys}) {where}".format(
             values=", ".join(stm_vals),
-            keys=", ".join(keys),
+            keys=", ".join(map(lambda k: "\"{}\"".format(k), keys)),
             where="WHERE {}".format(" AND ".join(
                 conditions)) if conditions else "",
         )
@@ -211,8 +211,6 @@ class AsyncPostgresTable(object):
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
                            benchmark: bool = False) -> (DBResponse, DBPagination):
-        # Alias T is important here which is used to construct ordering and conditions
-
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -227,10 +225,6 @@ class AsyncPostgresTable(object):
             {limit}
             {offset}
             """
-
-            if order:
-                # Order using alias T
-                order = map(lambda o: "T.{}".format(o), order)
 
             select_sql = sql_template.format(
                 keys=",".join(
