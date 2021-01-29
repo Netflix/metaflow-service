@@ -202,8 +202,8 @@ class AsyncPostgresTable(object):
             conditions.append("{} = %s".format(col_name))
             values.append(col_val)
 
-        response, _ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
-                                              order=ordering, limit=limit, expanded=expanded)
+        response, *_ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
+                                               order=ordering, limit=limit, expanded=expanded)
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
