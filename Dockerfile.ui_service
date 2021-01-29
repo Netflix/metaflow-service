@@ -12,6 +12,10 @@ ARG BUILD_COMMIT_HASH
 ENV BUILD_TIMESTAMP=$BUILD_TIMESTAMP
 ENV BUILD_COMMIT_HASH=$BUILD_COMMIT_HASH
 
+ARG CUSTOM_QUICKLINKS
+
+ENV CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
+
 ADD services/__init__.py /root/services/__init__.py
 ADD services/data /root/services/data
 ADD services/utils /root/services/utils

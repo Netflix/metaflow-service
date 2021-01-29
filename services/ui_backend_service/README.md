@@ -137,14 +137,29 @@ is = is                     IS
 
 ## Custom Navigation links for UI
 
-You can customize the admin navigation links presented by the UI by renaming the provided `links.example.json` file to `links.json`. The backend service serves the contents of the file as-is, so be sure to adhere to the predefined structure.
+You can customize the admin navigation links presented by the UI by setting an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value should be a *stringified* json of the format:
+```json
+[
+  { 
+    "href": "https://docs.metaflow.org/",
+    "label": "Metaflow documentation" 
+  },
+  { 
+    "href": "https://github.com/Netflix/metaflow",
+    "label": "GitHub"
+  }
+]
+```
+
+You are free to provide as many links as necessary.
 
 **Local Dev**
-Simply edit the `links.json` file content
+set the `CUSTOM_QUICKLINKS` environment variable
 
 **Prebuilt docker image**
-You can mount a custom `links.json` when launching the Docker container with a command such as
+Provide the `CUSTOM_QUICKLINKS` environment variable for the docker run command
 
 ```bash
-  docker run -v /path/to/custom/links.json:/root/service/ui_backend_service/links.json metaflow/ui-service
+  CUSTOM_QUICKLINKS='[{"href": "https://github.com/Netflix/metaflow", "label": "GitHub"}]' docker run metaflow/ui-service
+
 ```

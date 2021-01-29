@@ -22,7 +22,7 @@ class AdminApi(object):
             {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
         ]
 
-        self.navigation_links = _load_links_file() or defaults
+        self.navigation_links = _get_links_from_env() or defaults
 
     async def version(self, request):
         """
@@ -77,10 +77,9 @@ class AdminApi(object):
         return web_response(status=200, body=self.navigation_links)
 
 
-def _load_links_file():
+def _get_links_from_env():
     try:
-        linkfilepath = os.path.join(os.path.dirname(__file__), "..", "links.json")
-        with open(linkfilepath) as f:
-            return json.load(f)
+        envlinks_jsons = os.environ.get("CUSTOM_QUICKLINKS")
+        return json.loads(envlinks_jsons)
     except Exception:
         return None
