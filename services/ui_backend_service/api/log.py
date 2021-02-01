@@ -245,7 +245,7 @@ class LogApi(object):
 
             if db_response.response_code == 200:
                 stream = 'stderr' if logtype == STDERR else 'stdout'
-                task_row = json.loads(db_response.body['value'])
+                task_row = db_response.body
                 if task_row['run_id'].startswith('mli_') and \
                         task_row['task_name'].startswith('mli_'):
                     run_id_value = task_row['run_id'][4:]
@@ -365,13 +365,19 @@ async def read_and_output_mflog(paths):
     s3 = boto3.client('s3')
     logs = []
     for bucket, path in paths:
-        obj = s3.get_object(Bucket=bucket, Key=path)
-        logs.append(obj['Body'].read())
+        try:
+            obj = s3.get_object(Bucket=bucket, Key=path)
+            logs.append(obj['Body'].read())
+        except botocore.exceptions.ClientError as err:
+            if err.response['Error']['Code'] == 'NoSuchKey':
+                pass
+            else:
+                raise
     lines = []
     for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
         lines.append({
             'row': row,
-            'line': ' '.join([line.utc_tstamp, line.msg])})
+            'line': ' '.join([line.utc_tstamp_str, line.msg])})
     return lines
 
 
