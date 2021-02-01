@@ -390,7 +390,7 @@ async def read_and_output_mflog_ws(paths, ws):
     for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
         await ws.send_str(json.dumps({
             'row': row,
-            'line': to_unicode(line.msg)})
+            'line': to_unicode(line.msg)}))
 
 
 class LogException(Exception):
