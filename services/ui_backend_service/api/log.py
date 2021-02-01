@@ -3,6 +3,11 @@ import json
 import boto3
 import botocore
 import codecs
+import heapq
+import io
+import re
+from collections import namedtuple
+from datetime import datetime
 from urllib.parse import urlparse
 
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -14,6 +19,103 @@ from aiohttp import web
 
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
+
+
+# Support for MFLog; this will go away when core convergence happens; we would
+# then be able to use the MF client directly to get the logs
+
+LOG_SOURCES = ['runtime', 'task']
+# Get the root path for the datastore as this is no longer stored with MFLog
+DS_ROOT = os.environ.get("MF_DATASTORE_ROOT")
+
+RE = b'(\[!)?'\
+     b'\[MFLOG\|'\
+     b'(0)\|'\
+     b'(.+?)Z\|'\
+     b'(.+?)\|'\
+     b'(.+?)\]'\
+     b'(.*)'
+
+# the RE groups defined above must match the MFLogline fields below
+MFLogline = namedtuple('MFLogline', ['should_persist',
+                                     'version',
+                                     'utc_tstamp_str',
+                                     'logsource',
+                                     'id',
+                                     'msg',
+                                     'utc_tstamp'])
+
+LINE_PARSER = re.compile(RE)
+
+ISOFORMAT = "%Y-%m-%dT%H:%M:%S.%f"
+
+MISSING_TIMESTAMP = datetime(3000, 1, 1)
+MISSING_TIMESTAMP_STR = MISSING_TIMESTAMP.strftime(ISOFORMAT)
+
+
+def to_unicode(x):
+    """
+    Convert any object to a unicode object
+    """
+    if isinstance(x, bytes):
+        return x.decode('utf-8')
+    else:
+        return str(x)
+
+
+def to_bytes(x):
+    """
+    Convert any object to a byte string
+    """
+    if isinstance(x, str):
+        return x.encode('utf-8')
+    elif isinstance(x, bytes):
+        return x
+    elif isinstance(x, float):
+        return repr(x).encode('utf-8')
+    else:
+        return str(x).encode('utf-8')
+
+
+def mflog_parse(line):
+    line = to_bytes(line)
+    m = LINE_PARSER.match(to_bytes(line))
+    if m:
+        try:
+            fields = list(m.groups())
+            fields.append(datetime.strptime(to_unicode(fields[2]), ISOFORMAT))
+            return MFLogline(*fields)
+        except:
+            pass
+
+
+def mflog_merge_logs(logs):
+    def line_iter(logblob):
+        # all valid timestamps are guaranteed to be smaller than
+        # MISSING_TIMESTAMP, hence this iterator maintains the
+        # ascending order even when corrupt loglines are present
+        missing = []
+        for line in io.BytesIO(logblob):
+            res = mflog_parse(line)
+            if res:
+                yield res.utc_tstamp_str, res
+            else:
+                missing.append(line)
+        for line in missing:
+            res = MFLogline(False,
+                            None,
+                            MISSING_TIMESTAMP_STR,
+                            None,
+                            None,
+                            line,
+                            MISSING_TIMESTAMP)
+            yield res.utc_tstamp_str, res
+
+    # note that sorted() below should be a very cheap, often a O(n) operation
+    # because Python's Timsort is very fast for already sorted data.
+    for _, line in heapq.merge(*[sorted(line_iter(blob)) for blob in logs]):
+        yield line
+# End support for MFLog
 
 
 class LogApi(object):
@@ -123,8 +225,49 @@ class LogApi(object):
                     err.response['Error']['Message'], 'log-error-s3')
             except Exception as err:
                 raise LogException(str(err), 'log-error')
-        else:
-            return web_response(404, {'data': []})
+        elif DS_ROOT:
+            # Check if we have logs in the MFLog format (we need to have a valid root)
+
+            # We first need to translate run_number and task_id into run_id
+            # and task_name so that we can extract the proper path
+            run_id_key, run_id_value = translate_run_key(run_number)
+            task_id_key, task_id_value = translate_task_key(task_id)
+
+            db_response, *_ = await self.db.task_table_postgres.find_records(
+                fetch_single=True,
+                conditions=[
+                    "flow_id = %s",
+                    "{run_id_key} = %s".format(run_id_key=run_id_key),
+                    "step_name = %s",
+                    "{task_id_key} = %s".format(task_id_key=task_id_key)],
+                values=[flow_id, run_id_value, step_name, task_id_value],
+                fetch_single=True, expanded=True)
+
+            if db_response.response_code == 200:
+                stream = 'stderr' if logtype == STDERR else 'stdout'
+                task_row = json.loads(db_response.body[0]['value'])
+                if task_row['run_id'].startswith('mli_') and \
+                        task_row['task_name'].startswith('mli_'):
+                    run_id_value = task_row['run_id'][4:]
+                    task_id_value = task_row['task_name'][4:]
+
+                urls = [os.path.join(
+                    DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
+                    '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
+                    for s in LOG_SOURCES]
+                to_fetch = []
+                for u in urls:
+                    url = urlparse(u, allow_fragments=False)
+                    if url.scheme == 's3':
+                        bucket = url.netloc
+                        path = url.path.lstrip('/')
+                        to_fetch.append((bucket, path))
+                    bucket = url.netloc
+                lines = await read_and_output_mflog(to_fetch)
+                return web_response(200, {'data': lines})
+        return web_response(404, {'data': []})
+
+
 
 
 async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> (str, str, int):
@@ -216,6 +359,32 @@ async def read_and_output_ws(bucket, path, ws):
             'row': row,
             'line': line.strip(),
         }))
+
+
+async def read_and_output_mflog(paths):
+    s3 = boto3.client('s3')
+    logs = []
+    for bucket, path in paths:
+        obj = s3.get_object(Bucket=bucket, Key=path)
+        logs.append(obj['Body'].read())
+    lines = []
+    for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
+        lines.append({
+            'row': row,
+            'line': ' '.join([line.utc_tstamp, line.msg])})
+    return lines
+
+
+async def read_and_output_mflog_ws(paths, ws):
+    s3 = boto3.client('s3')
+    logs = []
+    for bucket, path in paths:
+        obj = s3.get_object(Bucket=bucket, Key=path)
+        logs.append(obj['Body'].read())
+    for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
+        await ws.send_str(json.dumps({
+            'row': row,
+            'line': ' '.join([line.utc_tstamp, line.msg])}))
 
 
 class LogException(Exception):
