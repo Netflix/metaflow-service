@@ -40,6 +40,9 @@ async def test_list_runs_group_by_flow_id(cli, db):
     # _limit should limit number of groups, not number of rows.
     await _test_list_resources(cli, db, "/runs?_group=flow_id&_group_limit=2&_limit=1", 200, first_runs[:2])
 
+    # _order should order within groups.
+    await _test_list_resources(cli, db, "/runs?_group=flow_id&_order=run_number", 200, [*first_runs[::-1][:10], *second_runs[::-1][:10]])
+
 
 async def test_list_runs_group_by_user(cli, db):
     await _test_list_resources(cli, db, "/runs", 200, [])
