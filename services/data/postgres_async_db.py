@@ -307,7 +307,6 @@ class AsyncPostgresTable(object):
                 result = await postprocess(result)
             else:
                 result = postprocess(result)
-        print("pagination: ", pagination, flush=True)
         return result, pagination, benchmark_results
 
     async def benchmark_sql(self, select_sql: str, values=[], fetch_single=False,
