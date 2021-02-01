@@ -241,11 +241,11 @@ class LogApi(object):
                     "step_name = %s",
                     "{task_id_key} = %s".format(task_id_key=task_id_key)],
                 values=[flow_id, run_id_value, step_name, task_id_value],
-                fetch_single=True, expanded=True)
+                expanded=True)
 
             if db_response.response_code == 200:
                 stream = 'stderr' if logtype == STDERR else 'stdout'
-                task_row = json.loads(db_response.body[0]['value'])
+                task_row = json.loads(db_response.body['value'])
                 if task_row['run_id'].startswith('mli_') and \
                         task_row['task_name'].startswith('mli_'):
                     run_id_value = task_row['run_id'][4:]
