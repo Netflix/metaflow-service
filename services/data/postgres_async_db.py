@@ -241,6 +241,18 @@ class AsyncPostgresTable(object):
             ).strip()
         else:  # Grouping enabled
             sql_template = """
+            WITH group_labels AS (
+                SELECT DISTINCT ON({group_by}) * FROM (
+                    SELECT
+                        {keys}
+                    FROM {table_name}
+                    {joins}
+                ) T
+                {where}
+                ORDER BY {group_by} ASC NULLS LAST
+                {limit}
+                {offset}
+            )
             SELECT * FROM (
                 SELECT
                     *, ROW_NUMBER() OVER(PARTITION BY {group_by} {order_by})
@@ -252,11 +264,10 @@ class AsyncPostgresTable(object):
                 ) T
                 {where}
             ) G
-            {group_limit}
-            ORDER BY {group_by} ASC NULLS LAST
-            {limit}
-            {offset}
+            {group_where}
             """
+
+            group_label_selects = ["{0} IN (SELECT {0} FROM group_labels)".format(group) for group in groups]
 
             select_sql = sql_template.format(
                 keys=",".join(
@@ -269,8 +280,12 @@ class AsyncPostgresTable(object):
                 group_by=", ".join(groups),
                 order_by="ORDER BY {}".format(
                     ", ".join(order)) if order else "",
-                group_limit="WHERE row_number <= {}".format(
-                    group_limit) if group_limit else "",
+                group_where="""
+                    WHERE {group_limit} {group_selects}
+                """.format(
+                    group_limit="row_number <= {} AND ".format(group_limit) if group_limit else "",
+                    group_selects=" AND ".join(group_label_selects)
+                ),
                 limit="LIMIT {}".format(limit) if limit else "",
                 offset="OFFSET {}".format(offset) if offset else ""
             ).strip()
@@ -291,7 +306,7 @@ class AsyncPostgresTable(object):
                 result = await postprocess(result)
             else:
                 result = postprocess(result)
-
+        print("pagination: ", pagination, flush=True)
         return result, pagination, benchmark_results
 
     async def benchmark_sql(self, select_sql: str, values=[], fetch_single=False,
