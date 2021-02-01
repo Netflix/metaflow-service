@@ -240,6 +240,7 @@ class AsyncPostgresTable(object):
                 offset="OFFSET {}".format(offset) if offset else ""
             ).strip()
         else:  # Grouping enabled
+            values = [*values, *values]  # values must be doubled due to the distinct query eating up them once.
             sql_template = """
             WITH group_labels AS (
                 SELECT DISTINCT ON({group_by}) * FROM (
