@@ -61,7 +61,11 @@ class DagApi(object):
             return web_response(status, body)
 
         # parse codepackage location.
-        codepackage_loc = json.loads(db_response.body['value'])['location']
+        try:
+            codepackage_loc = json.loads(db_response.body['value'])['location']
+        except json.JSONDecodeError:
+            # Fallback when the value is a simple URL
+            codepackage_loc = db_response.body['value']
         flow_name = db_response.body['flow_id']
 
         # Fetch or Generate the DAG from the codepackage.
