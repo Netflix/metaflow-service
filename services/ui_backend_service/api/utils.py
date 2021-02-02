@@ -30,7 +30,10 @@ def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagi
     for key in request.query:
         query[key] = request.query.get(key)
 
-    nextPage = page + 1 if (pagination.count or 0) >= pagination.limit else None
+    if not pagination:
+        nextPage = None
+    else:
+        nextPage = page + 1 if (pagination.count or 0) >= pagination.limit else None
     prevPage = max(page - 1, 1)
 
     baseurl = format_baseurl(request)
