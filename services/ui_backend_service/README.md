@@ -73,6 +73,12 @@ Running the service without Docker (from project root):
 > $ python3 -m services.ui_backend_service.ui_server
 > ```
 
+### Optional configuration
+
+The threshold parameters for heartbeat checks can also be configured when necessary with the following environment variables.
+- `HEARTBEAT_THRESHOLD` [controls at what point a heartbeat is considered expired. Default is `WAIT_TIME * 6`]
+- `OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 2 weeks]
+
 ## Baseurl configuration
 
 Use `MF_BASEURL` environment variable to overwrite the default API baseurl.
