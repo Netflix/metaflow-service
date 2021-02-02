@@ -18,8 +18,9 @@ from services.utils import DBConfiguration
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
 WAIT_TIME = 10
-HEARTBEAT_THRESHOLD = WAIT_TIME * 6  # Add margin in case of client-server communication delays, before marking a heartbeat stale.
-OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
+# Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
+HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
+OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
 # Create database triggers automatically, disabled by default
 # Enable with env variable `DB_TRIGGER_CREATE=1`
@@ -657,14 +658,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             artifact_table="artifact_v3"
         ),
     ]
-    # User should be considered NULL when 'user:*' tag is missing
-    # This is usually the case with AWS Step Functions
+    # User should be considered null when user_name == 'SFN'
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys] \
         + ["""
             (CASE
-                WHEN system_tags ? CONCAT('user:', user_name)
-                THEN user_name
-                ELSE NULL
+                WHEN user_name = 'SFN'
+                THEN NULL
+                ELSE user_name
             END) AS user"""]
     join_columns = [
         """

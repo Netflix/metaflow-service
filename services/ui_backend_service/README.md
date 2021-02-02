@@ -73,6 +73,12 @@ Running the service without Docker (from project root):
 > $ python3 -m services.ui_backend_service.ui_server
 > ```
 
+### Optional configuration
+
+The threshold parameters for heartbeat checks can also be configured when necessary with the following environment variables.
+- `HEARTBEAT_THRESHOLD` [controls at what point a heartbeat is considered expired. Default is `WAIT_TIME * 6`]
+- `OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 2 weeks]
+
 ## Baseurl configuration
 
 Use `MF_BASEURL` environment variable to overwrite the default API baseurl.
@@ -137,14 +143,29 @@ is = is                     IS
 
 ## Custom Navigation links for UI
 
-You can customize the admin navigation links presented by the UI by renaming the provided `links.example.json` file to `links.json`. The backend service serves the contents of the file as-is, so be sure to adhere to the predefined structure.
+You can customize the admin navigation links presented by the UI by setting an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value should be a *stringified* json of the format:
+```json
+[
+  { 
+    "href": "https://docs.metaflow.org/",
+    "label": "Metaflow documentation" 
+  },
+  { 
+    "href": "https://github.com/Netflix/metaflow",
+    "label": "GitHub"
+  }
+]
+```
+
+You are free to provide as many links as necessary.
 
 **Local Dev**
-Simply edit the `links.json` file content
+set the `CUSTOM_QUICKLINKS` environment variable
 
 **Prebuilt docker image**
-You can mount a custom `links.json` when launching the Docker container with a command such as
+Provide the `CUSTOM_QUICKLINKS` environment variable for the docker run command
 
 ```bash
-  docker run -v /path/to/custom/links.json:/root/service/ui_backend_service/links.json metaflow/ui-service
+  CUSTOM_QUICKLINKS='[{"href": "https://github.com/Netflix/metaflow", "label": "GitHub"}]' docker run metaflow/ui-service
+
 ```
