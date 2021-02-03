@@ -1,6 +1,5 @@
 import asyncio
 from services.data.models import RunRow
-from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -119,7 +118,7 @@ class RunApi(object):
         """
         flow_name = request.match_info.get("flow_id")
 
-        body = await read_body(request.content)
+        body = await request.json()
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")

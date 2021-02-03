@@ -18,15 +18,6 @@ log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
 
-async def read_body(request_content):
-    byte_array = bytearray()
-    while not request_content.at_eof():
-        data = await request_content.read(4)
-        byte_array.extend(data)
-
-    return json.loads(byte_array.decode("utf-8"))
-
-
 def get_traceback_str():
     """Get the traceback as a string."""
 

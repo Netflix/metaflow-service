@@ -1,6 +1,5 @@
 from aiohttp import web
 import json
-from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import asyncio
@@ -171,7 +170,7 @@ class MetadataApi(object):
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
 
-        body = await read_body(request.content)
+        body = await request.json()
         count = 0
         try:
             run_number, run_id = await self._db.get_run_ids(flow_name, run_number)

@@ -1,5 +1,4 @@
 from services.data import StepRow
-from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -144,7 +143,7 @@ class StepApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
 
-        body = await read_body(request.content)
+        body = await request.json()
         user = body.get("user_name", "")
         tags = body.get("tags")
         system_tags = body.get("system_tags")

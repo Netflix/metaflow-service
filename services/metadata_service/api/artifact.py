@@ -1,7 +1,6 @@
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import filter_artifacts_by_attempt_id_for_tasks
-from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
@@ -306,7 +305,7 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
-        body = await read_body(request.content)
+        body = await request.json()
         count = 0
 
         try:
