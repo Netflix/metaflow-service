@@ -1,5 +1,5 @@
 from services.data import StepRow
-from services.utils import read_body, format_response, handle_exceptions
+from services.utils import format_response, handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
 
 
