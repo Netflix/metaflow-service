@@ -144,8 +144,10 @@ class DBConfiguration(object):
 
     # aiopg default pool sizes
     # https://aiopg.readthedocs.io/en/stable/_modules/aiopg/pool.html#create_pool
+    pool_timeout : int = 60
     pool_min: int = 1
     pool_max: int = 10
+    pool_recycle : int = -1
 
     _dsn: str = None
 
@@ -169,8 +171,10 @@ class DBConfiguration(object):
         self.database_name = os.environ.get(
             prefix + "NAME", database_name).translate(table)
 
+        self.pool_timeout = int(os.environ.get(prefix + "POOL_TIMEOUT", self.pool_timeout))
         self.pool_min = int(os.environ.get(prefix + "POOL_MIN", self.pool_min))
         self.pool_max = int(os.environ.get(prefix + "POOL_MAX", self.pool_max))
+        self.pool_recycle = int(os.environ.get(prefix + "POOL_RECYCLE", self.pool_recycle))
 
     @property
     def dsn(self):
