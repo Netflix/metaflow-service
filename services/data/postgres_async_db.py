@@ -74,9 +74,10 @@ class _AsyncPostgresDB(object):
             try:
                 self.pool = await aiopg.create_pool(
                     db_conf.dsn,
+                    timeout=db_conf.pool_timeout,
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
-                    timeout=db_conf.timeout,
+                    pool_recycle=db_conf.pool_recycle,
                     echo=AIOPG_ECHO)
 
                 # Clean existing trigger functions before creating new ones
@@ -89,9 +90,11 @@ class _AsyncPostgresDB(object):
 
                 self.logger.info(
                     "Connection established.\n"
-                    "   Pool min: {pool_min} max: {pool_max}\n".format(
+                    "   Pool min: {pool_min} max: {pool_max} timeout: {pool_timeout} recycle: {pool_recycle}\n".format(
                         pool_min=self.pool.minsize,
-                        pool_max=self.pool.maxsize))
+                        pool_max=self.pool.maxsize,
+                        pool_timeout=self.pool.timeout,
+                        pool_recycle=db_conf.pool_recycle))
 
                 break  # Break the retry loop
             except Exception as e:

@@ -51,7 +51,8 @@ def test_db_conf():
         assert db_conf.dsn == 'dbname=postgres user=postgres password=postgres host=localhost port=5432'
         assert db_conf.pool_min == 1
         assert db_conf.pool_max == 10
-        assert db_conf.timeout == 60
+        assert db_conf.pool_timeout == 60
+        assert db_conf.pool_recycle == -1
 
 
 def test_db_conf_dsn():
@@ -79,7 +80,8 @@ def test_db_conf_env_default_prefix():
         'MF_METADATA_DB_NAME': 'bar',
         'MF_METADATA_DB_POOL_MIN': '2',
         'MF_METADATA_DB_POOL_MAX': '4',
-        'MF_METADATA_DB_TIMEOUT': '5'
+        'MF_METADATA_DB_TIMEOUT': '5',
+        'MF_METADATA_DB_POOL_RECYCLE': '1'
     }):
         db_conf = DBConfiguration()
         assert db_conf.dsn == 'dbname=bar user=user password=password host=foo port=1234'
@@ -90,7 +92,8 @@ def test_db_conf_env_default_prefix():
         assert db_conf.database_name == 'bar'
         assert db_conf.pool_min == 2
         assert db_conf.pool_max == 4
-        assert db_conf.timeout == 5
+        assert db_conf.pool_timeout == 5
+        assert db_conf.pool_recycle == 1
 
 
 def test_db_conf_env_custom_prefix():
@@ -102,7 +105,8 @@ def test_db_conf_env_custom_prefix():
         'FOO_NAME': 'bar',
         'FOO_POOL_MIN': '2',
         'FOO_POOL_MAX': '4',
-        'FOO_TIMEOUT': '5'
+        'FOO_TIMEOUT': '5',
+        'FOO_POOL_RECYCLE': '1'
     }):
         db_conf = DBConfiguration(prefix='FOO_')
         assert db_conf.dsn == 'dbname=bar user=user password=password host=foo port=1234'
@@ -113,7 +117,8 @@ def test_db_conf_env_custom_prefix():
         assert db_conf.database_name == 'bar'
         assert db_conf.pool_min == 2
         assert db_conf.pool_max == 4
-        assert db_conf.timeout == 5
+        assert db_conf.pool_timeout == 5
+        assert db_conf.pool_recycle == 1
 
 
 def test_db_conf_env_dsn():
@@ -131,5 +136,5 @@ def test_db_conf_pool_size():
 def test_db_conf_timeout():
     with set_env():
         db_conf = DBConfiguration(timeout=5)
-        assert db_conf.timeout == 5
+        assert db_conf.pool_timeout == 5
 
