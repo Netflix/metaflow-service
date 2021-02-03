@@ -289,7 +289,8 @@ async def test_task_attempts_with_attempt_metadata(cli, db):
     _task_second_attempt = dict(_task)
 
     _task_first_attempt['attempt_id'] = 0
-    _task_first_attempt['status'] = 'completed'  # 'completed' because we cannot determine correct status from S3/metadata
+    _task_first_attempt['task_ok'] = 'location'  # should have location for status artifact
+    _task_first_attempt['status'] = 'unknown'  # 'unknown' because we cannot determine correct status from DB as attempt_ok is missing
     _task_first_attempt['started_at'] = _attempt_first['ts_epoch']
     _task_first_attempt['finished_at'] = _attempt_done_first['ts_epoch']
     _task_first_attempt['duration'] = _task_first_attempt['finished_at'] \
@@ -300,7 +301,15 @@ async def test_task_attempts_with_attempt_metadata(cli, db):
     _task_second_attempt['started_at'] = _attempt_second['ts_epoch']
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
 
+    # Write attempt_ok data for first attempt to check for status changes.
+    await create_task_attempt_ok_metadata(db, _task, 0, False)
+
+    _task_first_attempt['task_ok'] = None  # should have no task_ok location, as status can be determined from db.
+    _task_first_attempt['status'] = 'failed'  # 'failed' because now we have attempt_ok false in db.
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
 
 

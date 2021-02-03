@@ -227,7 +227,11 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
         return resp.status, data
 
     expected_data[:] = map(_fill_missing_resource_data, expected_data)
-    assert data == expected_data
+
+    # This is to get a more descriptive diff on errors.
+    assert len(data) == len(expected_data)
+    for i, d in enumerate(data):
+        assert d == expected_data[i]
 
     return resp.status, data
 
