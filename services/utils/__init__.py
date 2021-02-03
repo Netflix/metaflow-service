@@ -26,15 +26,6 @@ log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
 
-async def read_body(request_content):
-    byte_array = bytearray()
-    while not request_content.at_eof():
-        data = await request_content.read(4)
-        byte_array.extend(data)
-
-    return json.loads(byte_array.decode("utf-8"))
-
-
 def get_traceback_str():
     """Get the traceback as a string."""
 
@@ -70,15 +61,22 @@ def handle_exceptions(func):
     """Catch exceptions and return appropriate HTTP error."""
 
     @wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(self, request):
         try:
-            return await func(*args, **kwargs)
+            return await func(self, request)
         except Exception as err:
             # pass along an id for the error
             err_id = getattr(err, 'id', 'generic-error')
             # either use provided traceback from subprocess, or generate trace from current process
             err_trace = getattr(err, 'traceback_str', None) or get_traceback_str()
             logging.error(err_trace)
+            # We log the request that caused this for debugging information
+            try:
+                body = await request.text()
+            except:
+                body = '<no body>'
+            logging.error("Error caused when %s %s with query %s and body %s" %
+                          (request.method, request.url, request.query_string, body))
             return http_500(str(err), err_id, err_trace)
 
     return wrapper

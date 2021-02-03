@@ -119,7 +119,7 @@ class RunApi(object):
         """
         flow_name = request.match_info.get("flow_id")
 
-        body = await read_body(request.content)
+        body = await request.json()
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")

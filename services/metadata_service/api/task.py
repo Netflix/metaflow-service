@@ -170,7 +170,7 @@ class TaskApi(object):
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
-        body = await read_body(request.content)
+        body = await request.json()
 
         user = body.get("user_name")
         tags = body.get("tags")
