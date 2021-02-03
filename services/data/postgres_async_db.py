@@ -628,7 +628,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 artifacts.task_id = attempt_ok.task_id AND
                 artifacts.step_name = attempt_ok.step_name AND
                 attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? CONCAT('attempt_id:', artifacts.attempt_id)
+                attempt_ok.tags ? ('attempt_id:' || artifacts.attempt_id)
             )
             WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
         ) AS artifacts ON (
@@ -646,10 +646,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys] \
         + ["""
             (CASE
-                WHEN system_tags ? CONCAT('user:', user_name)
+                WHEN system_tags ? ('user:' || user_name)
                 THEN user_name
                 ELSE NULL
-            END) AS user"""]
+            END) AS user"""] \
+        + ["""
+            COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
+            """.format(table_name=table_name)]
     join_columns = [
         """
         (CASE
@@ -855,7 +858,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.step_name = attempt_ok.step_name AND
                 task_ok.task_id = attempt_ok.task_id AND
                 attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? CONCAT('attempt_id:', task_ok.attempt_id)
+                attempt_ok.tags ? ('attempt_id:' || task_ok.attempt_id)
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
                 task_ok.flow_id = foreach_stack.flow_id AND
