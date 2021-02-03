@@ -18,8 +18,9 @@ from services.utils import DBConfiguration
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
 WAIT_TIME = 10
-HEARTBEAT_THRESHOLD = WAIT_TIME * 6  # Add margin in case of client-server communication delays, before marking a heartbeat stale.
-OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
+# Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
+HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
+OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
 # Create database triggers automatically, disabled by default
 # Enable with env variable `DB_TRIGGER_CREATE=1`
@@ -129,7 +130,7 @@ class _AsyncPostgresDB(object):
 
         select_sql = "SELECT * FROM (VALUES({values})) T({keys}) {where}".format(
             values=", ".join(stm_vals),
-            keys=", ".join(keys),
+            keys=", ".join(map(lambda k: "\"{}\"".format(k), keys)),
             where="WHERE {}".format(" AND ".join(
                 conditions)) if conditions else "",
         )
@@ -203,8 +204,8 @@ class AsyncPostgresTable(object):
             conditions.append("{} = %s".format(col_name))
             values.append(col_val)
 
-        response, _ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
-                                              order=ordering, limit=limit, expanded=expanded)
+        response, *_ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
+                                               order=ordering, limit=limit, expanded=expanded)
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
@@ -212,8 +213,6 @@ class AsyncPostgresTable(object):
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
                            benchmark: bool = False) -> (DBResponse, DBPagination):
-        # Alias T is important here which is used to construct ordering and conditions
-
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -228,10 +227,6 @@ class AsyncPostgresTable(object):
             {limit}
             {offset}
             """
-
-            if order:
-                # Order using alias T
-                order = map(lambda o: "T.{}".format(o), order)
 
             select_sql = sql_template.format(
                 keys=",".join(

@@ -126,8 +126,8 @@ def test_pagination_query_custom():
     assert page == 3
     assert limit == 5
     assert offset == 10
-    assert order == ["foo DESC"]
-    assert groups == ["bar"]
+    assert order == ["\"foo\" DESC"]
+    assert groups == ["\"bar\""]
     assert group_limit == 10
 
 
@@ -137,7 +137,7 @@ def test_pagination_query_custom_order_asc():
     _, _, _, order, _, _ = pagination_query(
         request=request, allowed_order=["foo"])
 
-    assert order == ["foo ASC"]
+    assert order == ["\"foo\" ASC"]
 
 
 def test_pagination_query_not_allowed():
@@ -222,16 +222,16 @@ def test_builtin_conditions_query_tags_likeany():
 
 def test_custom_conditions_query():
     operators = {
-        "flow_id": ["flow_id = %s", "{}"],
-        "flow_id:eq": ["flow_id = %s", "{}"],
-        "flow_id:ne": ["flow_id != %s", "{}"],
-        "flow_id:lt": ["flow_id < %s", "{}"],
-        "flow_id:le": ["flow_id <= %s", "{}"],
-        "flow_id:gt": ["flow_id > %s", "{}"],
-        "flow_id:ge": ["flow_id >= %s", "{}"],
-        "flow_id:co": ["flow_id ILIKE %s", "%{}%"],
-        "flow_id:sw": ["flow_id ILIKE %s", "{}%"],
-        "flow_id:ew": ["flow_id ILIKE %s", "%{}"]
+        "flow_id": ["\"flow_id\" = %s", "{}"],
+        "flow_id:eq": ["\"flow_id\" = %s", "{}"],
+        "flow_id:ne": ["\"flow_id\" != %s", "{}"],
+        "flow_id:lt": ["\"flow_id\" < %s", "{}"],
+        "flow_id:le": ["\"flow_id\" <= %s", "{}"],
+        "flow_id:gt": ["\"flow_id\" > %s", "{}"],
+        "flow_id:ge": ["\"flow_id\" >= %s", "{}"],
+        "flow_id:co": ["\"flow_id\" ILIKE %s", "%{}%"],
+        "flow_id:sw": ["\"flow_id\" ILIKE %s", "{}%"],
+        "flow_id:ew": ["\"flow_id\" ILIKE %s", "%{}"]
     }
 
     for op, query in operators.items():
@@ -245,8 +245,8 @@ def test_custom_conditions_query():
             request, allowed_keys=["flow_id"])
 
         assert len(conditions) == 2
-        assert conditions[0] == "(T.{0} OR T.{0})".format(where)
-        assert conditions[1] == "(T.{0})".format(where)
+        assert conditions[0] == "({0} OR {0})".format(where)
+        assert conditions[1] == "({0})".format(where)
 
         assert len(values) == 3
         assert values[0] == val.format("HelloFlow")
@@ -262,8 +262,8 @@ def test_custom_conditions_query_allow_any_key():
         request, allowed_keys=None)
 
     assert len(conditions) == 2
-    assert conditions[0] == "(T.flow_id = %s)"
-    assert conditions[1] == "(T.status = %s)"
+    assert conditions[0] == "(\"flow_id\" = %s)"
+    assert conditions[1] == "(\"status\" = %s)"
 
     assert len(values) == 2
     assert values[0] == "HelloFlow"
@@ -280,8 +280,8 @@ def test_resource_conditions():
     assert query.get("status") == "running"
 
     assert len(conditions) == 2
-    assert conditions[0] == "(T.flow_id = %s)"
-    assert conditions[1] == "(T.status = %s)"
+    assert conditions[0] == "(\"flow_id\" = %s)"
+    assert conditions[1] == "(\"status\" = %s)"
 
     assert len(values) == 2
     assert values[0] == "HelloFlow"
