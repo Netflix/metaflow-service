@@ -1,6 +1,6 @@
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import _filter_artifacts_by_attempt_id_for_tasks
+from services.data.db_utils import DBResponse, _filter_artifacts_by_attempt_id_for_tasks
 from services.utils import format_response, handle_exceptions
 import json
 
@@ -93,6 +93,8 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id, artifact_name
         )
 
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -137,12 +139,12 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-        filtered_body = _filter_artifacts_by_attempt_id_for_tasks(
+        artifacts.body = _filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
+        return artifacts
 
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_step(self, request):
         """
         ---
@@ -181,12 +183,12 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name
         )
 
-        filtered_body = _filter_artifacts_by_attempt_id_for_tasks(
+        artifacts.body = _filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
+        return artifacts
 
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_run(self, request):
         """
         ---
@@ -216,12 +218,12 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = _filter_artifacts_by_attempt_id_for_tasks(
+        artifacts.body = _filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
+        return artifacts
 
+    @format_response
+    @handle_exceptions
     async def create_artifacts(self, request):
         """
         ---
@@ -309,13 +311,16 @@ class ArtificatsApi(object):
         body = await request.json()
         count = 0
 
-        try:
-            run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
-            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
-                                                             step_name, task_id)
-        except Exception:
-            return web.Response(status=400, body=json.dumps(
-                {"message": "need to register run_id and task_id first"}))
+        run = await self._db.get_run_ids(flow_name, run_number)
+        task = await self._db.get_task_ids(flow_name, run_number,
+                                           step_name, task_id)
+        if run.response_code != 200 or task.response_code != 200:
+            return DBResponse(400, {"message": "need to register run_id and task_id first"})
+
+        run_id = run['run_id']
+        run_number = run['run_number']
+        task_id = task['task_id']
+        task_name = task['task_name']
 
         # todo change to bulk insert
         for artifact in body:
@@ -344,4 +349,4 @@ class ArtificatsApi(object):
 
         result = {"artifacts_created": count}
 
-        return web.Response(body=json.dumps(result))
+        return DBResponse(response_code=200, body=result)

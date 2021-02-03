@@ -101,17 +101,15 @@ class _AsyncPostgresDB(object):
         return None
 
     async def get_run_ids(self, flow_id: str, run_id: str):
-        run = await self.run_table_postgres.get_run(flow_id, run_id,
+        return await self.run_table_postgres.get_run(flow_id, run_id,
                                                     expanded=True)
-        return run.body['run_number'], run.body['run_id']
 
     async def get_task_ids(self, flow_id: str, run_id: str,
                            step_name: str, task_name: str):
 
-        task = await self.task_table_postgres.get_task(flow_id, run_id,
+        return await self.task_table_postgres.get_task(flow_id, run_id,
                                                        step_name, task_name,
                                                        expanded=True)
-        return task.body['task_id'], task.body['task_name']
 
     # This function is used to verify 'data' object matches the same filters as
     # 'AsyncPostgresTable.find_records' does. This is used with 'pg_notify' + Websocket

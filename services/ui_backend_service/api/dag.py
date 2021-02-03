@@ -1,7 +1,6 @@
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key
-from services.utils import handle_exceptions
-from .utils import format_response, web_response
+from services.utils import format_response, handle_exceptions
 
 from aiohttp import web
 import json
@@ -16,6 +15,7 @@ class DagApi(object):
         self._metadata_table = self.db.metadata_table_postgres
         self._dag_store = getattr(cache, "dag_cache", None)
 
+    @format_response
     @handle_exceptions
     async def get_run_dag(self, request):
         """
@@ -57,8 +57,7 @@ class DagApi(object):
             fetch_single=True, expanded=True
         )
         if not db_response.response_code == 200:
-            status, body = format_response(request, db_response)
-            return web_response(status, body)
+            return db_response
 
         # parse codepackage location.
         codepackage_loc = json.loads(db_response.body['value'])['location']
@@ -73,10 +72,8 @@ class DagApi(object):
                     raise GenerateDAGFailed(event["message"], event["id"], event["traceback"])
             await dag.wait()  # wait until results are ready
         dag = dag.get()
-        response = DBResponse(200, dag)
-        status, body = format_response(request, response)
+        return DBResponse(200, dag)
 
-        return web_response(status, body)
 
 
 class GenerateDAGFailed(Exception):

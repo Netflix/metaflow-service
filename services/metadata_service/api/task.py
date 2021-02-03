@@ -1,4 +1,5 @@
 from services.data import TaskRow
+from services.data.db_utils import DBResponse
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import format_response, handle_exceptions
 import json
@@ -179,10 +180,15 @@ class TaskApi(object):
         ts_epoch = body.get("ts_epoch")
 
         if task_name and task_name.isnumeric():
-            return web.Response(status=400, body=json.dumps(
-                {"message": "provided task_name may not be a numeric"}))
+            return DBResponse(400,
+                {"message": "provided task_name may not be a numeric"})
 
-        run_number, run_id = await self._db.get_run_ids(flow_id, run_number)
+        run = await self._db.get_run_ids(flow_id, run_number)
+        if run.response_code != 200:
+            return DBResponse(400, {"message": "need to register run_id first"})
+
+        run_id = run['run_id']
+        run_number = run['run_number']
 
         task = TaskRow(
             flow_id=flow_id,

@@ -1,5 +1,6 @@
 from aiohttp import web
 import json
+from services.data.db_utils import DBResponse
 from services.utils import format_response, handle_exceptions
 import asyncio
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -108,6 +109,8 @@ class MetadataApi(object):
             flow_name, run_number
         )
 
+    @format_response
+    @handle_exceptions
     async def create_metadata(self, request):
         """
         ---
@@ -173,13 +176,16 @@ class MetadataApi(object):
 
         body = await request.json()
         count = 0
-        try:
-            run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
-            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
-                                                             step_name, task_id)
-        except Exception:
-            return web.Response(status=400, body=json.dumps(
-                {"message": "need to register run_id and task_id first"}))
+        run = await self._db.get_run_ids(flow_name, run_number)
+        task = await self._db.get_task_ids(flow_name, run_number,
+                                           step_name, task_id)
+        if run.response_code != 200 or task.response_code != 200:
+            return DBResponse(400, {"message": "need to register run_id and task_id first"})
+
+        run_id = run['run_id']
+        run_number = run['run_number']
+        task_id = task['task_id']
+        task_name = task['task_name']
 
         for datum in body:
             values = {
@@ -203,4 +209,4 @@ class MetadataApi(object):
 
         result = {"metadata_created": count}
 
-        return web.Response(body=json.dumps(result))
+        return DBResponse(200, result)
