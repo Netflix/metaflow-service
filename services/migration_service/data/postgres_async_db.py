@@ -40,7 +40,7 @@ class AsyncPostgresDB(object):
         retries = 3
         for i in range(retries):
             try:
-                self.pool = await aiopg.create_pool(db_conf.dsn)
+                self.pool = await aiopg.create_pool(db_conf.dsn, timeout=db_conf.timeout)
             except Exception as e:
                 print("printing connection exception: " + str(e))
                 if retries - i < 1:

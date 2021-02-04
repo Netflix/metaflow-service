@@ -146,8 +146,10 @@ class DBConfiguration(object):
 
     # aiopg default pool sizes
     # https://aiopg.readthedocs.io/en/stable/_modules/aiopg/pool.html#create_pool
-    pool_min: int = 1
-    pool_max: int = 10
+    pool_min: int = None  # aiopg default: 1
+    pool_max: int = None  # aiopg default: 10
+
+    timeout: int = None  # aiopg default: 60 (seconds)
 
     _dsn: str = None
 
@@ -158,7 +160,10 @@ class DBConfiguration(object):
                  user: str = "postgres",
                  password: str = "postgres",
                  database_name: str = "postgres",
-                 prefix="MF_METADATA_DB_"):
+                 prefix="MF_METADATA_DB_",
+                 pool_min: int = 1,
+                 pool_max: int = 10,
+                 timeout: int = 60):
         table = str.maketrans({"'": "\'", "`": r"\`"})
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
@@ -171,8 +176,10 @@ class DBConfiguration(object):
         self.database_name = os.environ.get(
             prefix + "NAME", database_name).translate(table)
 
-        self.pool_min = int(os.environ.get(prefix + "POOL_MIN", self.pool_min))
-        self.pool_max = int(os.environ.get(prefix + "POOL_MAX", self.pool_max))
+        self.pool_min = int(os.environ.get(prefix + "POOL_MIN", pool_min))
+        self.pool_max = int(os.environ.get(prefix + "POOL_MAX", pool_max))
+
+        self.timeout = int(os.environ.get(prefix + "TIMEOUT", timeout))
 
     @property
     def dsn(self):
