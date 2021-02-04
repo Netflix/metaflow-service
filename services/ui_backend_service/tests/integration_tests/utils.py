@@ -1,5 +1,6 @@
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
+from pytest import approx
 import json
 import datetime
 
@@ -213,7 +214,7 @@ def _fill_missing_resource_data(_item):
     return _item
 
 
-async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[]):
+async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], approx_keys=None):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
@@ -227,12 +228,17 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
         return resp.status, data
 
     expected_data[:] = map(_fill_missing_resource_data, expected_data)
-    assert data == expected_data
+    if approx_keys:
+        assert len(data) == len(expected_data)
+        for i, d in enumerate(data):
+            _test_dict_approx(d, expected_data[i], approx_keys)
+    else:
+        assert data == expected_data
 
     return resp.status, data
 
 
-async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}):
+async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}, approx_keys=None):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
@@ -246,9 +252,21 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
         return resp.status, data
 
     expected_data = _fill_missing_resource_data(expected_data)
-    assert data == expected_data
+    if approx_keys:
+        _test_dict_approx(data, expected_data, approx_keys)
+    else:
+        assert data == expected_data
 
     return resp.status, data
+
+
+def _test_dict_approx(actual, expected, approx_keys, threshold=1000):
+    "Assert that two dicts are almost equal, allowing for some leeway on specified keys"
+    for k, v in actual.items():
+        if k in approx_keys:
+            assert v == approx(expected[k], rel=threshold)
+        else:
+            assert v == expected[k]
 
 
 def get_heartbeat_ts(offset=5):
