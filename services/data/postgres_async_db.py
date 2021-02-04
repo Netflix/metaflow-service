@@ -744,9 +744,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch - {table_name}.ts_epoch
-            ELSE NULL
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+            AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
+            THEN {cutoff}
+            ELSE @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)
         END) AS duration
-        """.format(table_name=table_name)
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+        )
     ]
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
@@ -930,7 +937,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = [
         "attempt.started_at as started_at",
-        "attempt.finished_at as finished_at",
+        """
+        (CASE
+        WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+        THEN {table_name}.last_heartbeat_ts*1000
+        ELSE attempt.finished_at
+        END) as finished_at
+        """.format(table_name=table_name),
         "attempt.attempt_ok as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
         #   that is used to fetch the artifact value from remote location.

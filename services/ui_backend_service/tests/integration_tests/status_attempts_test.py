@@ -322,4 +322,4 @@ async def test_attempt_status_failed_heartbeat(cli, db):
     assert data["status"] == "failed"
     assert data["ts_epoch"] == _task["ts_epoch"]
     assert data["started_at"] == None
-    assert data["finished_at"] == None
+    assert data["finished_at"] == 1000  # last heartbeat in this case
