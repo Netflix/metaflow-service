@@ -21,14 +21,14 @@ CREATE INDEX runs_v3_idx_user_asc_ts_epoch_desc ON runs_v3 (
         WHEN system_tags ? ('user:' || user_name)
         THEN user_name
         ELSE NULL
-    END) ASC NULLS LAST, ts_epoch DESC
+    END) ASC, ts_epoch DESC
 );
 CREATE INDEX runs_v3_idx_user_desc_ts_epoch_desc ON runs_v3 (
     (CASE
         WHEN system_tags ? ('user:' || user_name)
         THEN user_name
         ELSE NULL
-    END) DESC NULLS LAST, ts_epoch DESC
+    END) DESC, ts_epoch DESC
 );
 
 -- run
