@@ -97,9 +97,9 @@ class RunApi(object):
                                   self._async_table,
                                   initial_conditions=[],
                                   initial_values=[],
-                                  allowed_order=self._async_table.keys + ["user", "finished_at", "duration", "status"],
+                                  allowed_order=self._async_table.keys + ["user", "run", "finished_at", "duration", "status"],
                                   allowed_group=self._async_table.keys + ["user"],
-                                  allowed_filters=self._async_table.keys + ["user", "finished_at", "duration", "status"],
+                                  allowed_filters=self._async_table.keys + ["user", "run", "finished_at", "duration", "status"],
                                   enable_joins=True
                                   )
 
@@ -142,9 +142,9 @@ class RunApi(object):
                                   self._async_table,
                                   initial_conditions=["flow_id = %s"],
                                   initial_values=[flow_name],
-                                  allowed_order=self._async_table.keys + ["user", "finished_at", "duration", "status"],
+                                  allowed_order=self._async_table.keys + ["user", "run", "finished_at", "duration", "status"],
                                   allowed_group=self._async_table.keys + ["user"],
-                                  allowed_filters=self._async_table.keys + ["user", "finished_at", "duration", "status"],
+                                  allowed_filters=self._async_table.keys + ["user", "run", "finished_at", "duration", "status"],
                                   enable_joins=True
                                   )
 
