@@ -52,7 +52,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
 
 async def init_db(cli):
-    db_conf = DBConfiguration()
+    db_conf = DBConfiguration(timeout=1)
 
     # Make sure migration scripts are applied
     migration_db = MigrationAsyncPostgresDB.get_instance()

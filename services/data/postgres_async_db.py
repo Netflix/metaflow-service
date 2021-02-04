@@ -68,6 +68,7 @@ class _AsyncPostgresDB(object):
                     db_conf.dsn,
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
+                    timeout=db_conf.timeout,
                     echo=AIOPG_ECHO)
 
                 # Clean existing trigger functions before creating new ones
