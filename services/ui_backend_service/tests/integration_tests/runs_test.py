@@ -1,4 +1,5 @@
 import pytest
+import time
 from .utils import (
     init_app, init_db, clean_db,
     add_flow, add_run, add_artifact,
@@ -34,9 +35,10 @@ async def test_list_runs(cli, db):
     _run["status"] = "running"
     _run["user"] = None
     _run["run"] = _run["run_number"]
+    _run["duration"] = int(round(time.time() * 1000)) - _run["ts_epoch"]
 
-    await _test_list_resources(cli, db, "/runs", 200, [_run])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs".format(**_flow), 200, [_run])
+    await _test_list_resources(cli, db, "/runs", 200, [_run], approx_keys=["duration"])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs".format(**_flow), 200, [_run], approx_keys=["duration"])
 
 
 async def test_list_runs_real_user(cli, db):
@@ -45,9 +47,10 @@ async def test_list_runs_real_user(cli, db):
     _run = (await add_run(db, flow_id=_flow.get("flow_id"), user_name="hello", system_tags=["user:hello"])).body
     _run["status"] = "running"
     _run["user"] = "hello"
+    _run["duration"] = int(round(time.time() * 1000)) - _run["ts_epoch"]
     _run["run"] = _run["run_number"]
 
-    await _test_list_resources(cli, db, "/runs", 200, [_run])
+    await _test_list_resources(cli, db, "/runs", 200, [_run], approx_keys=["duration"])
 
 
 async def test_list_runs_real_user_filter(cli, db):
@@ -56,9 +59,10 @@ async def test_list_runs_real_user_filter(cli, db):
     _run = (await add_run(db, flow_id=_flow.get("flow_id"), user_name="hello", system_tags=["user:hello"])).body
     _run["status"] = "running"
     _run["user"] = "hello"
+    _run["duration"] = int(round(time.time() * 1000)) - _run["ts_epoch"]
     _run["run"] = _run["run_number"]
 
-    await _test_list_resources(cli, db, "/runs?user=hello", 200, [_run])
+    await _test_list_resources(cli, db, "/runs?user=hello", 200, [_run], approx_keys=["duration"])
 
 
 async def test_list_runs_real_user_filter_null(cli, db):
@@ -74,9 +78,10 @@ async def test_list_runs_real_user_none(cli, db):
         _run = (await add_run(db, flow_id=_flow.get("flow_id"), user_name=user_name, system_tags=["user:" + tag] if tag else [])).body
         _run["status"] = "running"
         _run["user"] = expected_user
+        _run["duration"] = int(round(time.time() * 1000)) - _run["ts_epoch"]
         _run["run"] = _run["run_number"]
 
-        await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
+        await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run, approx_keys=["duration"])
 
     await _test_run_with_user(expected_user="foo", user_name="foo", tag="foo")
 
@@ -114,9 +119,10 @@ async def test_single_run(cli, db):
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _run["status"] = "running"
     _run["user"] = None
+    _run["duration"] = int(round(time.time() * 1000)) - _run["ts_epoch"]
     _run["run"] = _run["run_number"]
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run, approx_keys=["duration"])
 
 
 async def test_single_run_non_numerical(cli, db):
@@ -218,8 +224,9 @@ async def test_old_run_status_without_heartbeat(cli, db):
     _run_running["status"] = "running"
     _run_running["user"] = None
     _run_running["run"] = _run_running["run_number"]
+    _run_running["duration"] = int(round(time.time() * 1000)) - _run_running["ts_epoch"]
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_running), 200, _run_running)
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_running), 200, _run_running, approx_keys=["duration"])
 
     # A run with an end task _task_ok artifact should count as completed.
     _run_complete = (await add_run(db, flow_id=_flow.get("flow_id"))).body
@@ -264,11 +271,12 @@ async def test_old_run_status_without_heartbeat(cli, db):
     _run_failed["ts_epoch"] = _old_ts
     # finished at should be the start time + cutoff period
     _run_failed["finished_at"] = _run_failed["ts_epoch"] + (60 * 60 * 24 * 14 * 1000)
+    _run_failed["duration"] = _run_failed["finished_at"] - _run_failed["ts_epoch"]
     _run_failed["status"] = "failed"
     _run_failed["user"] = None
     _run_failed["run"] = _run_failed["run_number"]
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_failed), 200, _run_failed)
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_failed), 200, _run_failed, approx_keys=["duration"])
 
 
 async def test_single_run_attempt_ok_completed(cli, db):

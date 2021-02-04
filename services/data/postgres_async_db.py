@@ -699,9 +699,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch - {table_name}.ts_epoch
-            ELSE NULL
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+            AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
+            THEN {cutoff}
+            ELSE @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)
         END) AS duration
-        """.format(table_name=table_name)
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+        )
     ]
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
