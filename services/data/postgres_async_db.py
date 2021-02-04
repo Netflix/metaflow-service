@@ -102,7 +102,7 @@ class _AsyncPostgresDB(object):
 
     async def get_run_ids(self, flow_id: str, run_id: str):
         return await self.run_table_postgres.get_run(flow_id, run_id,
-                                                    expanded=True)
+                                                     expanded=True)
 
     async def get_task_ids(self, flow_id: str, run_id: str,
                            step_name: str, task_name: str):

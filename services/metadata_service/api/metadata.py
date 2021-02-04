@@ -31,8 +31,8 @@ class MetadataApi(object):
         self._db = AsyncPostgresDB.get_instance()
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_metadata(self, request):
         """
         ---
@@ -76,8 +76,8 @@ class MetadataApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_metadata_by_run(self, request):
         """
         ---
@@ -109,8 +109,8 @@ class MetadataApi(object):
             flow_name, run_number
         )
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_metadata(self, request):
         """
         ---
@@ -182,10 +182,10 @@ class MetadataApi(object):
         if run.response_code != 200 or task.response_code != 200:
             return DBResponse(400, {"message": "need to register run_id and task_id first"})
 
-        run_id = run['run_id']
-        run_number = run['run_number']
-        task_id = task['task_id']
-        task_name = task['task_name']
+        run_id = run.body['run_id']
+        run_number = run.body['run_number']
+        task_id = task.body['task_id']
+        task_name = task.body['task_name']
 
         for datum in body:
             values = {

@@ -34,8 +34,8 @@ class TaskApi(object):
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_tasks(self, request):
         """
         ---
@@ -72,8 +72,8 @@ class TaskApi(object):
 
         return await self._async_table.get_tasks(flow_name, run_number, step_name)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_task(self, request):
         """
         ---
@@ -117,8 +117,8 @@ class TaskApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_task(self, request):
         """
         ---
@@ -187,8 +187,8 @@ class TaskApi(object):
         if run.response_code != 200:
             return DBResponse(400, {"message": "need to register run_id first"})
 
-        run_id = run['run_id']
-        run_number = run['run_number']
+        run_id = run.body['run_id']
+        run_number = run.body['run_number']
 
         task = TaskRow(
             flow_id=flow_id,
@@ -203,8 +203,8 @@ class TaskApi(object):
         )
         return await self._async_table.add_task(task)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def tasks_heartbeat(self, request):
         """
         ---

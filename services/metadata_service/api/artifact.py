@@ -41,8 +41,8 @@ class ArtificatsApi(object):
         self._async_table = AsyncPostgresDB.get_instance().artifact_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_artifact(self, request):
         """
         ---
@@ -93,8 +93,8 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id, artifact_name
         )
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -143,8 +143,8 @@ class ArtificatsApi(object):
             artifacts.body)
         return artifacts
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_artifacts_by_step(self, request):
         """
         ---
@@ -187,8 +187,8 @@ class ArtificatsApi(object):
             artifacts.body)
         return artifacts
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_artifacts_by_run(self, request):
         """
         ---
@@ -222,8 +222,8 @@ class ArtificatsApi(object):
             artifacts.body)
         return artifacts
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_artifacts(self, request):
         """
         ---
@@ -317,10 +317,10 @@ class ArtificatsApi(object):
         if run.response_code != 200 or task.response_code != 200:
             return DBResponse(400, {"message": "need to register run_id and task_id first"})
 
-        run_id = run['run_id']
-        run_number = run['run_number']
-        task_id = task['task_id']
-        task_name = task['task_name']
+        run_id = run.body['run_id']
+        run_number = run.body['run_number']
+        task_id = task.body['task_id']
+        task_name = task.body['task_name']
 
         # todo change to bulk insert
         for artifact in body:
