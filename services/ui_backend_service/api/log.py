@@ -268,8 +268,6 @@ class LogApi(object):
         return web_response(404, {'data': []})
 
 
-
-
 async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> (str, str, int):
     bucket, path, _ = \
         await get_metadata_log(
