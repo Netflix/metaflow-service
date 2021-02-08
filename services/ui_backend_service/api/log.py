@@ -28,13 +28,13 @@ LOG_SOURCES = ['runtime', 'task']
 # Get the root path for the datastore as this is no longer stored with MFLog
 DS_ROOT = os.environ.get("MF_DATASTORE_ROOT")
 
-RE = b'(\[!)?'\
-     b'\[MFLOG\|'\
-     b'(0)\|'\
-     b'(.+?)Z\|'\
-     b'(.+?)\|'\
-     b'(.+?)\]'\
-     b'(.*)'
+RE = br'(\[!)?'\
+     br'\[MFLOG\|'\
+     br'(0)\|'\
+     br'(.+?)Z\|'\
+     br'(.+?)\|'\
+     br'(.+?)\]'\
+     br'(.*)'
 
 # the RE groups defined above must match the MFLogline fields below
 MFLogline = namedtuple('MFLogline', ['should_persist',
@@ -266,8 +266,6 @@ class LogApi(object):
                 lines = await read_and_output_mflog(to_fetch)
                 return web_response(200, {'data': lines})
         return web_response(404, {'data': []})
-
-
 
 
 async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> (str, str, int):
