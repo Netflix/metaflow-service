@@ -169,7 +169,7 @@ class DBConfiguration(object):
         self._dsn = os.environ.get(prefix + "DSN", dsn)
 
         self.host = os.environ.get(prefix + "HOST", host).translate(table)
-        self.port = os.environ.get(prefix + "PORT", port)
+        self.port = int(os.environ.get(prefix + "PORT", port))
         self.user = os.environ.get(prefix + "USER", user).translate(table)
         self.password = os.environ.get(
             prefix + "PSWD", password).translate(table)
