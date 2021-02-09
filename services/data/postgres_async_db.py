@@ -212,7 +212,8 @@ class AsyncPostgresTable(object):
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
-                           benchmark: bool = False) -> (DBResponse, DBPagination):
+                           benchmark: bool = False, overwrite_select_from: str = None
+                           ) -> (DBResponse, DBPagination):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -231,7 +232,7 @@ class AsyncPostgresTable(object):
             select_sql = sql_template.format(
                 keys=",".join(
                     self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
+                table_name=overwrite_select_from if overwrite_select_from else self.table_name,
                 joins=" ".join(
                     self.joins) if enable_joins and self.joins else "",
                 where="WHERE {}".format(" AND ".join(
@@ -263,7 +264,7 @@ class AsyncPostgresTable(object):
             select_sql = sql_template.format(
                 keys=",".join(
                     self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
+                table_name=overwrite_select_from if overwrite_select_from else self.table_name,
                 joins=" ".join(
                     self.joins) if enable_joins and self.joins is not None else "",
                 where="WHERE {}".format(" AND ".join(
