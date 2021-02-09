@@ -20,7 +20,7 @@ from .api import (
 from .data.cache import CacheStore
 from .frontend import Frontend
 
-from services.data.postgres_async_db import _AsyncPostgresDB
+from .data.db import _AsyncPostgresDB
 from services.utils import DBConfiguration, logging
 
 from pyee import AsyncIOEventEmitter

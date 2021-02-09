@@ -10,7 +10,7 @@ from services.utils import logging
 from typing import List, Callable
 from asyncio import iscoroutinefunction
 
-from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
+from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
@@ -18,8 +18,9 @@ from services.utils import DBConfiguration
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
 WAIT_TIME = 10
-HEARTBEAT_THRESHOLD = WAIT_TIME * 6  # Add margin in case of client-server communication delays, before marking a heartbeat stale.
-OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in milliseconds)
+# Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
+HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
+OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
 # Create database triggers automatically, disabled by default
 # Enable with env variable `DB_TRIGGER_CREATE=1`
@@ -67,6 +68,7 @@ class _AsyncPostgresDB(object):
                     db_conf.dsn,
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
+                    timeout=db_conf.timeout,
                     echo=AIOPG_ECHO)
 
                 # Clean existing trigger functions before creating new ones
@@ -129,7 +131,7 @@ class _AsyncPostgresDB(object):
 
         select_sql = "SELECT * FROM (VALUES({values})) T({keys}) {where}".format(
             values=", ".join(stm_vals),
-            keys=", ".join(keys),
+            keys=", ".join(map(lambda k: "\"{}\"".format(k), keys)),
             where="WHERE {}".format(" AND ".join(
                 conditions)) if conditions else "",
         )
@@ -202,19 +204,19 @@ class AsyncPostgresTable(object):
             conditions.append("{} = %s".format(col_name))
             values.append(col_val)
 
-        response, _ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
-                                              order=ordering, limit=limit, expanded=expanded)
+        response, *_ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
+                                               order=ordering, limit=limit, expanded=expanded)
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
-                           postprocess: Callable[[DBResponse], DBResponse] = None) -> (DBResponse, DBPagination):
-
+                           postprocess: Callable[[DBResponse], DBResponse] = None,
+                           benchmark: bool = False) -> (DBResponse, DBPagination):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
-            SELECT *, COUNT(*) OVER() AS count_total FROM (
+            SELECT * FROM (
                 SELECT
                     {keys}
                 FROM {table_name}
@@ -241,7 +243,7 @@ class AsyncPostgresTable(object):
             ).strip()
         else:  # Grouping enabled
             sql_template = """
-            SELECT *, COUNT(*) OVER() AS count_total FROM (
+            SELECT * FROM (
                 SELECT
                     *, ROW_NUMBER() OVER(PARTITION BY {group_by} {order_by})
                 FROM (
@@ -275,6 +277,14 @@ class AsyncPostgresTable(object):
                 offset="OFFSET {}".format(offset) if offset else ""
             ).strip()
 
+        # Run benchmarking on query if requested
+        benchmark_results = None
+        if benchmark:
+            benchmark_results = await self.benchmark_sql(
+                select_sql=select_sql, values=values, fetch_single=fetch_single,
+                expanded=expanded, limit=limit, offset=offset
+            )
+
         result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
                                                     expanded=expanded, limit=limit, offset=offset)
         # Modify the response after the fetch has been executed
@@ -284,7 +294,29 @@ class AsyncPostgresTable(object):
             else:
                 result = postprocess(result)
 
-        return result, pagination
+        return result, pagination, benchmark_results
+
+    async def benchmark_sql(self, select_sql: str, values=[], fetch_single=False,
+                            expanded=False, limit: int = 0, offset: int = 0):
+        "Benchmark and log a given SQL query with EXPLAIN ANALYZE"
+        try:
+            with (
+                await self.db.pool.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor
+                )
+            ) as cur:
+                # Run EXPLAIN ANALYZE on query and log the results.
+                benchmark_sql = "EXPLAIN ANALYZE {}".format(select_sql)
+                await cur.execute(benchmark_sql, values)
+
+                records = await cur.fetchall()
+                rows = []
+                for record in records:
+                    rows.append(record[0])
+                return "\n".join(rows)
+        except (Exception, psycopg2.DatabaseError):
+            self.db.logger.exception("Query Benchmarking failed")
+            return None
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
@@ -303,9 +335,6 @@ class AsyncPostgresTable(object):
                     rows.append(row.serialize(expanded))
 
                 count = len(rows)
-                count_total = 0  # Populated if `count_total` column available
-                if len(records) > 0 and "count_total" in records[0]:
-                    count_total = int(records[0]["count_total"])
 
                 # Will raise IndexError in case fetch_single=True and there's no results
                 body = rows[0] if fetch_single else rows
@@ -314,9 +343,7 @@ class AsyncPostgresTable(object):
                     limit=limit,
                     offset=offset,
                     count=count,
-                    count_total=count_total,
                     page=math.floor(int(offset) / max(int(limit), 1)) + 1,
-                    pages_total=max(math.ceil(count_total / max(int(limit), 1)), 1),
                 )
 
                 cur.close()
@@ -602,7 +629,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 artifacts.task_id = attempt_ok.task_id AND
                 artifacts.step_name = attempt_ok.step_name AND
                 attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? CONCAT('attempt_id:', artifacts.attempt_id)
+                attempt_ok.tags ? ('attempt_id:' || artifacts.attempt_id)
             )
             WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
         ) AS artifacts ON (
@@ -620,10 +647,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys] \
         + ["""
             (CASE
-                WHEN system_tags ? CONCAT('user:', user_name)
+                WHEN system_tags ? ('user:' || user_name)
                 THEN user_name
                 ELSE NULL
-            END) AS real_user"""]
+            END) AS user"""] \
+        + ["""
+            COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
+            """.format(table_name=table_name)]
     join_columns = [
         """
         (CASE
@@ -669,9 +699,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch - {table_name}.ts_epoch
-            ELSE NULL
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+            AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
+            THEN {cutoff}
+            ELSE @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)
         END) AS duration
-        """.format(table_name=table_name)
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+        )
     ]
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
@@ -829,7 +866,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 task_ok.step_name = attempt_ok.step_name AND
                 task_ok.task_id = attempt_ok.task_id AND
                 attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? CONCAT('attempt_id:', task_ok.attempt_id)
+                attempt_ok.tags ? ('attempt_id:' || task_ok.attempt_id)
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
                 task_ok.flow_id = foreach_stack.flow_id AND
@@ -855,7 +892,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = [
         "attempt.started_at as started_at",
-        "attempt.finished_at as finished_at",
+        """
+        (CASE
+        WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+        THEN {table_name}.last_heartbeat_ts*1000
+        ELSE attempt.finished_at
+        END) as finished_at
+        """.format(table_name=table_name),
         "attempt.attempt_ok as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
         #   that is used to fetch the artifact value from remote location.

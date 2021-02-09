@@ -4,7 +4,7 @@ from pytest import approx
 import json
 import datetime
 
-from services.data.postgres_async_db import AsyncPostgresDB
+from services.ui_backend_service.data.db import AsyncPostgresDB
 from services.utils import DBConfiguration
 
 from services.ui_backend_service.api import (
@@ -13,7 +13,7 @@ from services.ui_backend_service.api import (
     Websocket, AdminApi
 )
 
-from services.data.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
+from services.ui_backend_service.data.db.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 
 # Migration imports
 
