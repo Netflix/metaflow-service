@@ -10,6 +10,7 @@ from .task import TaskApi
 from .log import LogApi
 from .tag import TagApi
 from .metadata import MetadataApi
+from .features import FeaturesApi
 
 # service processes
 from .notify import ListenNotify
