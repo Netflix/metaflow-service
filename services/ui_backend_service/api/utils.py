@@ -267,7 +267,7 @@ def resource_conditions(fullpath: str = None) -> (str, MultiDict, List[str], Lis
 async def find_records(request: web.BaseRequest, async_table=None, initial_conditions: List[str] = [], initial_values=[],
                        initial_order: List[str] = [], allowed_order: List[str] = [], allowed_group: List[str] = [],
                        allowed_filters: List[str] = [], postprocess: Callable[[DBResponse], DBResponse] = None,
-                       fetch_single=False, enable_joins=False):
+                       fetch_single=False, enable_joins=False, overwrite_select_from: str = None):
     page, limit, offset, order, groups, group_limit = pagination_query(
         request,
         allowed_order=allowed_order,
@@ -289,7 +289,8 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         fetch_single=fetch_single, enable_joins=enable_joins,
         expanded=True,
         postprocess=postprocess,
-        benchmark=benchmark
+        benchmark=benchmark,
+        overwrite_select_from=overwrite_select_from
     )
 
     if fetch_single:
