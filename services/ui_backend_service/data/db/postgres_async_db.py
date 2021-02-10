@@ -10,6 +10,9 @@ from services.utils import logging
 from typing import List, Callable
 from asyncio import iscoroutinefunction
 
+# baselevel classes from shared data adapter to inherit from.
+from services.data.postgres_async_db import _AsyncPostgresDB as BaseAsyncPostgresDB
+
 from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
@@ -27,7 +30,7 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 
 DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
 
 
-class _AsyncPostgresDB(object):
+class _AsyncPostgresDB(BaseAsyncPostgresDB):
     connection = None
     flow_table_postgres = None
     run_table_postgres = None
