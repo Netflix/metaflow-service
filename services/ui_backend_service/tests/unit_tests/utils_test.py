@@ -157,11 +157,23 @@ def test_builtin_conditions_query_tags_all():
     conditions, values = builtin_conditions_query(request)
 
     assert len(conditions) == 1
-    assert conditions[0] == "tags||system_tags ?& array[%s,%s]"
+    assert conditions[0] == "to_tsvector('simple', (tags||system_tags)) @@ plainto_tsquery('simple', %s)"
 
-    assert len(values) == 2
+    assert len(values) == 1
+    assert values[0] == "foo bar"
+
+
+def test_builtin_conditions_query_tags_one():
+    request = make_mocked_request(
+        'GET', '/runs?_tags=foo')
+
+    conditions, values = builtin_conditions_query(request)
+
+    assert len(conditions) == 1
+    assert conditions[0] == "to_tsvector('simple', (tags||system_tags)) @@ plainto_tsquery('simple', %s)"
+
+    assert len(values) == 1
     assert values[0] == "foo"
-    assert values[1] == "bar"
 
 
 def test_builtin_conditions_query_tags_all_explicit():
@@ -171,11 +183,10 @@ def test_builtin_conditions_query_tags_all_explicit():
     conditions, values = builtin_conditions_query(request)
 
     assert len(conditions) == 1
-    assert conditions[0] == "tags||system_tags ?& array[%s,%s]"
+    assert conditions[0] == "to_tsvector('simple', (tags||system_tags)) @@ plainto_tsquery('simple', %s)"
 
-    assert len(values) == 2
-    assert values[0] == "foo"
-    assert values[1] == "bar"
+    assert len(values) == 1
+    assert values[0] == "foo bar"
 
 
 def test_builtin_conditions_query_tags_any():
