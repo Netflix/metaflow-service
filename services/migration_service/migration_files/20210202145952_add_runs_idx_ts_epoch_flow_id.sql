@@ -8,6 +8,7 @@ CREATE INDEX runs_v3_idx_ts_epoch ON runs_v3 (ts_epoch);
 
 CREATE INDEX runs_v3_idx_gin_tags ON runs_v3 USING gin (tags, system_tags);
 CREATE INDEX runs_v3_idx_gin_tags_combined ON runs_v3 USING gin ((tags || system_tags));
+CREATE INDEX runs_v3_idx_gin_tags_combined_tsvector ON runs_v3 USING gin (to_tsvector('simple', (tags||system_tags)));
 
 -- flow_id + ts_epoch
 
@@ -51,6 +52,7 @@ DROP INDEX runs_v3_idx_user_asc_ts_epoch_desc;
 DROP INDEX runs_v3_idx_flow_id_desc_ts_epoch_desc;
 DROP INDEX runs_v3_idx_flow_id_asc_ts_epoch_desc;
 
+DROP INDEX runs_v3_idx_gin_tags_combined_tsvector;
 DROP INDEX runs_v3_idx_gin_tags_combined;
 DROP INDEX runs_v3_idx_gin_tags;
 
