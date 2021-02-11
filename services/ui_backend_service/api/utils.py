@@ -163,19 +163,13 @@ def builtin_conditions_query_dict(query: MultiDict):
                 values += map(lambda t: "%{}%".format(t), tags)
 
             else:
-                if operator == "any":  # any (OR)
-                    # `?_tags:any` => ?| (OR)
-                    # `?_tags:all` => ?& (AND) (default)
-                    compare = "?|" if operator == "any" else "?&"
+                # `?_tags:any` => ?| (OR)
+                # `?_tags:all` => ?& (AND) (default)
+                compare = "?|" if operator == "any" else "?&"
 
-                    conditions.append("tags||system_tags {} array[{}]".format(
-                        compare, ",".join(["%s"] * len(tags))))
-                    values += tags
-                else:  # all (AND)
-                    conditions.append(
-                        "to_tsvector('simple', (tags||system_tags)) @@ plainto_tsquery('simple', %s)"
-                    )
-                    values.append(' '.join(tags))
+                conditions.append("tags||system_tags {} array[{}]".format(
+                    compare, ",".join(["%s"] * len(tags))))
+                values += tags
 
     return conditions, values
 
