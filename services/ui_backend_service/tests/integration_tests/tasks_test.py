@@ -155,12 +155,22 @@ async def test_task_with_attempt_metadata(cli, db):
 
 async def test_task_failed_status_with_heartbeat(cli, db):
     _task = await create_task(db, last_heartbeat_ts=1, status="failed")
+    _task['finished_at'] = 1000  # should be last heartbeat in this case, due to every other timestamp missing.
     _task['duration'] = _task['last_heartbeat_ts'] * 1000 - _task['ts_epoch']
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
 
 
-async def test_list_task_attempts_with_task_ok(cli, db):
+async def test_task_running_status_with_heartbeat(cli, db):
+    hb_freeze = get_heartbeat_ts()
+    _task = await create_task(db, last_heartbeat_ts=hb_freeze)
+    _task['finished_at'] = None  # should not have a finished at for running tasks.
+    _task['duration'] = hb_freeze * 1000 - _task['ts_epoch']
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+
+
+async def test_list_task_attempts(cli, db):
     _task = await create_task(db)
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])

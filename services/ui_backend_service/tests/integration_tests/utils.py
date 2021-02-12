@@ -1,7 +1,10 @@
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
+from pytest import approx
+import os
 import json
 import datetime
+import contextlib
 
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration
@@ -9,7 +12,7 @@ from services.utils import DBConfiguration
 from services.ui_backend_service.api import (
     FlowApi, RunApi, StepApi, TaskApi,
     MetadataApi, ArtificatsApi, TagApi,
-    Websocket, AdminApi
+    Websocket, AdminApi, FeaturesApi
 )
 
 from services.data.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
@@ -42,6 +45,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     MetadataApi(app)
     ArtificatsApi(app)
     TagApi(app)
+    FeaturesApi(app)
 
     Websocket(app, app.event_emitter, queue_ttl)
 
@@ -51,7 +55,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
 
 async def init_db(cli):
-    db_conf = DBConfiguration()
+    db_conf = DBConfiguration(timeout=1)
 
     # Make sure migration scripts are applied
     migration_db = MigrationAsyncPostgresDB.get_instance()
@@ -81,6 +85,22 @@ async def clean_db(db: AsyncPostgresDB):
         await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name))
 
 # Test fixture helpers end
+
+# Environment helpers begin
+
+
+@contextlib.contextmanager
+def set_env(environ={}):
+    old_environ = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(environ)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(old_environ)
+
+# Environment helpers end
 
 # Row helpers begin
 
@@ -213,7 +233,7 @@ def _fill_missing_resource_data(_item):
     return _item
 
 
-async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[]):
+async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], approx_keys=None):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
@@ -227,16 +247,17 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
         return resp.status, data
 
     expected_data[:] = map(_fill_missing_resource_data, expected_data)
-
-    # This is to get a more descriptive diff on errors.
-    assert len(data) == len(expected_data)
-    for i, d in enumerate(data):
-        assert d == expected_data[i]
+    if approx_keys:
+        assert len(data) == len(expected_data)
+        for i, d in enumerate(data):
+            _test_dict_approx(d, expected_data[i], approx_keys)
+    else:
+        assert data == expected_data
 
     return resp.status, data
 
 
-async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}):
+async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}, approx_keys=None):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
@@ -250,9 +271,24 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
         return resp.status, data
 
     expected_data = _fill_missing_resource_data(expected_data)
-    assert data == expected_data
+    if approx_keys:
+        _test_dict_approx(data, expected_data, approx_keys)
+    else:
+        assert data == expected_data
 
     return resp.status, data
+
+
+def _test_dict_approx(actual, expected, approx_keys, threshold=1000):
+    "Assert that two dicts are almost equal, allowing for some leeway on specified keys"
+    # NOTE: This is mainly required for testing resources that produce data during query execution. For example
+    # when using extract(epoch from now()) we can not accurately expect what the timestamp returned from the api should be.
+    # TODO: If possible, a less error prone solution would be to somehow mock/freeze the now() on a per-test basis.
+    for k, v in actual.items():
+        if k in approx_keys:
+            assert v == approx(expected[k], rel=threshold)
+        else:
+            assert v == expected[k]
 
 
 def get_heartbeat_ts(offset=5):

@@ -73,9 +73,36 @@ Running the service without Docker (from project root):
 > $ python3 -m services.ui_backend_service.ui_server
 > ```
 
+### Feature flags
+
+All environment variables prefixed with `FEATURE_` will be publicly available under `/features` route.
+
+> ```sh
+> $ curl http://service:8083/features
+> {
+>   "FEATURE_CACHE": true,
+>   "FEATURE_DAG": false
+> }
+> ```
+
+Example values:
+
+> ```
+> FEATURE_EXAMPLE=1           -> True
+> FEATURE_EXAMPLE=true        -> True
+> FEATURE_EXAMPLE=t           -> True
+> FEATURE_EXAMPLE=anything    -> True
+> FEATURE_EXAMPLE=0           -> False
+> FEATURE_EXAMPLE=false       -> False
+> FEATURE_EXAMPLE=f           -> False
+> ```
+
+These feature flags are passed to frontend and can be used to dynamically control features.
+
 ### Optional configuration
 
 The threshold parameters for heartbeat checks can also be configured when necessary with the following environment variables.
+
 - `HEARTBEAT_THRESHOLD` [controls at what point a heartbeat is considered expired. Default is `WAIT_TIME * 6`]
 - `OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 2 weeks]
 
@@ -143,14 +170,15 @@ is = is                     IS
 
 ## Custom Navigation links for UI
 
-You can customize the admin navigation links presented by the UI by setting an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value should be a *stringified* json of the format:
+You can customize the admin navigation links presented by the UI by setting an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value should be a _stringified_ json of the format:
+
 ```json
 [
-  { 
+  {
     "href": "https://docs.metaflow.org/",
-    "label": "Metaflow documentation" 
+    "label": "Metaflow documentation"
   },
-  { 
+  {
     "href": "https://github.com/Netflix/metaflow",
     "label": "GitHub"
   }

@@ -68,6 +68,7 @@ class _AsyncPostgresDB(object):
                     db_conf.dsn,
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
+                    timeout=db_conf.timeout,
                     echo=AIOPG_ECHO)
 
                 # Clean existing trigger functions before creating new ones
@@ -212,7 +213,8 @@ class AsyncPostgresTable(object):
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
-                           benchmark: bool = False) -> (DBResponse, DBPagination):
+                           benchmark: bool = False, overwrite_select_from: str = None
+                           ) -> (DBResponse, DBPagination):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -231,7 +233,7 @@ class AsyncPostgresTable(object):
             select_sql = sql_template.format(
                 keys=",".join(
                     self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
+                table_name=overwrite_select_from if overwrite_select_from else self.table_name,
                 joins=" ".join(
                     self.joins) if enable_joins and self.joins else "",
                 where="WHERE {}".format(" AND ".join(
@@ -263,7 +265,7 @@ class AsyncPostgresTable(object):
             select_sql = sql_template.format(
                 keys=",".join(
                     self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
+                table_name=overwrite_select_from if overwrite_select_from else self.table_name,
                 joins=" ".join(
                     self.joins) if enable_joins and self.joins is not None else "",
                 where="WHERE {}".format(" AND ".join(
@@ -631,7 +633,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 artifacts.task_id = attempt_ok.task_id AND
                 artifacts.step_name = attempt_ok.step_name AND
                 attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? CONCAT('attempt_id:', artifacts.attempt_id)
+                attempt_ok.tags ? ('attempt_id:' || artifacts.attempt_id)
             )
             WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
         ) AS artifacts ON (
@@ -649,10 +651,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys] \
         + ["""
             (CASE
-                WHEN system_tags ? CONCAT('user:', user_name)
+                WHEN system_tags ? ('user:' || user_name)
                 THEN user_name
                 ELSE NULL
-            END) AS user"""]
+            END) AS user"""] \
+        + ["""
+            COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
+            """.format(table_name=table_name)]
     join_columns = [
         """
         (CASE
@@ -698,9 +703,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch - {table_name}.ts_epoch
-            ELSE NULL
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+            AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
+            THEN {cutoff}
+            ELSE @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)
         END) AS duration
-        """.format(table_name=table_name)
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+        )
     ]
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
@@ -870,7 +882,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 attempt_meta.step_name = attempt_ok.step_name AND
                 attempt_meta.task_id = attempt_ok.task_id AND
                 attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? CONCAT('attempt_id:', attempt_meta.attempt_id)
+                attempt_ok.tags ? ('attempt_id:' || task_ok.attempt_id)
             )
             LEFT JOIN {artifact_table} as foreach_stack ON (
                 attempt_meta.flow_id = foreach_stack.flow_id AND
@@ -914,7 +926,18 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = [
         "attempt.started_at as started_at",
-        "attempt.finished_at as finished_at",
+        """
+        (CASE
+        WHEN attempt.finished_at IS NULL
+            AND {table_name}.last_heartbeat_ts IS NOT NULL
+            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+        THEN {table_name}.last_heartbeat_ts*1000
+        ELSE attempt.finished_at
+        END) as finished_at
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD
+        ),
         "attempt.attempt_ok as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
         #   that is used to fetch the artifact value from remote location.
