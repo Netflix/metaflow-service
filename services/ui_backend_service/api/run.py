@@ -104,10 +104,16 @@ class RunApi(object):
         builtin_conditions, _ = builtin_conditions_query(request)
         has_tag_filter = len([s for s in builtin_conditions if 'tags||system_tags' in s]) > 0
         if has_tag_filter:
-            _, _, _, order, _, _ = pagination_query(request, allowed_order=allowed_order, allowed_group=[])
-            if len(order) > 0:
+            allowed_optimized_order = ['flow_id', 'ts_epoch']
+            allowed_unoptimized_order = [o for o in allowed_group if o not in allowed_optimized_order]
+
+            _, _, _, optimized_order, _, _ = pagination_query(request, allowed_order=allowed_optimized_order)
+            _, _, _, unoptimized_order, _, _ = pagination_query(request, allowed_order=allowed_unoptimized_order)
+
+            # Allow optimized order only when sorting by real columns only
+            if optimized_order and not unoptimized_order:
                 overwrite_select_from = "(SELECT * FROM runs_v3 {order_by}) AS runs_v3".format(
-                    order_by="ORDER BY {}".format(", ".join(order)) if order else ""
+                    order_by="ORDER BY {}".format(", ".join(optimized_order))
                 )
 
                 return await find_records(request, self._async_table,
