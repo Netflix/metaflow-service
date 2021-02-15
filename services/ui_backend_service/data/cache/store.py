@@ -1,5 +1,5 @@
 from .generate_dag_action import GenerateDag
-from services.data.postgres_async_db import AsyncPostgresDB
+from ..db.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
