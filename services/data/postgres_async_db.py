@@ -901,11 +901,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             AND {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
         THEN {table_name}.last_heartbeat_ts*1000
-        ELSE COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch)
+        ELSE {finished_at_column}
         END) as finished_at
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
         ),
         "attempt_ok.value::boolean as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
@@ -927,9 +928,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             WHEN COALESCE(done.ts_epoch, task_ok.ts_epoch) IS NOT NULL
                 AND attempt_ok IS NULL
             THEN 'unknown'
-            WHEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) IS NOT NULL
+            WHEN COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch) IS NOT NULL
             THEN 'completed'
-            WHEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) IS NULL
+            WHEN {finished_at_column} IS NULL
                 AND {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN 'failed'
@@ -937,18 +938,20 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         END) AS status
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
         ),
         """
         (CASE
-            WHEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+            WHEN {finished_at_column} IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
             THEN {table_name}.last_heartbeat_ts*1000-COALESCE(start.ts_epoch, {table_name}.ts_epoch)
-            WHEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) IS NOT NULL
-            THEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) - COALESCE(start.ts_epoch, {table_name}.ts_epoch)
+            WHEN {finished_at_column} IS NOT NULL
+            THEN {finished_at_column} - COALESCE(start.ts_epoch, {table_name}.ts_epoch)
             ELSE NULL
         END) AS duration
         """.format(
-            table_name=table_name
+            table_name=table_name,
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
         ),
         "foreach_stack.location as foreach_stack"
     ]
