@@ -835,10 +835,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
     trigger_keys = primary_keys
-    # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
-    # the older metadata service not recording separate metadata for task attempts. This is why
-    # we must construct the attempts through a union on available data between the metadata
-    # and artifact tables.
+    # NOTE: There is a lot of unfortunate backwards compatibility for cases where task metadata, or artifacts
+    # have not been stored correctly.
+    # NOTE: tasks_v3 table does not have a column for 'attempt_id', instead this is added before the join
+    # with a subquery in the FROM.
+    # NOTE: when using these joins, we _must_ clean up the results with a WHERE that discards attempts with
+    # nothing joined, otherwise we end up with ghost attempts for the task.
     joins = [
         """
         LEFT JOIN {metadata_table} as start ON (
@@ -895,10 +897,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         (CASE
         WHEN done.ts_epoch IS NULL
             AND task_ok.ts_epoch IS NULL
+            AND attempt_ok.ts_epoch IS NULL
             AND {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
         THEN {table_name}.last_heartbeat_ts*1000
-        ELSE COALESCE(done.ts_epoch, task_ok.ts_epoch)
+        ELSE COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch)
         END) as finished_at
         """.format(
             table_name=table_name,
@@ -910,7 +913,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         # This process is performed at TaskRefiner (data_refiner.py)
         """
         (CASE
-            WHEN attempt_ok IS NOT NULL
+            WHEN attempt_ok.ts_epoch IS NOT NULL
             THEN NULL
             ELSE task_ok.location
         END) as task_ok
@@ -938,10 +941,10 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
-            WHEN COALESCE(done.ts_epoch, task_ok.ts_epoch) IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+            WHEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
             THEN {table_name}.last_heartbeat_ts*1000-COALESCE(start.ts_epoch, {table_name}.ts_epoch)
-            WHEN COALESCE(done.ts_epoch, task_ok.ts_epoch) IS NOT NULL
-            THEN COALESCE(done.ts_epoch, task_ok.ts_epoch) - COALESCE(start.ts_epoch, {table_name}.ts_epoch)
+            WHEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) IS NOT NULL
+            THEN COALESCE(done.ts_epoch, attempt_ok.ts_epoch, task_ok.ts_epoch) - COALESCE(start.ts_epoch, {table_name}.ts_epoch)
             ELSE NULL
         END) AS duration
         """.format(
