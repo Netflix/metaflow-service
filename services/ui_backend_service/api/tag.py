@@ -1,4 +1,3 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import handle_exceptions, web_response
 
 

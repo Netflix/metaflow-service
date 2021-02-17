@@ -10,7 +10,6 @@ from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse
 
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
 from services.utils import handle_exceptions, web_response
 

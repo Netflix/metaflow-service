@@ -1,4 +1,3 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 from .utils import find_records

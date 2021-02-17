@@ -2,7 +2,6 @@ import asyncio
 import datetime
 from typing import Dict
 from pyee import AsyncIOEventEmitter
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
 from .notify import resource_list
 from ..data.refiner import TaskRefiner
