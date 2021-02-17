@@ -8,7 +8,6 @@ from aiohttp import web, WSMsgType
 from typing import List, Dict, Any, Callable
 
 from .utils import resource_conditions, TTLQueue
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import logging
 from pyee import AsyncIOEventEmitter
 from ..data.refiner import TaskRefiner

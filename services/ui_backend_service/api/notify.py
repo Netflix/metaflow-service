@@ -1,7 +1,6 @@
 import json
 import asyncio
 from typing import Dict, List
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import logging
 from pyee import AsyncIOEventEmitter
 

@@ -61,7 +61,7 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE):
+    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=False):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
         retries = 3
@@ -80,7 +80,7 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
                     await PostgresUtils.function_cleanup(self)
 
                 for table in self.tables:
-                    await table._init(create_triggers=create_triggers)
+                    await table._init(create_tables=create_tables, create_triggers=create_triggers)
 
                 self.logger.info(
                     "Connection established.\n"
@@ -176,8 +176,9 @@ class AsyncPostgresTable(object):
             raise NotImplementedError(
                 "need to specify table name and create command")
 
-    async def _init(self, create_triggers: bool):
-        await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
+    async def _init(self, create_tables: bool, create_triggers: bool):
+        if create_tables:
+            await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
         if create_triggers:
             self.db.logger.info(
                 "Create notify trigger for {table_name}\n   Keys: {keys}".format(
