@@ -7,7 +7,7 @@ import json
 
 
 class ArtifactSearchApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks

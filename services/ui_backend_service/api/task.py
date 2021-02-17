@@ -6,7 +6,7 @@ from ..data.refiner import TaskRefiner
 
 
 class TaskApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET",

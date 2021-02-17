@@ -36,15 +36,21 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     MigrationAdminApi(migration_app)
     app.add_subapp("/migration/", migration_app)
 
-    FlowApi(app)
-    RunApi(app)
-    StepApi(app)
-    TaskApi(app)
-    MetadataApi(app)
-    ArtificatsApi(app)
-    TagApi(app)
+    # init a db adapter explicitly to be used for the api requests.
+    # Skip all creation processes, these are handled with migration service and init_db
+    db_conf = DBConfiguration(timeout=1)
+    db = AsyncPostgresDB(name='api')
+    loop.run_until_complete(db._init(db_conf=db_conf, create_triggers=False))
 
-    Websocket(app, app.event_emitter, queue_ttl)
+    FlowApi(app, db)
+    RunApi(app, db)
+    StepApi(app, db)
+    TaskApi(app, db)
+    MetadataApi(app, db)
+    ArtificatsApi(app, db)
+    TagApi(app, db)
+
+    Websocket(app, db, app.event_emitter, queue_ttl)
 
     AdminApi(app)
 
@@ -63,7 +69,7 @@ async def init_db(cli):
     status = await (await cli.get("/migration/db_schema_status")).json()
     assert status["is_up_to_date"] is True
 
-    db = AsyncPostgresDB.get_instance()
+    db = AsyncPostgresDB()
     await db._init(db_conf=db_conf, create_triggers=True)
     return db
 

@@ -5,7 +5,7 @@ from .utils import find_records
 
 
 class StepApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/steps", self.get_steps

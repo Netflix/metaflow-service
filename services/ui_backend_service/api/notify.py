@@ -7,7 +7,7 @@ from pyee import AsyncIOEventEmitter
 
 
 class ListenNotify(object):
-    def __init__(self, app, event_emitter=None, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db, event_emitter=None):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
         self.logger = logging.getLogger("ListenNotify")

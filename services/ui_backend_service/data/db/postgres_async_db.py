@@ -30,7 +30,7 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 
 DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
 
 
-class _AsyncPostgresDB(BaseAsyncPostgresDB):
+class AsyncPostgresDB(BaseAsyncPostgresDB):
     connection = None
     flow_table_postgres = None
     run_table_postgres = None
@@ -154,21 +154,6 @@ class _AsyncPostgresDB(BaseAsyncPostgresDB):
             return False
 
 
-class AsyncPostgresDB(object):
-    __instance = None
-
-    @staticmethod
-    def get_instance():
-        return AsyncPostgresDB()
-
-    def __init__(self):
-        if not AsyncPostgresDB.__instance:
-            AsyncPostgresDB.__instance = _AsyncPostgresDB()
-
-    def __getattribute__(self, name):
-        return getattr(AsyncPostgresDB.__instance, name)
-
-
 class AsyncPostgresTable(object):
     db = None
     table_name = None
@@ -185,7 +170,7 @@ class AsyncPostgresTable(object):
     _base_query = "SELECT {0} from"
     _row_type = None
 
-    def __init__(self, db: _AsyncPostgresDB = None):
+    def __init__(self, db: AsyncPostgresDB = None):
         self.db = db
         if self.table_name is None or self._command is None:
             raise NotImplementedError(
@@ -476,7 +461,7 @@ class AsyncPostgresTable(object):
 
 class PostgresUtils(object):
     @staticmethod
-    async def create_if_missing(db: _AsyncPostgresDB, table_name, command):
+    async def create_if_missing(db: AsyncPostgresDB, table_name, command):
         with (await db.pool.cursor()) as cur:
             try:
                 await cur.execute(
@@ -491,7 +476,7 @@ class PostgresUtils(object):
     # todo add method to check schema version
 
     @staticmethod
-    async def function_cleanup(db: _AsyncPostgresDB):
+    async def function_cleanup(db: AsyncPostgresDB):
         name_prefix = "notify_ui"
         _command = """
         DO $$DECLARE r RECORD;
@@ -511,7 +496,7 @@ class PostgresUtils(object):
             cur.close()
 
     @staticmethod
-    async def trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
+    async def trigger_notify(db: AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
         if not keys:
             pass
 

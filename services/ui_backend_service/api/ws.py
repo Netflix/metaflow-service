@@ -47,7 +47,7 @@ class Websocket(object):
     '''
     subscriptions: List[WSSubscription] = []
 
-    def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, cache=None):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
         self.queue = TTLQueue(queue_ttl)

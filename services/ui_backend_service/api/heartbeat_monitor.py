@@ -11,7 +11,7 @@ HEARTBEAT_INTERVAL = 10  # interval of heartbeats, in seconds
 
 
 class HeartbeatMonitor(object):
-    def __init__(self, event_name, event_emitter=None, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, event_name, db, event_emitter=None, cache=None):
         self.watched = {}
         # Handle HB Events
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
@@ -73,8 +73,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         # Init the abstract class
         super().__init__(
             event_name="run-heartbeat",
-            event_emitter=event_emitter,
-            db=db
+            db=db,
+            event_emitter=event_emitter
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._run_table = self.db.run_table_postgres
@@ -138,8 +138,8 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         # Init the abstract class
         super().__init__(
             event_name="task-heartbeat",
-            event_emitter=event_emitter,
             db=db,
+            event_emitter=event_emitter,
             cache=cache
         )
         # Table for data fetching for load_and_broadcast and add_to_watch

@@ -29,7 +29,7 @@ class CacheStore(object):
         start_caches must be called before being able to access any of the specific caches.
     '''
 
-    def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, db, event_emitter=None):
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
         self.dag_cache = DAGCacheStore(db)
 

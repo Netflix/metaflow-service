@@ -5,7 +5,7 @@ from .utils import find_records
 
 
 class MetadataApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db):
         self.db = db
         app.router.add_route(
             "GET",

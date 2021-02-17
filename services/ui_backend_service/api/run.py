@@ -7,7 +7,7 @@ import json
 
 
 class RunApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/runs", self.get_all_runs)
