@@ -212,7 +212,8 @@ class AsyncPostgresTable(object):
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
-                           benchmark: bool = False) -> (DBResponse, DBPagination):
+                           benchmark: bool = False, overwrite_select_from: str = None
+                           ) -> (DBResponse, DBPagination):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -231,7 +232,7 @@ class AsyncPostgresTable(object):
             select_sql = sql_template.format(
                 keys=",".join(
                     self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
+                table_name=overwrite_select_from if overwrite_select_from else self.table_name,
                 joins=" ".join(
                     self.joins) if enable_joins and self.joins else "",
                 where="WHERE {}".format(" AND ".join(
@@ -263,7 +264,7 @@ class AsyncPostgresTable(object):
             select_sql = sql_template.format(
                 keys=",".join(
                     self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
+                table_name=overwrite_select_from if overwrite_select_from else self.table_name,
                 joins=" ".join(
                     self.joins) if enable_joins and self.joins is not None else "",
                 where="WHERE {}".format(" AND ".join(
@@ -894,11 +895,16 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         "attempt.started_at as started_at",
         """
         (CASE
-        WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+        WHEN attempt.finished_at IS NULL
+            AND {table_name}.last_heartbeat_ts IS NOT NULL
+            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
         THEN {table_name}.last_heartbeat_ts*1000
         ELSE attempt.finished_at
         END) as finished_at
-        """.format(table_name=table_name),
+        """.format(
+            table_name=table_name,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD
+        ),
         "attempt.attempt_ok as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
         #   that is used to fetch the artifact value from remote location.

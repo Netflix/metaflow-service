@@ -1,6 +1,6 @@
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
-from .utils import find_records, web_response, format_response
+from .utils import find_records, web_response, format_response, builtin_conditions_query, pagination_query
 
 import json
 
@@ -92,13 +92,40 @@ class RunApi(object):
                   $ref: '#/definitions/ResponsesError405'
         """
 
-        return await find_records(request,
-                                  self._async_table,
-                                  initial_conditions=[],
-                                  initial_values=[],
-                                  allowed_order=self._async_table.keys + ["user", "run", "finished_at", "duration", "status"],
-                                  allowed_group=self._async_table.keys + ["user"],
-                                  allowed_filters=self._async_table.keys + ["user", "run", "finished_at", "duration", "status"],
+        allowed_order = self._async_table.keys + ["user", "run", "finished_at", "duration", "status"]
+        allowed_group = self._async_table.keys + ["user"]
+        allowed_filters = self._async_table.keys + ["user", "run", "finished_at", "duration", "status"]
+
+        # JSONB tag filters combined with `ORDER BY` causes performance impact
+        # due to lack of pg statistics on JSONB fields. To battle this, first execute
+        # subquery of ordered list from runs_v3 table in and filter by tags on outer query.
+        # This needs more research in the future to further improve performance.
+        builtin_conditions, _ = builtin_conditions_query(request)
+        has_tag_filter = len([s for s in builtin_conditions if 'tags||system_tags' in s]) > 0
+        if has_tag_filter:
+            allowed_optimized_order = ['flow_id', 'ts_epoch']
+            allowed_unoptimized_order = [o for o in allowed_group if o not in allowed_optimized_order]
+
+            _, _, _, optimized_order, _, _ = pagination_query(request, allowed_order=allowed_optimized_order)
+            _, _, _, unoptimized_order, _, _ = pagination_query(request, allowed_order=allowed_unoptimized_order)
+
+            # Allow optimized order only when sorting by real columns only
+            if optimized_order and not unoptimized_order:
+                overwrite_select_from = "(SELECT * FROM runs_v3 {order_by}) AS runs_v3".format(
+                    order_by="ORDER BY {}".format(", ".join(optimized_order))
+                )
+
+                return await find_records(request, self._async_table,
+                                          allowed_group=allowed_group,
+                                          allowed_filters=allowed_filters,
+                                          enable_joins=True,
+                                          overwrite_select_from=overwrite_select_from
+                                          )
+
+        return await find_records(request, self._async_table,
+                                  allowed_order=allowed_order,
+                                  allowed_group=allowed_group,
+                                  allowed_filters=allowed_filters,
                                   enable_joins=True
                                   )
 

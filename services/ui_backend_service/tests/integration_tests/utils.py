@@ -1,8 +1,10 @@
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
 from pytest import approx
+import os
 import json
 import datetime
+import contextlib
 
 from services.ui_backend_service.data.db import AsyncPostgresDB
 from services.utils import DBConfiguration
@@ -10,7 +12,7 @@ from services.utils import DBConfiguration
 from services.ui_backend_service.api import (
     FlowApi, RunApi, StepApi, TaskApi,
     MetadataApi, ArtificatsApi, TagApi,
-    Websocket, AdminApi
+    Websocket, AdminApi, FeaturesApi
 )
 
 from services.ui_backend_service.data.db.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
@@ -49,6 +51,8 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     MetadataApi(app, db)
     ArtificatsApi(app, db)
     TagApi(app, db)
+    FeaturesApi(app)
+
 
     Websocket(app, db, app.event_emitter, queue_ttl)
 
@@ -88,6 +92,22 @@ async def clean_db(db: AsyncPostgresDB):
         await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name))
 
 # Test fixture helpers end
+
+# Environment helpers begin
+
+
+@contextlib.contextmanager
+def set_env(environ={}):
+    old_environ = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(environ)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(old_environ)
+
+# Environment helpers end
 
 # Row helpers begin
 
