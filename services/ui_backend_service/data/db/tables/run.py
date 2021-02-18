@@ -2,6 +2,8 @@ from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOF
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
 from services.data.db_utils import DBResponse, translate_run_key
+# use schema constants from the .data module to keep things consistent
+from services.data.postgres_async_db import AsyncRunTablePostgres as MetadataRunTable
 import json
 import datetime
 
@@ -11,7 +13,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     run_by_flow_dict = {}
     _current_count = 0
     _row_type = RunRow
-    table_name = "runs_v3"
+    table_name = MetadataRunTable.table_name
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
@@ -111,23 +113,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         )
     ]
     flow_table_name = AsyncFlowTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number SERIAL NOT NULL,
-        run_id VARCHAR(255),
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        last_heartbeat_ts BIGINT,
-        PRIMARY KEY(flow_id, run_number),
-        FOREIGN KEY(flow_id) REFERENCES {1} (flow_id),
-        UNIQUE (flow_id, run_id)
-    )
-    """.format(
-        table_name, flow_table_name
-    )
+    _command = MetadataRunTable._command
 
     async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
         key, value = translate_run_key(run_id)

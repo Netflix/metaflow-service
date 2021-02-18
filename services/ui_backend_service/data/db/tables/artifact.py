@@ -2,6 +2,8 @@ from .base import AsyncPostgresTable
 from .task import AsyncTaskTablePostgres
 from ..models import ArtifactRow
 from services.data.db_utils import translate_run_key, translate_task_key
+# use schema constants from the .data module to keep things consistent
+from services.data.postgres_async_db import AsyncArtifactTablePostgres as MetadataArtifactTable
 import json
 
 
@@ -12,7 +14,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     task_to_artifact_dict = {}
     current_count = 0
     _row_type = ArtifactRow
-    table_name = "artifact_v3"
+    table_name = MetadataArtifactTable.table_name
     task_table_name = AsyncTaskTablePostgres.table_name
     ordering = ["attempt_id DESC"]
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "name", "location",
@@ -20,30 +22,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "attempt_id", "name"]
     select_columns = keys
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_id BIGINT NOT NULL,
-        task_name VARCHAR(255),
-        name VARCHAR(255) NOT NULL,
-        location VARCHAR(255) NOT NULL,
-        ds_type VARCHAR(255) NOT NULL,
-        sha VARCHAR(255),
-        type VARCHAR(255),
-        content_type VARCHAR(255),
-        user_name VARCHAR(255),
-        attempt_id SMALLINT NOT NULL,
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(flow_id, run_number, step_name, task_id, attempt_id, name)
-    )
-    """.format(
-        table_name
-    )
+    _command = MetadataArtifactTable._command
 
     async def get_artifacts_in_runs(self, flow_id: str, run_id: int):
         run_id_key, run_id_value = translate_run_key(run_id)

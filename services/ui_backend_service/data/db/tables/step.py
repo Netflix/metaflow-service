@@ -2,6 +2,8 @@ from .base import AsyncPostgresTable
 from ..models import StepRow
 from .run import AsyncRunTablePostgres
 from services.data.db_utils import translate_run_key
+# use schema constants from the .data module to keep things consistent
+from services.data.postgres_async_db import AsyncStepTablePostgres as MetadataStepTable
 import json
 
 
@@ -9,29 +11,13 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
     run_to_step_dict = {}
     _row_type = StepRow
-    table_name = "steps_v3"
+    table_name = MetadataStepTable.table_name
     keys = ["flow_id", "run_number", "run_id", "step_name",
             "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name"]
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(flow_id, run_number, step_name),
-        FOREIGN KEY(flow_id, run_number) REFERENCES {1} (flow_id, run_number),
-        UNIQUE(flow_id, run_id, step_name)
-    )
-    """.format(
-        table_name, run_table_name
-    )
+    _command = MetadataStepTable._command
 
     async def get_steps(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)

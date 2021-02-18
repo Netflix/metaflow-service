@@ -2,6 +2,8 @@ from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, WAIT_TIME
 from .step import AsyncStepTablePostgres
 from ..models import TaskRow
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
+# use schema constants from the .data module to keep things consistent
+from services.data.postgres_async_db import AsyncTaskTablePostgres as MetadataTaskTable
 import json
 import datetime
 
@@ -11,7 +13,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     step_to_task_dict = {}
     _current_count = 0
     _row_type = TaskRow
-    table_name = "tasks_v3"
+    table_name = MetadataTaskTable.table_name
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
@@ -137,25 +139,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         "attempt.foreach_stack as foreach_stack"
     ]
     step_table_name = AsyncStepTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_id BIGSERIAL PRIMARY KEY,
-        task_name VARCHAR(255),
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        last_heartbeat_ts BIGINT,
-        FOREIGN KEY(flow_id, run_number, step_name) REFERENCES {1} (flow_id, run_number, step_name),
-        UNIQUE (flow_id, run_number, step_name, task_name)
-    )
-    """.format(
-        table_name, step_table_name
-    )
+    _command = MetadataTaskTable._command
 
     async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
         run_id_key, run_id_value = translate_run_key(run_id)

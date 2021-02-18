@@ -1,26 +1,18 @@
 from .base import AsyncPostgresTable
 from ..models import FlowRow
+# use schema constants from the .data module to keep things consistent
+from services.data.postgres_async_db import AsyncFlowTablePostgres as MetadataFlowTable
 import json
 
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):
     flow_dict = {}
-    table_name = "flows_v3"
+    table_name = MetadataFlowTable.table_name
     keys = ["flow_id", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id"]
     select_columns = keys
     join_columns = []
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) PRIMARY KEY,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB
-    )
-    """.format(
-        table_name
-    )
+    _command = MetadataFlowTable._command
     _row_type = FlowRow
 
     async def get_flow(self, flow_id: str):

@@ -2,7 +2,10 @@ import psycopg2
 import psycopg2.extras
 import os
 import math
-from services.data.postgres_async_db import PostgresUtils
+from services.data.postgres_async_db import (
+    PostgresUtils,
+    AsyncPostgresTable as MetadataAsyncPostgresTable
+)
 from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from services.utils import DBConfiguration
@@ -18,7 +21,7 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 
 class AsyncPostgresTable(object):
     db = None
     table_name = None
-    schema_version = 1
+    schema_version = MetadataAsyncPostgresTable.schema_version
     keys: List[str] = []
     primary_keys: List[str] = None
     ordering: List[str] = None
@@ -26,9 +29,7 @@ class AsyncPostgresTable(object):
     select_columns: List[str] = keys
     join_columns: List[str] = None
     _command = None
-    _insert_command = None
     _filters = None
-    _base_query = "SELECT {0} from"
     _row_type = None
 
     def __init__(self, db):
