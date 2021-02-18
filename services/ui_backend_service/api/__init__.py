@@ -11,6 +11,7 @@ from .log import LogApi
 from .tag import TagApi
 from .metadata import MetadataApi
 from .features import FeaturesApi
+from .config import ConfigApi
 
 # service processes
 from .notify import ListenNotify
