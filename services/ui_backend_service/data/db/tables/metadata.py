@@ -8,16 +8,11 @@ import json
 
 
 class AsyncMetadataTablePostgres(AsyncPostgresTable):
-    metadata_dict = {}
-    run_to_metadata_dict = {}
-    _current_count = 0
     _row_type = MetadataRow
     table_name = MetaserviceMetadataTable.table_name
     task_table_name = AsyncTaskTablePostgres.table_name
-    keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "id",
-            "field_name", "value", "type", "user_name", "ts_epoch", "tags", "system_tags"]
-    primary_keys = ["flow_id", "run_number",
-                    "step_name", "task_id", "field_name"]
+    keys = MetaserviceMetadataTable.keys
+    primary_keys = MetaserviceMetadataTable.primary_keys
     select_columns = keys
     _command = MetaserviceMetadataTable._command
 

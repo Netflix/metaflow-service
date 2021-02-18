@@ -8,13 +8,10 @@ import json
 
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
-    step_dict = {}
-    run_to_step_dict = {}
     _row_type = StepRow
     table_name = MetadataStepTable.table_name
-    keys = ["flow_id", "run_number", "run_id", "step_name",
-            "user_name", "ts_epoch", "tags", "system_tags"]
-    primary_keys = ["flow_id", "run_number", "step_name"]
+    keys = MetadataStepTable.keys
+    primary_keys = MetadataStepTable.primary_keys
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
     _command = MetadataStepTable._command

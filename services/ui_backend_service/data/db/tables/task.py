@@ -9,14 +9,10 @@ import datetime
 
 
 class AsyncTaskTablePostgres(AsyncPostgresTable):
-    task_dict = {}
-    step_to_task_dict = {}
-    _current_count = 0
     _row_type = TaskRow
     table_name = MetadataTaskTable.table_name
-    keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
-            "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
-    primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
+    keys = MetadataTaskTable.keys
+    primary_keys = MetadataTaskTable.primary_keys
     # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
     # the older metadata service not recording separate metadata for task attempts. This is also the
     # reason why we must join through the artifacts table, instead of directly from metadata.

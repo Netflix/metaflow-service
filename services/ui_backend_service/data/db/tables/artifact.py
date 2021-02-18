@@ -8,19 +8,12 @@ import json
 
 
 class AsyncArtifactTablePostgres(AsyncPostgresTable):
-    artifact_dict = {}
-    run_to_artifact_dict = {}
-    step_to_artifact_dict = {}
-    task_to_artifact_dict = {}
-    current_count = 0
     _row_type = ArtifactRow
     table_name = MetadataArtifactTable.table_name
     task_table_name = AsyncTaskTablePostgres.table_name
     ordering = ["attempt_id DESC"]
-    keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "name", "location",
-            "ds_type", "sha", "type", "content_type", "user_name", "attempt_id", "ts_epoch", "tags", "system_tags"]
-    primary_keys = ["flow_id", "run_number",
-                    "step_name", "task_id", "attempt_id", "name"]
+    keys = MetadataArtifactTable.keys
+    primary_keys = MetadataArtifactTable.primary_keys
     select_columns = keys
     _command = MetadataArtifactTable._command
 

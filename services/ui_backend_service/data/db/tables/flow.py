@@ -6,12 +6,10 @@ import json
 
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):
-    flow_dict = {}
     table_name = MetadataFlowTable.table_name
-    keys = ["flow_id", "user_name", "ts_epoch", "tags", "system_tags"]
-    primary_keys = ["flow_id"]
+    keys = MetadataFlowTable.keys
+    primary_keys = MetadataFlowTable.primary_keys
     select_columns = keys
-    join_columns = []
     _command = MetadataFlowTable._command
     _row_type = FlowRow
 

@@ -9,14 +9,10 @@ import datetime
 
 
 class AsyncRunTablePostgres(AsyncPostgresTable):
-    run_dict = {}
-    run_by_flow_dict = {}
-    _current_count = 0
     _row_type = RunRow
     table_name = MetadataRunTable.table_name
-    keys = ["flow_id", "run_number", "run_id",
-            "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
-    primary_keys = ["flow_id", "run_number"]
+    keys = MetadataRunTable.keys
+    primary_keys = MetadataRunTable.primary_keys
     joins = [
         """
         LEFT JOIN (
