@@ -39,37 +39,6 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         table_name
     )
 
-    async def add_metadata(
-        self,
-        flow_id,
-        run_number,
-        run_id,
-        step_name,
-        task_id,
-        task_name,
-        field_name,
-        value,
-        type,
-        user_name,
-        tags,
-        system_tags,
-    ):
-        dict = {
-            "flow_id": flow_id,
-            "run_number": str(run_number),
-            "run_id": run_id,
-            "step_name": step_name,
-            "task_id": str(task_id),
-            "task_name": task_name,
-            "field_name": field_name,
-            "value": value,
-            "type": type,
-            "user_name": user_name,
-            "tags": json.dumps(tags),
-            "system_tags": json.dumps(system_tags),
-        }
-        return await self.create_record(dict)
-
     async def get_metadata_in_runs(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,

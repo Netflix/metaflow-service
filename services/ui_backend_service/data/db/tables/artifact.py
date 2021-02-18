@@ -45,45 +45,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         table_name
     )
 
-    async def add_artifact(
-        self,
-        flow_id,
-        run_number,
-        run_id,
-        step_name,
-        task_id,
-        task_name,
-        name,
-        location,
-        ds_type,
-        sha,
-        type,
-        content_type,
-        user_name,
-        attempt_id,
-        tags,
-        system_tags,
-    ):
-        dict = {
-            "flow_id": flow_id,
-            "run_number": str(run_number),
-            "run_id": run_id,
-            "step_name": step_name,
-            "task_id": str(task_id),
-            "task_name": task_name,
-            "name": name,
-            "location": location,
-            "ds_type": ds_type,
-            "sha": sha,
-            "type": type,
-            "content_type": content_type,
-            "user_name": user_name,
-            "attempt_id": str(attempt_id),
-            "tags": json.dumps(tags),
-            "system_tags": json.dumps(system_tags),
-        }
-        return await self.create_record(dict)
-
     async def get_artifacts_in_runs(self, flow_id: str, run_id: int):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {

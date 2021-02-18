@@ -157,20 +157,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         table_name, step_table_name
     )
 
-    async def add_task(self, task: TaskRow):
-        # todo backfill run_number if missing?
-        dict = {
-            "flow_id": task.flow_id,
-            "run_number": str(task.run_number),
-            "run_id": task.run_id,
-            "step_name": task.step_name,
-            "task_name": task.task_name,
-            "user_name": task.user_name,
-            "tags": json.dumps(task.tags),
-            "system_tags": json.dumps(task.system_tags),
-        }
-        return await self.create_record(dict)
-
     async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
@@ -192,22 +178,3 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, expanded=expanded)
-
-    async def update_heartbeat(self, flow_id: str, run_id: str, step_name: str,
-                               task_id: str):
-        run_key, run_value = translate_run_key(run_id)
-        task_key, task_value = translate_task_key(task_id)
-        filter_dict = {"flow_id": flow_id,
-                       run_key: str(run_value),
-                       "step_name": step_name,
-                       task_key: str(task_value)}
-        set_dict = {
-            "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
-        }
-        result = await self.update_row(filter_dict=filter_dict,
-                                       update_dict=set_dict)
-
-        body = {"wait_time_in_seconds": WAIT_TIME}
-
-        return DBResponse(response_code=result.response_code,
-                          body=json.dumps(body))

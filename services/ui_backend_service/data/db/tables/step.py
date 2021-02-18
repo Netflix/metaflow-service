@@ -33,18 +33,6 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         table_name, run_table_name
     )
 
-    async def add_step(self, step_object: StepRow):
-        dict = {
-            "flow_id": step_object.flow_id,
-            "run_number": str(step_object.run_number),
-            "run_id": step_object.run_id,
-            "step_name": step_object.step_name,
-            "user_name": step_object.user_name,
-            "tags": json.dumps(step_object.tags),
-            "system_tags": json.dumps(step_object.system_tags),
-        }
-        return await self.create_record(dict)
-
     async def get_steps(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,

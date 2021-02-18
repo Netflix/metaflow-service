@@ -14,6 +14,7 @@ WAIT_TIME = 10
 HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
 OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
+
 class AsyncPostgresTable(object):
     db = None
     table_name = None
@@ -222,100 +223,6 @@ class AsyncPostgresTable(object):
                     tags += record
                 cur.close()
                 return DBResponse(response_code=200, body=tags)
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error)
-
-    async def create_record(self, record_dict):
-        # note: need to maintain order
-        cols = []
-        values = []
-        for col_name, col_val in record_dict.items():
-            cols.append(col_name)
-            values.append(col_val)
-
-        # add create ts
-        cols.append("ts_epoch")
-        values.append(get_db_ts_epoch_str())
-
-        str_format = []
-        for col in cols:
-            str_format.append("%s")
-
-        seperator = ", "
-
-        insert_sql = """
-                    INSERT INTO {0}({1}) VALUES({2})
-                    RETURNING *
-                    """.format(
-            self.table_name, seperator.join(cols), seperator.join(str_format)
-        )
-
-        try:
-            response_body = {}
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-
-                await cur.execute(insert_sql, tuple(values))
-                records = await cur.fetchall()
-                record = records[0]
-                filtered_record = {}
-                for key, value in record.items():
-                    if key in self.keys:
-                        filtered_record[key] = value
-                response_body = self._row_type(**filtered_record).serialize()
-                # todo make sure connection is closed even with error
-                cur.close()
-            return DBResponse(response_code=200, body=response_body)
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error)
-
-    async def update_row(self, filter_dict={}, update_dict={}):
-        # generate where clause
-        filters = []
-        for col_name, col_val in filter_dict.items():
-            v = str(col_val).strip("'")
-            if not v.isnumeric():
-                v = "'" + v + "'"
-            filters.append(col_name + "=" + str(v))
-
-        seperator = " and "
-        where_clause = ""
-        if bool(filter_dict):
-            where_clause = seperator.join(filters)
-
-        sets = []
-        for col_name, col_val in update_dict.items():
-            sets.append(col_name + " = " + str(col_val))
-
-        set_seperator = ", "
-        set_clause = ""
-        if bool(filter_dict):
-            set_clause = set_seperator.join(sets)
-        update_sql = """
-                UPDATE {0} SET {1} WHERE {2};
-        """.format(self.table_name, set_clause, where_clause)
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(update_sql)
-                if cur.rowcount < 1:
-                    return DBResponse(response_code=404,
-                                      body={"msg": "could not find row"})
-                if cur.rowcount > 1:
-                    return DBResponse(response_code=500,
-                                      body={"msg": "duplicate rows"})
-                body = {"rowcount": cur.rowcount}
-                # todo make sure connection is closed even with error
-                cur.close()
-                return DBResponse(response_code=200, body=body)
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
