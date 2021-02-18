@@ -1,6 +1,6 @@
 import psycopg2
 import psycopg2.extras
-from ..postgres_async_db import AsyncPostgresDB, PostgresUtils
+from services.ui_backend_service.data.db.postgres_async_db import AsyncPostgresDB, PostgresUtils
 from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from services.utils import DBConfiguration

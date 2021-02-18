@@ -15,9 +15,6 @@ from .tables import (
     AsyncMetadataTablePostgres
 )
 
-# from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
-#     get_db_ts_epoch_str, translate_run_key, translate_task_key
-
 from services.utils import DBConfiguration
 
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
