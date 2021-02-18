@@ -1,12 +1,18 @@
 import psycopg2
 import psycopg2.extras
-from services.ui_backend_service.data.db.postgres_async_db import AsyncPostgresDB, PostgresUtils
+import os
+import math
+from services.data.postgres_async_db import PostgresUtils
 from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from services.utils import DBConfiguration
 from typing import List, Callable
 from asyncio import iscoroutinefunction
 
+WAIT_TIME = 10
+# Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
+HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
+OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
 class AsyncPostgresTable(object):
     db = None
@@ -24,7 +30,7 @@ class AsyncPostgresTable(object):
     _base_query = "SELECT {0} from"
     _row_type = None
 
-    def __init__(self, db: AsyncPostgresDB = None):
+    def __init__(self, db):
         self.db = db
         if self.table_name is None or self._command is None:
             raise NotImplementedError(

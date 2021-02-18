@@ -1,7 +1,6 @@
-from .base import AsyncPostgresTable
+from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
-from ..postgres_async_db import HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from services.data.db_utils import DBResponse, translate_run_key
 import json
 import datetime

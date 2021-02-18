@@ -1,7 +1,6 @@
-from .base import AsyncPostgresTable
+from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, WAIT_TIME
 from .step import AsyncStepTablePostgres
 from ..models import TaskRow
-from ..postgres_async_db import HEARTBEAT_THRESHOLD, WAIT_TIME
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
 import json
 import datetime
