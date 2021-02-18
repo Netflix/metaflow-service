@@ -129,16 +129,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         table_name, flow_table_name
     )
 
-    async def add_run(self, run: RunRow):
-        dict = {
-            "flow_id": run.flow_id,
-            "user_name": run.user_name,
-            "tags": json.dumps(run.tags),
-            "system_tags": json.dumps(run.system_tags),
-            "run_id": run.run_id,
-        }
-        return await self.create_record(dict)
-
     async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
         key, value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id, key: str(value)}
@@ -148,17 +138,3 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     async def get_all_runs(self, flow_id: str):
         filter_dict = {"flow_id": flow_id}
         return await self.get_records(filter_dict=filter_dict)
-
-    async def update_heartbeat(self, flow_id: str, run_id: str):
-        run_key, run_value = translate_run_key(run_id)
-        filter_dict = {"flow_id": flow_id,
-                       run_key: str(run_value)}
-        set_dict = {
-            "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
-        }
-        result = await self.update_row(filter_dict=filter_dict,
-                                       update_dict=set_dict)
-        body = {"wait_time_in_seconds": WAIT_TIME}
-
-        return DBResponse(response_code=result.response_code,
-                          body=json.dumps(body))

@@ -7,6 +7,7 @@ import datetime
 import contextlib
 
 from services.ui_backend_service.data.db import AsyncPostgresDB
+from services.data.postgres_async_db import _AsyncPostgresDB as MetadataAsyncPostgresDB
 from services.utils import DBConfiguration
 
 from services.ui_backend_service.api import (
@@ -73,7 +74,7 @@ async def init_db(cli):
     status = await (await cli.get("/migration/db_schema_status")).json()
     assert status["is_up_to_date"] is True
 
-    db = AsyncPostgresDB()
+    db = MetadataAsyncPostgresDB()
     await db._init(db_conf=db_conf, create_triggers=True)
     return db
 
