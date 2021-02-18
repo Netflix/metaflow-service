@@ -172,6 +172,7 @@ class AsyncPostgresTable(object):
     schema_version = 1
     keys: List[str] = []
     primary_keys: List[str] = None
+    trigger_keys: List[str] = None
     ordering: List[str] = None
     joins: List[str] = None
     select_columns: List[str] = keys
@@ -193,8 +194,8 @@ class AsyncPostgresTable(object):
         if create_triggers:
             self.db.logger.info(
                 "Create notify trigger for {table_name}\n   Keys: {keys}".format(
-                    table_name=self.table_name, keys=self.primary_keys))
-            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.primary_keys)
+                    table_name=self.table_name, keys=self.trigger_keys))
+            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
@@ -620,6 +621,7 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
     table_name = "flows_v3"
     keys = ["flow_id", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id"]
+    trigger_keys = primary_keys
     select_columns = keys
     join_columns = []
     _command = """
@@ -661,6 +663,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
+    trigger_keys = primary_keys
     joins = [
         """
         LEFT JOIN (
@@ -818,6 +821,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id", "step_name",
             "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name"]
+    trigger_keys = primary_keys
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
     _command = """
@@ -875,59 +879,54 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
-    # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
-    # the older metadata service not recording separate metadata for task attempts. This is also the
-    # reason why we must join through the artifacts table, instead of directly from metadata.
+    trigger_keys = primary_keys
+    # NOTE: There is a lot of unfortunate backwards compatibility for cases where task metadata, or artifacts
+    # have not been stored correctly.
+    # NOTE: tasks_v3 table does not have a column for 'attempt_id', instead this is added before the join
+    # with a subquery in the FROM.
+    # NOTE: when using these joins, we _must_ clean up the results with a WHERE that discards attempts with
+    # nothing joined, otherwise we end up with ghost attempts for the task.
     joins = [
         """
-        LEFT JOIN (
-            SELECT
-                task_ok.flow_id, task_ok.run_number, task_ok.step_name,
-                task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
-                task_ok.location,
-                attempt.ts_epoch as started_at,
-                COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, attempt.ts_epoch) as finished_at,
-                attempt_ok.value::boolean as attempt_ok,
-                foreach_stack.location as foreach_stack
-            FROM {artifact_table} as task_ok
-            LEFT JOIN {metadata_table} as attempt ON (
-                task_ok.flow_id = attempt.flow_id AND
-                task_ok.run_number = attempt.run_number AND
-                task_ok.step_name = attempt.step_name AND
-                task_ok.task_id = attempt.task_id AND
-                attempt.field_name = 'attempt' AND
-                task_ok.attempt_id = attempt.value::int
-            )
-            LEFT JOIN {metadata_table} as done ON (
-                task_ok.flow_id = done.flow_id AND
-                task_ok.run_number = done.run_number AND
-                task_ok.step_name = done.step_name AND
-                task_ok.task_id = done.task_id AND
-                done.field_name = 'attempt-done' AND
-                task_ok.attempt_id = done.value::int
-            )
-            LEFT JOIN {metadata_table} as attempt_ok ON (
-                task_ok.flow_id = attempt_ok.flow_id AND
-                task_ok.run_number = attempt_ok.run_number AND
-                task_ok.step_name = attempt_ok.step_name AND
-                task_ok.task_id = attempt_ok.task_id AND
-                attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? ('attempt_id:' || task_ok.attempt_id)
-            )
-            LEFT JOIN {artifact_table} as foreach_stack ON (
-                task_ok.flow_id = foreach_stack.flow_id AND
-                task_ok.run_number = foreach_stack.run_number AND
-                task_ok.step_name = foreach_stack.step_name AND
-                task_ok.task_id = foreach_stack.task_id AND
-                foreach_stack.name = '_foreach_stack' AND
-                task_ok.attempt_id = foreach_stack.attempt_id
-            )
-            WHERE task_ok.name = '_task_ok'
-        ) AS attempt ON (
-            {table_name}.flow_id = attempt.flow_id AND
-            {table_name}.run_number = attempt.run_number AND
-            {table_name}.step_name = attempt.step_name AND
-            {table_name}.task_id = attempt.task_id
+        LEFT JOIN {metadata_table} as start ON (
+            {table_name}.flow_id = start.flow_id AND
+            {table_name}.run_number = start.run_number AND
+            {table_name}.step_name = start.step_name AND
+            {table_name}.task_id = start.task_id AND
+            start.field_name = 'attempt' AND
+            {table_name}.attempt_id = start.value::int
+        )
+        LEFT JOIN {metadata_table} as done ON (
+            {table_name}.flow_id = done.flow_id AND
+            {table_name}.run_number = done.run_number AND
+            {table_name}.step_name = done.step_name AND
+            {table_name}.task_id = done.task_id AND
+            done.field_name = 'attempt-done' AND
+            {table_name}.attempt_id = done.value::int
+        )
+        LEFT JOIN {metadata_table} as attempt_ok ON (
+            {table_name}.flow_id = attempt_ok.flow_id AND
+            {table_name}.run_number = attempt_ok.run_number AND
+            {table_name}.step_name = attempt_ok.step_name AND
+            {table_name}.task_id = attempt_ok.task_id AND
+            attempt_ok.field_name = 'attempt_ok' AND
+            attempt_ok.tags ? ('attempt_id:' || {table_name}.attempt_id)
+        )
+        LEFT JOIN {artifact_table} as foreach_stack ON (
+            {table_name}.flow_id = foreach_stack.flow_id AND
+            {table_name}.run_number = foreach_stack.run_number AND
+            {table_name}.step_name = foreach_stack.step_name AND
+            {table_name}.task_id = foreach_stack.task_id AND
+            foreach_stack.name = '_foreach_stack' AND
+            {table_name}.attempt_id = foreach_stack.attempt_id
+        )
+        LEFT JOIN {artifact_table} as task_ok ON (
+            {table_name}.flow_id = task_ok.flow_id AND
+            {table_name}.run_number = task_ok.run_number AND
+            {table_name}.step_name = task_ok.step_name AND
+            {table_name}.task_id = task_ok.task_id AND
+            task_ok.name = '_task_ok' AND
+            {table_name}.attempt_id = task_ok.attempt_id
         )
         """.format(
             table_name=table_name,
@@ -937,42 +936,46 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     ]
     select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
     join_columns = [
-        "attempt.started_at as started_at",
+        "{table_name}.attempt_id as attempt_id".format(table_name=table_name),
+        "start.ts_epoch as started_at",
         """
         (CASE
-        WHEN attempt.finished_at IS NULL
+        WHEN done.ts_epoch IS NULL
+            AND task_ok.ts_epoch IS NULL
+            AND attempt_ok.ts_epoch IS NULL
             AND {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
         THEN {table_name}.last_heartbeat_ts*1000
-        ELSE attempt.finished_at
+        ELSE {finished_at_column}
         END) as finished_at
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
         ),
-        "attempt.attempt_ok as attempt_ok",
+        "attempt_ok.value::boolean as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
         #   that is used to fetch the artifact value from remote location.
         # This process is performed at TaskRefiner (data_refiner.py)
         """
         (CASE
-            WHEN attempt_ok IS NOT NULL
+            WHEN attempt_ok.ts_epoch IS NOT NULL
             THEN NULL
-            ELSE attempt.location
+            ELSE task_ok.location
         END) as task_ok
         """,
         """
         (CASE
-            WHEN attempt_ok IS TRUE
+            WHEN attempt_ok.value::boolean IS TRUE
             THEN 'completed'
-            WHEN attempt_ok IS FALSE
+            WHEN attempt_ok.value::boolean IS FALSE
             THEN 'failed'
-            WHEN finished_at IS NOT NULL
+            WHEN COALESCE(done.ts_epoch, task_ok.ts_epoch) IS NOT NULL
                 AND attempt_ok IS NULL
             THEN 'unknown'
-            WHEN attempt.finished_at IS NOT NULL
+            WHEN COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch) IS NOT NULL
             THEN 'completed'
-            WHEN attempt.finished_at IS NULL
+            WHEN {finished_at_column} IS NULL
                 AND {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN 'failed'
@@ -980,21 +983,22 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         END) AS status
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD
+            heartbeat_threshold=HEARTBEAT_THRESHOLD,
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
         ),
         """
         (CASE
-            WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-            THEN {table_name}.last_heartbeat_ts*1000-COALESCE(attempt.started_at, {table_name}.ts_epoch)
-            WHEN attempt.finished_at IS NOT NULL
-            THEN attempt.finished_at - COALESCE(attempt.started_at, {table_name}.ts_epoch)
+            WHEN {finished_at_column} IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+            THEN {table_name}.last_heartbeat_ts*1000-COALESCE(start.ts_epoch, {table_name}.ts_epoch)
+            WHEN {finished_at_column} IS NOT NULL
+            THEN {finished_at_column} - COALESCE(start.ts_epoch, {table_name}.ts_epoch)
             ELSE NULL
         END) AS duration
         """.format(
-            table_name=table_name
+            table_name=table_name,
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
         ),
-        "COALESCE(attempt.attempt_id, 0) AS attempt_id",
-        "attempt.foreach_stack as foreach_stack"
+        "foreach_stack.location as foreach_stack"
     ]
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
@@ -1072,6 +1076,23 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         return DBResponse(response_code=result.response_code,
                           body=json.dumps(body))
 
+    async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
+                           limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
+                           group_limit: int = 10, expanded=False, enable_joins=False,
+                           postprocess: Callable[[DBResponse], DBResponse] = None,
+                           benchmark: bool = False, overwrite_select_from: str = None
+                           ) -> (DBResponse, DBPagination):
+        if enable_joins:
+            overwrite_select_from = "(SELECT *, UNNEST('{0, 1, 2, 3, 4}'::int[]) as attempt_id FROM tasks_v3) as tasks_v3"
+            conditions.append("NOT (attempt_id > 0 AND started_at IS NULL AND task_ok IS NULL)")
+        return await super().find_records(
+            conditions, values, fetch_single,
+            limit, offset, order,
+            groups, group_limit, expanded,
+            enable_joins, postprocess, benchmark,
+            overwrite_select_from
+        )
+
 
 class AsyncMetadataTablePostgres(AsyncPostgresTable):
     metadata_dict = {}
@@ -1084,6 +1105,8 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             "field_name", "value", "type", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name"]
+    trigger_keys = ["flow_id", "run_number",
+                    "step_name", "task_id", "field_name", "value"]
     select_columns = keys
     _command = """
     CREATE TABLE {0} (
@@ -1172,6 +1195,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "ds_type", "sha", "type", "content_type", "user_name", "attempt_id", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "attempt_id", "name"]
+    trigger_keys = primary_keys
     select_columns = keys
     _command = """
     CREATE TABLE {0} (

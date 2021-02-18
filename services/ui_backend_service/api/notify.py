@@ -63,6 +63,24 @@ class ListenNotify(object):
                         data["step_name"] == "start":
                     self.event_emitter.emit("run-parameters", data['flow_id'], data['run_number'])
 
+                # Notify task resources of a new attempt if 'attempt' metadata is inserted.
+                if operation == "INSERT" and \
+                        table.table_name == self.db.metadata_table_postgres.table_name and \
+                        data["field_name"] == "attempt":
+
+                    # Extract the attempt number from metadata attempt value, so we know which task attempt to broadcast.
+                    _attempt_id = int(data.get("value", 0))
+                    # First attempt has already been inserted by task table trigger.
+                    # Later attempts must count as inserts to register properly for the UI
+                    _op = "UPDATE" if _attempt_id == 0 else "INSERT"
+                    await _broadcast(
+                        event_emitter=self.event_emitter,
+                        operation=_op,
+                        table=self.db.task_table_postgres,
+                        data=data,
+                        filter_dict={"attempt_id": _attempt_id}
+                    )
+
                 # Notify related resources once new `_task_ok` artifact has been created
                 if operation == "INSERT" and \
                         table.table_name == self.db.artifact_table_postgres.table_name and \
@@ -74,12 +92,9 @@ class ListenNotify(object):
                     # Always mark task finished if '_task_ok' artifact is created
                     # Include 'attempt_id' so we can identify which attempt this artifact related to
                     _attempt_id = data.get("attempt_id", 0)
-                    # First attempt has already been inserted by task table trigger.
-                    # Later attempts must count as inserts to register properly for the UI
-                    _op = "UPDATE" if _attempt_id == 0 else "INSERT"
                     await _broadcast(
                         event_emitter=self.event_emitter,
-                        operation=_op,
+                        operation="UPDATE",
                         table=self.db.task_table_postgres,
                         data=data,
                         filter_dict={"attempt_id": _attempt_id}

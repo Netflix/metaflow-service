@@ -284,7 +284,7 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     # Wait for results
 
     operation, _, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
-    assert operation == "INSERT"
+    assert operation == "UPDATE"
     assert result == assertable_artifact(_artifact_step)
 
     cli.server.app.event_emitter.remove_all_listeners()
