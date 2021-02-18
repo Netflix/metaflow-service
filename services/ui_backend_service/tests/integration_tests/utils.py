@@ -54,7 +54,6 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     TagApi(app, db)
     FeaturesApi(app)
 
-
     Websocket(app, db, app.event_emitter, queue_ttl)
 
     AdminApi(app)
