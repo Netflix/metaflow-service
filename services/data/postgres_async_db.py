@@ -948,9 +948,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         "start.ts_epoch as started_at",
         """
         (CASE
-        WHEN done.ts_epoch IS NULL
-            AND task_ok.ts_epoch IS NULL
-            AND attempt_ok.ts_epoch IS NULL
+        WHEN {finished_at_column} IS NULL
             AND {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
         THEN {table_name}.last_heartbeat_ts*1000
