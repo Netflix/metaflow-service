@@ -430,7 +430,7 @@ async def test_task_attempt_status_running(cli, db):
 #     The timestamp in the heartbeat column for the task if no subsequent attempt is detected
 #     If a subsequent attempt exists, use the start time of the subsequent attempt
 
-async def xtest_task_attempt_status_failed_with_existing_subsequent_attempt(cli, db):
+async def test_task_attempt_status_failed_with_existing_subsequent_attempt(cli, db):
     _task = await create_task(db, last_heartbeat_ts=get_heartbeat_ts())
     _task['duration'] = _task['last_heartbeat_ts'] * 1000 - _task['ts_epoch']
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])

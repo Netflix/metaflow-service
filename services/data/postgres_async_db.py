@@ -904,6 +904,14 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             done.field_name = 'attempt-done' AND
             {table_name}.attempt_id = done.value::int
         )
+        LEFT JOIN {metadata_table} as next_attempt_start ON (
+            {table_name}.flow_id = next_attempt_start.flow_id AND
+            {table_name}.run_number = next_attempt_start.run_number AND
+            {table_name}.step_name = next_attempt_start.step_name AND
+            {table_name}.task_id = next_attempt_start.task_id AND
+            next_attempt_start.field_name = 'attempt' AND
+            ({table_name}.attempt_id + 1) = next_attempt_start.value::int
+        )
         LEFT JOIN {metadata_table} as attempt_ok ON (
             {table_name}.flow_id = attempt_ok.flow_id AND
             {table_name}.run_number = attempt_ok.run_number AND
@@ -978,6 +986,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             WHEN {finished_at_column} IS NULL
                 AND {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+            THEN 'failed'
+            WHEN next_attempt_start.ts_epoch IS NOT NULL
             THEN 'failed'
             ELSE 'running'
         END) AS status
