@@ -451,7 +451,13 @@ async def test_task_attempt_status_failed_with_existing_subsequent_attempt(cli, 
     _second_attempt['attempt_id'] = 1
     _second_attempt['started_at'] = _second_attempt_meta['ts_epoch']
     _second_attempt['duration'] = _second_attempt['last_heartbeat_ts'] * 1000 - _second_attempt['started_at']
+
+    # first attempt should be failed due to second attempt existing.
+    # finished_at timestamp should be the started_at of the second attempt due to it existing.
     _first_attempt['status'] = 'failed'
+    _first_attempt['finished_at'] = _second_attempt['started_at']
+    _first_attempt['duration'] = _first_attempt['finished_at'] - _first_attempt['started_at']
+
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_second_attempt, _first_attempt])
 
 
