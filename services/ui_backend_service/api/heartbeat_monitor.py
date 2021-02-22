@@ -4,10 +4,13 @@ from typing import Dict
 from pyee import AsyncIOEventEmitter
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
+from services.data.postgres_async_db import HEARTBEAT_THRESHOLD
 from .notify import resource_list
 from ..data.refiner import TaskRefiner
 
-HEARTBEAT_INTERVAL = 10  # interval of heartbeats, in seconds
+# interval for how often to check heartbeats. Use the heartbeat_threshold from the database queries with a margin (10sec),
+# not to check heartbeats too often and miss failures as a result.
+HEARTBEAT_INTERVAL = HEARTBEAT_THRESHOLD + 10
 
 
 class HeartbeatMonitor(object):
@@ -48,7 +51,7 @@ class HeartbeatMonitor(object):
         while True:
             time_now = int(datetime.datetime.utcnow().timestamp())  # same format as the metadata heartbeat uses
             for key, hb in list(self.watched.items()):
-                if time_now - hb > HEARTBEAT_INTERVAL * 2:
+                if time_now - hb > HEARTBEAT_INTERVAL:
                     self.loop.create_task(self.load_and_broadcast(key))
                     self.remove_from_watch(key)
 
