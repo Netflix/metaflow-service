@@ -205,6 +205,7 @@ async def test_run_status_failed_failed_task(cli, db):
                             "attempt_id": 0
         })).body
 
+    # create a failed last attempt (max attempts for a task is 4, before this we might still be retrying a task, so run should not count as failed)
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
@@ -212,7 +213,7 @@ async def test_run_status_failed_failed_task(cli, db):
                                     step_name=_task.get("step_name"),
                                     task_id=_task.get("task_id"),
                                     task_name=_task.get("task_name"),
-                                    tags=["attempt_id:0"],
+                                    tags=["attempt_id:4"],
                                     metadata={
                                         "field_name": "attempt_ok",
                                         "value": "False",
