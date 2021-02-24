@@ -85,6 +85,82 @@ async def test_run_status_completed(cli, db):
     assert data["finished_at"] == _artifact["ts_epoch"]
 
 
+async def test_run_status_completed_with_eventually_succeeded_end_step(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="end", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+
+    _artifact = (await add_artifact(
+        db,
+        flow_id=_task.get("flow_id"),
+        run_number=_task.get("run_number"),
+        step_name="end",
+        task_id=_task.get("task_id"),
+        artifact={
+            "name": "_task_ok",
+            "location": "location",
+            "ds_type": "ds_type",
+            "sha": "sha",
+            "type": "type",
+            "content_type": "content_type",
+                            "attempt_id": 0
+        })).body
+
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
+
+    # If the only thing we have to go by is the task_ok artifact, then run should be considered completed.
+
+    assert data["status"] == "completed"
+    assert data["ts_epoch"] == _run["ts_epoch"]
+    assert data["finished_at"] == _artifact["ts_epoch"]
+
+    _metadata = (await add_metadata(db,
+                                    flow_id=_task.get("flow_id"),
+                                    run_number=_task.get("run_number"),
+                                    run_id=_task.get("run_id"),
+                                    step_name=_task.get("step_name"),
+                                    task_id=_task.get("task_id"),
+                                    task_name=_task.get("task_name"),
+                                    tags=["attempt_id:0"],
+                                    metadata={
+                                        "field_name": "attempt_ok",
+                                        "value": "False",
+                                        "type": "internal_attempt_status"})).body
+
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
+
+    # As an attempt has failed, the run should count as still 'running',
+    # as we do not know whether further attempts are still in flight or not.
+    assert data["status"] == "running"
+    assert data["ts_epoch"] == _run["ts_epoch"]
+    assert data["finished_at"] == _artifact["ts_epoch"]
+
+    _metadata = (await add_metadata(db,
+                                    flow_id=_task.get("flow_id"),
+                                    run_number=_task.get("run_number"),
+                                    run_id=_task.get("run_id"),
+                                    step_name=_task.get("step_name"),
+                                    task_id=_task.get("task_id"),
+                                    task_name=_task.get("task_name"),
+                                    tags=["attempt_id:1"],
+                                    metadata={
+                                        "field_name": "attempt_ok",
+                                        "value": "True",
+                                        "type": "internal_attempt_status"})).body
+
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
+
+    # The second attempt succeeded, so the run should be considered completed.
+    assert data["status"] == "completed"
+    assert data["ts_epoch"] == _run["ts_epoch"]
+    assert data["finished_at"] == _artifact["ts_epoch"]
+
+
 # Run should have "Running" status when all of the following apply:
 #   1. No failed task
 #   2. Run has not succeeded
