@@ -904,6 +904,14 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             done.field_name = 'attempt-done' AND
             {table_name}.attempt_id = done.value::int
         )
+        LEFT JOIN {metadata_table} as next_attempt_start ON (
+            {table_name}.flow_id = next_attempt_start.flow_id AND
+            {table_name}.run_number = next_attempt_start.run_number AND
+            {table_name}.step_name = next_attempt_start.step_name AND
+            {table_name}.task_id = next_attempt_start.task_id AND
+            next_attempt_start.field_name = 'attempt' AND
+            ({table_name}.attempt_id + 1) = next_attempt_start.value::int
+        )
         LEFT JOIN {metadata_table} as attempt_ok ON (
             {table_name}.flow_id = attempt_ok.flow_id AND
             {table_name}.run_number = attempt_ok.run_number AND
@@ -940,9 +948,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         "start.ts_epoch as started_at",
         """
         (CASE
-        WHEN done.ts_epoch IS NULL
-            AND task_ok.ts_epoch IS NULL
-            AND attempt_ok.ts_epoch IS NULL
+        WHEN {finished_at_column} IS NULL
             AND {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
         THEN {table_name}.last_heartbeat_ts*1000
@@ -951,7 +957,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, next_attempt_start.ts_epoch)"
         ),
         "attempt_ok.value::boolean as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
@@ -975,6 +981,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             THEN 'unknown'
             WHEN COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch) IS NOT NULL
             THEN 'completed'
+            WHEN next_attempt_start.ts_epoch IS NOT NULL
+            THEN 'failed'
             WHEN {finished_at_column} IS NULL
                 AND {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
@@ -996,7 +1004,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         END) AS duration
         """.format(
             table_name=table_name,
-            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, next_attempt_start.ts_epoch)"
         ),
         "foreach_stack.location as foreach_stack"
     ]
