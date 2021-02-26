@@ -114,6 +114,7 @@ class StepRow(object):
     step_name: str = None
     user_name: str = None
     ts_epoch: int = 0
+    duration: int = 0
     tags = None
     system_tags = None
 
@@ -125,6 +126,7 @@ class StepRow(object):
         user_name,
         step_name,
         ts_epoch=None,
+        duration=None,
         tags=None,
         system_tags=None,
         **kwargs
@@ -142,6 +144,7 @@ class StepRow(object):
             ts_epoch = int(round(time.time() * 1000))
 
         self.ts_epoch = ts_epoch
+        self.duration = duration
         self.tags = tags
         self.system_tags = system_tags
 
@@ -154,6 +157,7 @@ class StepRow(object):
                 "step_name": self.step_name,
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
+                "duration": self.duration,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
             }
@@ -164,6 +168,7 @@ class StepRow(object):
                 "step_name": self.step_name,
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
+                "duration": self.duration,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
             }

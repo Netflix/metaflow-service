@@ -824,6 +824,50 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
+    task_table_name = "tasks_v3"
+    artifact_table_name = "artifact_v3"
+    joins = [
+        """
+        LEFT JOIN LATERAL (
+            SELECT last_heartbeat_ts as heartbeat_ts
+            FROM {task_table}
+            WHERE {table_name}.flow_id={task_table}.flow_id
+            AND {table_name}.run_number={task_table}.run_number
+            AND {table_name}.step_name={task_table}.step_name
+            ORDER BY last_heartbeat_ts DESC
+            LIMIT 1
+        ) AS latest_task_hb ON true
+        """.format(
+            table_name=table_name,
+            task_table=task_table_name
+        ),
+        """
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch as ts_epoch
+            FROM {artifact_table}
+            WHERE {table_name}.flow_id={artifact_table}.flow_id
+            AND {table_name}.run_number={artifact_table}.run_number
+            AND {table_name}.step_name={artifact_table}.step_name
+            ORDER BY
+                ts_epoch DESC
+            LIMIT 1
+        ) AS latest_task_ts ON true
+        """.format(
+            table_name=table_name,
+            artifact_table=artifact_table_name
+        )
+    ]
+    select_columns = ["steps_v3.{0} AS {0}".format(k) for k in keys]
+    join_columns = [
+        """
+        GREATEST(
+            latest_task_ts.ts_epoch,
+            latest_task_hb.heartbeat_ts*1000
+        ) - {table_name}.ts_epoch as duration
+        """.format(
+            table_name=table_name
+        )
+    ]
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255) NOT NULL,
