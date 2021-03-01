@@ -254,12 +254,12 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
         return resp.status, data
 
     expected_data[:] = map(_fill_missing_resource_data, expected_data)
-    if approx_keys:
-        assert len(data) == len(expected_data)
-        for i, d in enumerate(data):
+    assert len(data) == len(expected_data)
+    for i, d in enumerate(data):
+        if approx_keys:
             _test_dict_approx(d, expected_data[i], approx_keys)
-    else:
-        assert data == expected_data
+        else:
+            assert d == expected_data[i]
 
     return resp.status, data
 

@@ -9,7 +9,7 @@ from aiohttp_swagger import *
 from .api import (
     AdminApi, FlowApi, RunApi, StepApi, TaskApi,
     MetadataApi, ArtificatsApi, TagApi, ArtifactSearchApi,
-    LogApi, DagApi, FeaturesApi
+    LogApi, DagApi, FeaturesApi, ConfigApi
 )
 
 # service processes
@@ -80,6 +80,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     ArtifactSearchApi(app, async_db, cache_store)
     DagApi(app, async_db, cache_store)
     FeaturesApi(app)
+    ConfigApi(app)
 
     LogApi(app, async_db)
     AdminApi(app)
