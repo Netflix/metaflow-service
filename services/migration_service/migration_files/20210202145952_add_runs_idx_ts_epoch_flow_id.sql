@@ -31,19 +31,11 @@ CREATE INDEX runs_v3_idx_user_desc_ts_epoch_desc ON runs_v3 (
     END) DESC, ts_epoch DESC
 );
 
--- run
-
-CREATE INDEX runs_v3_idx_run_asc ON runs_v3 (COALESCE(run_id, run_number::text) ASC);
-CREATE INDEX runs_v3_idx_run_desc ON runs_v3 (COALESCE(run_id, run_number::text) DESC);
-
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 SELECT 'down SQL query';
-
-DROP INDEX runs_v3_idx_run_desc;
-DROP INDEX runs_v3_idx_run_asc;
 
 DROP INDEX runs_v3_idx_user_desc_ts_epoch_desc;
 DROP INDEX runs_v3_idx_user_asc_ts_epoch_desc;
