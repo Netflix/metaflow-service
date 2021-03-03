@@ -60,7 +60,8 @@ class StepApi(object):
                                   initial_values=[flow_name, run_id_value],
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys
+                                  allowed_filters=self._async_table.keys,
+                                  enable_joins=True
                                   )
 
     @handle_exceptions
@@ -102,4 +103,5 @@ class StepApi(object):
                                       "step_name = %s"],
                                   initial_values=[
                                       flow_name, run_id_value, step_name],
+                                  enable_joins=True
                                   )

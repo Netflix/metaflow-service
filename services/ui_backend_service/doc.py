@@ -393,6 +393,7 @@ swagger_definitions = {
     "ModelsStep": basemodel({
         **modelprop("run_number", "integer", "Run number", 5),
         **modelprop("step_name", "string", "Step name", "bonus_movie"),
+        **modelprop("duration", "integer", "Current duration in milliseconds (null if no tasks exist yet)", 456),
     }),
     "ModelsTask": basemodel({
         **modelprop("run_number", "integer", "Run number", 5),
