@@ -3,7 +3,7 @@ import datetime
 from typing import Dict
 from pyee import AsyncIOEventEmitter
 from services.data.db_utils import translate_run_key, translate_task_key
-from services.data.postgres_async_db import HEARTBEAT_THRESHOLD
+from ..data.db.tables.base import HEARTBEAT_THRESHOLD
 from .notify import resource_list
 from ..data.refiner import TaskRefiner
 
