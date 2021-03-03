@@ -7,7 +7,7 @@ from services.data.postgres_async_db import (
     AsyncStepTablePostgres as MetadataStepTable,
     AsyncTaskTablePostgres as MetadataTaskTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable
-    )
+)
 import json
 
 
