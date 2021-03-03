@@ -7,7 +7,7 @@ class FlowRow(object):
     user_name: str = None
     ts_epoch: int = 0
 
-    def __init__(self, flow_id, user_name, ts_epoch=None, tags=None, system_tags=None, **kwargs):
+    def __init__(self, flow_id, user_name, ts_epoch=None, tags=None, system_tags=None):
         self.flow_id = flow_id
         self.user_name = user_name
         if ts_epoch is None:
@@ -30,47 +30,30 @@ class RunRow(object):
     flow_id: str = None
     run_number: int = None
     run_id: str = None
-    run: str = None
     user_name: str = None
-    user: str = None
-    status: str = None
     ts_epoch: int = 0
-    finished_at: int = None
-    duration: int = None
 
     def __init__(
         self,
         flow_id,
         user_name,
-        user=None,
         run_number=None,
         run_id=None,
-        run=None,
-        status=None,
         ts_epoch=None,
-        finished_at=None,
-        duration=None,
         tags=None,
         system_tags=None,
         last_heartbeat_ts=None,
-        **kwargs
     ):
         self.flow_id = flow_id
         self.user_name = user_name
-        self.user = user
         self.run_number = run_number
         self.run_id = run_id
-        self.run = run
-        self.status = status
         self.tags = tags
         self.system_tags = system_tags
         if ts_epoch is None:
             ts_epoch = int(round(time.time() * 1000))
 
         self.ts_epoch = ts_epoch
-        self.last_heartbeat_ts = last_heartbeat_ts
-        self.finished_at = finished_at
-        self.duration = duration
         self.last_heartbeat_ts = last_heartbeat_ts
 
     def serialize(self, expanded: bool = False):
@@ -80,13 +63,7 @@ class RunRow(object):
                 "run_number": self.run_number,
                 "run_id": self.run_id,
                 "user_name": self.user_name,
-                "user": self.user,
-                "run": self.run,
-                "status": self.status,
                 "ts_epoch": self.ts_epoch,
-                "finished_at": self.finished_at,
-                "duration": self.duration,
-                "last_heartbeat_ts": self.last_heartbeat_ts,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
@@ -94,13 +71,9 @@ class RunRow(object):
         else:
             return {
                 "flow_id": self.flow_id,
-                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
+                "run_number": get_exposed_run_id(self.run_number, self.run_id),
                 "user_name": self.user_name,
-                "status": self.status,
                 "ts_epoch": self.ts_epoch,
-                "finished_at": self.finished_at,
-                "duration": self.duration,
-                "last_heartbeat_ts": self.last_heartbeat_ts,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
@@ -114,7 +87,6 @@ class StepRow(object):
     step_name: str = None
     user_name: str = None
     ts_epoch: int = 0
-    duration: int = 0
     tags = None
     system_tags = None
 
@@ -126,10 +98,8 @@ class StepRow(object):
         user_name,
         step_name,
         ts_epoch=None,
-        duration=None,
         tags=None,
         system_tags=None,
-        **kwargs
     ):
         self.flow_id = flow_id
         self.run_number = run_number
@@ -144,7 +114,6 @@ class StepRow(object):
             ts_epoch = int(round(time.time() * 1000))
 
         self.ts_epoch = ts_epoch
-        self.duration = duration
         self.tags = tags
         self.system_tags = system_tags
 
@@ -157,21 +126,20 @@ class StepRow(object):
                 "step_name": self.step_name,
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
-                "duration": self.duration,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
             }
         else:
             return {
                 "flow_id": self.flow_id,
-                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
+                "run_number": get_exposed_run_id(self.run_number, self.run_id),
                 "step_name": self.step_name,
                 "user_name": self.user_name,
                 "ts_epoch": self.ts_epoch,
-                "duration": self.duration,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
             }
+
 
 
 class TaskRow(object):
@@ -182,14 +150,7 @@ class TaskRow(object):
     task_id: int = None
     task_name: str = None
     user_name: str = None
-    status: str = None
-    task_ok: str = None
-    foreach_stack: int = None
     ts_epoch: int = 0
-    started_at: int = None
-    finished_at: int = None
-    duration: int = None
-    attempt_id: int = 0
     tags = None
     system_tags = None
 
@@ -202,18 +163,10 @@ class TaskRow(object):
         step_name,
         task_id=None,
         task_name=None,
-        status=None,
-        task_ok=None,
-        foreach_stack=None,
         ts_epoch=None,
-        started_at=None,
-        finished_at=None,
-        duration=None,
-        attempt_id=0,
         tags=None,
         system_tags=None,
         last_heartbeat_ts=None,
-        **kwargs
     ):
         self.flow_id = flow_id
         self.run_number = run_number
@@ -221,19 +174,11 @@ class TaskRow(object):
         self.step_name = step_name
         self.task_id = task_id
         self.task_name = task_name
-
         self.user_name = user_name
         if ts_epoch is None:
             ts_epoch = int(round(time.time() * 1000))
 
-        self.status = status
-        self.task_ok = task_ok
-        self.foreach_stack = foreach_stack
         self.ts_epoch = ts_epoch
-        self.started_at = started_at
-        self.finished_at = finished_at
-        self.duration = duration
-        self.attempt_id = attempt_id
         self.tags = tags
         self.system_tags = system_tags
         self.last_heartbeat_ts = last_heartbeat_ts
@@ -248,14 +193,7 @@ class TaskRow(object):
                 "task_id": self.task_id,
                 "task_name": self.task_name,
                 "user_name": self.user_name,
-                "status": self.status,
-                "task_ok": self.task_ok,
-                "foreach_stack": self.foreach_stack,
                 "ts_epoch": self.ts_epoch,
-                "started_at": self.started_at,
-                "finished_at": self.finished_at,
-                "duration": self.duration,
-                "attempt_id": self.attempt_id,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
@@ -263,18 +201,11 @@ class TaskRow(object):
         else:
             return {
                 "flow_id": self.flow_id,
-                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
+                "run_number": get_exposed_run_id(self.run_number, self.run_id),
                 "step_name": self.step_name,
-                "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
+                "task_id": get_exposed_task_id(self.task_id, self.task_name),
                 "user_name": self.user_name,
-                "status": self.status,
-                "task_ok": self.task_ok,
-                "foreach_stack": self.foreach_stack,
                 "ts_epoch": self.ts_epoch,
-                "started_at": self.started_at,
-                "finished_at": self.finished_at,
-                "duration": self.duration,
-                "attempt_id": self.attempt_id,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
                 "last_heartbeat_ts": self.last_heartbeat_ts
@@ -313,7 +244,6 @@ class MetadataRow(object):
         ts_epoch=None,
         tags=None,
         system_tags=None,
-        **kwargs
     ):
         self.flow_id = flow_id
         self.run_number = run_number
@@ -334,38 +264,20 @@ class MetadataRow(object):
         self.system_tags = system_tags
 
     def serialize(self, expanded: bool = False):
-        if expanded:
-            return {
-                "id": self.id,
-                "flow_id": self.flow_id,
-                "run_number": self.run_number,
-                "run_id": self.run_id,
-                "step_name": self.step_name,
-                "task_id": self.task_id,
-                "task_name": self.task_name,
-                "field_name": self.field_name,
-                "value": self.value,
-                "type": self.type,
-                "user_name": self.user_name,
-                "ts_epoch": self.ts_epoch,
-                "tags": self.tags,
-                "system_tags": self.system_tags,
-            }
-        else:
-            return {
-                "id": self.id,
-                "flow_id": self.flow_id,
-                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
-                "step_name": self.step_name,
-                "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
-                "field_name": self.field_name,
-                "value": self.value,
-                "type": self.type,
-                "user_name": self.user_name,
-                "ts_epoch": self.ts_epoch,
-                "tags": self.tags,
-                "system_tags": self.system_tags,
-            }
+        return {
+            "id": self.id,
+            "flow_id": self.flow_id,
+            "run_number": get_exposed_run_id(self.run_number, self.run_id),
+            "step_name": self.step_name,
+            "task_id": get_exposed_task_id(self.task_id, self.task_name),
+            "field_name": self.field_name,
+            "value": self.value,
+            "type": self.type,
+            "user_name": self.user_name,
+            "ts_epoch": self.ts_epoch,
+            "tags": self.tags,
+            "system_tags": self.system_tags,
+        }
 
 
 class ArtifactRow(object):
@@ -403,7 +315,6 @@ class ArtifactRow(object):
         ts_epoch=None,
         tags=None,
         system_tags=None,
-        **kwargs
     ):
         self.flow_id = flow_id
         self.run_number = run_number
@@ -427,41 +338,20 @@ class ArtifactRow(object):
         self.system_tags = system_tags
 
     def serialize(self, expanded: bool = False):
-        if expanded:
-            return {
-                "flow_id": self.flow_id,
-                "run_number": self.run_number,
-                "run_id": self.run_id,
-                "step_name": self.step_name,
-                "task_id": self.task_id,
-                "task_name": self.task_name,
-                "name": self.name,
-                "location": self.location,
-                "ds_type": self.ds_type,
-                "sha": self.sha,
-                "type": self.type,
-                "content_type": self.content_type,
-                "user_name": self.user_name,
-                "attempt_id": self.attempt_id,
-                "ts_epoch": self.ts_epoch,
-                "tags": self.tags,
-                "system_tags": self.system_tags,
-            }
-        else:
-            return {
-                "flow_id": self.flow_id,
-                "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
-                "step_name": self.step_name,
-                "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
-                "name": self.name,
-                "location": self.location,
-                "ds_type": self.ds_type,
-                "sha": self.sha,
-                "type": self.type,
-                "content_type": self.content_type,
-                "user_name": self.user_name,
-                "attempt_id": self.attempt_id,
-                "ts_epoch": self.ts_epoch,
-                "tags": self.tags,
-                "system_tags": self.system_tags,
-            }
+        return {
+            "flow_id": self.flow_id,
+            "run_number": get_exposed_run_id(self.run_number, self.run_id),
+            "step_name": self.step_name,
+            "task_id": get_exposed_task_id(self.task_id, self.task_name),
+            "name": self.name,
+            "location": self.location,
+            "ds_type": self.ds_type,
+            "sha": self.sha,
+            "type": self.type,
+            "content_type": self.content_type,
+            "user_name": self.user_name,
+            "attempt_id": self.attempt_id,
+            "ts_epoch": self.ts_epoch,
+            "tags": self.tags,
+            "system_tags": self.system_tags,
+        }
