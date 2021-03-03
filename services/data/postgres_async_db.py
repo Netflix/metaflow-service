@@ -163,8 +163,10 @@ class AsyncPostgresTable(object):
             conditions.append("{} = %s".format(col_name))
             values.append(col_val)
 
-        response, _ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
-                                               order=ordering, limit=limit, expanded=expanded)
+        response, _ = await self.find_records(
+            conditions=conditions, values=values, fetch_single=fetch_single,
+            order=ordering, limit=limit, expanded=expanded
+        )
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
@@ -198,18 +200,15 @@ class AsyncPostgresTable(object):
         ).strip()
 
         select_sql = sql_template.format(
-                keys=",".join(
-                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
-                joins=" ".join(
-                    self.joins) if enable_joins and self.joins is not None else "",
-                where="WHERE {}".format(" AND ".join(
-                    conditions)) if conditions else "",
-            order_by="ORDER BY {}".format(
-                    ", ".join(order)) if order else "",
-                limit="LIMIT {}".format(limit) if limit else "",
-                offset="OFFSET {}".format(offset) if offset else ""
-            ).strip()
+            keys=",".join(
+                self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
+            table_name=self.table_name,
+            joins=" ".join(self.joins) if enable_joins and self.joins is not None else "",
+            where="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
+            order_by="ORDER BY {}".format(", ".join(order)) if order else "",
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else ""
+        ).strip()
 
         return await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
                                       expanded=expanded, limit=limit, offset=offset)
