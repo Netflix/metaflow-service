@@ -18,7 +18,7 @@ HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
 OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
 
-class AsyncPostgresTable(object):
+class AsyncPostgresTable(MetadataAsyncPostgresTable):
     db = None
     table_name = None
     schema_version = MetadataAsyncPostgresTable.schema_version
