@@ -24,6 +24,7 @@ class AsyncPostgresTable(object):
     schema_version = MetadataAsyncPostgresTable.schema_version
     keys: List[str] = []
     primary_keys: List[str] = None
+    trigger_keys: List[str] = None
     ordering: List[str] = None
     joins: List[str] = None
     select_columns: List[str] = keys
@@ -94,6 +95,53 @@ class AsyncPostgresTable(object):
                 offset="OFFSET {}".format(offset) if offset else ""
             ).strip()
         else:  # Grouping enabled
+            # NOTE: we are performing a DISTINCT select on the group labels before the actual window function, to limit the set
+            # being queried. Without this restriction the query planner kept hitting the whole table contents, resulting in very slow queries.
+
+            # Query for groups matching filters.
+            groups_sql_template = """
+            SELECT DISTINCT ON({group_by}) * FROM (
+                SELECT
+                    {keys}
+                FROM {table_name}
+                {joins}
+            ) T
+            {where}
+            ORDER BY {group_by} ASC NULLS LAST
+            {limit}
+            {offset}
+            """
+
+            groups_sql = groups_sql_template.format(
+                keys=",".join(
+                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
+                table_name=self.table_name,
+                joins=" ".join(
+                    self.joins) if enable_joins and self.joins is not None else "",
+                where="WHERE {}".format(" AND ".join(
+                    conditions)) if conditions else "",
+                group_by=", ".join(groups),
+                limit="LIMIT {}".format(limit) if limit else "",
+                offset="OFFSET {}".format(offset) if offset else ""
+            ).strip()
+
+            group_results, _ = await self.execute_sql(select_sql=groups_sql, values=values, fetch_single=fetch_single,
+                                                      expanded=expanded, limit=limit, offset=offset)
+            if len(group_results.body) == 0:
+                # Return early if no groups match the query.
+                return group_results, None, None
+
+            # construct the group_where clause.
+            group_label_selects = []
+            for group in groups:
+                _group_values = []
+                for row in group_results.body:
+                    _group_values.append("\'{}\'".format(row[group.strip("\"")]))
+                if len(_group_values) > 0:
+                    _clause = "{group} IN ({values})".format(group=group, values=", ".join(_group_values))
+                    group_label_selects.append(_clause)
+
+            # Query for group content. Restricted by groups received from previous query.
             sql_template = """
             SELECT * FROM (
                 SELECT
@@ -106,10 +154,7 @@ class AsyncPostgresTable(object):
                 ) T
                 {where}
             ) G
-            {group_limit}
-            ORDER BY {group_by} ASC NULLS LAST
-            {limit}
-            {offset}
+            {group_where}
             """
 
             select_sql = sql_template.format(
@@ -123,10 +168,12 @@ class AsyncPostgresTable(object):
                 group_by=", ".join(groups),
                 order_by="ORDER BY {}".format(
                     ", ".join(order)) if order else "",
-                group_limit="WHERE row_number <= {}".format(
-                    group_limit) if group_limit else "",
-                limit="LIMIT {}".format(limit) if limit else "",
-                offset="OFFSET {}".format(offset) if offset else ""
+                group_where="""
+                    WHERE {group_limit} {group_selects}
+                """.format(
+                    group_limit="row_number <= {} AND ".format(group_limit) if group_limit else "",
+                    group_selects=" AND ".join(group_label_selects)
+                )
             ).strip()
 
         # Run benchmarking on query if requested
