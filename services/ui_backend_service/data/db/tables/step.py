@@ -18,7 +18,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     table_name = MetadataStepTable.table_name
     keys = MetadataStepTable.keys
     primary_keys = MetadataStepTable.primary_keys
-    select_columns = keys
+    select_columns = ["steps_v3.{0} AS {0}".format(k) for k in keys]
     run_table_name = MetadataRunTable.table_name
     _command = MetadataStepTable._command
     task_table_name = MetadataTaskTable.table_name
