@@ -4,7 +4,8 @@ import os
 import math
 from services.data.postgres_async_db import (
     PostgresUtils,
-    AsyncPostgresTable as MetadataAsyncPostgresTable
+    AsyncPostgresTable as MetadataAsyncPostgresTable,
+    WAIT_TIME
 )
 from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -12,7 +13,6 @@ from services.utils import DBConfiguration
 from typing import List, Callable
 from asyncio import iscoroutinefunction
 
-WAIT_TIME = 10
 # Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
 HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
 OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
