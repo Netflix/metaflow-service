@@ -16,22 +16,3 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     trigger_keys = MetaserviceMetadataTable.trigger_keys
     select_columns = keys
     _command = MetaserviceMetadataTable._command
-
-    async def get_metadata_in_runs(self, flow_id: str, run_id: str):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        filter_dict = {"flow_id": flow_id,
-                       run_id_key: run_id_value}
-        return await self.get_records(filter_dict=filter_dict)
-
-    async def get_metadata(
-        self, flow_id: str, run_id: int, step_name: str, task_id: str
-    ):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        task_id_key, task_id_value = translate_task_key(task_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-            task_id_key: task_id_value,
-        }
-        return await self.get_records(filter_dict=filter_dict)

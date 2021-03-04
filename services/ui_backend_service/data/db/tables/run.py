@@ -111,13 +111,3 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     ]
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = MetadataRunTable._command
-
-    async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
-        key, value = translate_run_key(run_id)
-        filter_dict = {"flow_id": flow_id, key: str(value)}
-        return await self.get_records(filter_dict=filter_dict,
-                                      fetch_single=True, expanded=expanded)
-
-    async def get_all_runs(self, flow_id: str):
-        filter_dict = {"flow_id": flow_id}
-        return await self.get_records(filter_dict=filter_dict)

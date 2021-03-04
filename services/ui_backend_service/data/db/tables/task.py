@@ -143,28 +143,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     step_table_name = AsyncStepTablePostgres.table_name
     _command = MetadataTaskTable._command
 
-    async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-        }
-        return await self.get_records(filter_dict=filter_dict)
-
-    async def get_task(self, flow_id: str, run_id: str, step_name: str,
-                       task_id: str, expanded: bool = False):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        task_id_key, task_id_value = translate_task_key(task_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-            task_id_key: task_id_value,
-        }
-        return await self.get_records(filter_dict=filter_dict,
-                                      fetch_single=True, expanded=expanded)
-
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,

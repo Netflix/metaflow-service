@@ -13,10 +13,3 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
     select_columns = keys
     _command = MetadataFlowTable._command
     _row_type = FlowRow
-
-    async def get_flow(self, flow_id: str):
-        filter_dict = {"flow_id": flow_id}
-        return await self.get_records(filter_dict=filter_dict, fetch_single=True)
-
-    async def get_all_flows(self):
-        return await self.get_records()

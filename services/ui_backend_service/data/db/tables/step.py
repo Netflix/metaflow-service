@@ -67,18 +67,3 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             table_name=table_name
         )
     ]
-
-    async def get_steps(self, flow_id: str, run_id: str):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        filter_dict = {"flow_id": flow_id,
-                       run_id_key: run_id_value}
-        return await self.get_records(filter_dict=filter_dict)
-
-    async def get_step(self, flow_id: str, run_id: str, step_name: str):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-        }
-        return await self.get_records(filter_dict=filter_dict, fetch_single=True)

@@ -190,20 +190,6 @@ class AsyncPostgresTable(object):
             keys=",".join(
                 self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
             table_name=self.table_name,
-            joins=" ".join(
-                self.joins) if enable_joins and self.joins else "",
-            where="WHERE {}".format(" AND ".join(
-                conditions)) if conditions else "",
-            order_by="ORDER BY {}".format(
-                ", ".join(order)) if order else "",
-            limit="LIMIT {}".format(limit) if limit else "",
-            offset="OFFSET {}".format(offset) if offset else ""
-        ).strip()
-
-        select_sql = sql_template.format(
-            keys=",".join(
-                self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-            table_name=self.table_name,
             joins=" ".join(self.joins) if enable_joins and self.joins is not None else "",
             where="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
             order_by="ORDER BY {}".format(", ".join(order)) if order else "",
