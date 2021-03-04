@@ -14,6 +14,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     table_name = MetadataTaskTable.table_name
     keys = MetadataTaskTable.keys
     primary_keys = MetadataTaskTable.primary_keys
+    trigger_keys = MetadataTaskTable.trigger_keys
     # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
     # the older metadata service not recording separate metadata for task attempts. This is also the
     # reason why we must join through the artifacts table, instead of directly from metadata.

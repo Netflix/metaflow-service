@@ -13,6 +13,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     table_name = MetadataRunTable.table_name
     keys = MetadataRunTable.keys
     primary_keys = MetadataRunTable.primary_keys
+    trigger_keys = MetadataRunTable.trigger_keys
     joins = [
         """
         LEFT JOIN (

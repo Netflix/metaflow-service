@@ -14,6 +14,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     ordering = ["attempt_id DESC"]
     keys = MetadataArtifactTable.keys
     primary_keys = MetadataArtifactTable.primary_keys
+    trigger_keys = MetadataArtifactTable.trigger_keys
     select_columns = keys
     _command = MetadataArtifactTable._command
 

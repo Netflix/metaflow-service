@@ -153,8 +153,8 @@ class AsyncPostgresTable(object):
         if create_triggers:
             self.db.logger.info(
                 "Create notify trigger for {table_name}\n   Keys: {keys}".format(
-                    table_name=self.table_name, keys=self.primary_keys))
-            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.primary_keys)
+                    table_name=self.table_name, keys=self.trigger_keys))
+            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
