@@ -17,14 +17,12 @@ from .tables import (
 
 from services.utils import DBConfiguration
 
-AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
-
-# Create database triggers automatically, disabled by default
-# Enable with env variable `DB_TRIGGER_CREATE=1`
-DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
-
 
 class AsyncPostgresDB(BaseAsyncPostgresDB):
+    """
+    UI Backend specific database adapter.
+    Initialization and basic functionality is inherited from the classes provided by the shared services/data module.
+    """
     connection = None
     flow_table_postgres = None
     run_table_postgres = None
@@ -55,10 +53,12 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    # This function is used to verify 'data' object matches the same filters as
-    # 'AsyncPostgresTable.find_records' does. This is used with 'pg_notify' + Websocket
-    # events to make sure that specific subscriber receives filtered data correctly.
     async def apply_filters_to_data(self, data, conditions: List[str] = None, values=[]) -> bool:
+        """
+        This function is used to verify 'data' object matches the same filters as
+        'AsyncPostgresTable.find_records' does. This is used with 'pg_notify' + Websocket
+        events to make sure that specific subscriber receives filtered data correctly.
+        """
         keys, vals, stm_vals = [], [], []
         for k, v in data.items():
             keys.append(k)
@@ -93,101 +93,3 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
         except:
             self.logger.exception("Exception occured")
             return False
-
-
-class PostgresUtils(object):
-    @staticmethod
-    async def create_if_missing(db: AsyncPostgresDB, table_name, command):
-        with (await db.pool.cursor()) as cur:
-            try:
-                await cur.execute(
-                    "select * from information_schema.tables where table_name=%s",
-                    (table_name,),
-                )
-                table_exist = bool(cur.rowcount)
-                if not table_exist:
-                    await cur.execute(command)
-            finally:
-                cur.close()
-    # todo add method to check schema version
-
-    @staticmethod
-    async def function_cleanup(db: AsyncPostgresDB):
-        name_prefix = "notify_ui"
-        _command = """
-        DO $$DECLARE r RECORD;
-        BEGIN
-            FOR r IN SELECT routine_schema, routine_name FROM information_schema.routines
-                    WHERE routine_name LIKE '{prefix}%'
-            LOOP
-                EXECUTE 'DROP FUNCTION ' || quote_ident(r.routine_schema) || '.' || quote_ident(r.routine_name) || '() CASCADE';
-            END LOOP;
-        END$$;
-        """.format(
-            prefix=name_prefix
-        )
-
-        with (await db.pool.cursor()) as cur:
-            await cur.execute(_command)
-            cur.close()
-
-    @staticmethod
-    async def trigger_notify(db: AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
-        if not keys:
-            pass
-
-        name_prefix = "notify_ui"
-        operations = ["INSERT", "UPDATE", "DELETE"]
-        _commands = ["""
-        CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
-            LANGUAGE plpgsql
-            AS $$
-        DECLARE
-            rec RECORD;
-            BEGIN
-
-            CASE TG_OP
-            WHEN 'INSERT', 'UPDATE' THEN
-                rec := NEW;
-            WHEN 'DELETE' THEN
-                rec := OLD;
-            ELSE
-                RAISE EXCEPTION 'Unknown TG_OP: "%"', TG_OP;
-            END CASE;
-
-            PERFORM pg_notify('notify', json_build_object(
-                            'table',     TG_TABLE_NAME,
-                            'schema',    TG_TABLE_SCHEMA,
-                            'operation', TG_OP,
-                            'data',      json_build_object({keys})
-                    )::text);
-            RETURN rec;
-            END;
-        $$;
-        """.format(
-            schema=schema,
-            prefix=name_prefix,
-            table=table_name,
-            keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
-            events=" OR ".join(operations)
-        )]
-        _commands += ["DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};".format(
-            schema=schema,
-            prefix=name_prefix,
-            table=table_name
-        )]
-
-        _commands += ["""
-            CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
-                FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
-            """.format(
-            schema=schema,
-            prefix=name_prefix,
-            table=table_name,
-            events=" OR ".join(operations)
-        )]
-
-        with (await db.pool.cursor()) as cur:
-            for _command in _commands:
-                await cur.execute(_command)
-            cur.close()

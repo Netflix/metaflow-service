@@ -3,7 +3,6 @@ import psycopg2.extras
 import os
 import math
 from services.data.postgres_async_db import (
-    PostgresUtils,
     AsyncPostgresTable as MetadataAsyncPostgresTable,
     WAIT_TIME
 )
