@@ -1,4 +1,3 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 
@@ -7,7 +6,7 @@ import json
 
 
 class ArtifactSearchApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks

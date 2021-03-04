@@ -1,4 +1,3 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
@@ -6,7 +5,7 @@ from ..data.refiner import TaskRefiner
 
 
 class TaskApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET",

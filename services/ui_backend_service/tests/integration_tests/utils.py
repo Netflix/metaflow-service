@@ -6,7 +6,7 @@ import json
 import datetime
 import contextlib
 
-from services.data.postgres_async_db import AsyncPostgresDB
+from services.ui_backend_service.data.db import AsyncPostgresDB
 from services.utils import DBConfiguration
 
 from services.ui_backend_service.api import (
@@ -15,7 +15,7 @@ from services.ui_backend_service.api import (
     Websocket, AdminApi, FeaturesApi
 )
 
-from services.data.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
+from services.ui_backend_service.data.db.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 
 # Migration imports
 
@@ -38,16 +38,22 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     MigrationAdminApi(migration_app)
     app.add_subapp("/migration/", migration_app)
 
-    FlowApi(app)
-    RunApi(app)
-    StepApi(app)
-    TaskApi(app)
-    MetadataApi(app)
-    ArtificatsApi(app)
-    TagApi(app)
+    # init a db adapter explicitly to be used for the api requests.
+    # Skip all creation processes, these are handled with migration service and init_db
+    db_conf = DBConfiguration(timeout=1)
+    db = AsyncPostgresDB(name='api')
+    loop.run_until_complete(db._init(db_conf=db_conf, create_tables=False, create_triggers=False))
+
+    FlowApi(app, db)
+    RunApi(app, db)
+    StepApi(app, db)
+    TaskApi(app, db)
+    MetadataApi(app, db)
+    ArtificatsApi(app, db)
+    TagApi(app, db)
     FeaturesApi(app)
 
-    Websocket(app, app.event_emitter, queue_ttl)
+    Websocket(app, db, app.event_emitter, queue_ttl)
 
     AdminApi(app)
 
@@ -66,7 +72,7 @@ async def init_db(cli):
     status = await (await cli.get("/migration/db_schema_status")).json()
     assert status["is_up_to_date"] is True
 
-    db = AsyncPostgresDB.get_instance()
+    db = AsyncPostgresDB()
     await db._init(db_conf=db_conf, create_triggers=True)
     return db
 
@@ -107,13 +113,13 @@ def set_env(environ={}):
 
 async def add_flow(db: AsyncPostgresDB, flow_id="HelloFlow",
                    user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
-    flow = FlowRow(
-        flow_id=flow_id,
-        user_name=user_name,
-        tags=tags,
-        system_tags=system_tags
-    )
-    return await db.flow_table_postgres.add_flow(flow)
+    flow = {
+        "flow_id": flow_id,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
+    }
+    return await db.flow_table_postgres.create_record(flow)
 
 
 async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
@@ -134,16 +140,16 @@ async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
 async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
                    run_number: int = None, run_id: str = None, step_name="step",
                    user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
-    step = StepRow(
-        flow_id=flow_id,
-        run_number=run_number,
-        run_id=run_id,
-        step_name=step_name,
-        user_name=user_name,
-        tags=tags,
-        system_tags=system_tags
-    )
-    return await db.step_table_postgres.add_step(step)
+    step = {
+        "flow_id": flow_id,
+        "run_number": run_number,
+        "run_id": run_id,
+        "step_name": step_name,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
+    }
+    return await db.step_table_postgres.create_record(step)
 
 
 async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
@@ -172,16 +178,16 @@ async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
         "run_number": run_number,
         "run_id": run_id,
         "step_name": step_name,
-        "task_id": task_id,
+        "task_id": str(task_id),
         "task_name": task_name,
         "field_name": metadata.get("field_name", " "),
         "value": metadata.get("value", " "),
         "type": metadata.get("type", " "),
         "user_name": user_name,
-        "tags": tags,
-        "system_tags": system_tags
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
     }
-    return await db.metadata_table_postgres.add_metadata(**values)
+    return await db.metadata_table_postgres.create_record(values)
 
 
 async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
@@ -193,7 +199,7 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
         "run_number": run_number,
         "run_id": run_id,
         "step_name": step_name,
-        "task_id": task_id,
+        "task_id": str(task_id),
         "task_name": task_name,
         "name": artifact.get("name", " "),
         "location": artifact.get("location", " "),
@@ -203,10 +209,10 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
         "content_type": artifact.get("content_type", " "),
         "attempt_id": artifact.get("attempt_id", 0),
         "user_name": user_name,
-        "tags": tags,
-        "system_tags": system_tags
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
     }
-    return await db.artifact_table_postgres.add_artifact(**values)
+    return await db.artifact_table_postgres.create_record(values)
 
 # Row helpers end
 

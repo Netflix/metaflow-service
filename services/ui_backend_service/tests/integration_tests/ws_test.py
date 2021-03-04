@@ -31,7 +31,7 @@ async def db(cli):
 
     # Init after DB is ready so that connection pool is available
     app = cli.server.app
-    ListenNotify(app, app.event_emitter)
+    ListenNotify(app, async_db, app.event_emitter)
 
     yield async_db
     await clean_db(async_db)

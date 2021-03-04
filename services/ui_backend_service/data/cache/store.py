@@ -1,5 +1,4 @@
 from .generate_dag_action import GenerateDag
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
@@ -29,7 +28,7 @@ class CacheStore(object):
         start_caches must be called before being able to access any of the specific caches.
     '''
 
-    def __init__(self, event_emitter=None, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, db, event_emitter=None):
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
         self.dag_cache = DAGCacheStore(db)
 

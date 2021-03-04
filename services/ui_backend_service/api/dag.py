@@ -1,4 +1,3 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import format_response, web_response
@@ -8,7 +7,7 @@ import json
 
 
 class DagApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/dag", self.get_run_dag

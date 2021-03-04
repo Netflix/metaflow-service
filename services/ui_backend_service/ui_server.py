@@ -20,7 +20,7 @@ from .api import (
 from .data.cache import CacheStore
 from .frontend import Frontend
 
-from services.data.postgres_async_db import _AsyncPostgresDB
+from .data.db import AsyncPostgresDB
 from services.utils import DBConfiguration, logging
 
 from pyee import AsyncIOEventEmitter
@@ -43,32 +43,32 @@ def app(loop=None, db_conf: DBConfiguration = None):
     _app = web.Application(loop=loop)
     app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
 
-    async_db = _AsyncPostgresDB('ui')
+    async_db = AsyncPostgresDB('ui')
     loop.run_until_complete(async_db._init(db_conf=db_conf, create_triggers=DB_TRIGGER_CREATE))
 
     event_emitter = AsyncIOEventEmitter()
 
-    async_db_cache = _AsyncPostgresDB('ui:cache')
+    async_db_cache = AsyncPostgresDB('ui:cache')
     loop.run_until_complete(async_db_cache._init(db_conf))
-    cache_store = CacheStore(event_emitter=event_emitter, db=async_db_cache)
+    cache_store = CacheStore(db=async_db_cache, event_emitter=event_emitter)
     app.on_startup.append(cache_store.start_caches)
     app.on_cleanup.append(cache_store.stop_caches)
 
     if FEATURE_DB_LISTEN_ENABLE:
-        async_db_notify = _AsyncPostgresDB('ui:notify')
+        async_db_notify = AsyncPostgresDB('ui:notify')
         loop.run_until_complete(async_db_notify._init(db_conf))
-        ListenNotify(app, event_emitter, db=async_db_notify)
+        ListenNotify(app, db=async_db_notify, event_emitter=event_emitter)
 
     if FEATURE_HEARTBEAT_ENABLE:
-        async_db_heartbeat = _AsyncPostgresDB('ui:heartbeat')
+        async_db_heartbeat = AsyncPostgresDB('ui:heartbeat')
         loop.run_until_complete(async_db_heartbeat._init(db_conf))
         RunHeartbeatMonitor(event_emitter, db=async_db_heartbeat)
         TaskHeartbeatMonitor(event_emitter, db=async_db_heartbeat, cache=cache_store)
 
     if FEATURE_WS_ENABLE:
-        async_db_ws = _AsyncPostgresDB('ui:websocket')
+        async_db_ws = AsyncPostgresDB('ui:websocket')
         loop.run_until_complete(async_db_ws._init(db_conf))
-        Websocket(app, event_emitter, db=async_db_ws, cache=cache_store)
+        Websocket(app, db=async_db_ws, event_emitter=event_emitter, cache=cache_store)
 
     FlowApi(app, async_db)
     RunApi(app, async_db, cache_store)

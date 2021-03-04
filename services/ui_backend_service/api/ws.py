@@ -8,7 +8,6 @@ from aiohttp import web, WSMsgType
 from typing import List, Dict, Any, Callable
 
 from .utils import resource_conditions, TTLQueue
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import logging
 from pyee import AsyncIOEventEmitter
 from ..data.refiner import TaskRefiner
@@ -47,7 +46,7 @@ class Websocket(object):
     '''
     subscriptions: List[WSSubscription] = []
 
-    def __init__(self, app, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, cache=None):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
         self.queue = TTLQueue(queue_ttl)

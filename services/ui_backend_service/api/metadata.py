@@ -1,11 +1,10 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
 
 
 class MetadataApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db):
         self.db = db
         app.router.add_route(
             "GET",

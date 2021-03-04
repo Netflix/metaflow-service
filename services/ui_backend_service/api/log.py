@@ -10,7 +10,6 @@ from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse
 
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key, translate_task_key
 from services.utils import handle_exceptions, web_response
 
@@ -119,7 +118,7 @@ def mflog_merge_logs(logs):
 
 
 class LogApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db):
         self.db = db
         app.router.add_route(
             "GET",

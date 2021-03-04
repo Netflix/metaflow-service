@@ -1,5 +1,4 @@
 import os
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import handle_exceptions, web_response
 
 from ..features import get_features
