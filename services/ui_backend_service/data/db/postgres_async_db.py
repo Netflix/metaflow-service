@@ -55,59 +55,6 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=False):
-        # todo make poolsize min and max configurable as well as timeout
-        # todo add retry and better error message
-        retries = 3
-        for i in range(retries):
-            try:
-                self.pool = await aiopg.create_pool(
-                    db_conf.dsn,
-                    minsize=db_conf.pool_min,
-                    maxsize=db_conf.pool_max,
-                    timeout=db_conf.timeout,
-                    echo=AIOPG_ECHO)
-
-                # Clean existing trigger functions before creating new ones
-                if create_triggers:
-                    self.logger.info("Cleanup existing notify triggers")
-                    await PostgresUtils.function_cleanup(self)
-
-                for table in self.tables:
-                    await table._init(create_tables=create_tables, create_triggers=create_triggers)
-
-                self.logger.info(
-                    "Connection established.\n"
-                    "   Pool min: {pool_min} max: {pool_max}\n".format(
-                        pool_min=self.pool.minsize,
-                        pool_max=self.pool.maxsize))
-
-                break  # Break the retry loop
-            except Exception as e:
-                self.logger.exception("Exception occured")
-                if retries - i < 1:
-                    raise e
-                time.sleep(1)
-
-    async def get_table_by_name(self, table_name: str):
-        for table in self.tables:
-            if table.table_name == table_name:
-                return table
-        return None
-
-    async def get_run_ids(self, flow_id: str, run_id: str):
-        run = await self.run_table_postgres.get_run(flow_id, run_id,
-                                                    expanded=True)
-        return run.body['run_number'], run.body['run_id']
-
-    async def get_task_ids(self, flow_id: str, run_id: str,
-                           step_name: str, task_name: str):
-
-        task = await self.task_table_postgres.get_task(flow_id, run_id,
-                                                       step_name, task_name,
-                                                       expanded=True)
-        return task.body['task_id'], task.body['task_name']
-
     # This function is used to verify 'data' object matches the same filters as
     # 'AsyncPostgresTable.find_records' does. This is used with 'pg_notify' + Websocket
     # events to make sure that specific subscriber receives filtered data correctly.

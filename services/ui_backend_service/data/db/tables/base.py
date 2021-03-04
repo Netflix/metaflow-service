@@ -33,21 +33,6 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
     _filters = None
     _row_type = None
 
-    def __init__(self, db):
-        self.db = db
-        if self.table_name is None or self._command is None:
-            raise NotImplementedError(
-                "need to specify table name and create command")
-
-    async def _init(self, create_tables: bool, create_triggers: bool):
-        if create_tables:
-            await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
-        if create_triggers:
-            self.db.logger.info(
-                "Create notify trigger for {table_name}\n   Keys: {keys}".format(
-                    table_name=self.table_name, keys=self.primary_keys))
-            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.primary_keys)
-
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
         conditions = []

@@ -42,7 +42,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     # Skip all creation processes, these are handled with migration service and init_db
     db_conf = DBConfiguration(timeout=1)
     db = AsyncPostgresDB(name='api')
-    loop.run_until_complete(db._init(db_conf=db_conf, create_triggers=False))
+    loop.run_until_complete(db._init(db_conf=db_conf, create_tables=False, create_triggers=False))
 
     FlowApi(app, db)
     RunApi(app, db)
