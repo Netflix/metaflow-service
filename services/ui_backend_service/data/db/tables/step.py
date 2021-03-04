@@ -1,6 +1,5 @@
 from .base import AsyncPostgresTable
 from ..models import StepRow
-from services.data.db_utils import translate_run_key
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
@@ -8,7 +7,6 @@ from services.data.postgres_async_db import (
     AsyncTaskTablePostgres as MetadataTaskTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable
 )
-import json
 
 
 class AsyncStepTablePostgres(AsyncPostgresTable):

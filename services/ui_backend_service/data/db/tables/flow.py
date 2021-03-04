@@ -2,7 +2,6 @@ from .base import AsyncPostgresTable
 from ..models import FlowRow
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import AsyncFlowTablePostgres as MetadataFlowTable
-import json
 
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):

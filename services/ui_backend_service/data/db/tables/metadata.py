@@ -1,10 +1,8 @@
 from .base import AsyncPostgresTable
 from .task import AsyncTaskTablePostgres
 from ..models import MetadataRow
-from services.data.db_utils import translate_run_key, translate_task_key
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import AsyncMetadataTablePostgres as MetaserviceMetadataTable
-import json
 
 
 class AsyncMetadataTablePostgres(AsyncPostgresTable):
