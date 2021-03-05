@@ -35,12 +35,11 @@ class GetArtifacts(CacheAction):
 
         request_id = lookup_id(unique_locs)
         stream_key = 'parameters:stream:%s' % request_id
-        result_key = 'parameters:result:%s' % request_id
 
         return msg,\
-            [result_key, *artifact_keys],\
+            artifact_keys,\
             stream_key,\
-            [stream_key, result_key]
+            [stream_key]
 
     @classmethod
     def response(cls, keys_objs):
@@ -49,7 +48,18 @@ class GetArtifacts(CacheAction):
             location: "contents"
         }
         '''
-        return [json.loads(val) for key, val in keys_objs.items() if key.startswith('parameters:result')][0]
+
+        artifact_keys = [(key, val) for key, val in keys_objs.items() if key.startswith('search:artifactdata')]
+
+        collected = {}
+        for key, val in artifact_keys:
+            success, value = json.loads(val)
+
+            # Only include artifacts whose content could successfully be read in the cache response.
+            if success:
+                collected[artifact_location_from_key(key)] = value
+
+        return collected
 
     @classmethod
     def stream_response(cls, it):
@@ -68,9 +78,6 @@ class GetArtifacts(CacheAction):
         # in the format_request response.
         results = {**existing_keys}
         locations = message['artifact_locations']
-
-        artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
-        result_key = [key for key in keys if key.startswith('parameters:result')][0]
 
         # Helper function for streaming status updates.
         def stream_error(err, id, traceback=None):
@@ -120,23 +127,6 @@ class GetArtifacts(CacheAction):
             stream_error("Artifact is not accessible", "artifact-not-accessible")
             results[artifact_key] = json.dumps([False, 'object is not accessible'])
 
-        # Collect the artifact contents into the results.
-        collected = {}
-
-        def format_loc(x):
-            "extract location from the artifact cache key"
-            return x[len("search:artifactdata:"):]
-
-        for key in artifact_keys:
-            if key in results:
-                success, value = json.loads(results[key])
-            else:
-                success, value = False, None
-
-            if success:
-                collected[format_loc(key)] = value
-
-        results[result_key] = json.dumps(collected)
         return results
 
 
@@ -149,3 +139,8 @@ def lookup_id(locations):
 def artifact_cache_id(location):
     "construct a unique cache key for artifact location"
     return 'search:artifactdata:%s' % location
+
+
+def artifact_location_from_key(x):
+    "extract location from the artifact cache key"
+    return x[len("search:artifactdata:"):]
