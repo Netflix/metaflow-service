@@ -70,7 +70,7 @@ async def create_n_runs(db, n=1, flow_id="TestFlow", user="TestUser"):
         _run = (await add_run(db, flow_id=flow_id, user_name=user, system_tags=["runtime:dev", "user:{}".format(user)])).body
         _run["run"] = _run["run_number"]
         _run["status"] = "running"
-        _run["duration"] = int(round(time.time() * 1000)) - _run["ts_epoch"]
+        _run["duration"] = max(int(round(time.time() * 1000)) - _run["ts_epoch"], 1)  # approx assert breaks in the odd case when duration==0
         _run["user"] = user
         created_runs.append(_run)
     return created_runs
