@@ -123,8 +123,8 @@ class GetArtifacts(CacheAction):
                     stream_error(str(ex), "s3-generic-error", get_traceback_str())
         # Skip the inaccessible locations
         other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
-        for _ in other_locations:
-            stream_error("Artifact is not accessible", "artifact-not-accessible")
+        for loc in other_locations:
+            stream_error("Artifact is not accessible at URL: {}".format(loc), "artifact-not-accessible")
 
         return results
 
