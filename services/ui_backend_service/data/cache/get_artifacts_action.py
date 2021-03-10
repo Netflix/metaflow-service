@@ -109,6 +109,7 @@ class GetArtifacts(CacheAction):
                                 # therefore we do not want to write anything to the cache for these artifacts.
                                 stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
                         else:
+                            # TODO: does this case need to raise an error as well? As is, the fetch simply fails silently.
                             results[artifact_key] = json.dumps([False, 'object is too large'])
                 except MetaflowS3AccessDenied as ex:
                     stream_error(str(ex), "s3-access-denied")
@@ -122,10 +123,8 @@ class GetArtifacts(CacheAction):
                     stream_error(str(ex), "s3-generic-error", get_traceback_str())
         # Skip the inaccessible locations
         other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
-        for loc in other_locations:
-            artifact_key = artifact_cache_id(loc)
+        for _ in other_locations:
             stream_error("Artifact is not accessible", "artifact-not-accessible")
-            results[artifact_key] = json.dumps([False, 'object is not accessible'])
 
         return results
 
