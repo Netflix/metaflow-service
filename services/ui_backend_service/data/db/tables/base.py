@@ -17,6 +17,7 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 
 # Expected Step-functions Scheduler delay between task starts in seconds.
 SCHEDULER_DELAY = int(os.environ.get("SCHEDULER_DELAY", 60 * 2))
 
+
 class AsyncPostgresTable(MetadataAsyncPostgresTable):
     db = None
     table_name = None
