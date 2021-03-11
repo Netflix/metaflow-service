@@ -354,7 +354,7 @@ async def test_single_run_attempt_ok_failed(cli, db):
                             "attempt_id": 0
         })).body
 
-    # Run counts as failed if the last possible attempt for a task fails. (max attempts 4)
+    # Run counts as failed if the last possible attempt for a task fails and is older than the scheduler_delay
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
@@ -362,11 +362,25 @@ async def test_single_run_attempt_ok_failed(cli, db):
                                     step_name=_task.get("step_name"),
                                     task_id=_task.get("task_id"),
                                     task_name=_task.get("task_name"),
-                                    tags=["attempt_id:4"],
+                                    tags=["attempt_id:0"],
                                     metadata={
                                         "field_name": "attempt_ok",
                                         "value": "False",  # run status = 'failed'
                                         "type": "internal_attempt_status"})).body
+
+    # update the metadata ts_epoch to be old enough.
+    _new_ts = _metadata['ts_epoch'] - 3 * 60 * 1000
+    await db.metadata_table_postgres.update_row(
+        filter_dict={
+            "flow_id": _metadata.get("flow_id"),
+            "run_number": _metadata.get("run_number"),
+            "step_name": _metadata.get("step_name"),
+            "task_id": _metadata.get("task_id")
+        },
+        update_dict={
+            "ts_epoch": _new_ts
+        }
+    )
 
     # We are expecting run status 'failed'
     _run["status"] = "failed"

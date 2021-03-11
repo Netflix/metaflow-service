@@ -281,7 +281,7 @@ async def test_run_status_failed_failed_task(cli, db):
                             "attempt_id": 0
         })).body
 
-    # create a failed last attempt (max attempts for a task is 4, before this we might still be retrying a task, so run should not count as failed)
+    # create a failed last attempt. The attempt needs to be old enough (> scheduler_delay) in order to be considered final.
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
@@ -289,11 +289,25 @@ async def test_run_status_failed_failed_task(cli, db):
                                     step_name=_task.get("step_name"),
                                     task_id=_task.get("task_id"),
                                     task_name=_task.get("task_name"),
-                                    tags=["attempt_id:4"],
+                                    tags=["attempt_id:0"],
                                     metadata={
                                         "field_name": "attempt_ok",
                                         "value": "False",
                                         "type": "internal_attempt_status"})).body
+    
+    # update the metadata ts_epoch to be old enough.
+    _new_ts = _metadata['ts_epoch'] - 3 * 60 * 1000
+    await db.metadata_table_postgres.update_row(
+        filter_dict={
+            "flow_id": _metadata.get("flow_id"),
+            "run_number": _metadata.get("run_number"),
+            "step_name": _metadata.get("step_name"),
+            "task_id": _metadata.get("task_id")
+        },
+        update_dict={
+            "ts_epoch": _new_ts
+        }
+    )
 
     _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
 

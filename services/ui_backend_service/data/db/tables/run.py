@@ -1,4 +1,4 @@
-from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
+from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME, SCHEDULER_DELAY
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
 # use schema constants from the .data module to keep things consistent
@@ -36,21 +36,21 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         """
         LEFT JOIN LATERAL (
             SELECT
+                {metadata_table}.value as value,
                 (CASE
-                WHEN {metadata_table}.value::boolean = FALSE
-                    AND {metadata_table}.tags ? ('attempt_id:4')
-                THEN TRUE
-                ELSE FALSE
-                END) as attempts_failed,
-                {metadata_table}.value::boolean as value
+                 WHEN {metadata_table}.field_name = 'attempt_ok'
+                 THEN TRUE
+                 ELSE FALSE
+                END) as is_finished,
+                {metadata_table}.ts_epoch as ts_epoch
             FROM {metadata_table}
             WHERE {metadata_table}.flow_id = {table_name}.flow_id
                 AND {metadata_table}.run_number = {table_name}.run_number
-                AND {metadata_table}.field_name = 'attempt_ok'
+                AND ({metadata_table}.field_name = 'attempt_ok' OR {metadata_table}.field_name = 'attempt')
             ORDER BY
                 "ts_epoch" DESC
             LIMIT 1
-        ) as latest_attempt ON true
+        ) as latest_attempt_meta ON true
         """.format(
             table_name=table_name,
             metadata_table="metadata_v3"
@@ -89,13 +89,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
-            WHEN latest_attempt.attempts_failed IS TRUE
+            WHEN latest_attempt_meta.is_finished
+                AND latest_attempt_meta.value::boolean IS FALSE
+                AND @(extract(epoch from now())*1000 - latest_attempt_meta.ts_epoch) > {scheduler_delay}
             THEN 'failed'
             WHEN latest_artifact.is_end_step IS TRUE
-                AND latest_attempt.value IS TRUE
+                AND latest_attempt_meta.is_finished
+                AND latest_attempt_meta.value::boolean IS TRUE
             THEN 'completed'
             WHEN latest_artifact.is_end_step IS TRUE
-                AND latest_attempt IS NULL
+                AND latest_attempt_meta IS NULL
             THEN 'completed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
@@ -108,7 +111,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
+            scheduler_delay=SCHEDULER_DELAY
         ),
         """
         COALESCE(
