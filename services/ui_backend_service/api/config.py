@@ -1,8 +1,6 @@
 import os
 from services.utils import handle_exceptions, web_response
 
-from ..features import get_features
-
 # These environment values will be available to the frontend
 ALLOWED_CONFIG_KEYS = [
     'GA_TRACKING_ID'

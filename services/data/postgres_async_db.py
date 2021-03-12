@@ -422,6 +422,12 @@ class PostgresUtils(object):
             table=table_name,
             events=" OR ".join(operations)
         )]
+        # This enables trigger on both replica and non-replica mode
+        _commands += ["ALTER TABLE {schema}.{table} ENABLE ALWAYS TRIGGER {prefix}_{table};".format(
+            schema=schema,
+            prefix=name_prefix,
+            table=table_name
+        )]
 
         with (await db.pool.cursor()) as cur:
             for _command in _commands:
