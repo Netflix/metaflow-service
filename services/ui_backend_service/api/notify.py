@@ -99,18 +99,6 @@ class ListenNotify(object):
                         filter_dict={"attempt_id": _attempt_id}
                     )
 
-                    # If the task was attempted for the last time, also update the related run
-                    # (possibly failed status at this point.)
-                    if _attempt_id == 4:
-                        await _broadcast(
-                            event_emitter=self.event_emitter,
-                            operation="UPDATE",
-                            table=self.db.run_table_postgres,
-                            data=data
-                        )
-                        # also remove run from heartbeat monitoring
-                        self.event_emitter.emit("run-heartbeat", "complete", data['run_number'])
-
                     # Last step is always called 'end' and only one '_task_ok' should be present
                     # Run is considered finished once 'end' step has '_task_ok' artifact
                     if data["step_name"] == "end":
