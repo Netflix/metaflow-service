@@ -71,21 +71,36 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     join_columns = [
         """
         (CASE
-            WHEN latest_artifact IS NOT NULL
-            AND latest_artifact.is_end_step IS TRUE
+            WHEN latest_attempt_meta.is_finished
+                AND latest_attempt_meta.value::boolean IS FALSE
+                AND @(extract(epoch from now())*1000 - latest_attempt_meta.ts_epoch) > {scheduler_delay}
+            THEN latest_artifact.ts_epoch
+            WHEN latest_artifact.is_end_step IS TRUE
+                AND latest_attempt_meta.is_finished
+                AND latest_attempt_meta.value::boolean IS TRUE
+            THEN latest_artifact.ts_epoch
+            WHEN latest_artifact.is_end_step IS TRUE
+                AND (
+                    latest_attempt_meta IS NULL OR
+                    (
+                        latest_attempt_meta.is_finished IS FALSE
+                        AND @(extract(epoch from now())*1000 - latest_attempt_meta.ts_epoch) > {scheduler_delay}
+                    )
+                )
             THEN latest_artifact.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN {table_name}.last_heartbeat_ts*1000
             WHEN {table_name}.last_heartbeat_ts IS NULL
-            AND @(extract(epoch from now())*1000-GREATEST({table_name}.ts_epoch, latest_artifact.ts_epoch))>{cutoff}
+                AND @(extract(epoch from now())*1000-GREATEST({table_name}.ts_epoch, latest_artifact.ts_epoch))>{cutoff}
             THEN GREATEST(latest_artifact.ts_epoch, {table_name}.ts_epoch + {cutoff})
             ELSE NULL
         END) AS finished_at
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
+            scheduler_delay=SCHEDULER_DELAY
         ),
         """
         (CASE
@@ -98,7 +113,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 AND latest_attempt_meta.value::boolean IS TRUE
             THEN 'completed'
             WHEN latest_artifact.is_end_step IS TRUE
-                AND latest_attempt_meta IS NULL
+                AND (
+                    latest_attempt_meta IS NULL OR
+                    (
+                        latest_attempt_meta.is_finished IS FALSE
+                        AND @(extract(epoch from now())*1000 - latest_attempt_meta.ts_epoch) > {scheduler_delay}
+                    )
+                )
             THEN 'completed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}

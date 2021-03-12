@@ -33,7 +33,75 @@ async def db(cli):
 # End time: End time for End task
 
 
-async def test_run_status_completed(cli, db):
+async def test_run_status_completed_with_attempt_ok(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="end", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+
+    _artifact = (await add_artifact(
+        db,
+        flow_id=_task.get("flow_id"),
+        run_number=_task.get("run_number"),
+        step_name="end",
+        task_id=_task.get("task_id"),
+        artifact={
+            "name": "_task_ok",
+            "location": "location",
+            "ds_type": "ds_type",
+            "sha": "sha",
+            "type": "type",
+            "content_type": "content_type",
+                            "attempt_id": 0
+        })).body
+    _metadata = (await add_metadata(db,
+                                    flow_id=_task.get("flow_id"),
+                                    run_number=_task.get("run_number"),
+                                    run_id=_task.get("run_id"),
+                                    step_name=_task.get("step_name"),
+                                    task_id=_task.get("task_id"),
+                                    task_name=_task.get("task_name"),
+                                    metadata={
+                                        "field_name": "attempt",
+                                        "value": "0",
+                                        "type": "attempt"})).body
+
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
+
+    # as _task_ok is not old enough (new attempts might still start due to scheduler_delay),
+    # run should stay in running status for now.
+    assert data["status"] == "running"
+    assert data["ts_epoch"] == _run["ts_epoch"]
+    assert data["finished_at"] == None
+
+    _attempt_ok = (await add_metadata(db,
+                                      flow_id=_task.get("flow_id"),
+                                      run_number=_task.get("run_number"),
+                                      run_id=_task.get("run_id"),
+                                      step_name=_task.get("step_name"),
+                                      task_id=_task.get("task_id"),
+                                      task_name=_task.get("task_name"),
+                                      tags=["attempt_id:0"],
+                                      metadata={
+                                          "field_name": "attempt_ok",
+                                          "value": "True",
+                                          "type": "internal_attempt_status"})).body
+
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
+
+    assert data["status"] == "completed"
+    assert data["ts_epoch"] == _run["ts_epoch"]
+    assert data["finished_at"] == _artifact["ts_epoch"]
+
+
+# If no attempt_ok metadata is recorded, but task_ok artifact exists for end step, we should consider
+# the run as completed after scheduler_interval has passed (no new attempts will appear).
+
+async def test_run_status_completed_without_attempt_ok(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="end", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
@@ -59,12 +127,6 @@ async def test_run_status_completed(cli, db):
                             "attempt_id": 0
         })).body
 
-    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
-
-    assert data["status"] == "completed"
-    assert data["ts_epoch"] == _run["ts_epoch"]
-    assert data["finished_at"] == _artifact["ts_epoch"]
-
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
@@ -72,17 +134,50 @@ async def test_run_status_completed(cli, db):
                                     step_name=_task.get("step_name"),
                                     task_id=_task.get("task_id"),
                                     task_name=_task.get("task_name"),
-                                    tags=["attempt_id:0"],
                                     metadata={
-                                        "field_name": "attempt_ok",
-                                        "value": "True",
-                                        "type": "internal_attempt_status"})).body
+                                        "field_name": "attempt",
+                                        "value": "0",
+                                        "type": "attempt"})).body
+
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
+
+    # as _task_ok is not old enough (new attempts might still start due to scheduler_delay),
+    # run should stay in running status for now.
+    assert data["status"] == "running"
+    assert data["ts_epoch"] == _run["ts_epoch"]
+    assert data["finished_at"] == None
+
+    _new_ts = _artifact['ts_epoch'] - 3 * 60 * 1000  # older than scheduler_delay
+    # update artifact and metadata to be old enough to be considered FINAL.
+    await db.metadata_table_postgres.update_row(
+        filter_dict={
+            "flow_id": _metadata.get("flow_id"),
+            "run_number": _metadata.get("run_number"),
+            "step_name": _metadata.get("step_name"),
+            "task_id": _metadata.get("task_id")
+        },
+        update_dict={
+            "ts_epoch": _new_ts
+        }
+    )
+
+    await db.artifact_table_postgres.update_row(
+        filter_dict={
+            "flow_id": _artifact.get("flow_id"),
+            "run_number": _artifact.get("run_number"),
+            "step_name": _artifact.get("step_name"),
+            "task_id": _artifact.get("task_id")
+        },
+        update_dict={
+            "ts_epoch": _new_ts
+        }
+    )
 
     _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
 
     assert data["status"] == "completed"
     assert data["ts_epoch"] == _run["ts_epoch"]
-    assert data["finished_at"] == _artifact["ts_epoch"]
+    assert data["finished_at"] == _new_ts
 
 
 async def test_run_status_completed_with_eventually_succeeded_end_step(cli, db):
@@ -138,7 +233,7 @@ async def test_run_status_completed_with_eventually_succeeded_end_step(cli, db):
     # as we do not know whether further attempts are still in flight or not.
     assert data["status"] == "running"
     assert data["ts_epoch"] == _run["ts_epoch"]
-    assert data["finished_at"] == _artifact["ts_epoch"]
+    assert data["finished_at"] == None
 
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
