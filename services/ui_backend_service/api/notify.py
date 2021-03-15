@@ -1,4 +1,5 @@
 import json
+import time
 import asyncio
 from typing import Dict, List
 from services.utils import logging
@@ -15,9 +16,11 @@ class ListenNotify(object):
         self.loop.create_task(self._init(self.db.pool))
 
     async def _init(self, pool):
-        async with pool.acquire() as conn1:
-            listener = self.listen(conn1)
-            await asyncio.gather(listener)
+        async with pool.acquire() as conn:
+            await asyncio.gather(
+                self.listen(conn),
+                self.ping(conn)
+            )
 
     async def listen(self, conn):
         async with conn.cursor() as cur:
@@ -30,6 +33,16 @@ class ListenNotify(object):
                     await asyncio.sleep(0.1)
                 except Exception:
                     self.logger.exception("Exception when listening to notify.")
+
+    async def ping(self, conn):
+        async with conn.cursor() as cur:
+            while True:
+                try:
+                    await cur.execute("NOTIFY ping")
+                except Exception:
+                    self.logger.debug("Exception NOTIFY ping.")
+                finally:
+                    await asyncio.sleep(1)
 
     async def handle_trigger_msg(self, msg: str):
         try:
