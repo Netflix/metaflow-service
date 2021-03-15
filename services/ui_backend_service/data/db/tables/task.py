@@ -21,9 +21,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = MetadataTaskTable.keys
     primary_keys = MetadataTaskTable.primary_keys
     trigger_keys = MetadataTaskTable.trigger_keys
-    # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
-    # the older metadata service not recording separate metadata for task attempts. This is also the
-    # reason why we must join through the artifacts table, instead of directly from metadata.
+    # NOTE: There is a lot of unfortunate backwards compatibility for cases where task metadata, or artifacts
+    # have not been stored correctly.
+    # NOTE: tasks_v3 table does not have a column for 'attempt_id', instead this is added before the join
+    # with a subquery in the FROM.
+    # NOTE: when using these joins, we _must_ clean up the results with a WHERE that discards attempts with
+    # nothing joined, otherwise we end up with ghost attempts for the task.
     joins = [
         """
         LEFT JOIN {metadata_table} as start ON (
