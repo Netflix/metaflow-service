@@ -23,6 +23,15 @@ WAIT_TIME = 10
 # Enable with env variable `DB_TRIGGER_CREATE=1`
 DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
 
+# Configure DB Table names. Custom names can be supplied through environment variables,
+# in case the deployment differs from the default naming scheme from the supplied migrations.
+FLOW_TABLE_NAME = os.environ.get("DB_TABLE_NAME_FLOWS", "flows_v3")
+RUN_TABLE_NAME = os.environ.get("DB_TABLE_NAME_RUNS", "runs_v3")
+STEP_TABLE_NAME = os.environ.get("DB_TABLE_NAME_STEPS", "steps_v3")
+TASK_TABLE_NAME = os.environ.get("DB_TABLE_NAME_TASKS", "tasks_v3")
+METADATA_TABLE_NAME = os.environ.get("DB_TABLE_NAME_METADATA", "metadata_v3")
+ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
+
 
 class _AsyncPostgresDB(object):
     connection = None
@@ -213,7 +222,7 @@ class AsyncPostgresTable(object):
                 rows = []
                 records = await cur.fetchall()
                 for record in records:
-                    row = self._row_type(**record)
+                    row = self._row_type(**record)  # pylint: disable=not-callable
                     rows.append(row.serialize(expanded))
 
                 count = len(rows)
@@ -249,7 +258,7 @@ class AsyncPostgresTable(object):
         values.append(get_db_ts_epoch_str())
 
         str_format = []
-        for col in cols:
+        for _ in cols:
             str_format.append("%s")
 
         seperator = ", "
@@ -276,7 +285,7 @@ class AsyncPostgresTable(object):
                 for key, value in record.items():
                     if key in self.keys:
                         filtered_record[key] = value
-                response_body = self._row_type(**filtered_record).serialize()
+                response_body = self._row_type(**filtered_record).serialize()  # pylint: disable=not-callable
                 # todo make sure connection is closed even with error
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
@@ -437,7 +446,7 @@ class PostgresUtils(object):
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):
     flow_dict = {}
-    table_name = "flows_v3"
+    table_name = FLOW_TABLE_NAME
     keys = ["flow_id", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id"]
     trigger_keys = primary_keys
@@ -477,7 +486,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     run_by_flow_dict = {}
     _current_count = 0
     _row_type = RunRow
-    table_name = "runs_v3"
+    table_name = RUN_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
@@ -541,7 +550,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
     run_to_step_dict = {}
     _row_type = StepRow
-    table_name = "steps_v3"
+    table_name = STEP_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name",
             "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name"]
@@ -599,7 +608,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     step_to_task_dict = {}
     _current_count = 0
     _row_type = TaskRow
-    table_name = "tasks_v3"
+    table_name = TASK_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
@@ -687,8 +696,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     run_to_metadata_dict = {}
     _current_count = 0
     _row_type = MetadataRow
-    table_name = "metadata_v3"
-    task_table_name = AsyncTaskTablePostgres.table_name
+    table_name = METADATA_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "id",
             "field_name", "value", "type", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
@@ -714,9 +722,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         system_tags JSONB,
         PRIMARY KEY(id, flow_id, run_number, step_name, task_id, field_name)
     )
-    """.format(
-        table_name, task_table_name
-    )
+    """.format(table_name)
 
     async def add_metadata(
         self,
@@ -776,8 +782,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     task_to_artifact_dict = {}
     current_count = 0
     _row_type = ArtifactRow
-    table_name = "artifact_v3"
-    task_table_name = AsyncTaskTablePostgres.table_name
+    table_name = ARTIFACT_TABLE_NAME
     ordering = ["attempt_id DESC"]
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "name", "location",
             "ds_type", "sha", "type", "content_type", "user_name", "attempt_id", "ts_epoch", "tags", "system_tags"]
@@ -807,7 +812,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         PRIMARY KEY(flow_id, run_number, step_name, task_id, attempt_id, name)
     )
     """.format(
-        table_name, task_table_name
+        table_name
     )
 
     async def add_artifact(
