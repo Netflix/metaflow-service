@@ -17,7 +17,6 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     keys = MetadataStepTable.keys
     primary_keys = MetadataStepTable.primary_keys
     trigger_keys = MetadataStepTable.trigger_keys
-    select_columns = ["steps_v3.{0} AS {0}".format(k) for k in keys]
     run_table_name = MetadataRunTable.table_name
     _command = MetadataStepTable._command
     task_table_name = MetadataTaskTable.table_name
@@ -54,7 +53,12 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             artifact_table=artifact_table_name
         )
     ]
-    select_columns = ["steps_v3.{0} AS {0}".format(k) for k in keys]
+
+    @property
+    def select_columns(self):
+        "We must use a function scope in order to be able to access the table_name variable for list comprehension."
+        return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys]
+
     join_columns = [
         """
         GREATEST(

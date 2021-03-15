@@ -2,12 +2,18 @@ from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOF
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
 # use schema constants from the .data module to keep things consistent
-from services.data.postgres_async_db import AsyncRunTablePostgres as MetadataRunTable
+from services.data.postgres_async_db import (
+    AsyncRunTablePostgres as MetadataRunTable,
+    AsyncMetadataTablePostgres as MetaMetadataTable,
+    AsyncArtifactTablePostgres as MetadataArtifactTable
+)
 
 
 class AsyncRunTablePostgres(AsyncPostgresTable):
     _row_type = RunRow
     table_name = MetadataRunTable.table_name
+    metadata_table = MetaMetadataTable.table_name
+    artifact_table = MetadataArtifactTable.table_name
     keys = MetadataRunTable.keys
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
@@ -34,13 +40,17 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         )
         """.format(
             table_name=table_name,
-            metadata_table="metadata_v3",
-            artifact_table="artifact_v3"
+            metadata_table=metadata_table,
+            artifact_table=artifact_table
         ),
     ]
-    # User should be considered NULL when 'user:*' tag is missing
-    # This is usually the case with AWS Step Functions
-    select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys] \
+
+    @property
+    def select_columns(self):
+        "We must use a function scope in order to be able to access the table_name variable for list comprehension."
+        # User should be considered NULL when 'user:*' tag is missing
+        # This is usually the case with AWS Step Functions
+        return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys] \
         + ["""
             (CASE
                 WHEN system_tags ? ('user:' || user_name)
@@ -49,7 +59,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             END) AS user"""] \
         + ["""
             COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
-            """.format(table_name=table_name)]
+            """.format(table_name=self.table_name)]
+
     join_columns = [
         """
         (CASE
@@ -106,5 +117,4 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         )
     ]
-    flow_table_name = AsyncFlowTablePostgres.table_name
     _command = MetadataRunTable._command
