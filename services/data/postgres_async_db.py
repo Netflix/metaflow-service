@@ -435,9 +435,10 @@ class PostgresUtils(object):
             cur.close()
 
 
+FLOW_TABLE_NAME = os.environ.get("DB_TABLE_NAME_FLOWS", "flows_v3")
 class AsyncFlowTablePostgres(AsyncPostgresTable):
     flow_dict = {}
-    table_name = "flows_v3"
+    table_name = FLOW_TABLE_NAME
     keys = ["flow_id", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id"]
     trigger_keys = primary_keys
@@ -472,12 +473,13 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
         return await self.get_records()
 
 
+RUN_TABLE_NAME = os.environ.get("DB_TABLE_NAME_RUNS", "runs_v3")
 class AsyncRunTablePostgres(AsyncPostgresTable):
     run_dict = {}
     run_by_flow_dict = {}
     _current_count = 0
     _row_type = RunRow
-    table_name = "runs_v3"
+    table_name = RUN_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
@@ -537,11 +539,12 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                           body=json.dumps(body))
 
 
+STEP_TABLE_NAME = os.environ.get("DB_TABLE_NAME_STEPS", "steps_v3")
 class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
     run_to_step_dict = {}
     _row_type = StepRow
-    table_name = "steps_v3"
+    table_name = STEP_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name",
             "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name"]
@@ -594,12 +597,13 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict, fetch_single=True)
 
 
+TASK_TABLE_NAME = os.environ.get("DB_TABLE_NAME_TASKS", "tasks_v3")
 class AsyncTaskTablePostgres(AsyncPostgresTable):
     task_dict = {}
     step_to_task_dict = {}
     _current_count = 0
     _row_type = TaskRow
-    table_name = "tasks_v3"
+    table_name = TASK_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
@@ -682,12 +686,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                           body=json.dumps(body))
 
 
+METADATA_TABLE_NAME = os.environ.get("DB_TABLE_NAME_METADATA", "metadata_v3")
 class AsyncMetadataTablePostgres(AsyncPostgresTable):
     metadata_dict = {}
     run_to_metadata_dict = {}
     _current_count = 0
     _row_type = MetadataRow
-    table_name = "metadata_v3"
+    table_name = METADATA_TABLE_NAME
     task_table_name = AsyncTaskTablePostgres.table_name
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "id",
             "field_name", "value", "type", "user_name", "ts_epoch", "tags", "system_tags"]
@@ -769,6 +774,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict)
 
 
+ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
 class AsyncArtifactTablePostgres(AsyncPostgresTable):
     artifact_dict = {}
     run_to_artifact_dict = {}
@@ -776,7 +782,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     task_to_artifact_dict = {}
     current_count = 0
     _row_type = ArtifactRow
-    table_name = "artifact_v3"
+    table_name = ARTIFACT_TABLE_NAME
     task_table_name = AsyncTaskTablePostgres.table_name
     ordering = ["attempt_id DESC"]
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "name", "location",
