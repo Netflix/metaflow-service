@@ -51,15 +51,15 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         # User should be considered NULL when 'user:*' tag is missing
         # This is usually the case with AWS Step Functions
         return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys] \
-        + ["""
-            (CASE
-                WHEN system_tags ? ('user:' || user_name)
-                THEN user_name
-                ELSE NULL
-            END) AS user"""] \
-        + ["""
-            COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
-            """.format(table_name=self.table_name)]
+            + ["""
+                (CASE
+                    WHEN system_tags ? ('user:' || user_name)
+                    THEN user_name
+                    ELSE NULL
+                END) AS user"""] \
+            + ["""
+                COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
+                """.format(table_name=self.table_name)]
 
     join_columns = [
         """
