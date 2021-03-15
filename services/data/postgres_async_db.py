@@ -213,7 +213,7 @@ class AsyncPostgresTable(object):
                 rows = []
                 records = await cur.fetchall()
                 for record in records:
-                    row = self._row_type(**record)
+                    row = self._row_type(**record)  # pylint: disable=not-callable
                     rows.append(row.serialize(expanded))
 
                 count = len(rows)
@@ -249,7 +249,7 @@ class AsyncPostgresTable(object):
         values.append(get_db_ts_epoch_str())
 
         str_format = []
-        for col in cols:
+        for _ in cols:
             str_format.append("%s")
 
         seperator = ", "
@@ -276,7 +276,7 @@ class AsyncPostgresTable(object):
                 for key, value in record.items():
                     if key in self.keys:
                         filtered_record[key] = value
-                response_body = self._row_type(**filtered_record).serialize()
+                response_body = self._row_type(**filtered_record).serialize()  # pylint: disable=not-callable
                 # todo make sure connection is closed even with error
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
@@ -693,7 +693,6 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     _current_count = 0
     _row_type = MetadataRow
     table_name = METADATA_TABLE_NAME
-    task_table_name = AsyncTaskTablePostgres.table_name
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "id",
             "field_name", "value", "type", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
@@ -719,9 +718,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         system_tags JSONB,
         PRIMARY KEY(id, flow_id, run_number, step_name, task_id, field_name)
     )
-    """.format(
-        table_name, task_table_name
-    )
+    """.format(table_name)
 
     async def add_metadata(
         self,
@@ -783,7 +780,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     current_count = 0
     _row_type = ArtifactRow
     table_name = ARTIFACT_TABLE_NAME
-    task_table_name = AsyncTaskTablePostgres.table_name
     ordering = ["attempt_id DESC"]
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "name", "location",
             "ds_type", "sha", "type", "content_type", "user_name", "attempt_id", "ts_epoch", "tags", "system_tags"]
@@ -813,7 +809,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         PRIMARY KEY(flow_id, run_number, step_name, task_id, attempt_id, name)
     )
     """.format(
-        table_name, task_table_name
+        table_name
     )
 
     async def add_artifact(
