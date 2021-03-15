@@ -23,6 +23,15 @@ WAIT_TIME = 10
 # Enable with env variable `DB_TRIGGER_CREATE=1`
 DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
 
+# Configure DB Table names. Custom names can be supplied through environment variables,
+# in case the deployment differs from the default naming scheme from the supplied migrations.
+FLOW_TABLE_NAME = os.environ.get("DB_TABLE_NAME_FLOWS", "flows_v3")
+RUN_TABLE_NAME = os.environ.get("DB_TABLE_NAME_RUNS", "runs_v3")
+STEP_TABLE_NAME = os.environ.get("DB_TABLE_NAME_STEPS", "steps_v3")
+TASK_TABLE_NAME = os.environ.get("DB_TABLE_NAME_TASKS", "tasks_v3")
+METADATA_TABLE_NAME = os.environ.get("DB_TABLE_NAME_METADATA", "metadata_v3")
+ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
+
 
 class _AsyncPostgresDB(object):
     connection = None
@@ -435,7 +444,6 @@ class PostgresUtils(object):
             cur.close()
 
 
-FLOW_TABLE_NAME = os.environ.get("DB_TABLE_NAME_FLOWS", "flows_v3")
 class AsyncFlowTablePostgres(AsyncPostgresTable):
     flow_dict = {}
     table_name = FLOW_TABLE_NAME
@@ -473,7 +481,6 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
         return await self.get_records()
 
 
-RUN_TABLE_NAME = os.environ.get("DB_TABLE_NAME_RUNS", "runs_v3")
 class AsyncRunTablePostgres(AsyncPostgresTable):
     run_dict = {}
     run_by_flow_dict = {}
@@ -539,7 +546,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                           body=json.dumps(body))
 
 
-STEP_TABLE_NAME = os.environ.get("DB_TABLE_NAME_STEPS", "steps_v3")
 class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
     run_to_step_dict = {}
@@ -597,7 +603,6 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict, fetch_single=True)
 
 
-TASK_TABLE_NAME = os.environ.get("DB_TABLE_NAME_TASKS", "tasks_v3")
 class AsyncTaskTablePostgres(AsyncPostgresTable):
     task_dict = {}
     step_to_task_dict = {}
@@ -686,7 +691,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                           body=json.dumps(body))
 
 
-METADATA_TABLE_NAME = os.environ.get("DB_TABLE_NAME_METADATA", "metadata_v3")
 class AsyncMetadataTablePostgres(AsyncPostgresTable):
     metadata_dict = {}
     run_to_metadata_dict = {}
@@ -771,7 +775,6 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict)
 
 
-ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
 class AsyncArtifactTablePostgres(AsyncPostgresTable):
     artifact_dict = {}
     run_to_artifact_dict = {}
