@@ -44,8 +44,8 @@ class Refinery(object):
         try:
             _res = await self.artifact_store.cache.GetArtifacts(locations)
             if not _res.is_ready():
-                await _res.wait()
-            return _res.get()
+                await _res.wait()  # wait for results to be ready
+            return _res.get() or {}  # cache get() might return None if no keys are produced.
         except:
             self.logger.exception("Exception when fetching artifact data from cache")
             return {}
