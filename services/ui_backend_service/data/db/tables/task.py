@@ -164,9 +164,10 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                            benchmark: bool = False, overwrite_select_from: str = None
                            ) -> (DBResponse, DBPagination):
         if enable_joins:
-            # python format strings require double curlies for escaping.
-            overwrite_select_from = "(SELECT *, UNNEST('{{0, 1, 2, 3, 4}}'::int[]) as attempt_id FROM {table_name}) as {table_name}".format(
-                table_name=self.table_name)
+            overwrite_select_from = "(SELECT *, generate_series(0,{max_attempts}) as attempt_id FROM {table_name}) as {table_name}".format(
+                table_name=self.table_name,
+                max_attempts=4
+            )
             conditions.append("NOT (attempt_id > 0 AND started_at IS NULL AND task_ok IS NULL)")
         return await super().find_records(
             conditions, values, fetch_single,
