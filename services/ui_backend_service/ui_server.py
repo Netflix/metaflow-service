@@ -7,7 +7,7 @@ from aiohttp_swagger import *
 
 # routes
 from .api import (
-    AdminApi, FlowApi, RunApi, StepApi, TaskApi,
+    AdminApi, FlowApi, RunApi, StepApi, TaskApi, AutoCompleteApi,
     MetadataApi, ArtificatsApi, TagApi, ArtifactSearchApi,
     LogApi, DagApi, FeaturesApi, ConfigApi
 )
@@ -80,6 +80,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     ArtifactSearchApi(app, async_db, cache_store)
     DagApi(app, async_db, cache_store)
     FeaturesApi(app)
+    AutoCompleteApi(app, async_db)
     ConfigApi(app)
 
     LogApi(app, async_db)
