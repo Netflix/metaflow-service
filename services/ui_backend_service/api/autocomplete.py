@@ -2,6 +2,9 @@ from services.utils import handle_exceptions, web_response
 import asyncio
 import threading
 
+# Interval for refetching tags from database. Tags data is cached since requesting all of them might take a while.
+TAGS_FILL_INTERVAL = 300
+
 
 class AutoCompleteApi(object):
     # Cache tags so we don't have to request DB everytime
@@ -17,16 +20,21 @@ class AutoCompleteApi(object):
         app.router.add_route("GET", "/autocomplete/flows/{flow_id}/runs/{run_id}/steps", self.get_steps_for_run)
         self._async_table = self.db.run_table_postgres
         self.loop = asyncio.get_event_loop()
-        self.loop.create_task(self.setup_tags())
+        self.loop.create_task(self.fill_tags_cache())
 
     @handle_exceptions
-    async def setup_tags(self):
-        db_response = await self._async_table.get_tags()
-
-        if db_response.response_code == 200:
-            self.tags = db_response.body
-        # Check tags again in 5 minutes
-        self.loop.call_later(300, lambda x: self.loop.create_task(self.setup_tags()), self)
+    async def fill_tags_cache(self):
+        '''
+        Async task that fill tags cache every 5minutes. Database query might take a while
+        so its better to cache the result.
+        '''
+        while True:
+            # Get all tags taht are mentioned in runs table
+            db_response = await self._async_table.get_tags()
+            if db_response.response_code == 200:
+                self.tags = db_response.body
+            # Check tags again after some sleep
+            await asyncio.sleep(TAGS_FILL_INTERVAL)
 
     @handle_exceptions
     async def get_all_tags(self, request):
