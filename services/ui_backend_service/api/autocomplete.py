@@ -22,7 +22,10 @@ class AutoCompleteApi(object):
     @handle_exceptions
     async def setup_tags(self):
         db_response = await self._async_table.get_tags()
-        self.tags = db_response.body
+        
+        if db_response.response_code == 200:
+            self.tags = db_response.body
+
         self.loop.call_later(300, lambda x: self.loop.create_task(self.setup_tags()), self)
 
     @handle_exceptions
