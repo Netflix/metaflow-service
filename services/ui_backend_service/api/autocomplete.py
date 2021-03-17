@@ -1,7 +1,11 @@
 from services.utils import handle_exceptions, web_response
 import asyncio
+import threading
+
 
 class AutoCompleteApi(object):
+    # Cache tags so we don't have to request DB everytime
+    tags = []
 
     def __init__(self, app, db):
         self.db = db
@@ -14,17 +18,12 @@ class AutoCompleteApi(object):
         self._async_table = self.db.run_table_postgres
         self.loop = asyncio.get_event_loop()
         self.loop.create_task(self.setup_tags())
-        self.loop.create_task(self.setup_flows())
 
     @handle_exceptions
     async def setup_tags(self):
         db_response = await self._async_table.get_tags()
         self.tags = db_response.body
-
-    @handle_exceptions
-    async def setup_flows(self):
-        db_response = await self._async_table.get_field_from(field="flow_id", table="flows_v3")
-        self.flows = db_response.body
+        self.loop.call_later(300, lambda x: self.loop.create_task(self.setup_tags()), self)
 
     @handle_exceptions
     async def get_all_tags(self, request):
@@ -32,7 +31,8 @@ class AutoCompleteApi(object):
 
     @handle_exceptions
     async def get_all_flows(self, request):
-        return web_response(200, self.flows)
+        db_response = await self._async_table.get_field_from(field="flow_id", table="flows_v3")
+        return web_response(db_response.response_code, db_response.body)
 
     @handle_exceptions
     async def get_runs_for_flow(self, request):
@@ -49,5 +49,3 @@ class AutoCompleteApi(object):
 
         db_response = await self._async_table.get_field_from(field="step_name", table="steps_v3", conditions=sql_conditions, values=[flowid, runid, runid])
         return web_response(db_response.response_code, db_response.body)
-
-    
