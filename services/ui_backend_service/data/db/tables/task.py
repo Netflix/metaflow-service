@@ -3,7 +3,11 @@ from .step import AsyncStepTablePostgres
 from ..models import TaskRow
 from services.data.db_utils import DBPagination, DBResponse, translate_run_key, translate_task_key
 # use schema constants from the .data module to keep things consistent
-from services.data.postgres_async_db import AsyncTaskTablePostgres as MetadataTaskTable
+from services.data.postgres_async_db import (
+    AsyncTaskTablePostgres as MetadataTaskTable,
+    AsyncArtifactTablePostgres as MetadataArtifactTable,
+    AsyncMetadataTablePostgres as MetaMetadataTable
+)
 from typing import List, Callable
 import json
 import datetime
@@ -12,12 +16,17 @@ import datetime
 class AsyncTaskTablePostgres(AsyncPostgresTable):
     _row_type = TaskRow
     table_name = MetadataTaskTable.table_name
+    artifact_table = MetadataArtifactTable.table_name
+    metadata_table = MetaMetadataTable.table_name
     keys = MetadataTaskTable.keys
     primary_keys = MetadataTaskTable.primary_keys
     trigger_keys = MetadataTaskTable.trigger_keys
-    # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
-    # the older metadata service not recording separate metadata for task attempts. This is also the
-    # reason why we must join through the artifacts table, instead of directly from metadata.
+    # NOTE: There is a lot of unfortunate backwards compatibility for cases where task metadata, or artifacts
+    # have not been stored correctly.
+    # NOTE: tasks_v3 table does not have a column for 'attempt_id', instead this is added before the join
+    # with a subquery in the FROM.
+    # NOTE: when using these joins, we _must_ clean up the results with a WHERE that discards attempts with
+    # nothing joined, otherwise we end up with ghost attempts for the task.
     joins = [
         """
         LEFT JOIN {metadata_table} as start ON (
@@ -70,11 +79,16 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         )
         """.format(
             table_name=table_name,
-            metadata_table="metadata_v3",
-            artifact_table="artifact_v3"
+            metadata_table=metadata_table,
+            artifact_table=artifact_table
         ),
     ]
-    select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
+
+    @property
+    def select_columns(self):
+        "We must use a function scope in order to be able to access the table_name variable for list comprehension."
+        return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys]
+
     join_columns = [
         "{table_name}.attempt_id as attempt_id".format(table_name=table_name),
         "start.ts_epoch as started_at",
@@ -150,7 +164,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                            benchmark: bool = False, overwrite_select_from: str = None
                            ) -> (DBResponse, DBPagination):
         if enable_joins:
-            overwrite_select_from = "(SELECT *, UNNEST('{0, 1, 2, 3, 4}'::int[]) as attempt_id FROM tasks_v3) as tasks_v3"
+            # python format strings require double curlies for escaping.
+            overwrite_select_from = "(SELECT *, UNNEST('{{0, 1, 2, 3, 4}}'::int[]) as attempt_id FROM {table_name}) as {table_name}".format(
+                table_name=self.table_name)
             conditions.append("NOT (attempt_id > 0 AND started_at IS NULL AND task_ok IS NULL)")
         return await super().find_records(
             conditions, values, fetch_single,
