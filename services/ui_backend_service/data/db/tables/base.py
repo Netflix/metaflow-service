@@ -258,7 +258,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             return aiopg_exception_handling(error)
 
     async def get_field_from(self, field: str, conditions: List[str] = [], values: List[str] = []):
-        sql_template = "SELECT {field_name} FROM {table_name} {conditions}"
+        sql_template = "SELECT DISTINCT {field_name} FROM {table_name} {conditions}"
         select_sql = sql_template.format(
             table_name=self.table_name,
             field_name=field,
