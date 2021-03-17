@@ -257,10 +257,10 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
-    async def get_field_from(self, field: str, table: str, conditions: List[str] = [], values: List[str] = []):
+    async def get_field_from(self, field: str, conditions: List[str] = [], values: List[str] = []):
         sql_template = "SELECT {field_name} FROM {table_name} {conditions}"
         select_sql = sql_template.format(
-            table_name=table,
+            table_name=self.table_name,
             field_name=field,
             conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else "")
         )

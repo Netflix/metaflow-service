@@ -18,7 +18,9 @@ class AutoCompleteApi(object):
         app.router.add_route("GET", "/autocomplete/flows", self.get_all_flows)
         app.router.add_route("GET", "/autocomplete/flows/{flow_id}/runs", self.get_runs_for_flow)
         app.router.add_route("GET", "/autocomplete/flows/{flow_id}/runs/{run_id}/steps", self.get_steps_for_run)
-        self._async_table = self.db.run_table_postgres
+        self._flow_table = self.db.flow_table_postgres
+        self._run_table = self.db.run_table_postgres
+        self._step_table = self.db.step_table_postgres
         self.loop = asyncio.get_event_loop()
         self.loop.create_task(self.fill_tags_cache())
 
@@ -30,7 +32,7 @@ class AutoCompleteApi(object):
         '''
         while True:
             # Get all tags taht are mentioned in runs table
-            db_response = await self._async_table.get_tags()
+            db_response = await self._run_table.get_tags()
             if db_response.response_code == 200:
                 self.tags = db_response.body
             # Check tags again after some sleep
@@ -70,7 +72,7 @@ class AutoCompleteApi(object):
                 items:
                     type: string
         """
-        db_response = await self._async_table.get_field_from(field="flow_id", table="flows_v3")
+        db_response = await self._flow_table.get_field_from(field="flow_id")
         return web_response(db_response.response_code, db_response.body)
 
     @handle_exceptions
@@ -91,7 +93,7 @@ class AutoCompleteApi(object):
         """
         flowid = request.match_info.get("flow_id")
         sql_conditions = ["flow_id=%s"]
-        db_response = await self._async_table.get_field_from(field="COALESCE(run_id, run_number::text)", table="runs_v3", conditions=sql_conditions, values=[flowid])
+        db_response = await self._run_table.get_field_from(field="COALESCE(run_id, run_number::text)", conditions=sql_conditions, values=[flowid])
         return web_response(db_response.response_code, db_response.body)
 
     @handle_exceptions
@@ -114,5 +116,5 @@ class AutoCompleteApi(object):
         runid = request.match_info.get("run_id")
         sql_conditions = ["flow_id=%s", "(run_number=%s OR run_id=%s)"]
 
-        db_response = await self._async_table.get_field_from(field="step_name", table="steps_v3", conditions=sql_conditions, values=[flowid, runid, runid])
+        db_response = await self._step_table.get_field_from(field="step_name", conditions=sql_conditions, values=[flowid, runid, runid])
         return web_response(db_response.response_code, db_response.body)
