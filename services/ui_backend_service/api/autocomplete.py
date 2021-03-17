@@ -13,11 +13,11 @@ class AutoCompleteApi(object):
     def __init__(self, app, db):
         self.db = db
         # Cached resources
-        app.router.add_route("GET", "/autocomplete/tags", self.get_all_tags)
+        app.router.add_route("GET", "/tags/autocomplete", self.get_all_tags)
         # Non-cached resources
-        app.router.add_route("GET", "/autocomplete/flows", self.get_all_flows)
-        app.router.add_route("GET", "/autocomplete/flows/{flow_id}/runs", self.get_runs_for_flow)
-        app.router.add_route("GET", "/autocomplete/flows/{flow_id}/runs/{run_id}/steps", self.get_steps_for_run)
+        app.router.add_route("GET", "/flows/autocomplete", self.get_all_flows)
+        app.router.add_route("GET", "/flows/{flow_id}/runs/autocomplete", self.get_runs_for_flow)
+        app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/steps/autocomplete", self.get_steps_for_run)
         self._flow_table = self.db.flow_table_postgres
         self._run_table = self.db.run_table_postgres
         self._step_table = self.db.step_table_postgres

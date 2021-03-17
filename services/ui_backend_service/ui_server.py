@@ -70,6 +70,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
         loop.run_until_complete(async_db_ws._init(db_conf))
         Websocket(app, db=async_db_ws, event_emitter=event_emitter, cache=cache_store)
 
+    AutoCompleteApi(app, async_db)
     FlowApi(app, async_db)
     RunApi(app, async_db, cache_store)
     StepApi(app, async_db)
@@ -80,7 +81,6 @@ def app(loop=None, db_conf: DBConfiguration = None):
     ArtifactSearchApi(app, async_db, cache_store)
     DagApi(app, async_db, cache_store)
     FeaturesApi(app)
-    AutoCompleteApi(app, async_db)
     ConfigApi(app)
 
     LogApi(app, async_db)
