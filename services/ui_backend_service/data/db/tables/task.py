@@ -164,9 +164,14 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                            benchmark: bool = False, overwrite_select_from: str = None
                            ) -> (DBResponse, DBPagination):
         if enable_joins:
-            # python format strings require double curlies for escaping.
-            overwrite_select_from = "(SELECT *, UNNEST('{{0, 1, 2, 3, 4}}'::int[]) as attempt_id FROM {table_name}) as {table_name}".format(
-                table_name=self.table_name)
+            # NOTE: This is a required workaround to be able to JOIN attempt specific records to tasks.
+            # the estimated max_attempts is a best guess, as tasks might have less,
+            # or more (if using a custom client that allows to exceed the default max value)
+            overwrite_select_from = "(SELECT *, generate_series(0,{max_attempts}) as attempt_id FROM {table_name}) as {table_name}".format(
+                table_name=self.table_name,
+                max_attempts=4
+            )
+            # NOTE: Clean up results off non-existent attempts. This is dependent heavily on the JOINs
             conditions.append("NOT (attempt_id > 0 AND started_at IS NULL AND task_ok IS NULL)")
         return await super().find_records(
             conditions, values, fetch_single,
