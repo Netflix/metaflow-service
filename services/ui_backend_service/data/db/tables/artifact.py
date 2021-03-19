@@ -17,9 +17,9 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     select_columns = keys
     _command = MetadataArtifactTable._command
 
-    async def get_artifact_locations_for_run_ids(self, run_ids=[]):
-        # do not touch DB if no run_ids were given.
-        if len(run_ids) == 0:
+    async def get_artifact_locations_for_run_numbers(self, run_numbers=[]):
+        # do not touch DB if no run_numbers were given.
+        if len(run_numbers) == 0:
             return []
         # run_numbers are bigint, so cast the conditions array to the correct type.
         run_id_cond = "run_number = ANY (array[%s]::bigint[])"
@@ -28,7 +28,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         artifact_loc = "s3"
         _records, *_ = await self.find_records(
             conditions=[run_id_cond, artifact_loc_cond],
-            values=[run_ids, artifact_loc],
+            values=[run_numbers, artifact_loc],
             expanded=True
         )
 

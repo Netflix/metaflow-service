@@ -71,12 +71,12 @@ class ArtifactCacheStore(object):
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
-        recent_run_ids = await self.get_recent_run_numbers()
-        await self.preload_data_for_runs(recent_run_ids)
+        recent_run_numbers = await self._run_table.get_recent_run_numbers()
+        await self.preload_data_for_runs(recent_run_numbers)
 
-    async def preload_data_for_runs(self, run_ids):
+    async def preload_data_for_runs(self, run_numbers):
         "preloads artifact data for given run ids. Can be used to prefetch artifacts for newly generated runs"
-        artifact_locations = await self.get_artifact_locations_for_run_ids(run_ids)
+        artifact_locations = await self._artifact_table.get_artifact_locations_for_run_numbers(run_numbers)
 
         logger.info("preloading {} artifacts".format(len(artifact_locations)))
 
@@ -86,12 +86,6 @@ class ArtifactCacheStore(object):
                 logger.error(event)
             else:
                 logger.info(event)
-
-    async def get_recent_run_numbers(self):
-        return await self._run_table.get_recent_run_numbers()
-
-    async def get_artifact_locations_for_run_ids(self, run_ids=[]):
-        return await self._artifact_table.get_artifact_locations_for_run_ids(run_ids)
 
     async def get_run_parameters(self, flow_name, run_number):
         '''Fetches run parameter artifact locations,
@@ -129,9 +123,9 @@ class ArtifactCacheStore(object):
         except:
             logger.error("Run parameter fetching failed")
 
-    async def preload_event_handler(self, run_id):
+    async def preload_event_handler(self, run_number):
         "Handler for event-emitter for preloading artifacts for a run id"
-        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
+        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_number]), self.loop)
 
     async def stop_cache(self):
         await self.cache.stop()
