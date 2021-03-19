@@ -28,7 +28,7 @@ class TaskApi(object):
             self.get_task_attempts,
         )
         self._async_table = self.db.task_table_postgres
-        self.refiner = TaskRefiner(cache=cache.artifact_cache if cache else None)
+        self.refiner = TaskRefiner(cache=cache.artifact_cache) if cache else None
 
     @handle_exceptions
     async def get_run_tasks(self, request):

@@ -3,7 +3,7 @@ from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .search_artifacts_action import SearchArtifacts
 from .get_artifacts_action import GetArtifacts
-from ..refiner.parameter_refiner import ParameterRefiner, GetParametersFailed
+from ..refiner import ParameterRefiner
 import asyncio
 import time
 import os
@@ -107,14 +107,15 @@ class ArtifactCacheStore(object):
         }
         OR None
         '''
-        db_response, *_ = await self._artifact_table.get_run_parameter_artifacts(flow_name, run_number)
+        db_response, *_ = await self._artifact_table.get_run_parameter_artifacts(
+            flow_name, run_number,
+            self.parameter_refiner.postprocess)
 
         # Return nothing if params artifacts were not found.
         if not db_response.response_code == 200:
             return None
 
-        refined_response = await self.parameter_refiner.postprocess(db_response)
-        return refined_response.body
+        return db_response.body
 
     async def run_parameters_event_handler(self, flow_id, run_number):
         try:
@@ -125,7 +126,7 @@ class ArtifactCacheStore(object):
                 [f"/flows/{flow_id}/runs/{run_number}/parameters"],
                 parameters
             )
-        except GetParametersFailed:
+        except:
             logger.error("Run parameter fetching failed")
 
     async def preload_event_handler(self, run_id):

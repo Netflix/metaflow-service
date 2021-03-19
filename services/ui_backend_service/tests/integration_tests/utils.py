@@ -7,6 +7,7 @@ import datetime
 import contextlib
 
 from services.ui_backend_service.data.db import AsyncPostgresDB
+from services.ui_backend_service.data.cache.store import CacheStore
 from services.utils import DBConfiguration
 
 from services.ui_backend_service.api import (
@@ -44,10 +45,12 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     db = AsyncPostgresDB(name='api')
     loop.run_until_complete(db._init(db_conf=db_conf, create_tables=False, create_triggers=False))
 
+    cache_store = CacheStore(db=db, event_emitter=app.event_emitter)
+
     FlowApi(app, db)
     RunApi(app, db)
     StepApi(app, db)
-    TaskApi(app, db)
+    TaskApi(app, db, cache_store)
     MetadataApi(app, db)
     ArtificatsApi(app, db)
     TagApi(app, db)

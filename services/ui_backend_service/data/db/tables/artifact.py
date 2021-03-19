@@ -35,7 +35,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         # be sure to return a list of unique locations
         return list(frozenset(artifact['location'] for artifact in _records.body if 'location' in artifact))
 
-    async def get_run_parameter_artifacts(self, flow_name, run_number):
+    async def get_run_parameter_artifacts(self, flow_name, run_number, postprocess=None):
         run_id_key, run_id_value = translate_run_key(run_number)
 
         # '_parameters' step has all the parameters as artifacts. only pick the
@@ -58,5 +58,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
                 "script_name"  # exclude the internally used 'script_name' parameter.
             ],
             fetch_single=False,
-            expanded=True
+            expanded=True,
+            postprocess=postprocess
         )
