@@ -50,7 +50,7 @@ class Websocket(object):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
         self.queue = TTLQueue(queue_ttl)
-        self.task_refiner = TaskRefiner(cache=cache) if cache else None
+        self.task_refiner = TaskRefiner(cache=cache.artifact_cache) if cache else None
         self.logger = logging.getLogger("Websocket")
 
         event_emitter.on('notify', self.event_handler)

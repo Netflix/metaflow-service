@@ -11,11 +11,11 @@ class Refinery(object):
     Parameters:
     -----------
     field_names: list of field names that contain S3 locations to be replaced with content.
-    cache: An instance of a cache that has the required cache accessors.
+    cache: An instance of a ArtifactCacheStore that has the required cache accessors.
     """
 
     def __init__(self, field_names, cache=None):
-        self.artifact_store = cache.artifact_cache if cache else None
+        self.artifact_store = cache if cache else None
         self.field_names = field_names
         self.logger = logging.getLogger("DataRefiner")
 

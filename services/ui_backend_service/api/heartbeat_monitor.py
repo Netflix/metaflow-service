@@ -146,7 +146,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._task_table = self.db.task_table_postgres
-        self.refiner = TaskRefiner(cache=self.cache)
+        self.refiner = TaskRefiner(cache=self.cache.artifact_cache) if cache else None
 
     async def heartbeat_handler(self, action, data):
         if action == "update":

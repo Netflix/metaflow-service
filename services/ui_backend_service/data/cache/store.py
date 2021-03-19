@@ -1,9 +1,9 @@
 from .generate_dag_action import GenerateDag
-from services.data.db_utils import translate_run_key
 from pyee import AsyncIOEventEmitter
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from .search_artifacts_action import SearchArtifacts
 from .get_artifacts_action import GetArtifacts
+from ..refiner import ParameterRefiner
 import asyncio
 import time
 import os
@@ -41,11 +41,6 @@ class CacheStore(object):
         await self.dag_cache.stop_cache()
 
 
-# Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
-METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE = os.environ.get('PREFETCH_RUNS_SINCE', 86400 * 2)
-METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50)
-
-
 class ArtifactCacheStore(object):
     def __init__(self, event_emitter, db):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
@@ -53,6 +48,8 @@ class ArtifactCacheStore(object):
         self._run_table = db.run_table_postgres
         self.cache = None
         self.loop = asyncio.get_event_loop()
+
+        self.parameter_refiner = ParameterRefiner(cache=self)
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
@@ -74,12 +71,12 @@ class ArtifactCacheStore(object):
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
-        recent_run_ids = await self.get_recent_run_numbers()
-        await self.preload_data_for_runs(recent_run_ids)
+        recent_run_numbers = await self._run_table.get_recent_run_numbers()
+        await self.preload_data_for_runs(recent_run_numbers)
 
-    async def preload_data_for_runs(self, run_ids):
+    async def preload_data_for_runs(self, run_numbers):
         "preloads artifact data for given run ids. Can be used to prefetch artifacts for newly generated runs"
-        artifact_locations = await self.get_artifact_locations_for_run_ids(run_ids)
+        artifact_locations = await self._artifact_table.get_artifact_locations_for_run_numbers(run_numbers)
 
         logger.info("preloading {} artifacts".format(len(artifact_locations)))
 
@@ -90,35 +87,6 @@ class ArtifactCacheStore(object):
             else:
                 logger.info(event)
 
-    async def get_recent_run_numbers(self):
-        _records, *_ = await self._run_table.find_records(
-            conditions=["ts_epoch >= %s"],
-            values=[int(round(time.time() * 1000)) - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)],
-            order=['ts_epoch DESC'],
-            limit=METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT,
-            expanded=True
-        )
-
-        return [run['run_number'] for run in _records.body]
-
-    async def get_artifact_locations_for_run_ids(self, run_ids=[]):
-        # do not touch DB if no run_ids were given.
-        if len(run_ids) == 0:
-            return []
-        # run_numbers are bigint, so cast the conditions array to the correct type.
-        run_id_cond = "run_number = ANY (array[%s]::bigint[])"
-
-        artifact_loc_cond = "ds_type = %s"
-        artifact_loc = "s3"
-        _records, *_ = await self._artifact_table.find_records(
-            conditions=[run_id_cond, artifact_loc_cond],
-            values=[run_ids, artifact_loc],
-            expanded=True
-        )
-
-        # be sure to return a list of unique locations
-        return list(frozenset(artifact['location'] for artifact in _records.body if 'location' in artifact))
-
     async def get_run_parameters(self, flow_name, run_number):
         '''Fetches run parameter artifact locations,
         fetches the artifact content from S3, parses it, and returns
@@ -126,65 +94,22 @@ class ArtifactCacheStore(object):
 
         Returns
         -------
-        [
-            {
-                "name": "name_of_parameter",
-                "value": "value-of-parameter-as-string"
+        {
+            "name_of_parameter": {
+                "value": "value_of_parameter"
             }
-        ]
+        }
         OR None
         '''
-        run_id_key, run_id_value = translate_run_key(run_number)
+        db_response, *_ = await self._artifact_table.get_run_parameter_artifacts(
+            flow_name, run_number,
+            self.parameter_refiner.postprocess)
 
-        # '_parameters' step has all the parameters as artifacts. only pick the
-        # public parameters (no underscore prefix)
-        db_response, *_ = await self._artifact_table.find_records(
-            conditions=[
-                "flow_id = %s",
-                "{run_id_key} = %s".format(run_id_key=run_id_key),
-                "step_name = %s",
-                "name NOT LIKE %s",
-                "name <> %s",
-                "name <> %s"
-            ],
-            values=[
-                flow_name,
-                run_id_value,
-                "_parameters",
-                r"\_%",
-                "name",  # exclude the 'name' parameter as this always exists, and contains the FlowName
-                "script_name"  # exclude the internally used 'script_name' parameter.
-            ],
-            fetch_single=False,
-            expanded=True
-        )
         # Return nothing if params artifacts were not found.
         if not db_response.response_code == 200:
             return None
 
-        if FEATURE_PREFETCH_ENABLE and FEATURE_REFINE_ENABLE:
-            # Fetch the values for the given parameters through the cache client.
-            locations = [art["location"] for art in db_response.body if "location" in art]
-            _params = await self.cache.GetArtifacts(locations)
-            if not _params.is_ready():
-                async for event in _params.stream():
-                    if event["type"] == "error":
-                        # raise error, there was an exception during processing.
-                        raise GetParametersFailed(event["message"], event["id"], event["traceback"])
-                await _params.wait()  # wait until results are ready
-            _params = _params.get()
-        else:
-            _params = []
-
-        combined_results = {}
-        for art in db_response.body:
-            if "location" in art and art["location"] in _params:
-                key = art["name"]
-                combined_results[key] = {
-                    "value": _params[art["location"]]
-                }
-
-        return combined_results
+        return db_response.body
 
     async def run_parameters_event_handler(self, flow_id, run_number):
         try:
@@ -195,12 +120,12 @@ class ArtifactCacheStore(object):
                 [f"/flows/{flow_id}/runs/{run_number}/parameters"],
                 parameters
             )
-        except GetParametersFailed:
+        except:
             logger.error("Run parameter fetching failed")
 
-    async def preload_event_handler(self, run_id):
+    async def preload_event_handler(self, run_number):
         "Handler for event-emitter for preloading artifacts for a run id"
-        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_id]), self.loop)
+        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_number]), self.loop)
 
     async def stop_cache(self):
         await self.cache.stop()
@@ -222,13 +147,3 @@ class DAGCacheStore(object):
 
     async def stop_cache(self):
         await self.cache.stop()
-
-
-class GetParametersFailed(Exception):
-    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters", traceback_str=None):
-        self.message = msg
-        self.id = id
-        self.traceback_str = traceback_str
-
-    def __str__(self):
-        return self.message

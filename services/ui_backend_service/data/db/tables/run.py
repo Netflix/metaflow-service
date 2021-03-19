@@ -1,3 +1,4 @@
+import os
 from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
@@ -7,6 +8,10 @@ from services.data.postgres_async_db import (
     AsyncMetadataTablePostgres as MetaMetadataTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable
 )
+
+# Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
+METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE = os.environ.get('PREFETCH_RUNS_SINCE', 86400 * 2)
+METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50)
 
 
 class AsyncRunTablePostgres(AsyncPostgresTable):
@@ -118,3 +123,14 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         )
     ]
     _command = MetadataRunTable._command
+
+    async def get_recent_run_numbers(self):
+        _records, *_ = await self.find_records(
+            conditions=["ts_epoch >= %s"],
+            values=[int(round(time.time() * 1000)) - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)],
+            order=['ts_epoch DESC'],
+            limit=METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT,
+            expanded=True
+        )
+
+        return [run['run_number'] for run in _records.body]
