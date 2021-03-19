@@ -1,6 +1,8 @@
 from services.utils import handle_exceptions, web_response
+from services.data.db_utils import translate_run_key
 import asyncio
 import threading
+
 
 # Interval for refetching tags from database. Tags data is cached since requesting all of them might take a while.
 TAGS_FILL_INTERVAL = 300
@@ -22,21 +24,24 @@ class AutoCompleteApi(object):
         self._run_table = self.db.run_table_postgres
         self._step_table = self.db.step_table_postgres
         self.loop = asyncio.get_event_loop()
-        self.loop.create_task(self.fill_tags_cache())
+        self.loop.create_task(self.start_tags_cache())
 
-    @handle_exceptions
-    async def fill_tags_cache(self):
+    async def start_tags_cache(self):
         '''
         Async task that fill tags cache every 5minutes. Database query might take a while
         so its better to cache the result.
         '''
         while True:
             # Get all tags taht are mentioned in runs table
-            db_response = await self._run_table.get_tags()
-            if db_response.response_code == 200:
-                self.tags = db_response.body
+            await self.query_tags()
             # Check tags again after some sleep
             await asyncio.sleep(TAGS_FILL_INTERVAL)
+
+    @handle_exceptions
+    async def query_tags(self):
+        db_response = await self._run_table.get_tags()
+        if db_response.response_code == 200:
+            self.tags = db_response.body
 
     @handle_exceptions
     async def get_all_tags(self, request):
@@ -114,7 +119,11 @@ class AutoCompleteApi(object):
         """
         flowid = request.match_info.get("flow_id")
         runid = request.match_info.get("run_id")
-        sql_conditions = ["flow_id=%s", "(run_number=%s OR run_id=%s)"]
 
-        db_response = await self._step_table.get_field_from(field="step_name", conditions=sql_conditions, values=[flowid, runid, runid])
+        run_key, run_value = translate_run_key(runid)
+
+        sql_conditions = ["flow_id=%s", run_key + "=%s"]
+        values = [flowid, run_value]
+
+        db_response = await self._step_table.get_field_from(field="step_name", conditions=sql_conditions, values=values)
         return web_response(db_response.response_code, db_response.body)
