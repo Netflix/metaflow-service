@@ -65,7 +65,7 @@ class Refinery(object):
         ----------
         response : DBResponse
             The DBResponse to be refined
-        
+
         Returns
         -------
         A refined DBResponse, or in case of errors, the original DBResponse

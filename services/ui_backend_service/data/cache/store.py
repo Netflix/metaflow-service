@@ -57,7 +57,7 @@ class CacheStore(object):
 class ArtifactCacheStore(object):
     """
     Cache class responsible for fetching, storing and searching Artifacts from S3.
-    
+
     Cache Actions
     -------------
     GetArtifacts
@@ -129,7 +129,7 @@ class ArtifactCacheStore(object):
         """
         Fetches run parameter artifact locations, fetches the artifact content from S3, parses it, and returns
         a formatted dict of names&values
-        
+
         Parameters
         ----------
         flow_id : str
@@ -197,7 +197,7 @@ class ArtifactCacheStore(object):
 class DAGCacheStore(object):
     """
     Cache class responsible for parsing and caching a DAG from a codepackage in S3.
-    
+
     Cache Actions
     -------------
     GenerateDag
