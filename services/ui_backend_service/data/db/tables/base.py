@@ -1,14 +1,15 @@
+import math
+import os
+from asyncio import iscoroutinefunction
+from typing import Callable, List
+
 import psycopg2
 import psycopg2.extras
-import os
-import math
-from services.data.postgres_async_db import (
-    AsyncPostgresTable as MetadataAsyncPostgresTable,
-    WAIT_TIME
-)
-from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling
-from typing import List, Callable
-from asyncio import iscoroutinefunction
+from services.data.db_utils import (DBPagination, DBResponse,
+                                    aiopg_exception_handling)
+from services.data.postgres_async_db import WAIT_TIME
+from services.data.postgres_async_db import \
+    AsyncPostgresTable as MetadataAsyncPostgresTable
 
 # Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
 HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
@@ -16,6 +17,18 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 
 
 
 class AsyncPostgresTable(MetadataAsyncPostgresTable):
+    """
+    Base Table class that inherits common behavior from services.data.postgres_async_db module, including
+        - table creation and schema configuration
+        - table trigger setup
+        - common query functions
+    
+    UI Service specific features
+    ----------------------------
+        - find_records() that supports grouping by column, and postprocessing of results with a callable
+        - query benchmarking
+        - constants for query thresholds related to heartbeats.
+    """
     db = None
     table_name = None
     schema_version = MetadataAsyncPostgresTable.schema_version
