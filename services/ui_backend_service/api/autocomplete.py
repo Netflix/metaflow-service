@@ -1,5 +1,6 @@
-from services.utils import handle_exceptions, web_response
+from services.utils import handle_exceptions
 from services.data.db_utils import translate_run_key
+from .utils import format_response, web_response
 import asyncio
 import threading
 
@@ -10,7 +11,7 @@ TAGS_FILL_INTERVAL = 300
 
 class AutoCompleteApi(object):
     # Cache tags so we don't have to request DB everytime
-    tags = []
+    tags = None
 
     def __init__(self, app, db):
         self.db = db
@@ -41,7 +42,7 @@ class AutoCompleteApi(object):
     async def query_tags(self):
         db_response = await self._run_table.get_tags()
         if db_response.response_code == 200:
-            self.tags = db_response.body
+            self.tags = db_response
 
     @handle_exceptions
     async def get_all_tags(self, request):
@@ -59,7 +60,13 @@ class AutoCompleteApi(object):
                 items:
                     type: string
         """
-        return web_response(200, self.tags)
+        if (self.tags == None):
+            status, body = format_response(request, {"body": [], "response_code": 200})
+            return web_response(status, body)
+
+        status, body = format_response(request, self.tags)
+
+        return web_response(status, body)
 
     @handle_exceptions
     async def get_all_flows(self, request):
@@ -78,7 +85,8 @@ class AutoCompleteApi(object):
                     type: string
         """
         db_response = await self._flow_table.get_field_from(field="flow_id")
-        return web_response(db_response.response_code, db_response.body)
+        status, body = format_response(request, db_response)
+        return web_response(status, body)
 
     @handle_exceptions
     async def get_runs_for_flow(self, request):
@@ -99,7 +107,8 @@ class AutoCompleteApi(object):
         flowid = request.match_info.get("flow_id")
         sql_conditions = ["flow_id=%s"]
         db_response = await self._run_table.get_field_from(field="COALESCE(run_id, run_number::text)", conditions=sql_conditions, values=[flowid])
-        return web_response(db_response.response_code, db_response.body)
+        status, body = format_response(request, db_response)
+        return web_response(status, body)
 
     @handle_exceptions
     async def get_steps_for_run(self, request):
@@ -126,4 +135,5 @@ class AutoCompleteApi(object):
         values = [flowid, run_value]
 
         db_response = await self._step_table.get_field_from(field="step_name", conditions=sql_conditions, values=values)
-        return web_response(db_response.response_code, db_response.body)
+        status, body = format_response(request, db_response)
+        return web_response(status, body)
