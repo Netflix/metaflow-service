@@ -1,31 +1,42 @@
 import hashlib
+import json
 
 from metaflow.client.cache import CacheAction
-from .utils import NoRetryS3
-from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
-from .utils import decode, batchiter
-import json
+
+from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
+                    MetaflowS3Exception, MetaflowS3NotFound,
+                    MetaflowS3URLException, NoRetryS3, batchiter, decode)
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
 
 
 class SearchArtifacts(CacheAction):
-    '''
+    """
     Fetches artifacts by locations and performs a search against the object contents.
     Caches artifacts based on location, and search results based on a combination of query&artifacts searched
 
-    Returns:
+    Parameters
+    ----------
+    locations : List[str]
+        A list of artifact S3 locations to fetch and match the search term against.
+    searchterm : str
+        A searchterm to match against the fetched S3 artifacts contents.
+
+    Returns
+    -------
+    Dict or None
+        example:
         {
             "s3_location": {
                 "included": boolean,
                 "matches": boolean
             }
         }
-    matches: determines whether object content matched search term
+        matches: determines whether object content matched search term
 
-    included: denotes if the object content was able to be included in the search (accessible or not)
-    '''
+        included: denotes if the object content was able to be included in the search (accessible or not)
+    """
 
     @classmethod
     def format_request(cls, locations, searchterm):
@@ -50,14 +61,16 @@ class SearchArtifacts(CacheAction):
 
     @classmethod
     def response(cls, keys_objs):
-        '''Action should respond with a dictionary of
+        """
+        Action should respond with a dictionary of
         {
             location: {
                 "matches": boolean,
                 "included": boolean
             }
         }
-        that tells the client whether the search term matches in the given location, or if performing search was impossible'''
+        that tells the client whether the search term matches in the given location, or if performing search was impossible
+        """
         return [json.loads(val) for key, val in keys_objs.items() if key.startswith('search:result')][0]
 
     @classmethod

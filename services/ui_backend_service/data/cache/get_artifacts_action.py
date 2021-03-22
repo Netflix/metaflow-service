@@ -1,26 +1,35 @@
 import hashlib
+import json
 
 from metaflow.client.cache import CacheAction
-from .utils import NoRetryS3
-from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
-from .utils import decode, batchiter
 from services.utils import get_traceback_str
-import json
+
+from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
+                    MetaflowS3Exception, MetaflowS3NotFound,
+                    MetaflowS3URLException, NoRetryS3, batchiter, decode)
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
 
 
 class GetArtifacts(CacheAction):
-    '''
+    """
     Fetches artifacts by locations returning their contents.
     Caches artifacts based on location, and results based on list of artifacts requested.
 
-    Returns:
+    Parameters
+    ----------
+    locations : List[str]
+        A list of S3 locations to fetch artifacts from.
+
+    Returns
+    -------
+    Dict or None
+        example:
         {
             "s3_location": "contents"
         }
-    '''
+    """
 
     @classmethod
     def format_request(cls, locations):
