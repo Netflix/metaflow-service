@@ -8,17 +8,28 @@ class TaskRefiner(Refinery):
 
     Fetches specified content from S3 and cleans up unnecessary fields from response.
 
-    Parameters:
+    Parameters
     -----------
-    cache: An instance of a cache that has the required cache accessors.
+    cache : AsyncCacheClient
+        An instance of a cache that implements the GetArtifacts action.
     """
 
     def __init__(self, cache):
         super().__init__(field_names=["task_ok", "foreach_stack"], cache=cache)
 
     async def postprocess(self, response: DBResponse):
-        """Calls the refiner postprocessing to fetch S3 values for content.
-        Cleans up returned fields, for example by combining 'task_ok' boolean into the 'status'
+        """
+        Calls the refiner postprocessing to fetch S3 values for content.
+        Combines 'task_ok' boolean into the 'status' key. Processes the 'foreach_stack' for the relevant content.
+
+        Parameters
+        ----------
+        response : DBResponse
+            The DBResponse to be refined
+
+        Returns
+        -------
+        A refined DBResponse, or in case of errors, the original DBResponse
         """
         refined_response = await self._postprocess(response)
         if response.response_code != 200 or not response.body:
