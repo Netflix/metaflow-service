@@ -1,15 +1,20 @@
-from .generate_dag_action import GenerateDag
-from pyee import AsyncIOEventEmitter
-from metaflow.client.cache.cache_async_client import CacheAsyncClient
-from .search_artifacts_action import SearchArtifacts
-from .get_artifacts_action import GetArtifacts
-from ..refiner import ParameterRefiner
 import asyncio
-import time
 import os
 import shutil
+import time
+from typing import Dict, List, Optional
+
+from metaflow.client.cache.cache_async_client import CacheAsyncClient
+from pyee import AsyncIOEventEmitter
+from services.ui_backend_service.features import (FEATURE_CACHE_ENABLE,
+                                                  FEATURE_PREFETCH_ENABLE,
+                                                  FEATURE_REFINE_ENABLE)
 from services.utils import logging
-from features import FEATURE_PREFETCH_ENABLE, FEATURE_CACHE_ENABLE, FEATURE_REFINE_ENABLE
+
+from ..refiner import ParameterRefiner
+from .generate_dag_action import GenerateDag
+from .get_artifacts_action import GetArtifacts
+from .search_artifacts_action import SearchArtifacts
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -23,25 +28,52 @@ CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", DISK_SIZ
 
 
 class CacheStore(object):
-    '''
-        Collection class for all the different cache clients that are used to access caches.
-        start_caches must be called before being able to access any of the specific caches.
-    '''
+    """
+    Collection class for all the different cache clients that are used to access caches.
+    start_caches() must be called before being able to access any of the specific caches.
+
+    Parameters
+    ----------
+    db : PostgresAsyncDB
+        An initialized instance of a DB adapter for fetching data. Required f.ex. for preloading artifacts.
+    event_emitter : AsyncIOEventEmitter
+        An event emitter instance (any kind) that implements an .on('event', callback) for subscribing to events.
+    """
 
     def __init__(self, db, event_emitter=None):
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
         self.dag_cache = DAGCacheStore(db)
 
     async def start_caches(self, app):
+        "Starts all caches as part of app startup"
         await self.artifact_cache.start_cache()
         await self.dag_cache.start_cache()
 
     async def stop_caches(self, app):
+        "Stops all caches as part of app teardown"
         await self.artifact_cache.stop_cache()
         await self.dag_cache.stop_cache()
 
 
 class ArtifactCacheStore(object):
+    """
+    Cache class responsible for fetching, storing and searching Artifacts from S3.
+
+    Cache Actions
+    -------------
+    GetArtifacts
+        Fetches artifact contents for a list of locations and returns them as a dict
+    SearchArtifacts
+        Fetches artifacts and matches the contents against a search term.
+
+    Parameters
+    ----------
+    event_emitter : AsyncIOEventEmitter
+        An event emitter instance (any kind) that implements an .on('event', callback) for subscribing to events.
+    db : PostgresAsyncDB
+        An initialized instance of a DB adapter for fetching data.
+    """
+
     def __init__(self, event_emitter, db):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self._artifact_table = db.artifact_table_postgres
@@ -58,6 +90,7 @@ class ArtifactCacheStore(object):
         self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
 
     async def start_cache(self):
+        "Initialize the CacheAsyncClient for artifact caching"
         actions = [SearchArtifacts, GetArtifacts]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
@@ -74,8 +107,15 @@ class ArtifactCacheStore(object):
         recent_run_numbers = await self._run_table.get_recent_run_numbers()
         await self.preload_data_for_runs(recent_run_numbers)
 
-    async def preload_data_for_runs(self, run_numbers):
-        "preloads artifact data for given run ids. Can be used to prefetch artifacts for newly generated runs"
+    async def preload_data_for_runs(self, run_numbers: List[int]):
+        """
+        Preloads artifact data for given run numbers. Can be used to prefetch artifacts for newly generated runs.
+
+        Parameters
+        ----------
+        run_numbers : List[int]
+            A list of run numbers to preload data for.
+        """
         artifact_locations = await self._artifact_table.get_artifact_locations_for_run_numbers(run_numbers)
 
         logger.info("preloading {} artifacts".format(len(artifact_locations)))
@@ -87,22 +127,30 @@ class ArtifactCacheStore(object):
             else:
                 logger.info(event)
 
-    async def get_run_parameters(self, flow_name, run_number):
-        '''Fetches run parameter artifact locations,
-        fetches the artifact content from S3, parses it, and returns
-        a formatted list of names&values
+    async def get_run_parameters(self, flow_id: str, run_number: int) -> Optional[Dict]:
+        """
+        Fetches run parameter artifact locations, fetches the artifact content from S3, parses it, and returns
+        a formatted dict of names&values
+
+        Parameters
+        ----------
+        flow_id : str
+            Name of the flow to get parameters for
+        run_number : int
+            Run number to get parameters for
 
         Returns
         -------
-        {
-            "name_of_parameter": {
-                "value": "value_of_parameter"
+        Dict or None
+            example:
+            {
+                "name_of_parameter": {
+                    "value": "value_of_parameter"
+                }
             }
-        }
-        OR None
-        '''
+        """
         db_response, *_ = await self._artifact_table.get_run_parameter_artifacts(
-            flow_name, run_number,
+            flow_id, run_number,
             self.parameter_refiner.postprocess)
 
         # Return nothing if params artifacts were not found.
@@ -111,7 +159,17 @@ class ArtifactCacheStore(object):
 
         return db_response.body
 
-    async def run_parameters_event_handler(self, flow_id, run_number):
+    async def run_parameters_event_handler(self, flow_id: str, run_number: int):
+        """
+        Handler for event-emitter for fetching and broadcasting run parameters when they are available.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow id to fetch parameters for.
+        run_number : int
+            Run number to fetch parameters for.
+        """
         try:
             parameters = await self.get_run_parameters(flow_id, run_number)
             self.event_emitter.emit(
@@ -123,8 +181,15 @@ class ArtifactCacheStore(object):
         except:
             logger.error("Run parameter fetching failed")
 
-    async def preload_event_handler(self, run_number):
-        "Handler for event-emitter for preloading artifacts for a run id"
+    async def preload_event_handler(self, run_number: int):
+        """
+        Handler for event-emitter for preloading artifacts for a run id
+
+        Parameters
+        ----------
+        run_number : int
+            Run number to preload data for.
+        """
         asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_number]), self.loop)
 
     async def stop_cache(self):
@@ -132,11 +197,26 @@ class ArtifactCacheStore(object):
 
 
 class DAGCacheStore(object):
+    """
+    Cache class responsible for parsing and caching a DAG from a codepackage in S3.
+
+    Cache Actions
+    -------------
+    GenerateDag
+        Fetches a codepackage from an S3 location, decodes it, and parses a DAG from the contents.
+
+    Parameters
+    ----------
+    db : PostgresAsyncDB
+        An initialized instance of a DB adapter for fetching data.
+    """
+
     def __init__(self, db):
         self._run_table = db.run_table_postgres
         self.cache = None
 
     async def start_cache(self):
+        "Initialize the CacheAsyncClient for DAG caching"
         actions = [GenerateDag]
         self.cache = CacheAsyncClient('cache_data/dag',
                                       actions,

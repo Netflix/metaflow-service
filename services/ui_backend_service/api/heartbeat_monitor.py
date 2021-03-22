@@ -1,11 +1,13 @@
 import asyncio
 import datetime
 from typing import Dict
+
 from pyee import AsyncIOEventEmitter
 from services.data.db_utils import translate_run_key, translate_task_key
+
 from ..data.db.tables.base import HEARTBEAT_THRESHOLD
-from .notify import resource_list
 from ..data.refiner import TaskRefiner
+from .notify import resource_list
 
 # interval for how often to check heartbeats. Use the heartbeat_threshold from the database queries with a margin (10sec),
 # not to check heartbeats too often and miss failures as a result.
@@ -13,7 +15,25 @@ HEARTBEAT_INTERVAL = HEARTBEAT_THRESHOLD + 10
 
 
 class HeartbeatMonitor(object):
-    def __init__(self, event_name, db, event_emitter=None, cache=None):
+    """
+    Generic class for starting an async watcher task that periodically checks timestamps for a list of objects,
+    and performs load_and_broadcast() for expired ones.
+
+    Listens on event_emitter for 'event_name' and calls heartbeat_handler() for processing events.
+
+    Parameters
+    ----------
+    event_name : str
+        string name of an event to bind to on the event_emitter
+    db : PostgresDB
+        initialized database adapter instance to be used with load_and_broadcast()
+    event_emitter : AsyncIOEventEmitter
+        Any event emitter instance that implements .on('event_name', callback)
+    cache : AsyncCacheClient
+        cache client instance that implements the required actions.
+    """
+
+    def __init__(self, event_name: str, db, event_emitter=None, cache=None):
         self.watched = {}
         # Handle HB Events
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
@@ -81,11 +101,22 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._run_table = self.db.run_table_postgres
 
-    async def heartbeat_handler(self, action, run_id):
+    async def heartbeat_handler(self, action: str, run_number: int):
+        """
+        Event handler for heartbeat events on 'run-heartbeat'
+
+        Parameters
+        ----------
+        action : str
+            'update' or 'complete', depending on if we want to update(or add) an existing heartbeat,
+            or remove one from monitoring after completion.
+        run_number : int
+            the run number to update the heartbeat for.
+        """
         if action == "update":
-            await self.add_to_watch(run_id)
+            await self.add_to_watch(run_number)
         elif action == "complete":
-            self.remove_from_watch(run_id)
+            self.remove_from_watch(run_number)
 
     async def add_to_watch(self, run_key):
         # TODO: Optimize db trigger so we do not have to fetch a record in order to add it to the
@@ -148,7 +179,17 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         self._task_table = self.db.task_table_postgres
         self.refiner = TaskRefiner(cache=self.cache.artifact_cache) if cache else None
 
-    async def heartbeat_handler(self, action, data):
+    async def heartbeat_handler(self, action: str, data: Dict):
+        """
+        Event handler for task heartbeat events on 'task-heartbeat'
+
+        Parameters
+        ----------
+        action : str
+            'update' or 'complete' depending on whether
+        data : Dict
+            The task object that the heartbeat event relates to.
+        """
         if action == "update":
             await self.add_to_watch(data)
         elif action == "complete":

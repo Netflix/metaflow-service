@@ -57,9 +57,26 @@ class Websocket(object):
         app.router.add_route('GET', '/ws', self.websocket_handler)
         self.loop = asyncio.get_event_loop()
 
-    async def event_handler(self, operation: str, resources: List[str], data: Dict, table_name=None, filter_dict: Dict = {}):
-        """Either receives raw data from table triggers listener and either performs a database load
+    async def event_handler(self, operation: str, resources: List[str], data: Dict, table_name: str = None, filter_dict: Dict = {}):
+        """
+        Event handler for websocket events on 'notify'.
+        Either receives raw data from table triggers listener and either performs a database load
         before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
+
+        Parameters
+        ----------
+        operation : str
+            name of the operation related to the DB event, either 'INSERT' or 'UPDATE'
+        resources : List[str]
+            List of resource paths that this event is related to. Used strictly for broadcasting to
+            websocket subscriptions
+        data : Dict
+            The data of the record to be broadcast. Can either be complete, or partial.
+            In case of partial data (and a provided table name) this is only used for the DB query.
+        table_name : str (optional)
+            name of the table that the complete data should be queried from.
+        filter_dict : Dict (optional)
+            a dictionary of filters used in the query when fetching complete data.
         """
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
         if any(subscription.resource in resources for subscription in self.subscriptions):
@@ -141,6 +158,7 @@ class Websocket(object):
         )
 
     async def websocket_handler(self, request):
+        "Handler for received messages from the open Web Socket connection."
         # TODO: Consider using options autoping=True and heartbeat=20 if supported by clients.
         ws = web.WebSocketResponse()
         await ws.prepare(request)

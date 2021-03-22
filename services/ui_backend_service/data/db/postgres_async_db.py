@@ -1,27 +1,30 @@
-import psycopg2
-import psycopg2.extras
-import os
-import aiopg
 import json
+import os
 import time
-from services.utils import logging
 from typing import List
 
+import aiopg
+import psycopg2
+import psycopg2.extras
 # baselevel classes from shared data adapter to inherit from.
-from services.data.postgres_async_db import _AsyncPostgresDB as BaseAsyncPostgresDB
-from .tables import (
-    AsyncFlowTablePostgres, AsyncRunTablePostgres, AsyncStepTablePostgres,
-    AsyncTaskTablePostgres, AsyncArtifactTablePostgres,
-    AsyncMetadataTablePostgres
-)
+from services.data.postgres_async_db import \
+    _AsyncPostgresDB as BaseAsyncPostgresDB
+from services.utils import DBConfiguration, logging
 
-from services.utils import DBConfiguration
+from .tables import (AsyncArtifactTablePostgres, AsyncFlowTablePostgres,
+                     AsyncMetadataTablePostgres, AsyncRunTablePostgres,
+                     AsyncStepTablePostgres, AsyncTaskTablePostgres)
 
 
 class AsyncPostgresDB(BaseAsyncPostgresDB):
     """
     UI Backend specific database adapter.
-    Initialization and basic functionality is inherited from the classes provided by the shared services/data module.
+    Basic functionality is inherited from the classes provided by the shared services.data.postgres_async_db module.
+
+    Parameters
+    ----------
+    name : str (optional)
+        name for the DB Adapter instance. Used primarily for naming the associated logger.
     """
     connection = None
     flow_table_postgres = None
