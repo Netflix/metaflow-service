@@ -6,8 +6,8 @@ from metaflow import FlowSpec
 from metaflow.client.cache import CacheAction
 from services.utils import get_traceback_str
 
-from .custom_flowgraph import \
-    FlowGraph  # TODO: change to metaflow.graph when the AST-only PR is merged.
+# TODO: change to metaflow.graph when the AST-only PR is merged: https://github.com/Netflix/metaflow/pull/249
+from .custom_flowgraph import FlowGraph
 from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
                     MetaflowS3Exception, MetaflowS3NotFound,
                     MetaflowS3URLException, NoRetryS3)
