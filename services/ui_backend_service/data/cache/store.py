@@ -4,10 +4,11 @@ import shutil
 import time
 from typing import Dict, List, Optional
 
-from features import (FEATURE_CACHE_ENABLE, FEATURE_PREFETCH_ENABLE,
-                      FEATURE_REFINE_ENABLE)
 from metaflow.client.cache.cache_async_client import CacheAsyncClient
 from pyee import AsyncIOEventEmitter
+from services.ui_backend_service.features import (FEATURE_CACHE_ENABLE,
+                                                  FEATURE_PREFETCH_ENABLE,
+                                                  FEATURE_REFINE_ENABLE)
 from services.utils import logging
 
 from ..refiner import ParameterRefiner
@@ -72,6 +73,7 @@ class ArtifactCacheStore(object):
     db : PostgresAsyncDB
         An initialized instance of a DB adapter for fetching data.
     """
+
     def __init__(self, event_emitter, db):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self._artifact_table = db.artifact_table_postgres
@@ -208,6 +210,7 @@ class DAGCacheStore(object):
     db : PostgresAsyncDB
         An initialized instance of a DB adapter for fetching data.
     """
+
     def __init__(self, db):
         self._run_table = db.run_table_postgres
         self.cache = None
