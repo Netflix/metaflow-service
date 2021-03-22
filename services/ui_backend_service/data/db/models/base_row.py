@@ -1,4 +1,6 @@
 from typing import Dict
+
+
 class BaseRow(object):
     """
     Base class for Row serialization of database query results.

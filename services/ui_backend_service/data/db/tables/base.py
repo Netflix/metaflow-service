@@ -22,7 +22,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         - table creation and schema configuration
         - table trigger setup
         - common query functions
-    
+
     UI Service specific features
     ----------------------------
         - find_records() that supports grouping by column, and postprocessing of results with a callable
