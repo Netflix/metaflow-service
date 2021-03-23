@@ -1,6 +1,6 @@
 import asyncio
 import datetime
-from typing import Dict
+from typing import Dict, Callable, Optional
 
 from pyee import AsyncIOEventEmitter
 from services.data.db_utils import translate_run_key, translate_task_key
@@ -130,6 +130,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
                 self.watched[run_number] = heartbeat_ts
 
     async def get_run(self, run_key):
+        # TODO: refactor out of here!
         # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
         # and we can not broadcast an up-to-date status.
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
@@ -213,34 +214,19 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
                 self.watched[key] = heartbeat_ts
 
-    async def get_task(self, flow_id, run_key, step_name, task_key, attempt_id=None, postprocess=None):
-        "Fetches task from DB. Specifying attempt_id will fetch the specific attempt. Otherwise the newest attempt is returned."
-        # Remember to enable_joins for the query, otherwise the 'status' will be missing from the task
-        # and we can not broadcast an up-to-date status.
-        # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
-        # Currently this restricts the use of expanded=True
-        run_id_key, run_id_value = translate_run_key(run_key)
-        task_id_key, task_id_value = translate_task_key(task_key)
-        conditions = [
-            "flow_id = %s",
-            "{run_id_column} = %s".format(run_id_column=run_id_key),
-            "step_name = %s",
-            "{task_id_column} = %s".format(task_id_column=task_id_key)
-        ]
-        values = [flow_id, run_id_value, step_name, task_id_value]
-        if attempt_id:
-            conditions.append("attempt_id = %s")
-            values.append(attempt_id)
+    async def get_task(self, flow_id: str, run_key: str, step_name: str, task_key: str, attempt_id: int = None, postprocess=None) -> Optional[Dict]:
+        """
+        Fetches task from DB. Specifying attempt_id will fetch the specific attempt.
+        Otherwise the newest attempt is returned.
 
-        result, *_ = await self._task_table.find_records(
-            conditions=conditions,
-            values=values,
-            order=["attempt_id DESC"],
-            fetch_single=True,
-            enable_joins=True,
-            expanded=True,
-            postprocess=postprocess
-        )
+        Returns
+        -------
+        Dict or None
+            either the task Dict object is returned, or if no task is found, None is returned.
+        """
+        # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
+        result = await self._task_table.get_task_attempt(flow_id, run_key, step_name, task_key, attempt_id, postprocess)
+
         return result.body if result.response_code == 200 else None
 
     async def load_and_broadcast(self, key):

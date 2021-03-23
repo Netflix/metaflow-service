@@ -180,3 +180,54 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             enable_joins, postprocess, benchmark,
             overwrite_select_from
         )
+
+    async def get_task_attempt(self, flow_id: str, run_key: str,
+                               step_name: str, task_key: str, attempt_id: int = None,
+                               postprocess: Callable = None) -> DBResponse:
+        """
+        Fetches task attempt from DB. Specifying attempt_id will fetch the specific attempt.
+        Otherwise the newest attempt is returned.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow id of the task
+        run_key : str
+            Run number or run id of the task
+        step_name : str
+            Step name of the task
+        task_key : str
+            task id or task name
+        attempt_id : int (optional)
+            The specific attempt of the task to be fetched. If not provided, the latest attempt is returned.
+        postprocess : Callable
+            A callback function for refining results.
+            Receives DBResponse as an argument, and should return a DBResponse
+
+        Returns
+        -------
+        DBResponse
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        task_id_key, task_id_value = translate_task_key(task_key)
+        conditions = [
+            "flow_id = %s",
+            "{run_id_column} = %s".format(run_id_column=run_id_key),
+            "step_name = %s",
+            "{task_id_column} = %s".format(task_id_column=task_id_key)
+        ]
+        values = [flow_id, run_id_value, step_name, task_id_value]
+        if attempt_id:
+            conditions.append("attempt_id = %s")
+            values.append(attempt_id)
+
+        result, *_ = await self.find_records(
+            conditions=conditions,
+            values=values,
+            order=["attempt_id DESC"],
+            fetch_single=True,
+            enable_joins=True,
+            expanded=True,
+            postprocess=postprocess
+        )
+        return result
