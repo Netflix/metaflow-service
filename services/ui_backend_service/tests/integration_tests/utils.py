@@ -47,7 +47,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     loop.run_until_complete(db._init(db_conf=db_conf, create_tables=False, create_triggers=False))
 
     cache_store = CacheStore(db=db, event_emitter=app.event_emitter)
-    
+
     app.AutoCompleteApi = AutoCompleteApi(app, db)
     FlowApi(app, db)
     RunApi(app, db)
@@ -244,10 +244,10 @@ def _fill_missing_resource_data(_item):
     return _item
 
 
-async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], approx_keys=None, data_field="data"):
+async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], approx_keys=None):
     resp = await cli.get(path)
     body = await resp.json()
-    data = body.get(data_field) if data_field != None else body
+    data = body.get("data")
 
     if not expected_status:
         return resp.status, data
