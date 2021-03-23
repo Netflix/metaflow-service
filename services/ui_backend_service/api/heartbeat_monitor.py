@@ -129,20 +129,10 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
                 self.watched[run_number] = heartbeat_ts
 
-    async def get_run(self, run_key):
-        # TODO: refactor out of here!
-        # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
-        # and we can not broadcast an up-to-date status.
+    async def get_run(self, run_key: str) -> Optional[Dict]:
+        "Fetch run with a given id or number from the DB"
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
-        # Currently this restricts the use of expanded=True
-        run_id_key, run_id_value = translate_run_key(run_key)
-        result, *_ = await self._run_table.find_records(
-            conditions=["{column} = %s".format(column=run_id_key)],
-            values=[run_id_value],
-            fetch_single=True,
-            enable_joins=True,
-            expanded=True
-        )
+        result = await self._run_table.get_expanded_run(run_key)
         return result.body if result.response_code == 200 else None
 
     async def load_and_broadcast(self, key):

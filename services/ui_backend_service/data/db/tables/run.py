@@ -2,6 +2,7 @@ import os
 from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
+from services.data.db_utils import DBResponse, translate_run_key
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
@@ -134,3 +135,19 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         )
 
         return [run['run_number'] for run in _records.body]
+
+    async def get_expanded_run(self, run_key: str) -> DBResponse:
+        "Fetch run with a given id or number from the DB"
+        # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
+        # and we can not broadcast an up-to-date status.
+        # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
+        # Currently this restricts the use of expanded=True
+        run_id_key, run_id_value = translate_run_key(run_key)
+        result, *_ = await self.find_records(
+            conditions=["{column} = %s".format(column=run_id_key)],
+            values=[run_id_value],
+            fetch_single=True,
+            enable_joins=True,
+            expanded=True
+        )
+        return result
