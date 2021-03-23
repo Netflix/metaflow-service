@@ -57,15 +57,17 @@ class HeartbeatMonitor(object):
         self.watched.pop(key, None)
 
     async def load_and_broadcast(self, key):
-        '''Triggered when a heartbeat for a key has expired.
-        Loads object based on key from watchlist, and broadcasts content to listeners.'''
+        """
+        Triggered when a heartbeat for a key has expired.
+        Loads object based on key from watchlist, and broadcasts content to listeners.
+        """
         raise NotImplementedError
 
     async def check_heartbeats(self):
-        '''
+        """
         Async Task that is responsible for checking the heartbeats of all monitored runs,
         and triggering handlers in case the heartbeat is too old.
-        '''
+        """
         while True:
             time_now = int(datetime.datetime.utcnow().timestamp())  # same format as the metadata heartbeat uses
             for key, hb in list(self.watched.items()):
@@ -77,7 +79,7 @@ class HeartbeatMonitor(object):
 
 
 class RunHeartbeatMonitor(HeartbeatMonitor):
-    '''
+    """
     Service class for adding objects with heartbeat timestamps to be monitored and acted upon
     when heartbeat becomes too old.
 
@@ -88,7 +90,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
     Responds to event_emitter emissions with messages:
       "run-heartbeat", "update", run_id -> updates heartbeat timestamp that is found in database
       "run-heartbeat", "complete" run_id -> removes run from heartbeat checks
-    '''
+    """
 
     def __init__(self, event_emitter=None, db=None):
         # Init the abstract class
@@ -144,7 +146,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
 
 
 class TaskHeartbeatMonitor(HeartbeatMonitor):
-    '''
+    """
     Service class for adding objects with heartbeat timestamps to be monitored and acted upon
     when heartbeat becomes too old.
 
@@ -155,7 +157,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     Responds to event_emitter emissions with messages:
       "task-heartbeat", "update", data -> updates heartbeat timestamp that is found in database
       "task-heartbeat", "complete" data -> removes task from heartbeat checks
-    '''
+    """
 
     def __init__(self, event_emitter=None, db=None, cache=None):
         # Init the abstract class

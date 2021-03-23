@@ -148,7 +148,8 @@ class Websocket(object):
                 filter(lambda s: ws != s.ws, self.subscriptions))
 
     async def handle_disconnect(self, ws):
-        """Sets disconnected timestamp on websocket subscription without removing it from the list.
+        """
+        Sets disconnected timestamp on websocket subscription without removing it from the list.
         Removing is handled by event_handler that checks for expired subscriptions before emitting
         """
         self.subscriptions = list(
