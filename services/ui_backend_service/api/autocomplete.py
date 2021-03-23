@@ -2,7 +2,6 @@ from services.utils import handle_exceptions
 from services.data.db_utils import translate_run_key
 from .utils import format_response, web_response
 import asyncio
-import threading
 
 
 # Interval for refetching tags from database. Tags data is cached since requesting all of them might take a while.
