@@ -317,6 +317,10 @@ swagger_definitions = {
             }
         }
     },
+    "ResponsesAutocompleteTagList": response_list("#/definitions/ModelsAutocompleteTag"),
+    "ResponsesAutocompleteFlowList": response_list("#/definitions/ModelsAutocompleteFlow"),
+    "ResponsesAutocompleteRunList": response_list("#/definitions/ModelsAutocompleteRun"),
+    "ResponsesAutocompleteStepList": response_list("#/definitions/ModelsAutocompleteStep"),
     "ResponsesFlow": response_object("#/definitions/ModelsFlow"),
     "ResponsesFlowList": response_list("#/definitions/ModelsFlow"),
     "ResponsesRun": response_object("#/definitions/ModelsRun"),
@@ -375,6 +379,22 @@ swagger_definitions = {
         **modelprop("finished_at", "integer", "Finished at epoch timestamp", 1591788834035),
         **modelprop("duration", "integer", "Duration in milliseconds (null if unfinished)", 456),
     }),
+    "ModelsAutocompleteTag": {
+        "type": "string",
+        "default": "tag name"
+    },
+    "ModelsAutocompleteFlow": {
+        "type": "string",
+        "default": "Flow id"
+    },
+    "ModelsAutocompleteRun": {
+        "type": "string",
+        "default": "run number or run id"
+    },
+    "ModelsAutocompleteStep": {
+        "type": "string",
+        "default": "step name"
+    },
     "ModelsRunParameters": {
         "type": "object",
         "properties": {

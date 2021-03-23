@@ -55,9 +55,8 @@ class AutoCompleteApi(object):
         responses:
             "200":
                 description: Returns string list of all tags
-                type: array
-                items:
-                    type: string
+                schema:
+                    $ref: '#/definitions/ResponsesAutocompleteTagList'
         """
         if self.tags is None:
             status, body = format_response(request, {"body": [], "response_code": 200})
@@ -74,14 +73,14 @@ class AutoCompleteApi(object):
         description: Get all flow id's as a list
         tags:
         - Autocomplete
+        - Flow
         produces:
         - application/json
         responses:
             "200":
                 description: Returns string list of all flow id's
-                type: array
-                items:
-                    type: string
+                schema:
+                    $ref: '#/definitions/ResponsesAutocompleteFlowList'
         """
         db_response = await self._flow_table.get_field_from(field="flow_id")
         status, body = format_response(request, db_response)
@@ -94,14 +93,14 @@ class AutoCompleteApi(object):
         description: Get all run id's for single flow
         tags:
         - Autocomplete
+        - Run
         produces:
         - application/json
         responses:
             "200":
                 description: Returns string list of run ids
-                type: array
-                items:
-                    type: string
+                schema:
+                    $ref: '#/definitions/ResponsesAutocompleteRunList'
         """
         flowid = request.match_info.get("flow_id")
         sql_conditions = ["flow_id=%s"]
@@ -116,14 +115,14 @@ class AutoCompleteApi(object):
         description: Get all step names for single run
         tags:
         - Autocomplete
+        - Step
         produces:
         - application/json
         responses:
             "200":
                 description: Returns string list of step names
-                type: array
-                items:
-                    type: string
+                schema:
+                    $ref: '#/definitions/ResponsesAutocompleteStepList'
         """
         flowid = request.match_info.get("flow_id")
         runid = request.match_info.get("run_id")
