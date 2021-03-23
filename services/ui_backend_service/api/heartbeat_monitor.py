@@ -186,7 +186,8 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         Parameters
         ----------
         action : str
-            'update' or 'complete' depending on whether
+            'update' or 'complete' depending on if we want to update(or add) an existing heartbeat,
+            or remove one from monitoring after completion.
         data : Dict
             The task object that the heartbeat event relates to.
         """
