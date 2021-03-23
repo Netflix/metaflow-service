@@ -59,7 +59,7 @@ class AutoCompleteApi(object):
                 items:
                     type: string
         """
-        if (self.tags == None):
+        if self.tags is None:
             status, body = format_response(request, {"body": [], "response_code": 200})
             return web_response(status, body)
 
