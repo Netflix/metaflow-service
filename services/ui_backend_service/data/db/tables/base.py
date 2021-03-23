@@ -270,12 +270,40 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
-    async def get_field_from(self, field: str, conditions: List[str] = [], values: List[str] = []):
-        sql_template = "SELECT DISTINCT {field_name} FROM {table_name} {conditions}"
+    async def get_field_from(self, field: str, conditions: List[str] = [], values: List[str] = [], limit: int = 0, offset: int = 0):
+        """
+        Query a specific column from the table, returning a list of values
+
+        Parameters
+        ----------
+        field : str
+            name of the column to query
+        conditions : List[str]
+            list of conditions to pass the sql execute, with %s placeholders for values
+        values : List[str]
+            list of values to be passed for the sql execute.
+        limit : int (optional) (default 0)
+            limit for the number of results
+        offset : int (optional) (default 0)
+            offset for the results.
+        
+        Returns
+        -------
+        DBResponse
+        """
+        sql_template = """
+            SELECT DISTINCT {field_name}
+            FROM {table_name}
+            {conditions}
+            {limit}
+            {offset}
+            """
         select_sql = sql_template.format(
             table_name=self.table_name,
             field_name=field,
-            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else "")
+            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else ""),
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else ""
         )
 
         try:
