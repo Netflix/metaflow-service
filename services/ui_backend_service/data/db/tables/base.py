@@ -269,3 +269,29 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
+
+    async def get_field_from(self, field: str, conditions: List[str] = [], values: List[str] = []):
+        sql_template = "SELECT DISTINCT {field_name} FROM {table_name} {conditions}"
+        select_sql = sql_template.format(
+            table_name=self.table_name,
+            field_name=field,
+            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else "")
+        )
+
+        try:
+            with (
+                await self.db.pool.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor
+                )
+            ) as cur:
+                await cur.execute(select_sql, values)
+
+                items = []
+                records = await cur.fetchall()
+                for record in records:
+                    items += record
+                cur.close()
+                return DBResponse(response_code=200, body=items)
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occured")
+            return aiopg_exception_handling(error)

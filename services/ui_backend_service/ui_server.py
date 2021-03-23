@@ -8,10 +8,11 @@ from pyee import AsyncIOEventEmitter
 from services.utils import DBConfiguration, logging
 
 # service processes and routes
-from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, ConfigApi,
+from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
                   MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
                   TaskApi, TaskHeartbeatMonitor, Websocket)
+
 from .data.cache import CacheStore
 from .data.db import AsyncPostgresDB
 from .doc import swagger_definitions, swagger_description
@@ -60,6 +61,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
         loop.run_until_complete(async_db_ws._init(db_conf))
         Websocket(app, db=async_db_ws, event_emitter=event_emitter, cache=cache_store)
 
+    AutoCompleteApi(app, async_db)
     FlowApi(app, async_db)
     RunApi(app, async_db, cache_store)
     StepApi(app, async_db)
