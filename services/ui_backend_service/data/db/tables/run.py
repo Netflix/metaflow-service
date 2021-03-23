@@ -138,11 +138,19 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return [run['run_number'] for run in _records.body]
 
     async def get_expanded_run(self, run_key: str) -> DBResponse:
-        "Fetch run with a given id or number from the DB"
-        # Remember to enable_joins for the query, otherwise the 'status' will be missing from the run
-        # and we can not broadcast an up-to-date status.
-        # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
-        # Currently this restricts the use of expanded=True
+        """
+        Fetch run with a given id or number from the DB.
+
+        Parameters
+        ----------
+        run_key : str
+            run number or run id
+
+        Returns
+        -------
+        DBResponse
+            Containing a single run record, if one was found.
+        """
         run_id_key, run_id_value = translate_run_key(run_key)
         result, *_ = await self.find_records(
             conditions=["{column} = %s".format(column=run_id_key)],
