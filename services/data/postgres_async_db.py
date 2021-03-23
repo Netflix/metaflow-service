@@ -490,7 +490,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
-    trigger_keys = primary_keys
+    trigger_keys = primary_keys + ["last_heartbeat_ts"]
     select_columns = keys
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """

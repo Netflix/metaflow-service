@@ -88,8 +88,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
     Usage
     -----
     Responds to event_emitter emissions with messages:
-      "run-heartbeat", "update", run_id -> updates heartbeat timestamp that is found in database
-      "run-heartbeat", "complete" run_id -> removes run from heartbeat checks
+      "run-heartbeat", "update", data -> updates heartbeat timestamp that is passed as part of data.
+      "run-heartbeat", "complete" data -> removes run from heartbeat checks
     """
 
     def __init__(self, event_emitter=None, db=None):
@@ -102,7 +102,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._run_table = self.db.run_table_postgres
 
-    async def heartbeat_handler(self, action: str, run_number: int):
+    async def heartbeat_handler(self, action: str, data: Dict):
         """
         Event handler for heartbeat events on 'run-heartbeat'
 
@@ -115,15 +115,11 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
             the run number to update the heartbeat for.
         """
         if action == "update":
-            await self.add_to_watch(run_number)
+            await self.add_to_watch(data)
         elif action == "complete":
-            self.remove_from_watch(run_number)
+            self.remove_from_watch(data.get("run_number", None))
 
-    async def add_to_watch(self, run_key):
-        # TODO: Optimize db trigger so we do not have to fetch a record in order to add it to the
-        # heartbeat monitor
-        run = await self.get_run(run_key)
-
+    async def add_to_watch(self, run: Dict):
         if "last_heartbeat_ts" in run and "run_number" in run:
             run_number = run["run_number"]
             heartbeat_ts = run["last_heartbeat_ts"]

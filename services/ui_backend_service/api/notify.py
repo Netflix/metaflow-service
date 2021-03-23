@@ -81,7 +81,7 @@ class ListenNotify(object):
 
                 # Heartbeat watcher for Runs.
                 if table.table_name == self.db.run_table_postgres.table_name:
-                    self.event_emitter.emit('run-heartbeat', 'update', data['run_number'])
+                    self.event_emitter.emit('run-heartbeat', 'update', data)
 
                 # Heartbeat watcher for Tasks.
                 if table.table_name == self.db.task_table_postgres.table_name:
@@ -139,7 +139,7 @@ class ListenNotify(object):
                         # Also trigger preload of artifacts after a run finishes.
                         self.event_emitter.emit("preload-artifacts", data['run_number'])
                         # And remove possible heartbeat watchers for completed runs
-                        self.event_emitter.emit("run-heartbeat", "complete", data['run_number'])
+                        self.event_emitter.emit("run-heartbeat", "complete", data)
 
         except Exception:
             self.logger.exception("Exception occurred")
