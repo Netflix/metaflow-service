@@ -244,10 +244,10 @@ def _fill_missing_resource_data(_item):
     return _item
 
 
-async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], approx_keys=None, data_field="data"):
+async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], approx_keys=None):
     resp = await cli.get(path)
     body = await resp.json()
-    data = body.get(data_field) if data_field is not None else body
+    data = body.get("data")
 
     if not expected_status:
         return resp.status, data
