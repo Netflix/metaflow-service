@@ -87,7 +87,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             limit for the number of results
         offset : int (optional) (default 0)
             offset for the results.
-        
+
         Returns
         -------
         (DBResponse, DBPagination)

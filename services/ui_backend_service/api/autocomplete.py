@@ -156,6 +156,6 @@ class AutoCompleteApi(object):
         values = [flow_id, run_value] + custom_vals
 
         results, pagination = await self._step_table.get_step_names(conditions=sql_conditions, values=values, limit=limit, offset=offset)
-        
+
         status, body = format_response_list(request, results, pagination, page)
         return web_response(status, body)
