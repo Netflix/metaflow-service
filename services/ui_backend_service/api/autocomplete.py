@@ -1,6 +1,6 @@
 from services.utils import handle_exceptions
 from services.data.db_utils import translate_run_key
-from .utils import format_response, web_response
+from .utils import format_response, format_response_list, web_response, custom_conditions_query, pagination_query
 import asyncio
 
 
@@ -102,10 +102,19 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteRunList'
         """
-        flowid = request.match_info.get("flow_id")
-        sql_conditions = ["flow_id=%s"]
-        db_response = await self._run_table.get_field_from(field="COALESCE(run_id, run_number::text)", conditions=sql_conditions, values=[flowid])
-        status, body = format_response(request, db_response)
+        flow_id = request.match_info.get("flow_id")
+
+        # pagination setup
+        page, limit, offset, _, _, _ = pagination_query(request)
+
+        # custom query conditions
+        custom_conditions, custom_vals = custom_conditions_query(request, allowed_keys=["run"])
+
+        conditions = ["flow_id=%s"] + custom_conditions
+        values = [flow_id] + custom_vals
+
+        results, pagination = await self._run_table.get_run_keys(conditions=conditions, values=values, limit=limit, offset=offset)
+        status, body = format_response_list(request, results, pagination, page)
         return web_response(status, body)
 
     @handle_exceptions

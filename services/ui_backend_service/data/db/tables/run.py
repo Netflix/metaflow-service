@@ -1,9 +1,10 @@
 import os
 import time
+from typing import List
 from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
-from services.data.db_utils import DBResponse, translate_run_key
+from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
@@ -160,3 +161,48 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             expanded=True
         )
         return result
+
+    async def get_run_keys(self, conditions: List[str] = [],
+                           values: List[str] = [], limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+        """
+        Get a paginated set of run keys.
+
+        Parameters
+        ----------
+        conditions : List[str]
+            list of conditions to pass the sql execute, with %s placeholders for values
+        values : List[str]
+            list of values to be passed for the sql execute.
+        limit : int (optional) (default 0)
+            limit for the number of results
+        offset : int (optional) (default 0)
+            offset for the results.
+        
+        Returns
+        -------
+        (DBResponse, DBPagination)
+        """
+        sql_template = """
+            SELECT run FROM (
+                SELECT DISTINCT COALESCE(run_id, run_number::text) as run, flow_id
+                FROM {table_name}
+            ) T
+            {conditions}
+            {limit}
+            {offset}
+            """
+        select_sql = sql_template.format(
+            table_name=self.table_name,
+            keys=",".join(self.select_columns),
+            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else ""),
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else ""
+        )
+
+        res, pag = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=False,
+                                          expanded=False,
+                                          limit=limit, offset=offset, serialize=False)
+        # process the unserialized DBResponse
+        _body = [row[0] for row in res.body]
+
+        return DBResponse(res.response_code, _body), pag
