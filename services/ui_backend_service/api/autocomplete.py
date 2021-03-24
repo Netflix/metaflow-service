@@ -82,8 +82,16 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteFlowList'
         """
-        db_response = await self._flow_table.get_field_from(field="flow_id")
-        status, body = format_response(request, db_response)
+        # pagination setup
+        page, limit, offset, _, _, _ = pagination_query(request)
+
+        # custom query conditions
+        custom_conditions, custom_vals = custom_conditions_query(request, allowed_keys=["flow_id"])
+
+        conditions = custom_conditions
+        values = custom_vals
+        db_response, pagination = await self._flow_table.get_flow_ids(conditions=conditions, values=values, limit=limit, offset=offset)
+        status, body = format_response_list(request, db_response, pagination, page)
         return web_response(status, body)
 
     @handle_exceptions
