@@ -141,14 +141,21 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteStepList'
         """
-        flowid = request.match_info.get("flow_id")
-        runid = request.match_info.get("run_id")
+        flow_id = request.match_info.get("flow_id")
+        run_id = request.match_info.get("run_id")
 
-        run_key, run_value = translate_run_key(runid)
+        run_key, run_value = translate_run_key(run_id)
 
-        sql_conditions = ["flow_id=%s", run_key + "=%s"]
-        values = [flowid, run_value]
+        # pagination setup
+        page, limit, offset, _, _, _ = pagination_query(request)
 
-        db_response = await self._step_table.get_field_from(field="step_name", conditions=sql_conditions, values=values)
-        status, body = format_response(request, db_response)
+        # custom query conditions
+        custom_conditions, custom_vals = custom_conditions_query(request, allowed_keys=["step_name"])
+
+        sql_conditions = ["flow_id=%s", "{}=%s".format(run_key)] + custom_conditions
+        values = [flow_id, run_value] + custom_vals
+
+        results, pagination = await self._step_table.get_step_names(conditions=sql_conditions, values=values, limit=limit, offset=offset)
+        
+        status, body = format_response_list(request, results, pagination, page)
         return web_response(status, body)
