@@ -298,7 +298,8 @@ def assertable_flow(flow):
 def assertable_run(run):
     return {
         "flow_id": run.get("flow_id"),
-        "run_number": int(run.get("run_number"))
+        "run_number": int(run.get("run_number")),
+        "last_heartbeat_ts": run.get("last_heartbeat_ts")
     }
 
 def assertable_step(step, keys = ["step_name"]):
