@@ -213,7 +213,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             return None
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0, serialize: bool = True) -> (DBResponse, DBPagination):
         try:
             with (
                 await self.db.pool.cursor(
@@ -224,9 +224,12 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
                 rows = []
                 records = await cur.fetchall()
-                for record in records:
-                    row = self._row_type(**record)
-                    rows.append(row.serialize(expanded))
+                if serialize:
+                    for record in records:
+                        row = self._row_type(**record)
+                        rows.append(row.serialize(expanded))
+                else:
+                    rows = records
 
                 count = len(rows)
 
