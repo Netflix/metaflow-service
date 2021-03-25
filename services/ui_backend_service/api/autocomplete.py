@@ -15,39 +15,20 @@ class AutoCompleteApi(object):
     def __init__(self, app, db):
         self.db = db
         # Cached resources
-        app.router.add_route("GET", "/tags/autocomplete", self.get_all_tags)
+        app.router.add_route("GET", "/tags/autocomplete", self.get_tags)
         # Non-cached resources
-        app.router.add_route("GET", "/flows/autocomplete", self.get_all_flows)
+        app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
         app.router.add_route("GET", "/flows/{flow_id}/runs/autocomplete", self.get_runs_for_flow)
         app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/steps/autocomplete", self.get_steps_for_run)
         self._flow_table = self.db.flow_table_postgres
         self._run_table = self.db.run_table_postgres
         self._step_table = self.db.step_table_postgres
-        self.loop = asyncio.get_event_loop()
-        self.loop.create_task(self.start_tags_cache())
-
-    async def start_tags_cache(self):
-        '''
-        Async task that fill tags cache every 5minutes. Database query might take a while
-        so its better to cache the result.
-        '''
-        while True:
-            # Get all tags taht are mentioned in runs table
-            await self.query_tags()
-            # Check tags again after some sleep
-            await asyncio.sleep(TAGS_FILL_INTERVAL)
 
     @handle_exceptions
-    async def query_tags(self):
-        db_response, _ = await self._run_table.get_tags()
-        if db_response.response_code == 200:
-            self.tags = db_response
-
-    @handle_exceptions
-    async def get_all_tags(self, request):
+    async def get_tags(self, request):
         """
         ---
-        description: Get all available tags
+        description: Get all available tags, with pagination.
         tags:
         - Autocomplete
         produces:
@@ -58,19 +39,24 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteTagList'
         """
-        if self.tags is None:
-            status, body = format_response(request, {"body": [], "response_code": 200})
-            return web_response(status, body)
+        # pagination setup
+        page, limit, offset, _, _, _ = pagination_query(request)
 
-        status, body = format_response(request, self.tags)
+        # custom query conditions
+        custom_conditions, custom_vals = custom_conditions_query(request, allowed_keys=["tag"])
+
+        conditions = custom_conditions
+        values = custom_vals
+        db_response, pagination = await self._run_table.get_tags(conditions=conditions, values=values, limit=limit, offset=offset)
+        status, body = format_response_list(request, db_response, pagination, page)
 
         return web_response(status, body)
 
     @handle_exceptions
-    async def get_all_flows(self, request):
+    async def get_flows(self, request):
         """
         ---
-        description: Get all flow id's as a list
+        description: Get all flow id's as a list, with pagination.
         tags:
         - Autocomplete
         - Flow

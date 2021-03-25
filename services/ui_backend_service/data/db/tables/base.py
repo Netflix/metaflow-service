@@ -255,7 +255,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         sql_template = """
         SELECT DISTINCT tag
         FROM (
-            SELECT JSONB_ARRAY_ELEMENTS(tags||system_tags) AS tag
+            SELECT JSONB_ARRAY_ELEMENTS_TEXT(tags||system_tags) AS tag
             FROM {table_name}
         ) AS t
         {conditions}
@@ -269,7 +269,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             offset="OFFSET {}".format(offset) if offset else "",
         )
 
-        res, pagination = await self.execute_sql(select_sql=select_sql, serialize=False)
+        res, pagination = await self.execute_sql(select_sql=select_sql, values=values, serialize=False)
 
         # process the unserialized DBResponse
         _body = [row[0] for row in res.body]
