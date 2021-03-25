@@ -251,13 +251,27 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error), None
 
-    async def get_tags(self):
-        sql_template = "SELECT DISTINCT tag FROM (SELECT JSONB_ARRAY_ELEMENTS(tags||system_tags) AS tag FROM {table_name}) AS t"
-        select_sql = sql_template.format(table_name=self.table_name)
+    async def get_tags(self, conditions: List[str] = None, values=[], limit: int = 0, offset: int = 0):
+        sql_template = """
+        SELECT DISTINCT tag
+        FROM (
+            SELECT JSONB_ARRAY_ELEMENTS(tags||system_tags) AS tag
+            FROM {table_name}
+        ) AS t
+        {conditions}
+        {limit}
+        {offset}
+        """
+        select_sql = sql_template.format(
+            table_name=self.table_name,
+            conditions="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else "",
+        )
 
-        res, _ = await self.execute_sql(select_sql=select_sql, serialize=False)
+        res, pagination = await self.execute_sql(select_sql=select_sql, serialize=False)
 
         # process the unserialized DBResponse
         _body = [row[0] for row in res.body]
 
-        return DBResponse(res.response_code, _body)
+        return DBResponse(res.response_code, _body), pagination

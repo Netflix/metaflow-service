@@ -39,7 +39,7 @@ class AutoCompleteApi(object):
 
     @handle_exceptions
     async def query_tags(self):
-        db_response = await self._run_table.get_tags()
+        db_response, _ = await self._run_table.get_tags()
         if db_response.response_code == 200:
             self.tags = db_response
 
