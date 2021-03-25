@@ -255,20 +255,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         sql_template = "SELECT DISTINCT tag FROM (SELECT JSONB_ARRAY_ELEMENTS(tags||system_tags) AS tag FROM {table_name}) AS t"
         select_sql = sql_template.format(table_name=self.table_name)
 
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql)
+        res, _ = await self.execute_sql(select_sql=select_sql, serialize=False)
 
-                tags = []
-                records = await cur.fetchall()
-                for record in records:
-                    tags += record
-                cur.close()
-                return DBResponse(response_code=200, body=tags)
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error)
+        # process the unserialized DBResponse
+        _body = [row[0] for row in res.body]
+
+        return DBResponse(res.response_code, _body)
