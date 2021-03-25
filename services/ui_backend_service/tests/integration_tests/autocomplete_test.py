@@ -46,7 +46,5 @@ async def test_tags_autocomplete(cli, db):
     await _test_list_resources(cli, db, '/tags/autocomplete', 200, [])
     await add_flow(db, flow_id="HelloFlow")
     await add_run(db, flow_id="HelloFlow", run_id="HelloRun", tags=["tag:something"])
-    # Manually trigger tag filling function. Usually this would happen in defined interval
-    await cli.app.AutoCompleteApi.query_tags()
     # Note that runtime:dev tags gets assigned automatically
-    await _test_list_resources(cli, db, '/tags/autocomplete', 200, ['tag:something', 'runtime:dev'])
+    await _test_list_resources(cli, db, '/tags/autocomplete', 200, ['runtime:dev', 'tag:something'])
