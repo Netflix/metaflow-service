@@ -1,0 +1,27 @@
+version: "3"
+services:
+  service_test:
+    container_name: service_test
+    build:
+      context: .
+      dockerfile: Dockerfile.service.test
+    volumes:
+      - .:/app
+    environment:
+      - MF_METADATA_DB_HOST=db_test
+      - MF_METADATA_DB_PORT=5432
+      - MF_METADATA_DB_USER=test
+      - MF_METADATA_DB_PSWD=test
+      - MF_METADATA_DB_NAME=test
+      - MF_MIGRATION_ENDPOINTS_ENABLED=1
+    depends_on:
+      - db_test
+  db_test:
+    container_name: db_test
+    image: "postgres:11"
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    ports:
+      - "5432:5432"
