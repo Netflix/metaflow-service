@@ -112,7 +112,7 @@ class AutoCompleteApi(object):
             self._step_table.get_step_names,
             initial_conditions=["flow_id=%s", "{}=%s".format(run_key)],
             initial_values=[flow_id, run_value],
-            allowed_keys=["flow_id"]
+            allowed_keys=["step_name"]
         )
 
 
