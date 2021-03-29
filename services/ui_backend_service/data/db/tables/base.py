@@ -213,7 +213,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             return None
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0, serialize: bool = True) -> (DBResponse, DBPagination):
         try:
             with (
                 await self.db.pool.cursor(
@@ -224,9 +224,12 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
                 rows = []
                 records = await cur.fetchall()
-                for record in records:
-                    row = self._row_type(**record)
-                    rows.append(row.serialize(expanded))
+                if serialize:
+                    for record in records:
+                        row = self._row_type(**record)
+                        rows.append(row.serialize(expanded))
+                else:
+                    rows = records
 
                 count = len(rows)
 
@@ -248,50 +251,27 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error), None
 
-    async def get_tags(self):
-        sql_template = "SELECT DISTINCT tag FROM (SELECT JSONB_ARRAY_ELEMENTS(tags||system_tags) AS tag FROM {table_name}) AS t"
-        select_sql = sql_template.format(table_name=self.table_name)
-
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql)
-
-                tags = []
-                records = await cur.fetchall()
-                for record in records:
-                    tags += record
-                cur.close()
-                return DBResponse(response_code=200, body=tags)
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error)
-
-    async def get_field_from(self, field: str, conditions: List[str] = [], values: List[str] = []):
-        sql_template = "SELECT DISTINCT {field_name} FROM {table_name} {conditions}"
+    async def get_tags(self, conditions: List[str] = None, values=[], limit: int = 0, offset: int = 0):
+        sql_template = """
+        SELECT DISTINCT tag
+        FROM (
+            SELECT JSONB_ARRAY_ELEMENTS_TEXT(tags||system_tags) AS tag
+            FROM {table_name}
+        ) AS t
+        {conditions}
+        {limit}
+        {offset}
+        """
         select_sql = sql_template.format(
             table_name=self.table_name,
-            field_name=field,
-            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else "")
+            conditions="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else "",
         )
 
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql, values)
+        res, pagination = await self.execute_sql(select_sql=select_sql, values=values, serialize=False)
 
-                items = []
-                records = await cur.fetchall()
-                for record in records:
-                    items += record
-                cur.close()
-                return DBResponse(response_code=200, body=items)
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error)
+        # process the unserialized DBResponse
+        _body = [row[0] for row in res.body]
+
+        return DBResponse(res.response_code, _body), pagination

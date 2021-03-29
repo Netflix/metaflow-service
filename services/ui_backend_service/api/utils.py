@@ -184,6 +184,7 @@ operators_to_sql = {
     "co": "\"{}\" ILIKE %s",      # contains
     "sw": "\"{}\" ILIKE %s",      # starts with
     "ew": "\"{}\" ILIKE %s",      # ends with
+    "li": "\"{}\" ILIKE %s",      # ILIKE (used with % placeholders supplied in the request params)
     "is": "\"{}\" IS %s",         # IS
 }
 
@@ -197,6 +198,7 @@ operators_to_sql_values = {
     "co": "%{}%",
     "sw": "{}%",
     "ew": "%{}",
+    "li": "{}",
     "is": "{}",
 }
 
