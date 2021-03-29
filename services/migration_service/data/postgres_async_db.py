@@ -1,7 +1,7 @@
 import time
 import os
 import aiopg
-from migration_service.migration_config import host, port, user, password, \
+from ..migration_config import host, port, user, password, \
     database_name
 
 class PostgresUtils(object):
