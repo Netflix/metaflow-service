@@ -1,17 +1,17 @@
-from aiohttp import web
-import os
-import psycopg2
 import json
+import os
 
+import psycopg2
+import pytest
+from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
-
+from services.metadata_service.api.admin import AuthApi
+from services.metadata_service.api.flow import FlowApi
+from services.metadata_service.api.run import RunApi
 # Migration imports
 from services.migration_service.api.admin import AdminApi as MigrationAdminApi
-from services.migration_service.data.postgres_async_db import AsyncPostgresDB as MigrationAsyncPostgresDB
-
-
-from services.metadata_service.api.flow import FlowApi
-from services.metadata_service.api.admin import AuthApi
+from services.migration_service.data.postgres_async_db import \
+    AsyncPostgresDB as MigrationAsyncPostgresDB
 
 # Test fixture helpers begin
 
@@ -25,6 +25,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     app.add_subapp("/migration/", migration_app)
 
     FlowApi(app)
+    RunApi(app)
     AuthApi(app)
 
     return loop.run_until_complete(aiohttp_client(app))
@@ -182,6 +183,7 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 # Resource helpers
 
+
 async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None):
     """
     Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
@@ -196,12 +198,12 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
     status : int (default 200)
         http status code to expect from response
     data : object
-        Any json serializable data type. will undergo json.dumps before asserting with response body.
+        An object to assert the api response against.
     """
     response = await cli.get(path)
 
     assert response.status == status
-    body = await response.text()
 
     if data:
-        assert body == json.dumps(data)
+        body = json.loads(await response.text())
+        assert body == data
