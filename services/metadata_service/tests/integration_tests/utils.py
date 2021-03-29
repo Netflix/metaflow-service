@@ -71,3 +71,28 @@ async def clean_db(db: AsyncPostgresDB):
         print("DB Cleanup failed after test. This might have adverse effects on further test runs", str(error))
 
 # Test fixture helpers end
+
+
+async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None):
+    """
+    Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
+    Expectation is that the API returns text/plain format json.
+
+    Parameters
+    ----------
+    cli : aiohttp cli
+        aiohttp test client
+    path : str
+        url path to perform GET request to
+    status : int (default 200)
+        http status code to expect from response
+    data : object
+        Any json serializable data type. will undergo json.dumps before asserting with response body.
+    """
+    response = await cli.get(path)
+
+    assert response.status == status
+    body = await response.text()
+
+    if data:
+        assert body == json.dumps(data)
