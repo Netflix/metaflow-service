@@ -8,6 +8,7 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.metadata_service.api.admin import AuthApi
 from services.metadata_service.api.flow import FlowApi
 from services.metadata_service.api.run import RunApi
+from services.metadata_service.api.step import StepApi
 # Migration imports
 from services.migration_service.api.admin import AdminApi as MigrationAdminApi
 from services.migration_service.data.postgres_async_db import \
@@ -26,6 +27,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
     FlowApi(app)
     RunApi(app)
+    StepApi(app)
     AuthApi(app)
 
     return loop.run_until_complete(aiohttp_client(app))

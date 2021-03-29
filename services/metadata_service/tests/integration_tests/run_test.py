@@ -82,7 +82,7 @@ async def test_runs_get(cli, db):
     _first_run = (await add_run(db, flow_id=_flow["flow_id"])).body
     _second_run = (await add_run(db, flow_id=_flow["flow_id"])).body
 
-    # try to get all the created flows
+    # try to get all the created runs
     await assert_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run), data=[_second_run, _first_run])
 
     # getting runs for non-existent flow should return empty list
