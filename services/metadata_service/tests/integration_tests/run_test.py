@@ -67,11 +67,11 @@ async def test_run_heartbeat_post(cli, db):
     assert _found["last_heartbeat_ts"] is not None
 
     # should get 404 for non-existent run
-    response = await cli.post("/flows/{flow_id}/runs/1234/heartbeat".format(**_run))
-    assert response.status == 404  # why 200 instead of 201?
+    response = await cli.post("/flows/NonExistentFlow/runs/{run_number}/heartbeat".format(**_run))
+    assert response.status == 404
 
-    response = await cli.post("/flows/NonExistentFlow/runs/1234/{run_number}".format(**_run))
-    assert response.status == 404  # why 200 instead of 201?
+    response = await cli.post("/flows/{flow_id}/runs/1234/heartbeat".format(**_run))
+    assert response.status == 404
 
 
 async def test_runs_get(cli, db):
