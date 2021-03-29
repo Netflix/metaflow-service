@@ -1,5 +1,4 @@
-from .utils import init_app, init_db, clean_db, assert_api_get_response
-from services.data.models import FlowRow
+from .utils import init_app, init_db, clean_db, assert_api_get_response, add_flow
 import pytest
 import json
 pytestmark = [pytest.mark.integration_tests]
@@ -46,12 +45,8 @@ async def test_flows_post(cli, db):
 
 async def test_flows_get(cli, db):
   # create a few flows for test
-  _first_flow = (await db.flow_table_postgres.add_flow(
-      FlowRow("TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])
-  )).body
-  _second_flow = (await db.flow_table_postgres.add_flow(
-      FlowRow("AnotherTestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])
-  )).body
+  _first_flow = (await add_flow(db, flow_id="TestFlow", user_name="test_user-1", tags=["a_tag", "b_tag"], system_tags=["runtime:test"])).body
+  _second_flow = (await add_flow(db, flow_id="AnotherTestFlow", user_name="test_user-1")).body
 
   # try to get all the created flows
   await assert_api_get_response(cli, "/flows", data=[_first_flow, _second_flow])
@@ -59,9 +54,7 @@ async def test_flows_get(cli, db):
 
 async def test_flow_get(cli, db):
   # create flow for test
-  _flow = (await db.flow_table_postgres.add_flow(
-      FlowRow("TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])
-  )).body
+  _flow = (await add_flow(db, flow_id="TestFlow", user_name="test_user-1")).body
 
   # try to get created flow
   await assert_api_get_response(cli, "/flows/TestFlow", data=_flow)

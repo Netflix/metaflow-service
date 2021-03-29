@@ -72,6 +72,115 @@ async def clean_db(db: AsyncPostgresDB):
 
 # Test fixture helpers end
 
+# Row helpers begin
+
+
+async def add_flow(db: AsyncPostgresDB, flow_id="HelloFlow",
+                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+    flow = {
+        "flow_id": flow_id,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
+    }
+    return await db.flow_table_postgres.create_record(flow)
+
+
+async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
+                  run_number: int = None, run_id: str = None,
+                  user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                  last_heartbeat_ts: int = None):
+    run = {
+        "flow_id": flow_id,
+        "run_id": run_id,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags),
+        "last_heartbeat_ts": last_heartbeat_ts
+    }
+    return await db.run_table_postgres.create_record(run)
+
+
+async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
+                   run_number: int = None, run_id: str = None, step_name="step",
+                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+    step = {
+        "flow_id": flow_id,
+        "run_number": run_number,
+        "run_id": run_id,
+        "step_name": step_name,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
+    }
+    return await db.step_table_postgres.create_record(step)
+
+
+async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
+                   run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
+                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                   last_heartbeat_ts: int = None):
+    task = {
+        "flow_id": flow_id,
+        "run_number": run_number,
+        "step_name": step_name,
+        "task_name": task_name,
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags),
+        "last_heartbeat_ts": last_heartbeat_ts
+    }
+    return await db.task_table_postgres.create_record(task)
+
+
+async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
+                       run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
+                       metadata={},
+                       user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+    values = {
+        "flow_id": flow_id,
+        "run_number": run_number,
+        "run_id": run_id,
+        "step_name": step_name,
+        "task_id": str(task_id),
+        "task_name": task_name,
+        "field_name": metadata.get("field_name", " "),
+        "value": metadata.get("value", " "),
+        "type": metadata.get("type", " "),
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
+    }
+    return await db.metadata_table_postgres.create_record(values)
+
+
+async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
+                       run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
+                       artifact={},
+                       user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+    values = {
+        "flow_id": flow_id,
+        "run_number": run_number,
+        "run_id": run_id,
+        "step_name": step_name,
+        "task_id": str(task_id),
+        "task_name": task_name,
+        "name": artifact.get("name", " "),
+        "location": artifact.get("location", " "),
+        "ds_type": artifact.get("ds_type", " "),
+        "sha": artifact.get("sha", " "),
+        "type": artifact.get("type", " "),
+        "content_type": artifact.get("content_type", " "),
+        "attempt_id": artifact.get("attempt_id", 0),
+        "user_name": user_name,
+        "tags": json.dumps(tags),
+        "system_tags": json.dumps(system_tags)
+    }
+    return await db.artifact_table_postgres.create_record(values)
+
+# Row helpers end
+
+# Resource helpers
 
 async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None):
     """
