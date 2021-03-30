@@ -1,6 +1,6 @@
 from .utils import (
     init_app, init_db, clean_db,
-    assert_api_get_response, assert_api_post_response,
+    assert_api_get_response, assert_api_post_response, compare_partial,
     add_flow, add_run, add_step,
     add_task, add_artifact
 )
@@ -75,14 +75,8 @@ async def test_artifact_post(cli, db):
     _first_found = (await db.artifact_table_postgres.get_artifact(_task["flow_id"], _task["run_number"], _task["step_name"], _task["task_id"], _first_artifact["name"])).body
     _second_found = (await db.artifact_table_postgres.get_artifact(_task["flow_id"], _task["run_number"], _task["step_name"], _task["task_id"], _second_artifact["name"])).body
 
-    def _compare_partial_artifact(actual, partial):
-        "compare that all keys of partial exist in actual, and that the values match."
-        for k, v in partial.items():
-            assert k in actual
-            assert v == actual[k]
-
-    _compare_partial_artifact(_first_found, _first_artifact)
-    _compare_partial_artifact(_second_found, _second_artifact)
+    compare_partial(_first_found, _first_artifact)
+    compare_partial(_second_found, _second_artifact)
 
     # Posting the same artifacts twice should not add anything due to key constraints
     await assert_api_post_response(

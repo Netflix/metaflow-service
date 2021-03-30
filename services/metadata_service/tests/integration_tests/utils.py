@@ -11,6 +11,7 @@ from services.metadata_service.api.run import RunApi
 from services.metadata_service.api.step import StepApi
 from services.metadata_service.api.task import TaskApi
 from services.metadata_service.api.artifact import ArtificatsApi
+from services.metadata_service.api.metadata import MetadataApi
 
 # Migration imports
 from services.migration_service.api.admin import AdminApi as MigrationAdminApi
@@ -34,6 +35,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     TaskApi(app)
     AuthApi(app)
     ArtificatsApi(app)
+    MetadataApi(app)
 
     return loop.run_until_complete(aiohttp_client(app))
 
@@ -249,3 +251,9 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
         assert body == expected_body
     else:
         return body
+
+def compare_partial(actual, partial):
+    "compare that all keys of partial exist in actual, and that the values match."
+    for k, v in partial.items():
+        assert k in actual
+        assert v == actual[k]
