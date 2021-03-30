@@ -10,6 +10,8 @@ from services.metadata_service.api.flow import FlowApi
 from services.metadata_service.api.run import RunApi
 from services.metadata_service.api.step import StepApi
 from services.metadata_service.api.task import TaskApi
+from services.metadata_service.api.artifact import ArtificatsApi
+
 # Migration imports
 from services.migration_service.api.admin import AdminApi as MigrationAdminApi
 from services.migration_service.data.postgres_async_db import \
@@ -31,6 +33,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     StepApi(app)
     TaskApi(app)
     AuthApi(app)
+    ArtificatsApi(app)
 
     return loop.run_until_complete(aiohttp_client(app))
 
@@ -211,3 +214,38 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
     if data:
         body = json.loads(await response.text())
         assert body == data
+
+
+async def assert_api_post_response(cli, path: str, payload: object = None, status: int = 200, expected_body: object = None):
+    """
+    Perform a POST request with the provided http cli to the provided path with the payload,
+    asserts that the status and data received are correct.
+    Expectation is that the API returns text/plain format json.
+
+    Parameters
+    ----------
+    cli : aiohttp cli
+        aiohttp test client
+    path : str
+        url path to perform POST request to
+    payload : object (default None)
+        the payload to be sent with the POST request, as json.
+    status : int (default 200)
+        http status code to expect from response
+    expected_body : object
+        An object to assert the api response against.
+    
+    Returns
+    -------
+    Object or None
+        returns the body of the api response if no data was provided to assert against, otherwise returns None
+    """
+    response = await cli.post(path, json=payload)
+
+    assert response.status == status
+
+    body = json.loads(await response.text())
+    if expected_body:
+        assert body == expected_body
+    else:
+        return body
