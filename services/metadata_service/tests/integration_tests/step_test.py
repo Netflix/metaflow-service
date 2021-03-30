@@ -1,7 +1,7 @@
 from .utils import (
     init_app, init_db, clean_db,
-    assert_api_get_response, add_flow,
-    add_run, add_step
+    assert_api_get_response, assert_api_post_response, compare_partial,
+    add_flow, add_run, add_step
 )
 import pytest
 import json
@@ -34,31 +34,41 @@ async def test_step_post(cli, db):
         "tags": ["a_tag", "b_tag"],
         "system_tags": ["runtime:test"]
     }
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/steps/test_step/step".format(**_run), json=payload)
-
-    assert response.status == 200  # why 200 instead of 201?
-    body = await response.text()
-    _step = json.loads(body)
+    _step = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/test_step/step".format(**_run),
+        payload=payload,
+        status=200  # why 200 instead of 201?
+    )
 
     # Record should be found in DB
-    _found = await db.step_table_postgres.get_step(_step["flow_id"], _step["run_number"], _step["step_name"])
+    _found = (await db.step_table_postgres.get_step(_step["flow_id"], _step["run_number"], _step["step_name"])).body
 
-    assert _found.body["step_name"] == "test_step"
-    assert _found.body["user_name"] == payload["user_name"]
-    assert _found.body["tags"] == payload["tags"]
-    assert _found.body["system_tags"] == payload["system_tags"]
-
+    compare_partial(_found, {"step_name": "test_step", **payload})
+    
     # Duplicate step names should not be accepted for a run
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/steps/test_step/step".format(**_run), json=payload)
-    assert response.status == 409
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/test_step/step".format(**_run),
+        payload=payload,
+        status=409
+    )
 
     # Posting on a non-existent flow_id should result in error
-    response = await cli.post("/flows/NonExistentFlow/runs/{run_number}/steps/test_step/step".format(**_run), json=payload)
-    assert response.status == 500
+    await assert_api_post_response(
+        cli,
+        path="/flows/NonExistentFlow/runs/{run_number}/steps/test_step/step".format(**_run),
+        payload=payload,
+        status=500
+    )
 
     # posting on a non-existent run number should result in an error
-    response = await cli.post("/flows/{flow_id}/runs/1234/steps/test_step/step".format(**_run), json=payload)
-    assert response.status == 500
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/1234/steps/test_step/step".format(**_run),
+        payload=payload,
+        status=500
+    )
 
 
 async def test_steps_get(cli, db):

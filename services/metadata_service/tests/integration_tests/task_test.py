@@ -1,7 +1,7 @@
 from .utils import (
     init_app, init_db, clean_db,
-    assert_api_get_response, add_flow,
-    add_run, add_step, add_task
+    assert_api_get_response, assert_api_post_response, compare_partial,
+    add_flow, add_run, add_step, add_task
 )
 import pytest
 import json
@@ -35,30 +35,41 @@ async def test_task_post(cli, db):
         "tags": ["a_tag", "b_tag"],
         "system_tags": ["runtime:test"]
     }
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task".format(**_step), json=payload)
-
-    assert response.status == 200  # why 200 instead of 201?
-    body = await response.text()
-    _task = json.loads(body)
+    _task = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task".format(**_step),
+        payload=payload,
+        status=200  # why 200 instead of 201?
+    )
 
     # Record should be found in DB
-    _found = await db.task_table_postgres.get_task(_task["flow_id"], _task["run_number"], _task["step_name"], _task["task_id"])
+    _found = (await db.task_table_postgres.get_task(_task["flow_id"], _task["run_number"], _task["step_name"], _task["task_id"])).body
 
-    assert _found.body["user_name"] == payload["user_name"]
-    assert _found.body["tags"] == payload["tags"]
-    assert _found.body["system_tags"] == payload["system_tags"]
+    compare_partial(_found, payload)
 
     # Posting on a non-existent flow_id should result in error
-    response = await cli.post("/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/task".format(**_task), json=payload)
-    assert response.status == 500
+    await assert_api_post_response(
+        cli,
+        path="/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/task".format(**_task),
+        payload=payload,
+        status=500
+    )
 
     # posting on a non-existent run number should result in an error
-    response = await cli.post("/flows/{flow_id}/runs/1234/steps/{step_name}/task".format(**_task), json=payload)
-    assert response.status == 500
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/1234/steps/{step_name}/task".format(**_task),
+        payload=payload,
+        status=500
+    )
 
     # posting on a non-existent step_name should result in a 404 due to foreign key constraint
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/steps/nonexistent/task".format(**_task), json=payload)
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/nonexistent/task".format(**_task),
+        payload=payload,
+        status=404
+    )
 
 
 async def test_task_heartbeat_post(cli, db):
@@ -71,11 +82,11 @@ async def test_task_heartbeat_post(cli, db):
     _task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
     assert _task["last_heartbeat_ts"] == None
 
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat".format(**_task))
-
-    assert response.status == 200  # why 200 instead of 201?
-    body = await response.text()
-    _response = json.loads(body)
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat".format(**_task),
+        status=200  # why 200 instead of 201?
+    )
 
     # Record should be found in DB
     _found = (await db.task_table_postgres.get_task(_task["flow_id"], _task["run_number"], _task["step_name"], _task["task_id"])).body
@@ -83,17 +94,29 @@ async def test_task_heartbeat_post(cli, db):
     assert _found["last_heartbeat_ts"] is not None
 
     # should get 404 for non-existent flow, run, step and task
-    response = await cli.post("/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat".format(**_task))
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat".format(**_task),
+        status=404
+    )
 
-    response = await cli.post("/flows/{flow_id}/runs/1234/steps/{step_name}/tasks/{task_id}/heartbeat".format(**_task))
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/1234/steps/{step_name}/tasks/{task_id}/heartbeat".format(**_task),
+        status=404
+    )
 
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/steps/nonexistent/tasks/{task_id}/heartbeat".format(**_task))
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/nonexistent/tasks/{task_id}/heartbeat".format(**_task),
+        status=404
+    )
 
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/1234/heartbeat".format(**_task))
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/1234/heartbeat".format(**_task),
+        status=404
+    )
 
 
 async def test_tasks_get(cli, db):

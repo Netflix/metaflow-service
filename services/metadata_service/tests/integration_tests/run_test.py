@@ -1,4 +1,8 @@
-from .utils import init_app, init_db, clean_db, assert_api_get_response, add_flow, add_run
+from .utils import (
+    init_app, init_db, clean_db,
+    assert_api_get_response, assert_api_post_response, compare_partial,
+    add_flow, add_run
+)
 import pytest
 import json
 pytestmark = [pytest.mark.integration_tests]
@@ -29,23 +33,25 @@ async def test_run_post(cli, db):
         "tags": ["a_tag", "b_tag"],
         "system_tags": ["runtime:test"]
     }
-    response = await cli.post("/flows/{flow_id}/run".format(**_flow), json=payload)
-
-    assert response.status == 200  # why 200 instead of 201?
-    body = await response.text()
-    _run = json.loads(body)
+    _run = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/run".format(**_flow),
+        payload=payload,
+        status=200  # why 200 instead of 201?
+    )
 
     # Record should be found in DB
-    _found = await db.run_table_postgres.get_run(_run["flow_id"], _run["run_number"])
+    _found = (await db.run_table_postgres.get_run(_run["flow_id"], _run["run_number"])).body
 
-    assert _found.body["user_name"] == payload["user_name"]
-    assert _found.body["tags"] == payload["tags"]
-    assert _found.body["system_tags"] == payload["system_tags"]
+    compare_partial(_found, payload)
 
     # Posting on a non-existent flow_id should result in error
-    response = await cli.post("/flows/NonExistentFlow/run", json=payload)
-
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/NonExistentFlow/run",
+        payload=payload,
+        status=404
+    )
 
 
 async def test_run_heartbeat_post(cli, db):
@@ -55,11 +61,11 @@ async def test_run_heartbeat_post(cli, db):
     _run = (await add_run(db, flow_id=_flow["flow_id"])).body
     assert _run["last_heartbeat_ts"] == None
 
-    response = await cli.post("/flows/{flow_id}/runs/{run_number}/heartbeat".format(**_run))
-
-    assert response.status == 200  # why 200 instead of 201?
-    body = await response.text()
-    _response = json.loads(body)
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/heartbeat".format(**_run),
+        status=200   # why 200 instead of 201?
+    )
 
     # Record should be found in DB
     _found = (await db.run_table_postgres.get_run(_run["flow_id"], _run["run_number"])).body
@@ -67,11 +73,17 @@ async def test_run_heartbeat_post(cli, db):
     assert _found["last_heartbeat_ts"] is not None
 
     # should get 404 for non-existent run
-    response = await cli.post("/flows/NonExistentFlow/runs/{run_number}/heartbeat".format(**_run))
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/NonExistentFlow/runs/{run_number}/heartbeat".format(**_run),
+        status=404
+    )
 
-    response = await cli.post("/flows/{flow_id}/runs/1234/heartbeat".format(**_run))
-    assert response.status == 404
+    await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/1234/heartbeat".format(**_run),
+        status=404
+    )
 
 
 async def test_runs_get(cli, db):
