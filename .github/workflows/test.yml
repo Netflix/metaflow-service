@@ -1,0 +1,92 @@
+name: Test
+
+on: [push]
+
+jobs:
+  codestyle:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [3.7]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python ${{ matrix.python-version }} dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pycodestyle
+      - name: Run Python PEP8 code style checks
+        run: pycodestyle
+  
+  unit:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: [3.7]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python ${{ matrix.python-version }} dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install tox
+      - name: Run Tox
+        run: tox -e unit
+
+  integration:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres: # This will be the hostname
+        image: postgres:11
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    strategy:
+      matrix:
+        python-version: [3.7]
+        golang-version: ["^1.14.5"]
+
+    env:
+      MF_METADATA_DB_HOST: 127.0.0.1 # localhost won't work here
+      MF_METADATA_DB_PORT: 5432
+      MF_METADATA_DB_USER: test
+      MF_METADATA_DB_PSWD: test
+      MF_METADATA_DB_NAME: test
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.golang-version }}
+      - name: Install goose migration tool
+        run: go get -u github.com/pressly/goose/cmd/goose
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Python ${{ matrix.python-version }} dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install tox
+      - name: Run Tox
+        run: tox -v -e integration
