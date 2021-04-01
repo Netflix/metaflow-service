@@ -9,6 +9,8 @@ TODO: This UI Service might introduce some overlap between the Metadata Service,
 
 Refer to project root for running the project [README.md](../../README.md)
 
+### Hosting the backend
+
 Easiest way to get started is to use `docker-compose`.
 
 Project root has `docker-compose.yml` that contains PostgreSQL database as well as Metadata service and UI service.
@@ -33,6 +35,25 @@ Optionally you can also overrider the host and port the service runs on:
 - `MF_UI_METADATA_PORT` [defaults to 8083]
 - `MF_UI_METADATA_HOST` [defaults to 0.0.0.0]
 
+
+Running the service without Docker (from project root):
+
+> ```sh
+> $ pip3 install -r services/ui_backend_service/requirements.txt
+> $ python3 -m services.ui_backend_service.ui_server
+> ```
+### Hosting the Frontend UI
+
+This service provides the UI Backend. There are two options for hosting the UI Frontend assets from [Metaflow-ui](url-to-be-added)
+
+#### Separately hosting frontend assets
+
+For hosting the frontend assets for a production environment, refer to the documentation of your chosen host on how to serve static assets.
+
+If you require the UI for local development, refer to [Metaflow-ui/README.md](url-to-be-added) on how to host the UI locally.
+
+#### Serve frontend assets through the backend instance 
+
 Enable built-in UI bundle serving (assumes assets are located inside `ui/` folder):
 
 - `UI_ENABLED` [defaults to 0]
@@ -46,70 +67,6 @@ This also works as a Docker build argument to download and install latest or spe
 > ```sh
 > $ docker build --arg UI_ENABLED=1 UI_VERSION=v0.1.2 ...
 > ```
-
-Configure amount of seconds realtime events are kept in queue (delivered to UI in case of reconnects):
-
-- `WS_QUEUE_TTL_SECONDS` [defaults to 300 (5 minutes)]
-
-Configure amount of runs to prefetch during server startup (artifact cache):
-
-- `PREFETCH_RUNS_SINCE` [in seconds, defaults to 2 days ago (86400 * 2 seconds)]
-- `PREFETCH_RUNS_LIMIT` [defaults to 50]
-
-Configure the amount of concurrent cache actions. This works similar to a database connection pool.
-
-- `CACHE_ARTIFACT_MAX_ACTIONS` [max number of artifact cache actions. Defaults to 16]
-- `CACHE_DAG_MAX_ACTIONS` [max number of DAG cache actions. Defaults to 16]
-
-Configure the maximum usable space by the cache:
-
-- `CACHE_ARTIFACT_STORAGE_LIMIT` [in bytes, defaults to 600000]
-- `CACHE_DAG_STORAGE_LIMIT` [in bytes, defaults to 100000]
-
-Running the service without Docker (from project root):
-
-> ```sh
-> $ pip3 install -r services/ui_backend_service/requirements.txt
-> $ python3 -m services.ui_backend_service.ui_server
-> ```
-
-### Feature flags
-
-All environment variables prefixed with `FEATURE_` will be publicly available under `/features` route.
-
-> ```sh
-> $ curl http://service:8083/features
-> {
->   "FEATURE_CACHE": true,
->   "FEATURE_DAG": false
-> }
-> ```
-
-Example values:
-
-> ```
-> FEATURE_EXAMPLE=1           -> True
-> FEATURE_EXAMPLE=true        -> True
-> FEATURE_EXAMPLE=t           -> True
-> FEATURE_EXAMPLE=anything    -> True
-> FEATURE_EXAMPLE=0           -> False
-> FEATURE_EXAMPLE=false       -> False
-> FEATURE_EXAMPLE=f           -> False
-> ```
-
-These feature flags are passed to frontend and can be used to dynamically control features.
-
-### Optional configuration
-
-The threshold parameters for heartbeat checks can also be configured when necessary with the following environment variables.
-
-- `HEARTBEAT_THRESHOLD` [controls at what point a heartbeat is considered expired. Default is `WAIT_TIME * 6`]
-- `OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 2 weeks]
-
-## Baseurl configuration
-
-Use `MF_BASEURL` environment variable to overwrite the default API baseurl.
-This affects API responses where meta links are provided as a response.
 
 ## API examples
 
@@ -168,22 +125,7 @@ ew = ends with              *string$
 is = is                     IS
 ```
 
-## Custom Navigation links for UI
-
-You can customize the admin navigation links presented by the UI by setting an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value should be a _stringified_ json of the format:
-
-```json
-[
-  {
-    "href": "https://docs.metaflow.org/",
-    "label": "Metaflow documentation"
-  },
-  {
-    "href": "https://github.com/Netflix/metaflow",
-    "label": "GitHub"
-  }
-]
-```
+## Further configuration
 
 You are free to provide as many links as necessary.
 
@@ -238,3 +180,5 @@ Example with all the attributes:
   }
 ]
 ```
+In case more intricate configuration is required for any component of the UI Service,
+see [README-environment.md](README-environment.md) for details on possible environment variables that can be tuned.
