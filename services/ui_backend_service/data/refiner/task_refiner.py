@@ -31,9 +31,9 @@ class TaskRefiner(Refinery):
         -------
         A refined DBResponse, or in case of errors, the original DBResponse
         """
-        refined_response = await self._postprocess(response)
         if response.response_code != 200 or not response.body:
             return response
+        refined_response = await self._postprocess(response)
 
         def _process(item):
             if item['status'] == 'unknown':

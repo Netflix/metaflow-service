@@ -178,7 +178,7 @@ class ArtifactCacheStore(object):
                 [f"/flows/{flow_id}/runs/{run_number}/parameters"],
                 parameters
             )
-        except:
+        except Exception:
             logger.error("Run parameter fetching failed")
 
     async def preload_event_handler(self, run_number: int):
