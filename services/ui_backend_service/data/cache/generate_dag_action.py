@@ -2,7 +2,6 @@ import hashlib
 import json
 from tarfile import TarFile
 
-from metaflow import FlowSpec
 from metaflow.client.cache import CacheAction
 from services.utils import get_traceback_str
 
@@ -36,7 +35,8 @@ class GenerateDag(CacheAction):
             'type': string,
             'box_next': boolean,
             'box_ends': string,
-            'next': list
+            'next': list,
+            'doc': string
             },
             ...
         }
@@ -133,7 +133,8 @@ def generate_dag(flow_id, tarball_path):
             'type': node.type,
             'box_next': node.type not in ('linear', 'join'),
             'box_ends': node.matching_join,
-            'next': node.out_funcs
+            'next': node.out_funcs,
+            'doc': node.doc
         }
     return dag
 
