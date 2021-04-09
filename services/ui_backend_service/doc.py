@@ -501,6 +501,10 @@ swagger_definitions = {
                     "type": "string"
                 },
                 "description": "names of next steps that follow from this step"
+            },
+            "doc": {
+                "type": "string",
+                "description": "DAG Node Docstring"
             }
         },
         "required": ["type", "box_next", "box_ends", "next"]

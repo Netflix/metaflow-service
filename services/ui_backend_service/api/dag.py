@@ -2,7 +2,6 @@ from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import format_response, web_response
 
-from aiohttp import web
 import json
 
 
