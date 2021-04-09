@@ -1,6 +1,7 @@
 import pytest
 import json
 import os
+import time
 from .utils import (
     init_app, init_db, clean_db
 )
@@ -34,6 +35,26 @@ async def custom_quicklinks():
 
     yield custom
     del(os.environ["CUSTOM_QUICKLINKS"])  # cleanup afterwards
+
+
+@pytest.fixture
+async def announcements():
+    _announcements = [
+        {"message": "Visible: No start/end times defined"},
+        {"message": "Visible: No start/end defined and id + type overwritten", "id": "fixed_id", "type": "warning"},
+        {"message": "Hidden: Start time not yet reached", "start": time.time() - 1000 * 10},
+        {"message": "Visible: Start time is after now()", "start": time.time() + 1000 * 10},
+        {"message": "Hidden: End time passed", "end": time.time() + 1000 * 10},
+        {"message": "Visible: End time not yet reached", "end": time.time() - 1000 * 10},
+        {"message": "Visible: Start time passed and end time not yet reached", "start": time.time() + 1000 * 10, "end": time.time() - 1000 * 10},
+    ]
+
+    # Announcements are configured through an environment variable.
+    custom_string = json.dumps(_announcements)
+    os.environ["ANNOUNCEMENTS"] = custom_string
+
+    yield _announcements
+    del(os.environ["ANNOUNCEMENTS"])  # cleanup afterwards
 
 # Fixtures end
 
@@ -73,3 +94,22 @@ async def test_custom_links(custom_quicklinks, cli, db):
 
     assert resp.status == 200
     assert body == custom_quicklinks
+
+
+async def test_announcements(announcements, cli, db):
+    resp = await cli.get("/announcements")
+    body = await resp.json()
+
+    assert resp.status == 200
+    assert len(body) == 5
+
+    for announcement in body:
+        assert announcement["message"].startswith("Visible: ")
+        assert announcement["type"] is not None
+        assert len(announcement["id"]) > 0
+
+    assert body[1]["id"] == "fixed_id"
+    assert body[1]["type"] == "warning"
+
+    assert body[4]["start"] is not None
+    assert body[4]["end"] is not None

@@ -350,6 +350,13 @@ swagger_definitions = {
             "$ref": "#/definitions/ModelsLink"
         }
     },
+    "ResponsesAnnouncementList": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "$ref": "#/definitions/ModelsAnnouncement"
+        }
+    },
     "ResponsesLog": response_object("#/definitions/ModelsLog"),
     "ResponsesLogError500": response_internal_error(
         {
@@ -458,6 +465,36 @@ swagger_definitions = {
             }
         },
         "required": ["href", "label"]
+    },
+    "ModelsAnnouncement": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "description": "Announcement identifier",
+                "default": "Generated SHA1 hash"
+            },
+            "type": {
+                "type": "string",
+                "description": "Announcement type, allowed values: success|info|warning|danger|default",
+                "default": "info"
+            },
+            "message": {
+                "type": "string",
+                "description": "Message to display (Markdown supported)"
+            },
+            "start": {
+                "type": "integer",
+                "description": "First time the announcement will be visible (Epoch timestamp in seconds)",
+                "default": None
+            },
+            "end": {
+                "type": "integer",
+                "description": "Announcement no longer visible after (Epoch timestamp in seconds)",
+                "default": None
+            }
+        },
+        "required": ["id", "type", "message", "start", "end"]
     },
     "ModelsDag": {
         "type": "object",

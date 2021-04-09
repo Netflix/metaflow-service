@@ -197,3 +197,41 @@ Provide the `CUSTOM_QUICKLINKS` environment variable for the docker run command
   CUSTOM_QUICKLINKS='[{"href": "https://github.com/Netflix/metaflow", "label": "GitHub"}]' docker run metaflow/ui-service
 
 ```
+
+## Announcements for UI
+
+You can define announcements that are broadcasted to all clients using the UI by setting an environment variable `ANNOUNCEMENTS` for the backend process. The value should be a _stringified_ json of the format:
+
+```json
+[
+  {
+    "message": "Upcoming service maintenance"
+  }
+]
+```
+
+You can provide as many announcements as necessary, topmost item is considered the latest.
+
+Following attributes are supported:
+
+| Attribute | Description                                                              | Default value                                 |
+| --------- | ------------------------------------------------------------------------ | --------------------------------------------- |
+| `id`      | Announcement identifier                                                  | Generated SHA1 hash `622b3a6...` - `optional` |
+| `type`    | Announcement type, allowed values: `success,info,warning,danger,default` | `info` - `optional`                           |
+| `message` | Message to display (Markdown supported)                                  | `required`                                    |
+| `start`   | First time the announcement will be visible (Epoch timestamp in seconds) | `null` - `optional`                           |
+| `end`     | Announcement no longer visible after (Epoch timestamp in seconds)        | `null` - `optional`                           |
+
+Example with all the attributes:
+
+```json
+[
+  {
+    "id": "fixed_id_attribute",
+    "type": "info",
+    "message": "Upcoming service maintenance",
+    "start": 1610406000,
+    "end": 1610402400
+  }
+]
+```
