@@ -1,6 +1,6 @@
-from services.data.models import TaskRow
+from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
-from .utils import read_body, format_response, handle_exceptions
+from services.utils import read_body, format_response, handle_exceptions
 import json
 from aiohttp import web
 
@@ -192,7 +192,6 @@ class TaskApi(object):
             system_tags=system_tags,
         )
         return await self._async_table.add_task(task)
-
 
     @format_response
     @handle_exceptions
