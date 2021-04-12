@@ -3,7 +3,11 @@ import hashlib
 import json
 import time
 from multidict import MultiDict
-from services.utils import web_response, METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER, SERVICE_COMMIT_HASH, SERVICE_BUILD_TIMESTAMP
+from services.utils import (
+    web_response, METADATA_SERVICE_VERSION,
+    METADATA_SERVICE_HEADER, SERVICE_COMMIT_HASH,
+    SERVICE_BUILD_TIMESTAMP
+)
 from aiohttp import web
 
 UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
@@ -18,7 +22,7 @@ class AdminApi(object):
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)
         app.router.add_route("GET", "/links", self.links)
-        app.router.add_route("GET", "/announcements", self.announcements)
+        app.router.add_route("GET", "/announcements", self.get_announcements)
 
         defaults = [
             {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
@@ -80,7 +84,7 @@ class AdminApi(object):
 
         return web_response(status=200, body=self.navigation_links)
 
-    async def announcements(self, request):
+    async def get_announcements(self, request):
         """
         ---
         description: Provides announcements for the UI
