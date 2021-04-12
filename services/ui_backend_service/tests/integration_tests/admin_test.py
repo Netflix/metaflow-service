@@ -56,6 +56,17 @@ async def announcements():
     yield _announcements
     del(os.environ["ANNOUNCEMENTS"])  # cleanup afterwards
 
+
+@pytest.fixture
+async def broken_env():
+    # Set environment variables that can not be parsed as json.
+    broken_json = "notvalidjson"
+    os.environ["CUSTOM_QUICKLINKS"] = broken_json
+    os.environ["ANNOUNCEMENTS"] = broken_json
+
+    yield
+    del(os.environ["CUSTOM_QUICKLINKS"])  # cleanup afterwards
+    del(os.environ["ANNOUNCEMENTS"])  # cleanup afterwards
 # Fixtures end
 
 
@@ -113,3 +124,23 @@ async def test_announcements(announcements, cli, db):
 
     assert body[4]["start"] is not None
     assert body[4]["end"] is not None
+
+
+async def test_broken_json_announcements(broken_env, cli, db):
+    resp = await cli.get("/announcements")
+    body = await resp.json()
+
+    assert resp.status == 200
+    assert body == []
+
+
+async def test_broken_json_links(broken_env, cli, db):
+    default_links = [
+        {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
+        {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
+    ]
+    resp = await cli.get("/links")
+    body = await resp.json()
+
+    assert resp.status == 200
+    assert body == default_links
