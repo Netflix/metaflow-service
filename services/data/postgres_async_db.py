@@ -10,6 +10,9 @@ from .db_utils import DBResponse, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 
+from services.data.service_configs import max_connection_retires, \
+    connection_retry_wait_time_seconds
+
 WAIT_TIME = 10
 
 class AsyncPostgresDB(object):
@@ -64,8 +67,8 @@ class AsyncPostgresDB(object):
         )
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
-        retries = 3
-        for i in range(retries):
+        retries = max_connection_retires
+        for i in range(retries+1):
             while True:
                 try:
                     self.pool = await aiopg.create_pool(dsn)
@@ -74,7 +77,7 @@ class AsyncPostgresDB(object):
                 except Exception as e:
                     if retries - i < 1:
                         raise e
-                    time.sleep(1)
+                    time.sleep(connection_retry_wait_time_seconds)
                     continue
                 break
 
