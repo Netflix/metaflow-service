@@ -2,7 +2,7 @@ from subprocess import Popen, PIPE
 from ..data.postgres_async_db import PostgresUtils
 from . import version_dict, latest, goose_template, \
     goose_migration_template
-from migration_service.migration_config import host, port, user, password, \
+from ..migration_config import host, port, user, password, \
     database_name
 
 
@@ -19,7 +19,7 @@ class ApiUtils(object):
         try:
             migrations_list = ApiUtils.list_migrations()
             index_version = migrations_list.index(current_version)
-            return migrations_list[index_version+1:]
+            return migrations_list[index_version + 1:]
         except:
             return migrations_list
 
