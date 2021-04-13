@@ -181,4 +181,4 @@ Example with all the attributes:
 ]
 ```
 In case more intricate configuration is required for any component of the UI Service,
-see [README-environment.md](README-environment.md) for details on possible environment variables that can be tuned.
+see [README-environment.md](docs/environment.md) for details on possible environment variables that can be tuned.
