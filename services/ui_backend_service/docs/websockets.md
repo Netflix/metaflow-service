@@ -35,14 +35,16 @@ Unsubscribing is done through the same endpoint with the message:
 ### Resources
 Subscribable resource endpoints include. All subscriptions also adhere to the corresponding RESTful routes query parameters to further filter received messages.
 
-* `/flow_name/runs/`
-* `/flow_name/runs/run_number`
-* `/flow_name/runs/run_number/steps`
-* `/flow_name/runs/run_number/steps/step_name`
-* `/flow_name/runs/run_number/steps/step_name/tasks`
-* `/flow_name/runs/run_number/steps/step_name/tasks/task_id`
-* `/flow_name/runs/run_number/steps/step_name/tasks/task_id/logs/out`
-* `/flow_name/runs/run_number/steps/step_name/tasks/task_id/logs/err`
+```
+  /flow_name/runs/
+  /flow_name/runs/run_number
+  /flow_name/runs/run_number/steps
+  /flow_name/runs/run_number/steps/step_name
+  /flow_name/runs/run_number/steps/step_name/tasks
+  /flow_name/runs/run_number/steps/step_name/tasks/task_id
+  /flow_name/runs/run_number/steps/step_name/tasks/task_id/logs/out
+  /flow_name/runs/run_number/steps/step_name/tasks/task_id/logs/err
+```
 
 ### Received messages
 The web socket client can receive three types of messages for its subscription:
