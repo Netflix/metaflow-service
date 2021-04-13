@@ -16,6 +16,11 @@ var/
 .installed.cfg
 *.egg
 *.eggs
+*.zip
+
+# Test artifacts
+.tox/
+.coverage
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

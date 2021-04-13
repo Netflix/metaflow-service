@@ -4,16 +4,19 @@ import os
 from multidict import MultiDict
 from aiohttp import web
 from botocore.client import Config
-from .utils import get_traceback_str
-from . import METADATA_SERVICE_VERSION, METADATA_SERVICE_HEADER
+from services.utils import (
+    get_traceback_str,
+    METADATA_SERVICE_VERSION,
+    METADATA_SERVICE_HEADER
+)
 
 
 class AuthApi(object):
     def __init__(self, app):
-        app.router.add_route("GET", "/auth/token", self.get_authorization_token)
+        app.router.add_route("GET", "/auth/token",
+                             self.get_authorization_token)
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)
-
 
     async def version(self, request):
         """
@@ -46,7 +49,7 @@ class AuthApi(object):
                 description: invalid HTTP Method
         """
         return web.Response(text="pong", headers=MultiDict(
-                                {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+            {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
     async def get_authorization_token(self, request):
         """
