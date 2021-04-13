@@ -71,7 +71,7 @@ This also works as a Docker build argument to download and install latest or spe
 ## API documentation
 
 A thorough documentation of API routes, responses and types can be accessed through the Swagger docs that the backend serves.
-These are accessible at `HOSTNAME:PORT/api/doc`
+These are accessible at `example.com/api/doc`
 ### Examples
 
 ```
