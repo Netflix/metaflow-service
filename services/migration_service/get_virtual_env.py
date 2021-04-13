@@ -21,7 +21,7 @@ try:
         except Exception:
             print("something broke")
         finally:
-            retry_count = retry_count -1
+            retry_count = retry_count - 1
     # continue
     s.close()
 except Exception:

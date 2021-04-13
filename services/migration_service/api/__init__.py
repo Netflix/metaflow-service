@@ -18,10 +18,9 @@ goose_template = "goose postgres " \
 
 path = os.path.dirname(__file__) + "/../migration_files"
 goose_migration_template = "goose -dir " + path + " postgres " \
-                         "\"dbname={} " \
-                         "user={} " \
-                         "password={} " \
-                         "host={} " \
-                         "port={} " \
-                         "sslmode=disable\" {}"
-
+    "\"dbname={} " \
+    "user={} " \
+    "password={} " \
+    "host={} " \
+    "port={} " \
+    "sslmode=disable\" {}"
