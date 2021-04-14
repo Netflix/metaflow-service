@@ -61,7 +61,7 @@ def _get_latest_attempt_id_for_tasks(artifacts):
     return attempt_ids
 
 
-def _filter_artifacts_by_attempt_id_for_tasks(artifacts):
+def filter_artifacts_by_attempt_id_for_tasks(artifacts):
     attempt_ids = _get_latest_attempt_id_for_tasks(artifacts)
     result = []
     for artifact in artifacts:

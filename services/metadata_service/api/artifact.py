@@ -1,6 +1,6 @@
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import _filter_artifacts_by_attempt_id_for_tasks
+from services.data.db_utils import filter_artifacts_by_attempt_id_for_tasks
 from services.utils import read_body, format_response, handle_exceptions
 import json
 
@@ -137,7 +137,7 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-        filtered_body = _filter_artifacts_by_attempt_id_for_tasks(
+        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
@@ -181,7 +181,7 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name
         )
 
-        filtered_body = _filter_artifacts_by_attempt_id_for_tasks(
+        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
@@ -216,7 +216,7 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = _filter_artifacts_by_attempt_id_for_tasks(
+        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
