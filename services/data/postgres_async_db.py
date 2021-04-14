@@ -17,6 +17,9 @@ from services.utils import DBConfiguration
 
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
+from services.data.service_configs import max_connection_retires, \
+    connection_retry_wait_time_seconds
+
 WAIT_TIME = 10
 
 # Create database triggers automatically, disabled by default
@@ -67,7 +70,7 @@ class _AsyncPostgresDB(object):
     async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=True):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
-        retries = 3
+        retries = max_connection_retires
         for i in range(retries):
             try:
                 self.pool = await aiopg.create_pool(
@@ -94,9 +97,9 @@ class _AsyncPostgresDB(object):
                 break  # Break the retry loop
             except Exception as e:
                 self.logger.exception("Exception occured")
-                if retries - i < 1:
+                if retries - i <= 1:
                     raise e
-                time.sleep(1)
+                time.sleep(connection_retry_wait_time_seconds)
 
     async def get_table_by_name(self, table_name: str):
         for table in self.tables:
