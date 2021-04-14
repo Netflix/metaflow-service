@@ -101,7 +101,7 @@ class _AsyncPostgresDB(object):
                     raise e
                 time.sleep(connection_retry_wait_time_seconds)
 
-    async def get_table_by_name(self, table_name: str):
+    def get_table_by_name(self, table_name: str):
         for table in self.tables:
             if table.table_name == table_name:
                 return table
