@@ -22,14 +22,14 @@ class AdminApi(object):
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)
         app.router.add_route("GET", "/links", self.links)
-        app.router.add_route("GET", "/announcements", self.get_announcements)
+        app.router.add_route("GET", "/notifications", self.get_notifications)
 
         defaults = [
             {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
             {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
         ]
 
-        self.announcements = _get_announcements_from_env() or []
+        self.notifications = _get_notifications_from_env() or []
         self.navigation_links = _get_links_from_env() or defaults
 
     async def version(self, request):
@@ -84,46 +84,83 @@ class AdminApi(object):
 
         return web_response(status=200, body=self.navigation_links)
 
-    async def get_announcements(self, request):
+    async def get_notifications(self, request):
         """
         ---
-        description: Provides announcements for the UI
+        description: Provides System Notifications for the UI
         tags:
         - Admin
         produces:
         - 'application/json'
         responses:
             "200":
-                description: Returns list of active announcements
+                description: Returns list of active system notification
                 schema:
-                    $ref: '#/definitions/ResponsesAnnouncementList'
+                    $ref: '#/definitions/ResponsesNotificationList'
             "405":
                 description: invalid HTTP Method
         """
-
-        now = time.time()
-        processed_announcements = []
-        for announcement in self.announcements:
+        processed_notifications = []
+        for notification in self.notifications:
             try:
-                if "message" not in announcement:
-                    continue
-                if "start" in announcement and announcement["start"] < now:
-                    continue
-                if "end" in announcement and announcement["end"] > now:
+                if "message" not in notification:
                     continue
 
-                processed_announcements.append({
-                    "id": announcement.get("id", hashlib.sha1(
-                        str(announcement).encode('utf-8')).hexdigest()),
-                    "type": announcement.get("type", "info"),
-                    "message": announcement.get("message", ""),
-                    "start": announcement.get("start", None),
-                    "end": announcement.get("end", None)
+                # Created at is required and "start" is used by default if not value provided
+                # Notification will be ignored if both "created" and "start" are missing
+                created = notification.get("created", notification.get("start", None))
+                if not created:
+                    continue
+
+                processed_notifications.append({
+                    "id": notification.get("id", hashlib.sha1(
+                        str(notification).encode('utf-8')).hexdigest()),
+                    "type": notification.get("type", "info"),
+                    "message": notification.get("message", ""),
+                    "created": created,
+                    "start": notification.get("start", None),
+                    "end": notification.get("end", None)
                 })
             except:
                 pass
 
-        return web_response(status=200, body=processed_announcements)
+        # Filter notifications based on query parameters
+        # Supports eq,ne.lt,le,gt,ge operators for all the fields
+        def filter_notifications(notification):
+            comp_operators = {
+                "eq": lambda a, b: a == b,
+                "ne": lambda a, b: a != b,
+                "lt": lambda a, b: a < b,
+                "le": lambda a, b: a <= b,
+                "gt": lambda a, b: a > b,
+                "ge": lambda a, b: a >= b,
+            }
+
+            try:
+                for q in request.query.keys():
+                    if ":" in q:
+                        field, op = q.split(":", 1)
+                    else:
+                        field, op = q, "eq"
+
+                    # Make sure compare operator is supported, otherwise ignore
+                    # Compare value is typecasted to match field type
+                    if op in comp_operators:
+                        field_val = notification.get(field, None)
+                        if not field_val:
+                            continue
+                        comp_val = type(field_val)(request.query.get(q, None))
+                        if not comp_val:
+                            continue
+                        if not comp_operators[op](field_val, comp_val):
+                            return False
+            except:
+                pass
+
+            return True
+
+        return web_response(status=200, body=list(
+            filter(filter_notifications, processed_notifications)))
 
 
 def _get_json_from_env(variable_name: str):
@@ -137,5 +174,5 @@ def _get_links_from_env():
     return _get_json_from_env("CUSTOM_QUICKLINKS")
 
 
-def _get_announcements_from_env():
-    return _get_json_from_env("ANNOUNCEMENTS")
+def _get_notifications_from_env():
+    return _get_json_from_env("NOTIFICATIONS")

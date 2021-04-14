@@ -198,29 +198,31 @@ Provide the `CUSTOM_QUICKLINKS` environment variable for the docker run command
 
 ```
 
-## Announcements for UI
+## System Notifications for UI
 
-You can define announcements that are broadcasted to all clients using the UI by setting an environment variable `ANNOUNCEMENTS` for the backend process. The value should be a _stringified_ json of the format:
+You can define notifications that are broadcasted to all clients using the UI by setting an environment variable `NOTIFICATIONS` for the backend process. The value should be a _stringified_ json of the format:
 
 ```json
 [
   {
+    "created": 1618404534000,
     "message": "Upcoming service maintenance"
   }
 ]
 ```
 
-You can provide as many announcements as necessary, topmost item is considered the latest.
+You can provide as many notifications as necessary, topmost item is considered the latest.
 
 Following attributes are supported:
 
-| Attribute | Description                                                              | Default value                                 |
-| --------- | ------------------------------------------------------------------------ | --------------------------------------------- |
-| `id`      | Announcement identifier                                                  | Generated SHA1 hash `622b3a6...` - `optional` |
-| `type`    | Announcement type, allowed values: `success,info,warning,danger,default` | `info` - `optional`                           |
-| `message` | Message to display (Markdown supported)                                  | `required`                                    |
-| `start`   | First time the announcement will be visible (Epoch timestamp in seconds) | `null` - `optional`                           |
-| `end`     | Announcement no longer visible after (Epoch timestamp in seconds)        | `null` - `optional`                           |
+| Attribute | Description                                                                       | Default value                                 |
+| --------- | --------------------------------------------------------------------------------- | --------------------------------------------- |
+| `id`      | Notification identifier                                                           | Generated SHA1 hash `622b3a6...` - `optional` |
+| `type`    | Notification type, allowed values: `success,info,warning,danger,default`          | `info` - `optional`                           |
+| `message` | Message to display (Markdown supported)                                           | `required`                                    |
+| `created` | Notification created at (Epoch timestamp in milliseconds)                         | `required`                                    |
+| `start`   | Schedule notification to be visible starting at (Epoch timestamp in milliseconds) | `null` - `optional`                           |
+| `end`     | Schedule notification to disappear after (Epoch timestamp in milliseconds)        | `null` - `optional`                           |
 
 Example with all the attributes:
 
@@ -230,8 +232,9 @@ Example with all the attributes:
     "id": "fixed_id_attribute",
     "type": "info",
     "message": "Upcoming service maintenance",
-    "start": 1610406000,
-    "end": 1610402400
+    "created": 1618404534000,
+    "start": 1618404534000,
+    "end": 1618925483000
   }
 ]
 ```
