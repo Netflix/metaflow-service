@@ -68,15 +68,14 @@ async def test_metadata_post(cli, db):
     compare_partial(_first_found, METADATA_A)
     compare_partial(_second_found, METADATA_B)
 
-    # Posting the same metadata twice should not succeed with current schema,
-    # due to primary key constraints.
-    # NOTE: This will change in a future PR, so expect the test to start failing!
+    # Posting the same metadata twice should succeed, as duplicates are allowed due to
+    # task attempts producing items with the same names.
     await assert_api_post_response(
         cli,
         path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task),
         payload=payload,
         status=200,
-        expected_body={"metadata_created": 0}
+        expected_body={"metadata_created": 2}
     )
 
     # Posting on a non-existent flow_id should result in error
