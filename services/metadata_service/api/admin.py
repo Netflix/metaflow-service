@@ -9,6 +9,7 @@ from aiohttp import web
 from botocore.client import Config
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import (
+    web_response,
     get_traceback_str,
     METADATA_SERVICE_VERSION,
     METADATA_SERVICE_HEADER
@@ -89,7 +90,7 @@ class AuthApi(object):
                 status_code = 500
 
             cur.close()
-        return web.Response(status=status_code, body=json.dumps(status))
+        return web_response(status=status_code, body=json.dumps(status))
 
 
     async def get_authorization_token(self, request):
