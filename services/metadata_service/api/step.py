@@ -23,8 +23,8 @@ class StepApi(object):
         self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_steps(self, request):
         """
         ---
@@ -54,8 +54,8 @@ class StepApi(object):
         run_number = request.match_info.get("run_number")
         return await self._async_table.get_steps(flow_name, run_number)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_step(self, request):
         """
         ---
@@ -93,8 +93,8 @@ class StepApi(object):
         step_name = request.match_info.get("step_name")
         return await self._async_table.get_step(flow_name, run_number, step_name)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_step(self, request):
         """
         ---

@@ -18,8 +18,8 @@ class RunApi(object):
                              self.runs_heartbeat)
         self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_run(self, request):
         """
         ---
@@ -51,8 +51,8 @@ class RunApi(object):
         run_number = request.match_info.get("run_number")
         return await self._async_table.get_run(flow_name, run_number)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_all_runs(self, request):
         """
         ---
@@ -76,8 +76,8 @@ class RunApi(object):
         flow_name = request.match_info.get("flow_id")
         return await self._async_table.get_all_runs(flow_name)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_run(self, request):
         """
         ---
@@ -133,8 +133,8 @@ class RunApi(object):
 
         return await self._async_table.add_run(run_row)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def runs_heartbeat(self, request):
         """
         ---

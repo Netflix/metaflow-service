@@ -41,8 +41,8 @@ class ArtificatsApi(object):
         self._async_table = AsyncPostgresDB.get_instance().artifact_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_artifact(self, request):
         """
         ---
