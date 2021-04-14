@@ -5,6 +5,7 @@ import psycopg2
 import pytest
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.utils import DBConfiguration
 from services.metadata_service.api.admin import AuthApi
 from services.metadata_service.api.flow import FlowApi
 from services.metadata_service.api.run import RunApi
@@ -41,9 +42,10 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
 
 async def init_db(cli):
+    db_conf = DBConfiguration()
     # Make sure migration scripts are applied
     migration_db = MigrationAsyncPostgresDB.get_instance()
-    await migration_db._init()
+    await migration_db._init(db_conf)
 
     # Apply migrations and make sure "is_up_to_date" == True
     await cli.patch("/migration/upgrade")
@@ -52,7 +54,7 @@ async def init_db(cli):
     # assert status["is_up_to_date"] is True
 
     db = AsyncPostgresDB.get_instance()
-    await db._init()
+    await db._init(db_conf)
     return db
 
 
@@ -66,19 +68,8 @@ async def clean_db(db: AsyncPostgresDB):
         db.run_table_postgres,
         db.flow_table_postgres
     ]
-    try:
-        with (
-            await db.pool.cursor(
-                cursor_factory=psycopg2.extras.DictCursor
-            )
-        ) as cur:
-            for table in tables:
-                cleanup_query = "DELETE FROM {}".format(table.table_name)
-                await cur.execute(cleanup_query)
-
-            cur.close()
-    except Exception as error:
-        print("DB Cleanup failed after test. This might have adverse effects on further test runs", str(error))
+    for table in tables:
+        await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name))
 
 # Test fixture helpers end
 
@@ -236,7 +227,7 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
         http status code to expect from response
     expected_body : object
         An object to assert the api response against.
-    
+
     Returns
     -------
     Object or None
@@ -251,6 +242,7 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
         assert body == expected_body
     else:
         return body
+
 
 def compare_partial(actual, partial):
     "compare that all keys of partial exist in actual, and that the values match."
