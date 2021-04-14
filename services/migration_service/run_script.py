@@ -18,12 +18,12 @@ if __name__ == "__main__":
         version_value = str(version_value_file.read()).strip()
 
         # start proper version of metadata service
-        virtual_env_path = '/opt/'+version_value
-        my_env['VIRTUAL_ENV'] = '/opt/'+version_value
+        virtual_env_path = '/opt/' + version_value
+        my_env['VIRTUAL_ENV'] = '/opt/' + version_value
         path = my_env['PATH']
-        my_env['PATH'] = virtual_env_path+"/bin:"+path
+        my_env['PATH'] = virtual_env_path + "/bin:" + path
         metadata_server_process = Popen(
-            "metadata_service >> /root/services/metadata_service/output.txt", shell=True,
+            "metadata_service", shell=True,
             close_fds=True, env=my_env)
 
         metadata_server_process.wait()

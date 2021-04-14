@@ -1,0 +1,4 @@
+tox==3.20.0
+pytest==6.1.1
+pytest-cov==2.10.1
+pytest-aiohttp==0.3.0

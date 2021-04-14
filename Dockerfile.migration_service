@@ -1,7 +1,13 @@
-FROM python:3.7
+FROM golang:latest AS goose
+RUN go get -u github.com/pressly/goose/cmd/goose
 
-# Migration Service
-ADD services/migration_service /migration_service
-RUN pip3 install -r /migration_service/requirements.txt
-RUN cd /
-CMD python3 -m migration_service.migration_server
+FROM python:3.7
+COPY --from=goose /go/bin/goose /usr/local/bin/
+
+ADD services/__init__.py /root/services/__init__.py
+ADD services/utils /root/services/utils
+ADD services/migration_service /root/services/migration_service
+ADD setup.py setup.cfg /root/
+WORKDIR /root
+RUN pip install --editable .
+CMD migration_service

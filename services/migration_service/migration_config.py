@@ -1,8 +1,9 @@
-import os
+from services.utils import DBConfiguration
 
-table = str.maketrans({"'": "\'", "`": "\`"})
-host = os.environ.get("MF_METADATA_DB_HOST", "localhost").translate(table)
-port = os.environ.get("MF_METADATA_DB_PORT", 5432)
-user = os.environ.get("MF_METADATA_DB_USER", "postgres").translate(table)
-password = os.environ.get("MF_METADATA_DB_PSWD", "postgres").translate(table)
-database_name = os.environ.get("MF_METADATA_DB_NAME", "postgres").translate(table)
+db_conf = DBConfiguration()
+
+host = db_conf.host
+port = db_conf.port
+user = db_conf.user
+password = db_conf.password
+database_name = db_conf.database_name
