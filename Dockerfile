@@ -12,6 +12,7 @@ RUN virtualenv /opt/latest -p python3
 RUN /opt/v_1_0_1/bin/pip install https://github.com/Netflix/metaflow-service/archive/1.0.1.zip
 
 ADD services/__init__.py /root/services/
+ADD services/data/service_configs.py /root/services/
 ADD services/data /root/services/data
 ADD services/metadata_service /root/services/metadata_service
 ADD setup.py setup.cfg /root/
@@ -19,8 +20,8 @@ WORKDIR /root
 RUN /opt/latest/bin/pip install .
 
 # Migration Service
-ADD services/migration_service /migration_service
-RUN pip3 install -r /migration_service/requirements.txt
+ADD services/migration_service /root/services/migration_service
+RUN pip3 install -r /root/services/migration_service/requirements.txt
 
-RUN chmod 777 /migration_service/run_script.py
-CMD python3 /migration_service/run_script.py
+RUN chmod 777 /root/services/migration_service/run_script.py
+CMD python3  services/migration_service/run_script.py

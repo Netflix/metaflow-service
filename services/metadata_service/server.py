@@ -14,14 +14,15 @@ from .api.admin import AuthApi
 
 from .api.metadata import MetadataApi
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.utils import DBConfiguration
 
 
-def app(loop=None):
+def app(loop=None, db_conf: DBConfiguration = None):
 
     loop = loop or asyncio.get_event_loop()
     app = web.Application(loop=loop)
     async_db = AsyncPostgresDB()
-    loop.run_until_complete(async_db._init())
+    loop.run_until_complete(async_db._init(db_conf))
     FlowApi(app)
     RunApi(app)
     StepApi(app)
@@ -35,7 +36,7 @@ def app(loop=None):
 
 def main():
     loop = asyncio.get_event_loop()
-    the_app = app(loop)
+    the_app = app(loop, DBConfiguration())
     handler = the_app.make_handler()
     port = os.environ.get("MF_METADATA_PORT", 8080)
     host = str(os.environ.get("MF_METADATA_HOST", "0.0.0.0"))

@@ -11,7 +11,7 @@ def open_and_read_if_exists(path: str):
 
 
 requirements = []
-for service in ['metadata_service', 'migration_service']:
+for service in ['utils', 'data', 'metadata_service', 'migration_service']:
     requirements += open_and_read_if_exists(
         "services/{}/requirements.txt".format(service)).splitlines()
 
