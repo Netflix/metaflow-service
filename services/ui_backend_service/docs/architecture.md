@@ -3,13 +3,14 @@
 ## Cache
 
 ![Cache architecture diagram](images/cache_architecture.png)
-The Cache system is split into three main components
-  - Cache client (cache interface)
-    - CacheFuture (awaitable cache result)
-  - Cache server (worker queueing)
-  - Cache worker (execution of cache requests)
 
-### Cache Client
+The Cache system is split into three main components
+  - [Async Cache client](#async-cache-client) (cache interface)
+    - [CacheFuture](#cachefuture) (awaitable cache result)
+  - [Cache server](#cache-server) (worker queueing)
+  - [Cache worker](#cache-worker) (execution of cache requests)
+
+### Async Cache Client
 
 The Cache client is the interface for accessing cached content. It is responsible for setting up and starting the Cache server as a *subprocess*, setting the necessary configuration variables, such as maximum allowed diskspace and number of cache workers.
 
