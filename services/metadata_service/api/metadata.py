@@ -32,8 +32,8 @@ class MetadataApi(object):
         self._db = AsyncPostgresDB.get_instance()
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
 
-    @handle_exceptions
     @format_response
+    @handle_exceptions
     async def get_metadata(self, request):
         """
         ---
@@ -77,8 +77,8 @@ class MetadataApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-    @handle_exceptions
     @format_response
+    @handle_exceptions
     async def get_metadata_by_run(self, request):
         """
         ---

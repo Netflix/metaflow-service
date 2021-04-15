@@ -16,8 +16,8 @@ class FlowApi(object):
         app.router.add_route("POST", "/flows/{flow_id}", self.create_flow)
         self._async_table = AsyncPostgresDB.get_instance().flow_table_postgres
 
-    @handle_exceptions
     @format_response
+    @handle_exceptions
     async def create_flow(self, request):
         """
         ---
@@ -63,8 +63,8 @@ class FlowApi(object):
         )
         return await self._async_table.add_flow(flow)
 
-    @handle_exceptions
     @format_response
+    @handle_exceptions
     async def get_flow(self, request):
         """
         ---
@@ -91,8 +91,8 @@ class FlowApi(object):
         flow_name = request.match_info.get("flow_id")
         return await self._async_table.get_flow(flow_name)
 
-    @handle_exceptions
     @format_response
+    @handle_exceptions
     async def get_all_flows(self, request):
         """
         ---
