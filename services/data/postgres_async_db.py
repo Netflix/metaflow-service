@@ -7,8 +7,7 @@ import math
 import time
 import datetime
 from services.utils import logging
-from typing import List, Callable
-from asyncio import iscoroutinefunction
+from typing import List
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -101,7 +100,7 @@ class _AsyncPostgresDB(object):
                     raise e
                 time.sleep(connection_retry_wait_time_seconds)
 
-    async def get_table_by_name(self, table_name: str):
+    def get_table_by_name(self, table_name: str):
         for table in self.tables:
             if table.table_name == table_name:
                 return table

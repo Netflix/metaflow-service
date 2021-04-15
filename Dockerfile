@@ -15,6 +15,7 @@ ADD services/__init__.py /root/services/
 ADD services/data/service_configs.py /root/services/
 ADD services/data /root/services/data
 ADD services/metadata_service /root/services/metadata_service
+ADD services/utils /root/services/utils
 ADD setup.py setup.cfg /root/
 WORKDIR /root
 RUN /opt/latest/bin/pip install .

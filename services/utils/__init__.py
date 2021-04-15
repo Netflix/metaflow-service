@@ -2,21 +2,13 @@ import json
 import sys
 import os
 import traceback
-import collections
-import pkg_resources
 from urllib.parse import urlencode
-from multidict import MultiDict
 from aiohttp import web
-from functools import wraps
 from typing import Dict
 import logging
 
-version = pkg_resources.require("metadata_service")[0].version
-
-METADATA_SERVICE_VERSION = version
-METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
-
 # The latest commit hash of the repository, if set as an environment variable.
+
 SERVICE_COMMIT_HASH = os.environ.get("BUILD_COMMIT_HASH", None)
 # Build time of service, if set as an environment variable.
 SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
@@ -50,64 +42,6 @@ def get_traceback_str():
             "".join(exc_line),
         ]
     )
-
-
-def http_500(msg, id, traceback_str=get_traceback_str()):
-    # NOTE: worth considering if we want to expose tracebacks in the future in the api messages.
-    body = {
-        'id': id,
-        'traceback': traceback_str,
-        'detail': msg,
-        'status': 500,
-        'title': 'Internal Server Error',
-        'type': 'about:blank'
-    }
-
-    return web_response(500, body)
-
-
-def handle_exceptions(func):
-    """Catch exceptions and return appropriate HTTP error."""
-
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        try:
-            return await func(*args, **kwargs)
-        except Exception as err:
-            # pass along an id for the error
-            err_id = getattr(err, 'id', None)
-            # either use provided traceback from subprocess, or generate trace from current process
-            err_trace = getattr(err, 'traceback_str', None) or get_traceback_str()
-            if not err_id:
-                # Log error only in case it is not a known case.
-                err_id = 'generic-error'
-                logging.error(err_trace)
-            return http_500(str(err), err_id, err_trace)
-
-    return wrapper
-
-
-def format_response(func):
-    """handle formatting"""
-
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        db_response = await func(*args, **kwargs)
-        return web.Response(status=db_response.response_code,
-                            body=json.dumps(db_response.body),
-                            headers=MultiDict(
-                                {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
-
-    return wrapper
-
-
-def web_response(status: int, body):
-    return web.Response(status=status,
-                        body=json.dumps(body),
-                        headers=MultiDict(
-                            {"Content-Type": "application/json",
-                             "Access-Control-Allow-Origin": "*",
-                             METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
 
 def format_qs(query: Dict[str, str], overwrite=None):

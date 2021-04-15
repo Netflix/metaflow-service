@@ -11,7 +11,7 @@ def open_and_read_if_exists(path: str):
 
 
 requirements = []
-for service in ['utils', 'data', 'metadata_service', 'migration_service']:
+for service in ['metadata_service', 'migration_service']:
     requirements += open_and_read_if_exists(
         "services/{}/requirements.txt".format(service)).splitlines()
 
@@ -23,7 +23,7 @@ long_description = open_and_read_if_exists(
 
 setup(
     name='metadata_service',
-    version='2.0.4',
+    version='2.0.5',
     license='Apache License 2.0',
     description='Metadata Service: backend service for Metaflow',
     long_description=long_description,
