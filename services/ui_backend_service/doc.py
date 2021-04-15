@@ -350,11 +350,11 @@ swagger_definitions = {
             "$ref": "#/definitions/ModelsLink"
         }
     },
-    "ResponsesAnnouncementList": {
+    "ResponsesNotificationList": {
         "type": "array",
         "items": {
             "type": "object",
-            "$ref": "#/definitions/ModelsAnnouncement"
+            "$ref": "#/definitions/ModelsNotification"
         }
     },
     "ResponsesLog": response_object("#/definitions/ModelsLog"),
@@ -466,35 +466,40 @@ swagger_definitions = {
         },
         "required": ["href", "label"]
     },
-    "ModelsAnnouncement": {
+    "ModelsNotification": {
         "type": "object",
         "properties": {
             "id": {
                 "type": "string",
-                "description": "Announcement identifier",
+                "description": "Notification identifier",
                 "default": "Generated SHA1 hash"
             },
             "type": {
                 "type": "string",
-                "description": "Announcement type, allowed values: success|info|warning|danger|default",
+                "description": "Notification type, allowed values: success|info|warning|danger|default",
                 "default": "info"
             },
             "message": {
                 "type": "string",
                 "description": "Message to display (Markdown supported)"
             },
+            "created": {
+                "type": "integer",
+                "description": "Notification created at (Epoch timestamp in milliseconds)",
+                "default": None
+            },
             "start": {
                 "type": "integer",
-                "description": "First time the announcement will be visible (Epoch timestamp in seconds)",
+                "description": "Schedule notification to be visible starting at (Epoch timestamp in milliseconds)",
                 "default": None
             },
             "end": {
                 "type": "integer",
-                "description": "Announcement no longer visible after (Epoch timestamp in seconds)",
+                "description": "Schedule notification to disappear after (Epoch timestamp in milliseconds)",
                 "default": None
             }
         },
-        "required": ["id", "type", "message", "start", "end"]
+        "required": ["id", "type", "message", "created", "start", "end"]
     },
     "ModelsDag": {
         "type": "object",
