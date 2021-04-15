@@ -2,6 +2,14 @@
 
 The following are optional environment variables that can be used to fine-tune the behavior of specific components of the UI service if necessary. 
 
+  - [Web socket message retention](#web-socket-message-retention)
+  - [Cache and data preload limits](#cache-and-data-preload-limits)
+  - [Feature flags](#feature-flags)
+  - [Heartbeat intervals](#heartbeat-intervals)
+  - [Baseurl configuration](#baseurl-configuration)
+  - [Custom navigation links for UI](#custom-navigation-links-for-ui)
+  - [System notifications for UI](#system-notifications-for-ui)
+
 ## Web socket message retention
 
 Configure amount of seconds realtime events are kept in queue (delivered to UI in case of reconnects):
