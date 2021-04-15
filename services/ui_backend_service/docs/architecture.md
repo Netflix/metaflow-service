@@ -40,6 +40,21 @@ The cache worker is a subprocess whose sole responsibility is to read the reques
 
 ![Heartbeat monitoring architecture diagram](images/heartbeat_monitoring.png)
 
+Heartbeat monitoring is required to track in-flight resources that might stop executing without producing any trace of failure. 
+
+### Basic structure
+A heartbeat monitor has a list of resources, with their respective latest heartbeat timestamps. The list is iterated through periodically (heartbeat interval + buffer), and further processing is done on items that have an expired timestamp, for example broadcasting them as failures.
+
+Adding items for tracking is implemented with the `PyEE` event emitter internally. A `HeartbeatMonitor` class sets up its event listeners for adding and removing tracked items. Monitoring responsibilities are shared with the `ListenNotify` component as follows
+
+`HeartbeatMonitor`
+- periodically checks for expired heartbeats on tracked items
+- manages list of tracked items (add/update/remove)
+
+`ListenNotify`
+- broadcast resources to add or update heartbeats for tracking
+- broadcast when a resource should be removed from heartbeat tracking (completion events)
+
 ## Realtime events over web sockets
 
 ![Websocket architecture diagram](images/websocket_communication.png)
