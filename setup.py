@@ -23,7 +23,7 @@ long_description = open_and_read_if_exists(
 
 setup(
     name='metadata_service',
-    version='2.0.4',
+    version='2.0.5',
     license='Apache License 2.0',
     description='Metadata Service: backend service for Metaflow',
     long_description=long_description,

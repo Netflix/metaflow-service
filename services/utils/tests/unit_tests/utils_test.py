@@ -3,7 +3,8 @@ import os
 import contextlib
 import json
 from aiohttp.test_utils import make_mocked_request
-from services.utils import format_qs, format_baseurl, DBConfiguration, handle_exceptions
+from services.utils import format_qs, format_baseurl, DBConfiguration
+from services.metadata_service.api.utils import handle_exceptions
 
 pytestmark = [pytest.mark.unit_tests]
 

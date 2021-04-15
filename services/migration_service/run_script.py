@@ -7,7 +7,7 @@ if __name__ == "__main__":
                           close_fds=True, env=my_env)
 
         get_env_version = Popen(
-            "python3 -m services.migration_service.get_virtual_env >> /root/services/migration_service/env_output.txt",
+            "python3 -m services.migration_service.get_virtual_env",
             shell=True,
             close_fds=True)
 
@@ -28,6 +28,8 @@ if __name__ == "__main__":
 
         metadata_server_process.wait()
         migration_server_process.wait()
+    except Exception as e:
+        print(e)
     finally:
         # should never be reached
         exit(1)

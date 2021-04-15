@@ -9,10 +9,10 @@ from aiohttp import web
 from botocore.client import Config
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import (
-    get_traceback_str,
-    METADATA_SERVICE_VERSION,
-    METADATA_SERVICE_HEADER
+    get_traceback_str
 )
+from services.metadata_service.api.utils import METADATA_SERVICE_VERSION, \
+    METADATA_SERVICE_HEADER, web_response
 
 
 class AuthApi(object):
@@ -21,6 +21,7 @@ class AuthApi(object):
                              self.get_authorization_token)
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)
+        app.router.add_route("GET", "/healthcheck", self.healthcheck)
 
     async def version(self, request):
         """
@@ -89,7 +90,7 @@ class AuthApi(object):
                 status_code = 500
 
             cur.close()
-        return web.Response(status=status_code, body=json.dumps(status))
+        return web_response(status=status_code, body=json.dumps(status))
 
 
     async def get_authorization_token(self, request):

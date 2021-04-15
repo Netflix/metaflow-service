@@ -53,7 +53,7 @@ def get_exposed_task_id(task_id, task_name):
     return task_id
 
 
-def _get_latest_attempt_id_for_tasks(artifacts):
+def get_latest_attempt_id_for_tasks(artifacts):
     attempt_ids = {}
     for artifact in artifacts:
         attempt_ids[artifact['task_id']] = max(
@@ -61,8 +61,8 @@ def _get_latest_attempt_id_for_tasks(artifacts):
     return attempt_ids
 
 
-def _filter_artifacts_by_attempt_id_for_tasks(artifacts):
-    attempt_ids = _get_latest_attempt_id_for_tasks(artifacts)
+def filter_artifacts_by_attempt_id_for_tasks(artifacts):
+    attempt_ids = get_latest_attempt_id_for_tasks(artifacts)
     result = []
     for artifact in artifacts:
         if artifact['attempt_id'] == attempt_ids[artifact['task_id']]:

@@ -11,6 +11,7 @@ try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     retry_count = max_startup_retries
     while retry_count > 0:
+        print(retry_count)
         try:
             print("connecting")
             s.connect(('localhost', port))
@@ -26,8 +27,8 @@ try:
             retry_count = retry_count - 1
     # continue
     s.close()
-except Exception:
-    pass
+except Exception as e:
+    print(e)
 
 r = requests.get('http://localhost:{0}/version'.format(port))
 conf_file = open('/root/services/migration_service/config', 'w')
