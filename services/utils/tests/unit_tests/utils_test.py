@@ -157,15 +157,14 @@ async def test_handle_exceptions():
     # wrapper should not touch successful calls.
     assert (await do_not_raise())
 
-    # NOTE: aiohttp Response StringPayload only has the internal property _value for accessing the payload value.
     response_with_id = await raise_with_id()
-    assert response_with_id.status == 500
-    _body = json.loads(response_with_id.body._value)
+    assert response_with_id.response_code == 500
+    _body = response_with_id.body
     assert _body['id'] == 'test-id'
     assert _body['traceback'] == 'test-trace'
 
     response_without_id = await raise_without_id()
-    assert response_without_id.status == 500
-    _body = json.loads(response_without_id.body._value)
+    assert response_without_id.response_code == 500
+    _body = response_without_id.body
     assert _body['id'] == 'generic-error'
     assert _body['traceback'] is not None
