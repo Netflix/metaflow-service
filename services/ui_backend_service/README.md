@@ -1,6 +1,6 @@
 # Metaflow UI Service
 
-Metadata UI service implementation for [Metaflow-UI](https://github.com/Netflix/metaflow-ui).
+Metadata UI service implementation for [Metaflow UI](https://github.com/Netflix/metaflow-ui).
 For more information, see [Metaflow's website](http://docs.metaflow.org)
 
 ## Getting Started
@@ -42,13 +42,13 @@ Running the service without Docker (from project root):
 > ```
 ### Hosting the Frontend UI
 
-This service provides the UI Backend. There are two options for hosting the UI Frontend assets from [Metaflow-UI](https://github.com/Netflix/metaflow-ui)
+This service provides the UI Backend. There are two options for hosting the UI Frontend assets from [Metaflow UI](https://github.com/Netflix/metaflow-ui)
 
 #### Separately hosting frontend assets
 
 For hosting the frontend assets for a production environment, refer to the documentation of your chosen host on how to serve static assets.
 
-If you require the UI for local development, refer to [Metaflow-ui/docs/README.md](https://github.com/Netflix/metaflow-ui/blob/master/docs/README.md) on how to host the UI locally.
+If you require the UI for local development, refer to [metaflow-ui/docs/README.md](https://github.com/Netflix/metaflow-ui/blob/master/docs/README.md) on how to host the UI locally.
 
 #### Serve frontend assets through the backend instance 
 
