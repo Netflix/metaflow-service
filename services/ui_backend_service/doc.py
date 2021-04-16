@@ -474,11 +474,6 @@ swagger_definitions = {
                 "description": "Notification identifier",
                 "default": "Generated SHA1 hash"
             },
-            "type": {
-                "type": "string",
-                "description": "Notification type, allowed values: success|info|warning|danger|default",
-                "default": "info"
-            },
             "message": {
                 "type": "string",
                 "description": "Message to display (Markdown supported)"
@@ -486,6 +481,26 @@ swagger_definitions = {
             "created": {
                 "type": "integer",
                 "description": "Notification created at (Epoch timestamp in milliseconds)",
+                "default": None
+            },
+            "type": {
+                "type": "string",
+                "description": "Notification type, allowed values: success|info|warning|danger|default",
+                "default": "info"
+            },
+            "contentType": {
+                "type": "string",
+                "description": "Message content-type, allowed values: text|markdown",
+                "default": "text"
+            },
+            "url": {
+                "type": "string",
+                "description": "Notification url",
+                "default": None
+            },
+            "urlText": {
+                "type": "string",
+                "description": "Human readable url title",
                 "default": None
             },
             "start": {
@@ -499,7 +514,7 @@ swagger_definitions = {
                 "default": None
             }
         },
-        "required": ["id", "type", "message", "created", "start", "end"]
+        "required": ["id", "message", "created", "type", "contentType", "url", "urlText", "start", "end"]
     },
     "ModelsDag": {
         "type": "object",
