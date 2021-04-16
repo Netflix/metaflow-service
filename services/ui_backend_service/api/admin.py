@@ -120,7 +120,10 @@ class AdminApi(object):
                     "id": notification.get("id", hashlib.sha1(
                         str(notification).encode('utf-8')).hexdigest()),
                     "type": notification.get("type", "info"),
+                    "contentType": notification.get("contentType", "text"),
                     "message": notification.get("message", ""),
+                    "url": notification.get("url", None),
+                    "urlText": notification.get("urlText", None),
                     "created": created,
                     "start": notification.get("start", None),
                     "end": notification.get("end", None)
