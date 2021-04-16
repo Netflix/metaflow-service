@@ -63,10 +63,10 @@ Adding items for tracking is implemented with the `PyEE` event emitter internall
 ### Basic structure
 For receiving realtime events regarding specific resources, there are two distinct components that interact together over `PyEE` events; `Websocket` and `ListenNotify`. Their respective responsibilities are as follows
 
-`Websocket`
+[`Websocket`](../api/ws.py)
 - handles opening web sockets and subscribing to resources
 - receives resources for broadcasting to subscribers
 - handles loading(from database) and broadcasting of resources to affected subscriptions.
 
-`ListenNotify`
+[`ListenNotify`](../api/notify.py)
 - broadcast resources received from the database events
