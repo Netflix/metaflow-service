@@ -48,11 +48,11 @@ A heartbeat monitor has a list of resources, with their respective latest heartb
 
 Adding items for tracking is implemented with the `PyEE` event emitter internally. A `HeartbeatMonitor` class sets up its event listeners for adding and removing tracked items. Monitoring responsibilities are shared with the `ListenNotify` component as follows
 
-`HeartbeatMonitor`
+[`HeartbeatMonitor`](../api/heartbeat_monitor.py)
 - periodically checks for expired heartbeats on tracked items
 - manages list of tracked items (add/update/remove)
 
-`ListenNotify`
+[`ListenNotify`](../api/notify.py)
 - broadcast resources to add or update heartbeats for tracking
 - broadcast when a resource should be removed from heartbeat tracking (completion events)
 
