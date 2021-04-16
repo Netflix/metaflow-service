@@ -73,7 +73,7 @@ The Search Api provides a way to search which tasks have matching artifacts for 
 
 ## Searching
 The endpoint to perform searches for a given run looks like
-`ws://HOSTNAME/flows/flow_id/runs/run_number/search?key=ARTIFACT_NAME&value=VALUE`
+> `ws://HOSTNAME/flows/flow_id/runs/run_number/search?key=ARTIFACT_NAME&value=VALUE`
 where `ARTIFACT_NAME` is the name of an artifact to look for, and `VALUE` is the content of the artifact that we are searching for.
 
 ### Search Responses
@@ -101,13 +101,15 @@ Error example:
   }
 ```
 The unique id of an error can be one of the following:
-- `s3-access-denied` - server does not have access to s3 bucket
-- `s3-not-found` - s3 404 response
-- `s3-bad-url` - malformed s3 url
-- `s3-missing-credentials` - server does not have credentials for s3 access
-- `s3-generic-error` - something went wrong with s3 access
-- `artifact-handle-failed` - something went wrong with processing the artifact
-- `artifact-not-accessible` - artifact location is not accessible by the server (local storage)
+| Error ID                  | Description                                                       |
+|---------------------------|-------------------------------------------------------------------|
+| `s3-access-denied`        | server does not have access to s3 bucket                          |
+| `s3-not-found`            | s3 404 response                                                   |
+| `s3-bad-url`              | malformed s3 url                                                  |
+| `s3-missing-credentials`  | server does not have credentials for s3 access                    |
+| `s3-generic-error`        | something went wrong with s3 access                               |
+| `artifact-handle-failed`  | something went wrong with processing the artifact                 |
+| `artifact-not-accessible` | artifact location is not accessible by the server (local storage) |
 
 Results example:
 ```json
