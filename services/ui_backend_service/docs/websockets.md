@@ -72,8 +72,11 @@ The `data` property contains the complete object of the subscribed resource, as 
 The Search Api provides a way to search which tasks have matching artifacts for a given run. Searching is performed through a websocket connection.
 
 ## Searching
+
 The endpoint to perform searches for a given run looks like
-> `ws://HOSTNAME/flows/flow_id/runs/run_number/search?key=ARTIFACT_NAME&value=VALUE`
+```
+ws://HOSTNAME/flows/flow_id/runs/run_number/search?key=ARTIFACT_NAME&value=VALUE
+```
 where `ARTIFACT_NAME` is the name of an artifact to look for, and `VALUE` is the content of the artifact that we are searching for.
 
 ### Search Responses
