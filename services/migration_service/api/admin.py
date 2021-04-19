@@ -5,8 +5,7 @@ from subprocess import Popen
 from multidict import MultiDict
 from .utils import ApiUtils
 from . import goose_migration_template
-from ..migration_config import host, port, user, password, \
-    database_name
+from services.migration_service.migration_config import host, port, user, password, database_name
 
 
 class AdminApi(object):
@@ -44,7 +43,7 @@ class AdminApi(object):
         tags:
         - Admin
         produces:
-        - 'text/plain'
+        - 'application/json'
         responses:
             "200":
                 description: successful operation. Return version text
