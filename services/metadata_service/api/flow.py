@@ -1,9 +1,8 @@
-from aiohttp import web
-
-import json
-from services.data.models import FlowRow
+from services.data import FlowRow
 from services.data.postgres_async_db import AsyncPostgresDB
-from .utils import read_body, format_response, handle_exceptions
+from services.utils import read_body
+from services.metadata_service.api.utils import format_response, \
+    handle_exceptions
 import asyncio
 
 

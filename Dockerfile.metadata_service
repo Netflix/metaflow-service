@@ -1,8 +1,9 @@
 FROM python:3.7
 ADD services/__init__.py /root/services/
 ADD services/data /root/services/data
+ADD services/utils /root/services/utils
 ADD services/metadata_service /root/services/metadata_service
 ADD setup.py setup.cfg /root/
 WORKDIR /root
-RUN pip install .
+RUN pip install --editable .
 CMD metadata_service

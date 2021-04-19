@@ -141,7 +141,6 @@ class StepRow(object):
             }
 
 
-
 class TaskRow(object):
     flow_id: str = None
     run_number: int = None

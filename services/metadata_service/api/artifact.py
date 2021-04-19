@@ -1,6 +1,9 @@
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
-from .utils import read_body, format_response, handle_exceptions
+from services.data.db_utils import filter_artifacts_by_attempt_id_for_tasks
+from services.utils import read_body
+from services.metadata_service.api.utils import format_response, \
+    handle_exceptions
 import json
 
 
@@ -136,7 +139,7 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
+        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
@@ -180,7 +183,7 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name
         )
 
-        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
+        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
@@ -215,7 +218,7 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = ArtificatsApi._filter_artifacts_by_attempt_id(
+        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
@@ -341,21 +344,3 @@ class ArtificatsApi(object):
         result = {"artifacts_created": count}
 
         return web.Response(body=json.dumps(result))
-
-    @staticmethod
-    def _get_latest_attempt_id(artifacts):
-        attempt_id = 0
-        for artifact in artifacts:
-            if artifact['attempt_id'] > attempt_id:
-                attempt_id = artifact['attempt_id']
-        return attempt_id
-
-    @staticmethod
-    def _filter_artifacts_by_attempt_id(artifacts):
-        attempt_id = ArtificatsApi._get_latest_attempt_id(artifacts)
-        result = []
-        for artifact in artifacts:
-            if artifact['attempt_id'] == attempt_id:
-                result.append(artifact)
-
-        return result

@@ -1,4 +1,5 @@
 aiohttp
 aiohttp-swagger
 psycopg2
+boto3
 aiopg

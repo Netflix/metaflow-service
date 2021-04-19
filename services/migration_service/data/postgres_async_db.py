@@ -1,8 +1,8 @@
 import time
 import os
 import aiopg
-from migration_service.migration_config import host, port, user, password, \
-    database_name
+
+from services.utils import DBConfiguration
 
 class PostgresUtils(object):
     @staticmethod
@@ -13,6 +13,7 @@ class PostgresUtils(object):
                 (table_name,),
             )
             return bool(cur.rowcount)
+
 
 class AsyncPostgresDB(object):
     connection = None
@@ -32,17 +33,13 @@ class AsyncPostgresDB(object):
 
         AsyncPostgresDB.__instance = self
 
-    async def _init(self):
-
-        dsn = "dbname={0} user={1} password={2} host={3} port={4}".format(
-            database_name, user, password, host, port
-        )
+    async def _init(self, db_conf: DBConfiguration):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
         retries = 3
         for i in range(retries):
             try:
-                self.pool = await aiopg.create_pool(dsn)
+                self.pool = await aiopg.create_pool(db_conf.dsn, timeout=db_conf.timeout)
             except Exception as e:
                 print("printing connection exception: " + str(e))
                 if retries - i < 1:

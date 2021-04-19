@@ -2,10 +2,10 @@ import os
 import json
 from aiohttp import web
 from subprocess import Popen
+from multidict import MultiDict
 from .utils import ApiUtils
 from . import goose_migration_template
-from migration_service.migration_config import host, port, user, password, \
-    database_name
+from services.migration_service.migration_config import host, port, user, password, database_name
 
 
 class AdminApi(object):
@@ -15,7 +15,7 @@ class AdminApi(object):
         app.router.add_route("GET", "/db_schema_status", self.db_schema_status)
 
         endpoints_enabled = int(os.environ.get("MF_MIGRATION_ENDPOINTS_ENABLED",
-                                1))
+                                               1))
         if endpoints_enabled:
             app.router.add_route("PATCH", "/upgrade", self.upgrade)
 
@@ -43,7 +43,7 @@ class AdminApi(object):
         tags:
         - Admin
         produces:
-        - 'text/plain'
+        - 'application/json'
         responses:
             "200":
                 description: successful operation. Return version text
@@ -69,7 +69,7 @@ class AdminApi(object):
                 description: could not upgrade
         """
         goose_version_cmd = goose_migration_template.format(
-             database_name, user, password, host, port,
+            database_name, user, password, host, port,
             "up"
         )
         p = Popen(goose_version_cmd, shell=True,
@@ -105,11 +105,12 @@ class AdminApi(object):
                 "db_schema_versions": ApiUtils.list_migrations(),
                 "unapplied_migrations": unapplied_migrations
             }
-            return web.Response(body=json.dumps(body))
+            return web.Response(body=json.dumps(body),
+                                headers=MultiDict({"Content-Type": "application/json"}))
 
         except Exception as e:
             body = {
                 "detail": repr(e)
             }
-            return web.Response(status=500, body=json.dumps(body))
-
+            return web.Response(status=500, body=json.dumps(body),
+                                headers=MultiDict({"Content-Type": "application/json"}))
