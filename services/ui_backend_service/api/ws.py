@@ -83,7 +83,7 @@ class Websocket(object):
             # load the data and postprocessor for broadcasting if table
             # is provided (otherwise data has already been loaded in advance)
             if table_name:
-                table = await self.db.get_table_by_name(table_name)
+                table = self.db.get_table_by_name(table_name)
                 _postprocess = await self.get_table_postprocessor(table_name)
                 _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
             else:

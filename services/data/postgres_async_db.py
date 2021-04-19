@@ -1,3 +1,5 @@
+from services.data.service_configs import max_connection_retires, \
+    connection_retry_wait_time_seconds
 import psycopg2
 import psycopg2.extras
 import os
@@ -7,8 +9,7 @@ import math
 import time
 import datetime
 from services.utils import logging
-from typing import List, Callable
-from asyncio import iscoroutinefunction
+from typing import List
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -16,6 +17,7 @@ from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
+
 
 WAIT_TIME = 10
 
@@ -67,7 +69,7 @@ class _AsyncPostgresDB(object):
     async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=True):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
-        retries = 3
+        retries = max_connection_retires
         for i in range(retries):
             try:
                 self.pool = await aiopg.create_pool(
@@ -94,11 +96,11 @@ class _AsyncPostgresDB(object):
                 break  # Break the retry loop
             except Exception as e:
                 self.logger.exception("Exception occured")
-                if retries - i < 1:
+                if retries - i <= 1:
                     raise e
-                time.sleep(1)
+                time.sleep(connection_retry_wait_time_seconds)
 
-    async def get_table_by_name(self, table_name: str):
+    def get_table_by_name(self, table_name: str):
         for table in self.tables:
             if table.table_name == table_name:
                 return table

@@ -88,7 +88,7 @@ async def test_version(cli, db):
     body = await resp.text()
 
     assert resp.status == 200
-    assert "2.0.4" in body
+    assert "2.0.5" in body
 
 
 async def test_links(cli, db):

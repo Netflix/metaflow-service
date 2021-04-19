@@ -26,7 +26,7 @@ from services.migration_service.data.postgres_async_db import AsyncPostgresDB as
 
 # Constants
 
-TIMEOUT_FUTURE = 0.1
+TIMEOUT_FUTURE = 0.2
 
 # Test fixture helpers begin
 

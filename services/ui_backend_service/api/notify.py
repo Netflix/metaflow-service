@@ -24,6 +24,7 @@ class ListenNotify(object):
     event_emitter : AsyncIOEventEmitter
         Any event emitter class that implements .emit('notify', *args)
     """
+
     def __init__(self, app, db, event_emitter=None):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
@@ -70,7 +71,7 @@ class ListenNotify(object):
             operation = payload.get("operation")
             data = payload.get("data")
 
-            table = await self.db.get_table_by_name(table_name)
+            table = self.db.get_table_by_name(table_name)
             if table is not None:
                 resources = resource_list(table.table_name, data)
 
