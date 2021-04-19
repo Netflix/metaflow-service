@@ -18,6 +18,10 @@ UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
 
 
 class AdminApi(object):
+    """
+    Provides administrative routes for the UI Service,
+    such as health checks, version info and custom navigation links.
+    """
     def __init__(self, app):
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)

@@ -1,18 +1,18 @@
 # Metaflow UI Service
 
-Metadata UI service implementation for [Metaflow](https://github.com/Netflix/metaflow-ui).
+Metadata UI service implementation for [Metaflow UI](https://github.com/Netflix/metaflow-ui).
 For more information, see [Metaflow's website](http://docs.metaflow.org)
-
-TODO: This UI Service might introduce some overlap between the Metadata Service, in future it might make sense to combine some of these API endpoints.
 
 ## Getting Started
 
-Refer to project root for running the project [README.md](../../README.md)
+Refer to the project root for running the project [README.md](../../README.md)
+
+### Hosting the backend
 
 Easiest way to get started is to use `docker-compose`.
 
-Project root has `docker-compose.yml` that contains PostgreSQL database as well as Metadata service and UI service.
-For development purposes there's also `docker-compose.development.yml` that will take care of Dockerfile building as well as local volume mounts.
+Project root has a `docker-compose.yml` that contains a PostgreSQL database as well as the Metadata and UI services.
+For development purposes there's also a `docker-compose.development.yml` that will take care of Dockerfile building as well as local volume mounts.
 
 Running the development version (from project root):
 
@@ -33,6 +33,25 @@ Optionally you can also overrider the host and port the service runs on:
 - `MF_UI_METADATA_PORT` [defaults to 8083]
 - `MF_UI_METADATA_HOST` [defaults to 0.0.0.0]
 
+
+Running the service without Docker (from project root):
+
+> ```sh
+> $ pip3 install -r services/ui_backend_service/requirements.txt
+> $ python3 -m services.ui_backend_service.ui_server
+> ```
+### Hosting the Frontend UI
+
+This service provides the UI Backend. There are two options for hosting the UI Frontend assets from [Metaflow UI](https://github.com/Netflix/metaflow-ui)
+
+#### Separately hosting frontend assets
+
+For hosting the frontend assets for a production environment, refer to the documentation of your chosen host on how to serve static assets.
+
+If you require the UI for local development, refer to [metaflow-ui/docs/README.md](https://github.com/Netflix/metaflow-ui/blob/master/docs/README.md) on how to host the UI locally.
+
+#### Serve frontend assets through the backend instance 
+
 Enable built-in UI bundle serving (assumes assets are located inside `ui/` folder):
 
 - `UI_ENABLED` [defaults to 0]
@@ -47,216 +66,6 @@ This also works as a Docker build argument to download and install latest or spe
 > $ docker build --arg UI_ENABLED=1 UI_VERSION=v0.1.2 ...
 > ```
 
-Configure amount of seconds realtime events are kept in queue (delivered to UI in case of reconnects):
+## Documentation
 
-- `WS_QUEUE_TTL_SECONDS` [defaults to 300 (5 minutes)]
-
-Configure amount of runs to prefetch during server startup (artifact cache):
-
-- `PREFETCH_RUNS_SINCE` [in seconds, defaults to 2 days ago (86400 * 2 seconds)]
-- `PREFETCH_RUNS_LIMIT` [defaults to 50]
-
-Configure the amount of concurrent cache actions. This works similar to a database connection pool.
-
-- `CACHE_ARTIFACT_MAX_ACTIONS` [max number of artifact cache actions. Defaults to 16]
-- `CACHE_DAG_MAX_ACTIONS` [max number of DAG cache actions. Defaults to 16]
-
-Configure the maximum usable space by the cache:
-
-- `CACHE_ARTIFACT_STORAGE_LIMIT` [in bytes, defaults to 600000]
-- `CACHE_DAG_STORAGE_LIMIT` [in bytes, defaults to 100000]
-
-Running the service without Docker (from project root):
-
-> ```sh
-> $ pip3 install -r services/ui_backend_service/requirements.txt
-> $ python3 -m services.ui_backend_service.ui_server
-> ```
-
-### Feature flags
-
-All environment variables prefixed with `FEATURE_` will be publicly available under `/features` route.
-
-> ```sh
-> $ curl http://service:8083/features
-> {
->   "FEATURE_CACHE": true,
->   "FEATURE_DAG": false
-> }
-> ```
-
-Example values:
-
-> ```
-> FEATURE_EXAMPLE=1           -> True
-> FEATURE_EXAMPLE=true        -> True
-> FEATURE_EXAMPLE=t           -> True
-> FEATURE_EXAMPLE=anything    -> True
-> FEATURE_EXAMPLE=0           -> False
-> FEATURE_EXAMPLE=false       -> False
-> FEATURE_EXAMPLE=f           -> False
-> ```
-
-These feature flags are passed to frontend and can be used to dynamically control features.
-
-### Optional configuration
-
-The threshold parameters for heartbeat checks can also be configured when necessary with the following environment variables.
-
-- `HEARTBEAT_THRESHOLD` [controls at what point a heartbeat is considered expired. Default is `WAIT_TIME * 6`]
-- `OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 2 weeks]
-
-## Baseurl configuration
-
-Use `MF_BASEURL` environment variable to overwrite the default API baseurl.
-This affects API responses where meta links are provided as a response.
-
-## API examples
-
-```
-/flows/HelloFlow/runs?_page=4                               List page 4
-/flows/HelloFlow/runs?_page=2&_limit=10                     List page 4, each page contains 10 items
-
-/flows/HelloFlow/runs?_order=run_number                     Order by `run_number` in descending order
-/flows/HelloFlow/runs?_order=+run_number                    Order by `run_number` in ascending order
-/flows/HelloFlow/runs?_order=-run_number                    Order by `run_number` in descending order
-/flows/HelloFlow/runs?_order=run_number,ts_epoch            Order by `run_number` and `ts_epoch` in descending order
-
-/runs?_tags=user:dipper                                     Filter by one tag
-/runs?_tags=user:dipper,runtime:dev                         Filter by multiple tags (AND)
-/runs?_tags:all=user:dipper,runtime:dev                     Filter by multiple tags (AND)
-/runs?_tags:any=user:dipper,runtime:dev                     Filter by multiple tags (OR)
-/runs?_tags:likeall=user:dip,untime:de                      Filter by multiple tags that contains string (AND)
-/runs?_tags:likeany=user:,untime:de                         Filter by multiple tags that contains string (OR)
-
-/runs?_group=flow_id                                        Group by `flow_id`
-/runs?_group=flow_id,user_name                              Group by `flow_id` and `user_name`
-/runs?_group=user_name&_limit=2                             Group by `user_name` and limit each group to `2` runs
-/runs?_group=flow_id&_order=flow_id,run_number              Group by `flow_id` and order by `flow_id & run_number`
-/runs?_group=flow_id&user_name=dipper                       List runs by `dipper` and group by `flow_id`
-/runs?user=null                                             `user` is NULL
-
-/flows/HelloFlow/runs?run_number=40                         `run_number` equals `40`
-/flows/HelloFlow/runs?run_number:eq=40                      `run_number` equals `40`
-/flows/HelloFlow/runs?run_number:ne=40                      `run_number` not equals `40`
-/flows/HelloFlow/runs?run_number:lt=40                      `run_number` less than `40`
-/flows/HelloFlow/runs?run_number:le=40                      `run_number` less than or equals `40`
-/flows/HelloFlow/runs?run_number:gt=40                      `run_number` greater than `40`
-/flows/HelloFlow/runs?run_number:ge=40                      `run_number` greater than equals `40`
-
-/flows/HelloFlow/runs?user_name:co=atia                     `user_name` contains `atia`
-/flows/HelloFlow/runs?user_name:sw=mati                     `user_name` starts with `mati`
-/flows/HelloFlow/runs?user_name:ew=tias                     `user_name` ends with `tias`
-
-/flows?user_name=dipper,mabel                               `user_name` is either `dipper` OR `mabel`
-
-/flows/HelloFlow/runs?run_number:lt=60&run_number:gt=40     `run_number` less than 60 and greater than 40
-```
-
-## Available operators
-
-```
-eq = equals                 =
-ne = not equals             !=
-lt = less than              <
-le = less than equals       <=
-gt = greater than           >
-ge = greater than ewquals   >=
-co = contains               *string*
-sw = starts with            ^string*
-ew = ends with              *string$
-is = is                     IS
-```
-
-## Custom Navigation links for UI
-
-You can customize the admin navigation links presented by the UI by setting an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value should be a _stringified_ json of the format:
-
-```json
-[
-  {
-    "href": "https://docs.metaflow.org/",
-    "label": "Metaflow documentation"
-  },
-  {
-    "href": "https://github.com/Netflix/metaflow",
-    "label": "GitHub"
-  }
-]
-```
-
-You are free to provide as many links as necessary.
-
-**Local Dev**
-set the `CUSTOM_QUICKLINKS` environment variable
-
-**Prebuilt docker image**
-Provide the `CUSTOM_QUICKLINKS` environment variable for the docker run command
-
-```bash
-  CUSTOM_QUICKLINKS='[{"href": "https://github.com/Netflix/metaflow", "label": "GitHub"}]' docker run metaflow/ui-service
-
-```
-
-## System Notifications for UI
-
-You can define notifications that are broadcasted to all clients using the UI by setting an environment variable `NOTIFICATIONS` for the backend process. The value should be a _stringified_ json of the format:
-
-```json
-[
-  {
-    "created": 1618404534000,
-    "message": "Upcoming service maintenance"
-  }
-]
-```
-
-You can provide as many notifications as necessary, topmost item is considered the latest.
-
-Following attributes are supported:
-
-| Attribute     | Description                                                                       | Default value                                 |
-| ------------- | --------------------------------------------------------------------------------- | --------------------------------------------- |
-| `id`          | Notification identifier                                                           | Generated SHA1 hash `622b3a6...` - `optional` |
-| `message`     | Message to display (Markdown supported with `contentType: markdown`)              | `required`                                    |
-| `created`     | Notification created at (Epoch timestamp in milliseconds)                         | `required`                                    |
-| `type`        | Notification type, allowed values: `success,info,warning,danger,default`          | `info` - `optional`                           |
-| `contentType` | Message content-type, allowed values: `text,markdown`                             | `text` - `optional`                           |
-| `url`         | Notification url                                                                  | `optional`                                    |
-| `urlText`     | Human readable url title                                                          | `optional`                                    |
-| `start`       | Schedule notification to be visible starting at (Epoch timestamp in milliseconds) | `null` - `optional`                           |
-| `end`         | Schedule notification to disappear after (Epoch timestamp in milliseconds)        | `null` - `optional`                           |
-
-Markdown example:
-
-```json
-[
-  {
-    "id": "fixed_id_attribute",
-    "type": "info",
-    "contentType": "markdown",
-    "message": "Upcoming service maintenance [Metaflow](https://metaflow.org)",
-    "created": 1618404534000,
-    "start": 1618404534000,
-    "end": 1618925483000
-  }
-]
-```
-
-Plaintext example:
-
-```json
-[
-  {
-    "id": "fixed_id_attribute",
-    "type": "info",
-    "contentType": "text",
-    "message": "Upcoming service maintenance",
-    "url": "https://metaflow.org",
-    "urlText": "Metaflow",
-    "created": 1618404534000,
-    "start": 1618404534000,
-    "end": 1618925483000
-  }
-]
-```
+See [Documentation](docs/README.md) for UI Service specific documentation.
