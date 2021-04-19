@@ -1,10 +1,8 @@
 import pytest
 import os
 import contextlib
-import json
 from aiohttp.test_utils import make_mocked_request
 from services.utils import format_qs, format_baseurl, DBConfiguration
-from services.metadata_service.api.utils import handle_exceptions
 
 pytestmark = [pytest.mark.unit_tests]
 
@@ -135,36 +133,3 @@ def test_db_conf_timeout():
         db_conf = DBConfiguration(timeout=5)
         assert db_conf.timeout == 5
 
-
-async def test_handle_exceptions():
-    class FakeException(Exception):
-        def __init__(self, id, trace):
-            self.id = id
-            self.traceback_str = trace
-
-    @handle_exceptions
-    async def do_not_raise():
-        return True
-
-    @handle_exceptions
-    async def raise_with_id():
-        raise FakeException("test-id", "test-trace")
-
-    @handle_exceptions
-    async def raise_without_id():
-        raise Exception()
-
-    # wrapper should not touch successful calls.
-    assert (await do_not_raise())
-
-    response_with_id = await raise_with_id()
-    assert response_with_id.response_code == 500
-    _body = response_with_id.body
-    assert _body['id'] == 'test-id'
-    assert _body['traceback'] == 'test-trace'
-
-    response_without_id = await raise_without_id()
-    assert response_without_id.response_code == 500
-    _body = response_without_id.body
-    assert _body['id'] == 'generic-error'
-    assert _body['traceback'] is not None
