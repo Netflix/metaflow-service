@@ -57,17 +57,18 @@ Easiest way to run this project is to use `docker-compose` and there are two opt
 Running `docker-compose.yml`:
 
 >```sh
->$ docker-compose up -d
+>docker-compose up -d
 >```
 
 Running `docker-compose.development.yml` (recommended during development):
 
 >```sh
->$ docker-compose -f docker-compose.development.yml up
+>docker-compose -f docker-compose.development.yml up
 >```
 
-Metadata service is available at port `:8080`.
-Migration service is available at port `:8082`.
+* Metadata service is available at port `:8080`.
+* Migration service is available at port `:8082`.
+* UI service is available at port `:8083`.
 
 to access the container run
 
