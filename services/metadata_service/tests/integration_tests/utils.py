@@ -42,16 +42,19 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
 
 async def init_db(cli):
-    db_conf = DBConfiguration()
+    db_conf = DBConfiguration(database_name="test")
+    # doublecheck for db_name, as a DSN environment variable overrides anything we pass in.
+    if db_conf.database_name is not "test":
+        pytest.exit("The test suite should only be run in a test environment. Configured database is not called 'test'")
+
     # Make sure migration scripts are applied
     migration_db = MigrationAsyncPostgresDB.get_instance()
     await migration_db._init(db_conf)
 
     # Apply migrations and make sure "is_up_to_date" == True
     await cli.patch("/migration/upgrade")
-    # TODO: Api not responding with valid json headers so check fails.
-    # status = await (await cli.get("/migration/db_schema_status")).json()
-    # assert status["is_up_to_date"] is True
+    status = await (await cli.get("/migration/db_schema_status")).json()
+    assert status["is_up_to_date"] is True
 
     db = AsyncPostgresDB.get_instance()
     await db._init(db_conf)
