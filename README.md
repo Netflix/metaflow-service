@@ -129,6 +129,14 @@ Above command will make sure there's PostgreSQL database available.
 
 Usage without Docker:
 
+The test suite requires a PostgreSQL database, along with the following environment variables for connecting to the DB. The name for the test database is fixed to be `test` to avoid running tests in unsuitable environments.
+
+  - MF_METADATA_DB_HOST [defaults to localhost]
+  - MF_METADATA_DB_PORT [defaults to 5432]
+  - MF_METADATA_DB_USER [defaults to postgres]
+  - MF_METADATA_DB_PSWD [defaults to postgres]
+
+
 > ```sh
 > # Run all tests
 > tox

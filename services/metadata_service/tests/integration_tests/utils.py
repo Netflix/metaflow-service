@@ -43,9 +43,11 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
 async def init_db(cli):
     db_conf = DBConfiguration(database_name="test")
-    # doublecheck for db_name, as a DSN environment variable overrides anything we pass in.
-    if db_conf.database_name is not "test":
-        pytest.exit("The test suite should only be run in a test environment. Configured database is not called 'test'")
+    # Doublecheck for config values that we set,
+    # as ENV variables override anything we pass in.
+    if db_conf.database_name != "test" or \
+            "dbname=test" not in db_conf.dsn:
+        pytest.exit("The test suite should only be run in a test environment. Configured database is not suited for running tests")
 
     # Make sure migration scripts are applied
     migration_db = MigrationAsyncPostgresDB.get_instance()
