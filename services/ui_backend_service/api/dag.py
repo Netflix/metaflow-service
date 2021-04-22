@@ -49,9 +49,16 @@ class DagApi(object):
             request.match_info.get("run_number"))
         # 'code-package' value contains json with dstype, sha1 hash and location
         db_response, *_ = await self._metadata_table.find_records(
-            conditions=["flow_id = %s", "{run_id_key} = %s".format(
-                run_id_key=run_id_key), "field_name = %s"],
-            values=[flow_name, run_id_value, "code-package"],
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(
+                    run_id_key=run_id_key),
+                "(field_name = %s OR field_name = %s)"
+            ],
+            values=[
+                flow_name, run_id_value,
+                "code-package", "code-package-url"
+            ],
             fetch_single=True, expanded=True
         )
         if not db_response.response_code == 200:
