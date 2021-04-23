@@ -1,11 +1,6 @@
 from services.utils import handle_exceptions
 from services.data.db_utils import translate_run_key
 from .utils import format_response, format_response_list, web_response, custom_conditions_query, pagination_query
-import asyncio
-
-
-# Interval for refetching tags from database. Tags data is cached since requesting all of them might take a while.
-TAGS_FILL_INTERVAL = 300
 
 
 class AutoCompleteApi(object):
