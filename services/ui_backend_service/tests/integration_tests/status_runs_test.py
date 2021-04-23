@@ -72,7 +72,7 @@ async def test_run_status_completed_with_attempt_ok(cli, db):
 
     _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
 
-    # as _task_ok is not old enough (new attempts might still start due to scheduler_delay),
+    # as _task_ok is not old enough (new attempts might still start due to cutoff),
     # run should stay in running status for now.
     assert data["status"] == "running"
     assert data["ts_epoch"] == _run["ts_epoch"]
@@ -99,7 +99,7 @@ async def test_run_status_completed_with_attempt_ok(cli, db):
 
 
 # If no attempt_ok metadata is recorded, but task_ok artifact exists for end step, we should consider
-# the run as completed after scheduler_interval has passed (no new attempts will appear).
+# the run as completed after cutoff has passed (no new attempts will appear).
 
 async def test_run_status_completed_without_attempt_ok(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
@@ -141,13 +141,13 @@ async def test_run_status_completed_without_attempt_ok(cli, db):
 
     _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
 
-    # as _task_ok is not old enough (new attempts might still start due to scheduler_delay),
+    # as _task_ok is not old enough (new attempts might still start due to cutoff),
     # run should stay in running status for now.
     assert data["status"] == "running"
     assert data["ts_epoch"] == _run["ts_epoch"]
     assert data["finished_at"] == None
 
-    _new_ts = _artifact['ts_epoch'] - 3 * 60 * 1000  # older than scheduler_delay
+    _new_ts = _artifact['ts_epoch'] - 60 * 60 * 24 * 1000 * 14  # older than cutoff
     # update artifact and metadata to be old enough to be considered FINAL.
     await db.metadata_table_postgres.update_row(
         filter_dict={
@@ -376,7 +376,7 @@ async def test_run_status_failed_failed_task(cli, db):
                             "attempt_id": 0
         })).body
 
-    # create a failed last attempt. The attempt needs to be old enough (> scheduler_delay) in order to be considered final.
+    # create a failed last attempt. The attempt needs to be old enough (> cutoff) in order to be considered final.
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
@@ -391,7 +391,7 @@ async def test_run_status_failed_failed_task(cli, db):
                                         "type": "internal_attempt_status"})).body
     
     # update the metadata ts_epoch to be old enough.
-    _new_ts = _metadata['ts_epoch'] - 3 * 60 * 1000
+    _new_ts = _metadata['ts_epoch'] - 60 * 60 * 24 * 1000 * 14
     await db.metadata_table_postgres.update_row(
         filter_dict={
             "flow_id": _metadata.get("flow_id"),

@@ -14,9 +14,6 @@ from asyncio import iscoroutinefunction
 HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
 OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
-# Expected Step-functions Scheduler delay between task starts in milliseconds. Default two minutes.
-SCHEDULER_DELAY = int(os.environ.get("SCHEDULER_DELAY", 60 * 2 * 1000))
-
 
 class AsyncPostgresTable(MetadataAsyncPostgresTable):
     db = None
