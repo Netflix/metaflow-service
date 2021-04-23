@@ -48,6 +48,7 @@ class DagApi(object):
         run_id_key, run_id_value = translate_run_key(
             request.match_info.get("run_number"))
         # 'code-package' value contains json with dstype, sha1 hash and location
+        # 'code-package-url' value contains only location as a string
         db_response, *_ = await self._metadata_table.find_records(
             conditions=[
                 "flow_id = %s",
