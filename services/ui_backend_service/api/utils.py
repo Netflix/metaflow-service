@@ -17,6 +17,7 @@ def get_json_from_env(variable_name: str):
     except Exception:
         return None
 
+
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
     query = {}
     for key in request.query:
