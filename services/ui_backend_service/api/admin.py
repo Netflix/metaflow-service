@@ -1,14 +1,14 @@
-import os
 import hashlib
 import json
 import time
-from multidict import MultiDict
-from services.utils import (
-    web_response, METADATA_SERVICE_VERSION,
-    METADATA_SERVICE_HEADER, SERVICE_COMMIT_HASH,
-    SERVICE_BUILD_TIMESTAMP
-)
+
 from aiohttp import web
+from multidict import MultiDict
+from services.utils import (METADATA_SERVICE_HEADER, METADATA_SERVICE_VERSION,
+                            SERVICE_BUILD_TIMESTAMP, SERVICE_COMMIT_HASH,
+                            web_response)
+
+from .utils import get_json_from_env
 
 UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
     metadata_v=METADATA_SERVICE_VERSION,
@@ -22,6 +22,7 @@ class AdminApi(object):
     Provides administrative routes for the UI Service,
     such as health checks, version info and custom navigation links.
     """
+
     def __init__(self, app):
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)
@@ -170,16 +171,9 @@ class AdminApi(object):
             filter(filter_notifications, processed_notifications)))
 
 
-def _get_json_from_env(variable_name: str):
-    try:
-        return json.loads(os.environ.get(variable_name))
-    except Exception:
-        return None
-
-
 def _get_links_from_env():
-    return _get_json_from_env("CUSTOM_QUICKLINKS")
+    return get_json_from_env("CUSTOM_QUICKLINKS")
 
 
 def _get_notifications_from_env():
-    return _get_json_from_env("NOTIFICATIONS")
+    return get_json_from_env("NOTIFICATIONS")
