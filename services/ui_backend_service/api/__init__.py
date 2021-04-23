@@ -13,6 +13,7 @@ from .tag import TagApi
 from .metadata import MetadataApi
 from .features import FeaturesApi
 from .config import ConfigApi
+from .plugins import PluginsApi
 
 # service processes
 from .notify import ListenNotify
