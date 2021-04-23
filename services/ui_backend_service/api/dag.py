@@ -48,6 +48,7 @@ class DagApi(object):
         run_id_key, run_id_value = translate_run_key(
             request.match_info.get("run_number"))
         # 'code-package' value contains json with dstype, sha1 hash and location
+        # 'code-package-url' value contains only location as a string
         db_response, *_ = await self._metadata_table.find_records(
             conditions=[
                 "flow_id = %s",
@@ -66,7 +67,12 @@ class DagApi(object):
             return web_response(status, body)
 
         # parse codepackage location.
-        codepackage_loc = json.loads(db_response.body['value'])['location']
+        if db_response.body['field_name'] == "code-package-url":
+            # internal location is a simple string instead of json
+            codepackage_loc = db_response.body['value']
+        else:
+            # location in OSS is stored as json
+            codepackage_loc = json.loads(db_response.body['value'])['location']
         flow_name = db_response.body['flow_id']
 
         # Fetch or Generate the DAG from the codepackage.
