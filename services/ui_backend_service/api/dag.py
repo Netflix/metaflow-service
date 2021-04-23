@@ -66,7 +66,12 @@ class DagApi(object):
             return web_response(status, body)
 
         # parse codepackage location.
-        codepackage_loc = json.loads(db_response.body['value'])['location']
+        if db_response.body['field_name'] == "code-package-url":
+            # internal location is a simple string instead of json
+            codepackage_loc = db_response.body['value']
+        else:
+            # location in OSS is stored as json
+            codepackage_loc = json.loads(db_response.body['value'])['location']
         flow_name = db_response.body['flow_id']
 
         # Fetch or Generate the DAG from the codepackage.
