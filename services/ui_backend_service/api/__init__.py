@@ -1,5 +1,6 @@
 # api routes
 from .admin import AdminApi
+from .autocomplete import AutoCompleteApi
 from .artifact import ArtificatsApi
 from .artifactsearch import ArtifactSearchApi
 from .dag import DagApi

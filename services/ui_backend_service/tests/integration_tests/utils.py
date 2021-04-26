@@ -7,12 +7,14 @@ import datetime
 import contextlib
 
 from services.ui_backend_service.data.db import AsyncPostgresDB
+from services.ui_backend_service.data.cache.store import CacheStore
 from services.utils import DBConfiguration
 
 from services.ui_backend_service.api import (
     FlowApi, RunApi, StepApi, TaskApi,
     MetadataApi, ArtificatsApi, TagApi,
-    Websocket, AdminApi, FeaturesApi
+    Websocket, AdminApi, FeaturesApi,
+    AutoCompleteApi
 )
 
 from services.ui_backend_service.data.db.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
@@ -24,7 +26,7 @@ from services.migration_service.data.postgres_async_db import AsyncPostgresDB as
 
 # Constants
 
-TIMEOUT_FUTURE = 0.1
+TIMEOUT_FUTURE = 0.2
 
 # Test fixture helpers begin
 
@@ -44,10 +46,13 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     db = AsyncPostgresDB(name='api')
     loop.run_until_complete(db._init(db_conf=db_conf, create_tables=False, create_triggers=False))
 
+    cache_store = CacheStore(db=db, event_emitter=app.event_emitter)
+
+    app.AutoCompleteApi = AutoCompleteApi(app, db)
     FlowApi(app, db)
     RunApi(app, db)
     StepApi(app, db)
-    TaskApi(app, db)
+    TaskApi(app, db, cache_store)
     MetadataApi(app, db)
     ArtificatsApi(app, db)
     TagApi(app, db)

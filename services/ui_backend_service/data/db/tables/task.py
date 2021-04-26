@@ -21,9 +21,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = MetadataTaskTable.keys
     primary_keys = MetadataTaskTable.primary_keys
     trigger_keys = MetadataTaskTable.trigger_keys
-    # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
-    # the older metadata service not recording separate metadata for task attempts. This is also the
-    # reason why we must join through the artifacts table, instead of directly from metadata.
+    # NOTE: There is a lot of unfortunate backwards compatibility for cases where task metadata, or artifacts
+    # have not been stored correctly.
+    # NOTE: tasks_v3 table does not have a column for 'attempt_id', instead this is added before the join
+    # with a subquery in the FROM.
+    # NOTE: when using these joins, we _must_ clean up the results with a WHERE that discards attempts with
+    # nothing joined, otherwise we end up with ghost attempts for the task.
     joins = [
         """
         LEFT JOIN {metadata_table} as start ON (
@@ -83,7 +86,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
 
     @property
     def select_columns(self):
-        "We must use a function scope in order to be able to access the table_name variable for list comprehension."
+        # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
         return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys]
 
     join_columns = [
@@ -161,9 +164,14 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                            benchmark: bool = False, overwrite_select_from: str = None
                            ) -> (DBResponse, DBPagination):
         if enable_joins:
-            # python format strings require double curlies for escaping.
-            overwrite_select_from = "(SELECT *, UNNEST('{{0, 1, 2, 3, 4}}'::int[]) as attempt_id FROM {table_name}) as {table_name}".format(
-                table_name=self.table_name)
+            # NOTE: This is a required workaround to be able to JOIN attempt specific records to tasks.
+            # the estimated max_attempts is a best guess, as tasks might have less,
+            # or more (if using a custom client that allows to exceed the default max value)
+            overwrite_select_from = "(SELECT *, generate_series(0,{max_attempts}) as attempt_id FROM {table_name}) as {table_name}".format(
+                table_name=self.table_name,
+                max_attempts=4
+            )
+            # NOTE: Clean up results off non-existent attempts. This is dependent heavily on the JOINs
             conditions.append("NOT (attempt_id > 0 AND started_at IS NULL AND task_ok IS NULL)")
         return await super().find_records(
             conditions, values, fetch_single,
@@ -172,3 +180,54 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             enable_joins, postprocess, benchmark,
             overwrite_select_from
         )
+
+    async def get_task_attempt(self, flow_id: str, run_key: str,
+                               step_name: str, task_key: str, attempt_id: int = None,
+                               postprocess: Callable = None) -> DBResponse:
+        """
+        Fetches task attempt from DB. Specifying attempt_id will fetch the specific attempt.
+        Otherwise the newest attempt is returned.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow id of the task
+        run_key : str
+            Run number or run id of the task
+        step_name : str
+            Step name of the task
+        task_key : str
+            task id or task name
+        attempt_id : int (optional)
+            The specific attempt of the task to be fetched. If not provided, the latest attempt is returned.
+        postprocess : Callable
+            A callback function for refining results.
+            Receives DBResponse as an argument, and should return a DBResponse
+
+        Returns
+        -------
+        DBResponse
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        task_id_key, task_id_value = translate_task_key(task_key)
+        conditions = [
+            "flow_id = %s",
+            "{run_id_column} = %s".format(run_id_column=run_id_key),
+            "step_name = %s",
+            "{task_id_column} = %s".format(task_id_column=task_id_key)
+        ]
+        values = [flow_id, run_id_value, step_name, task_id_value]
+        if attempt_id:
+            conditions.append("attempt_id = %s")
+            values.append(attempt_id)
+
+        result, *_ = await self.find_records(
+            conditions=conditions,
+            values=values,
+            order=["attempt_id DESC"],
+            fetch_single=True,
+            enable_joins=True,
+            expanded=True,
+            postprocess=postprocess
+        )
+        return result

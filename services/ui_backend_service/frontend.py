@@ -11,9 +11,10 @@ METAFLOW_SERVICE = os.environ.get("METAFLOW_SERVICE", "/")
 
 
 class Frontend(object):
-    '''Provides routes for the static UI webpage.
+    """
+    Provides routes for the static UI webpage.
     Require this as the last Api, as it is a catch-all route.
-    '''
+    """
 
     def __init__(self, app):
         app.router.add_static('/static',

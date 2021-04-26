@@ -1,14 +1,15 @@
+import math
+import os
+from asyncio import iscoroutinefunction
+from typing import Callable, List
+
 import psycopg2
 import psycopg2.extras
-import os
-import math
-from services.data.postgres_async_db import (
-    AsyncPostgresTable as MetadataAsyncPostgresTable,
-    WAIT_TIME
-)
-from services.data.db_utils import DBResponse, DBPagination, aiopg_exception_handling
-from typing import List, Callable
-from asyncio import iscoroutinefunction
+from services.data.db_utils import (DBPagination, DBResponse,
+                                    aiopg_exception_handling)
+from services.data.postgres_async_db import WAIT_TIME
+from services.data.postgres_async_db import \
+    AsyncPostgresTable as MetadataAsyncPostgresTable
 
 # Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
 HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
@@ -16,6 +17,18 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 
 
 
 class AsyncPostgresTable(MetadataAsyncPostgresTable):
+    """
+    Base Table class that inherits common behavior from services.data.postgres_async_db module, including
+        - table creation and schema configuration
+        - table trigger setup
+        - common query functions
+
+    UI Service specific features
+    ----------------------------
+        - find_records() that supports grouping by column, and postprocessing of results with a callable
+        - query benchmarking
+        - constants for query thresholds related to heartbeats.
+    """
     db = None
     table_name = None
     schema_version = MetadataAsyncPostgresTable.schema_version
@@ -200,7 +213,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             return None
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0, serialize: bool = True) -> (DBResponse, DBPagination):
         try:
             with (
                 await self.db.pool.cursor(
@@ -211,9 +224,12 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
                 rows = []
                 records = await cur.fetchall()
-                for record in records:
-                    row = self._row_type(**record)
-                    rows.append(row.serialize(expanded))
+                if serialize:
+                    for record in records:
+                        row = self._row_type(**record)
+                        rows.append(row.serialize(expanded))
+                else:
+                    rows = records
 
                 count = len(rows)
 
@@ -235,24 +251,27 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error), None
 
-    async def get_tags(self):
-        sql_template = "SELECT DISTINCT tag FROM (SELECT JSONB_ARRAY_ELEMENTS(tags||system_tags) AS tag FROM {table_name}) AS t"
-        select_sql = sql_template.format(table_name=self.table_name)
+    async def get_tags(self, conditions: List[str] = None, values=[], limit: int = 0, offset: int = 0):
+        sql_template = """
+        SELECT DISTINCT tag
+        FROM (
+            SELECT JSONB_ARRAY_ELEMENTS_TEXT(tags||system_tags) AS tag
+            FROM {table_name}
+        ) AS t
+        {conditions}
+        {limit}
+        {offset}
+        """
+        select_sql = sql_template.format(
+            table_name=self.table_name,
+            conditions="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else "",
+        )
 
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql)
+        res, pagination = await self.execute_sql(select_sql=select_sql, values=values, serialize=False)
 
-                tags = []
-                records = await cur.fetchall()
-                for record in records:
-                    tags += record
-                cur.close()
-                return DBResponse(response_code=200, body=tags)
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error)
+        # process the unserialized DBResponse
+        _body = [row[0] for row in res.body]
+
+        return DBResponse(res.response_code, _body), pagination

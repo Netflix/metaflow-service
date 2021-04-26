@@ -1,12 +1,20 @@
+import os
+import time
+from typing import List
 from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
+from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
     AsyncMetadataTablePostgres as MetaMetadataTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable
 )
+
+# Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
+METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE = os.environ.get('PREFETCH_RUNS_SINCE', 86400 * 2)
+METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50)
 
 
 class AsyncRunTablePostgres(AsyncPostgresTable):
@@ -66,7 +74,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
     @property
     def select_columns(self):
-        "We must use a function scope in order to be able to access the table_name variable for list comprehension."
+        # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
         # User should be considered NULL when 'user:*' tag is missing
         # This is usually the case with AWS Step Functions
         return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys] \
@@ -156,3 +164,83 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         )
     ]
     _command = MetadataRunTable._command
+
+    async def get_recent_run_numbers(self):
+        _records, *_ = await self.find_records(
+            conditions=["ts_epoch >= %s"],
+            values=[int(round(time.time() * 1000)) - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)],
+            order=['ts_epoch DESC'],
+            limit=METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT,
+            expanded=True
+        )
+
+        return [run['run_number'] for run in _records.body]
+
+    async def get_expanded_run(self, run_key: str) -> DBResponse:
+        """
+        Fetch run with a given id or number from the DB.
+
+        Parameters
+        ----------
+        run_key : str
+            run number or run id
+
+        Returns
+        -------
+        DBResponse
+            Containing a single run record, if one was found.
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        result, *_ = await self.find_records(
+            conditions=["{column} = %s".format(column=run_id_key)],
+            values=[run_id_value],
+            fetch_single=True,
+            enable_joins=True,
+            expanded=True
+        )
+        return result
+
+    async def get_run_keys(self, conditions: List[str] = [],
+                           values: List[str] = [], limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+        """
+        Get a paginated set of run keys.
+
+        Parameters
+        ----------
+        conditions : List[str]
+            list of conditions to pass the sql execute, with %s placeholders for values
+        values : List[str]
+            list of values to be passed for the sql execute.
+        limit : int (optional) (default 0)
+            limit for the number of results
+        offset : int (optional) (default 0)
+            offset for the results.
+
+        Returns
+        -------
+        (DBResponse, DBPagination)
+        """
+        sql_template = """
+            SELECT run FROM (
+                SELECT DISTINCT COALESCE(run_id, run_number::text) as run, flow_id
+                FROM {table_name}
+            ) T
+            {conditions}
+            {limit}
+            {offset}
+            """
+        select_sql = sql_template.format(
+            table_name=self.table_name,
+            keys=",".join(self.select_columns),
+            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else ""),
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else ""
+        )
+
+        res, pag = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=False,
+                                          expanded=False,
+                                          limit=limit, offset=offset, serialize=False)
+        # process the unserialized DBResponse
+        _body = [row[0] for row in res.body]
+
+        return DBResponse(res.response_code, _body), pag

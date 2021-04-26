@@ -2,7 +2,6 @@ import json
 import sys
 import os
 import traceback
-import collections
 import pkg_resources
 from urllib.parse import urlencode
 from multidict import MultiDict

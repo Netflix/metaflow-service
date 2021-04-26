@@ -3,35 +3,47 @@ import json
 from tarfile import TarFile
 
 from metaflow.client.cache import CacheAction
-from metaflow import FlowSpec
-from .custom_flowgraph import FlowGraph  # TODO: change to metaflow.graph when the AST-only PR is merged.
-
-from .utils import NoRetryS3
-from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
 from services.utils import get_traceback_str
+
+# TODO: change to metaflow.graph when the AST-only PR is merged: https://github.com/Netflix/metaflow/pull/249
+from .custom_flowgraph import FlowGraph
+from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
+                    MetaflowS3Exception, MetaflowS3NotFound,
+                    MetaflowS3URLException, NoRetryS3)
 
 
 class GenerateDag(CacheAction):
-    '''
+    """
     Generates a DAG for a given codepackage tarball location and Flow name.
+
+    Parameters
+    ----------
+    flow_id : str
+        The flow id that this codepackage belongs to.
+        Required for finding the correct class inside the parser logic.
+    codepackage_location : str
+        the S3 location for the codepackage to be fetched.
 
     Returns
     --------
-    [
-      boolean,
-      {
-        "step_name": {
-          'type': string,
-          'box_next': boolean,
-          'box_ends': string,
-          'next': list
-        },
-        ...
-      }
-    ]
-      First field conveys whether dag generation was successful.
-      Second field contains the actual DAG.
-    '''
+    List or None
+        example:
+        [
+        boolean,
+        {
+            "step_name": {
+            'type': string,
+            'box_next': boolean,
+            'box_ends': string,
+            'next': list,
+            'doc': string
+            },
+            ...
+        }
+        ]
+        First field conveys whether dag generation was successful.
+        Second field contains the actual DAG.
+    """
 
     @classmethod
     def format_request(cls, flow_id, codepackage_location):
@@ -121,7 +133,8 @@ def generate_dag(flow_id, tarball_path):
             'type': node.type,
             'box_next': node.type not in ('linear', 'join'),
             'box_ends': node.matching_join,
-            'next': node.out_funcs
+            'next': node.out_funcs,
+            'doc': node.doc
         }
     return dag
 

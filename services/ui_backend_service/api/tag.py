@@ -9,5 +9,5 @@ class TagApi(object):
 
     @handle_exceptions
     async def get_all_tags(self, request):
-        db_response = await self._async_table.get_tags()
+        db_response, _ = await self._async_table.get_tags()
         return web_response(db_response.response_code, db_response.body)
