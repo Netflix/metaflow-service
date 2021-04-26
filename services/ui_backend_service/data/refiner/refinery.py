@@ -6,12 +6,15 @@ from services.utils import logging
 
 
 class Refinery(object):
-    """Used to refine objects with data only available from S3.
+    """
+    Used to refine objects with data only available from S3.
 
-    Parameters:
+    Parameters
     -----------
-    field_names: list of field names that contain S3 locations to be replaced with content.
-    cache: An instance of a ArtifactCacheStore that has the required cache accessors.
+    field_names : List[str]
+        list of field names that contain S3 locations to be replaced with content.
+    cache : CacheAsyncClient
+        An instance of a cache client that implements the GetArtifacts action.
     """
 
     def __init__(self, field_names, cache=None):
@@ -42,25 +45,36 @@ class Refinery(object):
 
     async def fetch_data(self, locations):
         try:
-            _res = await self.artifact_store.cache.GetArtifacts(locations)
+            # only fetch S3 locations, otherwise the long timeout of CacheFuture will cause problems.
+            _locs = [loc for loc in locations if isinstance(loc, str) and loc.startswith("s3://")]
+            _res = await self.artifact_store.cache.GetArtifacts(_locs)
             if not _res.is_ready():
                 await _res.wait()  # wait for results to be ready
             return _res.get() or {}  # cache get() might return None if no keys are produced.
-        except:
+        except Exception:
             self.logger.exception("Exception when fetching artifact data from cache")
             return {}
 
     async def _postprocess(self, response: DBResponse):
-        if FEATURE_REFINE_DISABLE:
-            return response
-
         """
         Async post processing callback that can be used as the find_records helpers
         postprocessing parameter.
 
         Passed in DBResponse will be refined on the configured field_names, replacing the S3 locations
         with their contents.
+
+        Parameters
+        ----------
+        response : DBResponse
+            The DBResponse to be refined
+
+        Returns
+        -------
+        A refined DBResponse, or in case of errors, the original DBResponse
         """
+        if FEATURE_REFINE_DISABLE:
+            return response
+
         if response.response_code != 200 or not response.body:
             return response
         if isinstance(response.body, list):

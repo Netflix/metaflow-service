@@ -10,6 +10,21 @@ from pyee import AsyncIOEventEmitter
 
 
 class ListenNotify(object):
+    """
+    Class for starting an async listener task that listens on a DB connection for notifications,
+    and processes these as events before broadcasting them on the provided event_emitter.
+
+    Consumes messages from DB connection with 'LISTEN notify' and processes the contents before passing
+    to event_emitter.emit('notify', *args)
+
+    Parameters
+    ----------
+    db : AsyncPostgresDB
+        initialized instance of a postgresDB adapter
+    event_emitter : AsyncIOEventEmitter
+        Any event emitter class that implements .emit('notify', *args)
+    """
+
     def __init__(self, app, db, event_emitter=None):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
@@ -48,6 +63,7 @@ class ListenNotify(object):
                     await asyncio.sleep(1)
 
     async def handle_trigger_msg(self, msg: str):
+        "Handler for the messages received from 'LISTEN notify'"
         try:
             payload = json.loads(msg.payload)
 
@@ -55,7 +71,7 @@ class ListenNotify(object):
             operation = payload.get("operation")
             data = payload.get("data")
 
-            table = await self.db.get_table_by_name(table_name)
+            table = self.db.get_table_by_name(table_name)
             if table is not None:
                 resources = resource_list(table.table_name, data)
 
@@ -66,7 +82,7 @@ class ListenNotify(object):
 
                 # Heartbeat watcher for Runs.
                 if table.table_name == self.db.run_table_postgres.table_name:
-                    self.event_emitter.emit('run-heartbeat', 'update', data['run_number'])
+                    self.event_emitter.emit('run-heartbeat', 'update', data)
 
                 # Heartbeat watcher for Tasks.
                 if table.table_name == self.db.task_table_postgres.table_name:
@@ -124,13 +140,35 @@ class ListenNotify(object):
                         # Also trigger preload of artifacts after a run finishes.
                         self.event_emitter.emit("preload-artifacts", data['run_number'])
                         # And remove possible heartbeat watchers for completed runs
-                        self.event_emitter.emit("run-heartbeat", "complete", data['run_number'])
+                        self.event_emitter.emit("run-heartbeat", "complete", data)
 
         except Exception:
             self.logger.exception("Exception occurred")
 
 
 def resource_list(table_name: str, data: Dict):
+    """
+    List of RESTful resources that the provided table and data are included in.
+
+    Used for determining which Web Socket subscriptions this resource relates to.
+
+    Parameters
+    ----------
+    table_name : str
+        table name that the Data belongs to
+    data : Dict
+        Dictionary of the data for a record of the table.
+
+    Returns
+    -------
+    List
+        example:
+        [
+            "/runs",
+            "/flows/ExampleFlow/runs",
+            "/flows/ExampleFlow/runs/1234"
+        ]
+    """
     resource_paths = {
         FLOW_TABLE_NAME: [
             "/flows",

@@ -1,6 +1,6 @@
-from .refinery import Refinery
 from services.data.db_utils import DBResponse
-from functools import reduce
+
+from .refinery import Refinery
 
 
 class ParameterRefiner(Refinery):
@@ -9,9 +9,10 @@ class ParameterRefiner(Refinery):
 
     Fetches specified content from S3 and cleans up unnecessary fields from response.
 
-    Parameters:
+    Parameters
     -----------
-    cache: An instance of a cache that has the required cache accessors.
+    cache : AsyncCacheClient
+        An instance of a cache that implements the GetArtifacts action.
     """
 
     def __init__(self, cache):

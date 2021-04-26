@@ -4,6 +4,17 @@ FEATURE_ENV_PREFIX = 'FEATURE_'
 
 
 def get_features():
+    """
+    Get a dict of features that are enabled or disabled for the process
+
+    Returns
+    -------
+    Dict
+        example:
+        {
+            "FEATURE_SOME_FEAT": True
+        }
+    """
     features = {}
     for key, val in os.environ.items():
         if key.startswith(FEATURE_ENV_PREFIX):

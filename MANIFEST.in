@@ -1,5 +1,3 @@
-include services/utils/requirements.txt
-include services/data/requirements.txt
 include services/metadata_service/requirements.txt
 include services/migration_service/requirements.txt
 include services/ui_backend_service/requirements.txt

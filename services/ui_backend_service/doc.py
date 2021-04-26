@@ -317,6 +317,10 @@ swagger_definitions = {
             }
         }
     },
+    "ResponsesAutocompleteTagList": response_list("#/definitions/ModelsAutocompleteTag"),
+    "ResponsesAutocompleteFlowList": response_list("#/definitions/ModelsAutocompleteFlow"),
+    "ResponsesAutocompleteRunList": response_list("#/definitions/ModelsAutocompleteRun"),
+    "ResponsesAutocompleteStepList": response_list("#/definitions/ModelsAutocompleteStep"),
     "ResponsesFlow": response_object("#/definitions/ModelsFlow"),
     "ResponsesFlowList": response_list("#/definitions/ModelsFlow"),
     "ResponsesRun": response_object("#/definitions/ModelsRun"),
@@ -344,6 +348,13 @@ swagger_definitions = {
         "items": {
             "type": "object",
             "$ref": "#/definitions/ModelsLink"
+        }
+    },
+    "ResponsesNotificationList": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "$ref": "#/definitions/ModelsNotification"
         }
     },
     "ResponsesLog": response_object("#/definitions/ModelsLog"),
@@ -375,6 +386,22 @@ swagger_definitions = {
         **modelprop("finished_at", "integer", "Finished at epoch timestamp", 1591788834035),
         **modelprop("duration", "integer", "Duration in milliseconds (null if unfinished)", 456),
     }),
+    "ModelsAutocompleteTag": {
+        "type": "string",
+        "default": "tag name"
+    },
+    "ModelsAutocompleteFlow": {
+        "type": "string",
+        "default": "Flow id"
+    },
+    "ModelsAutocompleteRun": {
+        "type": "string",
+        "default": "run number or run id"
+    },
+    "ModelsAutocompleteStep": {
+        "type": "string",
+        "default": "step name"
+    },
     "ModelsRunParameters": {
         "type": "object",
         "properties": {
@@ -439,6 +466,56 @@ swagger_definitions = {
         },
         "required": ["href", "label"]
     },
+    "ModelsNotification": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "description": "Notification identifier",
+                "default": "Generated SHA1 hash"
+            },
+            "message": {
+                "type": "string",
+                "description": "Message to display (Markdown supported)"
+            },
+            "created": {
+                "type": "integer",
+                "description": "Notification created at (Epoch timestamp in milliseconds)",
+                "default": None
+            },
+            "type": {
+                "type": "string",
+                "description": "Notification type, allowed values: success|info|warning|danger|default",
+                "default": "info"
+            },
+            "contentType": {
+                "type": "string",
+                "description": "Message content-type, allowed values: text|markdown",
+                "default": "text"
+            },
+            "url": {
+                "type": "string",
+                "description": "Notification url",
+                "default": None
+            },
+            "urlText": {
+                "type": "string",
+                "description": "Human readable url title",
+                "default": None
+            },
+            "start": {
+                "type": "integer",
+                "description": "Schedule notification to be visible starting at (Epoch timestamp in milliseconds)",
+                "default": None
+            },
+            "end": {
+                "type": "integer",
+                "description": "Schedule notification to disappear after (Epoch timestamp in milliseconds)",
+                "default": None
+            }
+        },
+        "required": ["id", "message", "created", "type", "contentType", "url", "urlText", "start", "end"]
+    },
     "ModelsDag": {
         "type": "object",
         "properties": {
@@ -481,6 +558,10 @@ swagger_definitions = {
                     "type": "string"
                 },
                 "description": "names of next steps that follow from this step"
+            },
+            "doc": {
+                "type": "string",
+                "description": "DAG Node Docstring"
             }
         },
         "required": ["type", "box_next", "box_ends", "next"]

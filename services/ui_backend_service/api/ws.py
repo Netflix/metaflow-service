@@ -57,16 +57,33 @@ class Websocket(object):
         app.router.add_route('GET', '/ws', self.websocket_handler)
         self.loop = asyncio.get_event_loop()
 
-    async def event_handler(self, operation: str, resources: List[str], data: Dict, table_name=None, filter_dict: Dict = {}):
-        """Either receives raw data from table triggers listener and either performs a database load
+    async def event_handler(self, operation: str, resources: List[str], data: Dict, table_name: str = None, filter_dict: Dict = {}):
+        """
+        Event handler for websocket events on 'notify'.
+        Either receives raw data from table triggers listener and either performs a database load
         before broadcasting from the provided table, or receives predefined data and broadcasts it as-is.
+
+        Parameters
+        ----------
+        operation : str
+            name of the operation related to the DB event, either 'INSERT' or 'UPDATE'
+        resources : List[str]
+            List of resource paths that this event is related to. Used strictly for broadcasting to
+            websocket subscriptions
+        data : Dict
+            The data of the record to be broadcast. Can either be complete, or partial.
+            In case of partial data (and a provided table name) this is only used for the DB query.
+        table_name : str (optional)
+            name of the table that the complete data should be queried from.
+        filter_dict : Dict (optional)
+            a dictionary of filters used in the query when fetching complete data.
         """
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
         if any(subscription.resource in resources for subscription in self.subscriptions):
             # load the data and postprocessor for broadcasting if table
             # is provided (otherwise data has already been loaded in advance)
             if table_name:
-                table = await self.db.get_table_by_name(table_name)
+                table = self.db.get_table_by_name(table_name)
                 _postprocess = await self.get_table_postprocessor(table_name)
                 _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
             else:
@@ -131,7 +148,8 @@ class Websocket(object):
                 filter(lambda s: ws != s.ws, self.subscriptions))
 
     async def handle_disconnect(self, ws):
-        """Sets disconnected timestamp on websocket subscription without removing it from the list.
+        """
+        Sets disconnected timestamp on websocket subscription without removing it from the list.
         Removing is handled by event_handler that checks for expired subscriptions before emitting
         """
         self.subscriptions = list(
@@ -141,6 +159,7 @@ class Websocket(object):
         )
 
     async def websocket_handler(self, request):
+        "Handler for received messages from the open Web Socket connection."
         # TODO: Consider using options autoping=True and heartbeat=20 if supported by clients.
         ws = web.WebSocketResponse()
         await ws.prepare(request)

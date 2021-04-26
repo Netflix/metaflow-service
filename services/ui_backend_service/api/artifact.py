@@ -1,6 +1,6 @@
 import json
 from aiohttp import web
-from services.data.db_utils import DBResponse, _filter_artifacts_by_attempt_id_for_tasks, translate_run_key, translate_task_key
+from services.data.db_utils import DBResponse, filter_artifacts_by_attempt_id_for_tasks, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
 
@@ -209,4 +209,4 @@ class ArtificatsApi(object):
         if response.response_code != 200 or not response.body:
             return response
         return DBResponse(response_code=response.response_code,
-                          body=_filter_artifacts_by_attempt_id_for_tasks(response.body))
+                          body=filter_artifacts_by_attempt_id_for_tasks(response.body))
