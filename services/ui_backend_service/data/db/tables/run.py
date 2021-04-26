@@ -55,7 +55,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
     @property
     def select_columns(self):
-        "We must use a function scope in order to be able to access the table_name variable for list comprehension."
+        # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
         # User should be considered NULL when 'user:*' tag is missing
         # This is usually the case with AWS Step Functions
         return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys] \

@@ -86,7 +86,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
 
     @property
     def select_columns(self):
-        "We must use a function scope in order to be able to access the table_name variable for list comprehension."
+        # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
         return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys]
 
     join_columns = [

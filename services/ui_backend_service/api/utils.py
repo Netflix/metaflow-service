@@ -1,11 +1,21 @@
+import json
+import os
 import time
-from urllib.parse import urlsplit, parse_qsl
-from multidict import MultiDict
-from aiohttp import web
-from typing import Callable, List, Dict
-from services.data.db_utils import DBResponse, DBPagination
-from services.utils import format_qs, format_baseurl, web_response
 from collections import deque
+from typing import Callable, Dict, List
+from urllib.parse import parse_qsl, urlsplit
+
+from aiohttp import web
+from multidict import MultiDict
+from services.data.db_utils import DBPagination, DBResponse
+from services.utils import format_baseurl, format_qs, web_response
+
+
+def get_json_from_env(variable_name: str):
+    try:
+        return json.loads(os.environ.get(variable_name))
+    except Exception:
+        return None
 
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
