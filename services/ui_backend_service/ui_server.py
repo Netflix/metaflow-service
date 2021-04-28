@@ -1,6 +1,7 @@
 import asyncio
 import os
 import signal
+import concurrent
 
 from aiohttp import web
 from aiohttp_swagger import *
@@ -92,7 +93,10 @@ def app(loop=None, db_conf: DBConfiguration = None):
     if len(PATH_PREFIX) > 0:
         _app.add_subapp(PATH_PREFIX, app)
 
-    init_plugins()
+    async def _init_plugins():
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            await loop.run_in_executor(pool, init_plugins)
+    asyncio.run_coroutine_threadsafe(_init_plugins(), loop)
 
     return _app
 

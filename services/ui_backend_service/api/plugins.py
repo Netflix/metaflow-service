@@ -1,14 +1,10 @@
-import os
 from services.utils import handle_exceptions, web_response
-
-from ..plugins import PLUGINS
-
-from aiohttp import web
+from ..plugins import list_plugins
 
 
 class PluginsApi(object):
     """
-    Adds an Api endpoint for fetching required configuration variables for the frontend.
+    Adds an Api endpoint for fetching UI plugins.
     """
 
     def __init__(self, app):
@@ -18,36 +14,93 @@ class PluginsApi(object):
 
     @handle_exceptions
     async def get_plugins(self, request):
+        """
+        ---
+        description: List all plugins
+        tags:
+        - Plugin
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Returns list of all plugins
+                schema:
+                  $ref: '#/definitions/ResponsesPluginList'
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+        """
         plugins = []
-        for plugin in PLUGINS.values():
+        for plugin in list_plugins().values():
             plugins.append(_plugin_dict(plugin))
 
         return web_response(200, plugins)
 
     @handle_exceptions
     async def get_plugin(self, request):
-        plugin_name = request.match_info.get("plugin_name")
-        if plugin_name not in PLUGINS:
+        """
+        ---
+        description: Get one plugin
+        tags:
+        - Plugin
+        parameters:
+          - $ref: '#/definitions/Params/Path/plugin_name'
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Returns one plugin
+                schema:
+                  $ref: '#/definitions/ResponsesPlugin'
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+        """
+        plugin = _get_plugin_from_request(request)
+        if not plugin:
             return web_response(404, "Plugin not found")
-
-        plugin = PLUGINS[plugin_name]
 
         return web_response(200, _plugin_dict(plugin))
 
     @handle_exceptions
     async def get_plugin_asset(self, request):
-        plugin_name = request.match_info.get("plugin_name")
-        if plugin_name not in PLUGINS:
+        """
+        ---
+        description: Serve plugin asset
+        tags:
+        - Plugin
+        parameters:
+          - $ref: '#/definitions/Params/Path/plugin_name'
+          - $ref: '#/definitions/Params/Path/plugin_filename'
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Serve plugin asset, e.g. dist/index.html
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+        """
+        plugin = _get_plugin_from_request(request)
+        if not plugin:
             return web_response(404, "Plugin not found")
 
-        plugin = PLUGINS[plugin_name]
-
+        filename = request.match_info.get("filename")
         try:
-            filename = request.match_info.get("filename")
-            if filename and plugin.has_file(filename):
-                return web.FileResponse(os.path.join(plugin.path, filename))
+            return plugin.serve(filename)
         except:
-            return web_response(404, "File not found")
+            return web_response(500, "Internal server error")
+
+
+def _get_plugin_from_request(request):
+    _plugins = list_plugins()
+    plugin_name = request.match_info.get("plugin_name")
+    if plugin_name not in _plugins:
+        return None
+    return _plugins[plugin_name]
 
 
 def _plugin_dict(plugin):
@@ -57,5 +110,5 @@ def _plugin_dict(plugin):
         "ref": plugin.ref,
         "parameters": plugin.parameters,
         "config": plugin.config,
-        "files": plugin.list_files()
+        "files": plugin.files
     }
