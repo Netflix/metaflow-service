@@ -72,6 +72,12 @@ def environment_prefix():
 # Supports prefix for environment variables:
 #   prefix=MF_METADATA_DB_ -> MF_METADATA_DB_USER=username
 #
+# Every environment variable that is used, is sandboxed with environment_prefix(),
+# which is controlled by setting the ENVIRONMENT variable. Defaults to an empty string if not set.
+#   -> ENVIRONMENT=test
+#   -> prefix=MF_METADATA_DB_
+#   -> TEST_MF_METADATA_DB_USER=username
+#
 # Prioritizes configuration in following order:
 #
 #   1. Env DSN string (MF_METADATA_DB_DSN="...")
@@ -79,6 +85,8 @@ def environment_prefix():
 #   3. Env connection arguments (MF_METADATA_DB_HOST="..." MF_METADATA_DB...)
 #   4. Default connection arguments (DBConfiguration(host="..."))
 #
+
+
 class DBConfiguration(object):
     host: str = None
     port: int = None
