@@ -2,7 +2,7 @@ import pytest
 import os
 import contextlib
 from aiohttp.test_utils import make_mocked_request
-from services.utils import format_qs, format_baseurl, DBConfiguration
+from services.utils import format_qs, format_baseurl, DBConfiguration, environment_prefix
 
 pytestmark = [pytest.mark.unit_tests]
 
@@ -116,6 +116,39 @@ def test_db_conf_env_custom_prefix():
         assert db_conf.timeout == 5
 
 
+def test_db_conf_env_prefixes_environment_prefix():
+    # ENVIRONMENT=custom should control which environment variables get used.
+    with set_env({
+        'ENVIRONMENT': 'custom',
+        'MF_METADATA_DB_HOST': 'production',
+        'MF_METADATA_DB_PORT': '1234',
+        'MF_METADATA_DB_USER': 'produser',
+        'MF_METADATA_DB_PSWD': 'prodpwd',
+        'MF_METADATA_DB_NAME': 'prod_db',
+        'MF_METADATA_DB_POOL_MIN': '20',
+        'MF_METADATA_DB_POOL_MAX': '40',
+        'MF_METADATA_DB_TIMEOUT': '1',
+        'CUSTOM_MF_METADATA_DB_HOST': 'custom',
+        'CUSTOM_MF_METADATA_DB_PORT': '4321',
+        'CUSTOM_MF_METADATA_DB_USER': 'user',
+        'CUSTOM_MF_METADATA_DB_PSWD': 'password',
+        'CUSTOM_MF_METADATA_DB_NAME': 'bar',
+        'CUSTOM_MF_METADATA_DB_POOL_MIN': '2',
+        'CUSTOM_MF_METADATA_DB_POOL_MAX': '4',
+        'CUSTOM_MF_METADATA_DB_TIMEOUT': '5'
+    }):
+        db_conf = DBConfiguration()
+        assert db_conf.dsn == 'dbname=bar user=user password=password host=custom port=4321'
+        assert db_conf.host == 'custom'
+        assert db_conf.port == 4321
+        assert db_conf.user == 'user'
+        assert db_conf.password == 'password'
+        assert db_conf.database_name == 'bar'
+        assert db_conf.pool_min == 2
+        assert db_conf.pool_max == 4
+        assert db_conf.timeout == 5
+
+
 def test_db_conf_env_dsn():
     with set_env({'MF_METADATA_DB_DSN': 'foo'}):
         assert DBConfiguration().dsn == 'foo'
@@ -133,3 +166,13 @@ def test_db_conf_timeout():
         db_conf = DBConfiguration(timeout=5)
         assert db_conf.timeout == 5
 
+
+def test_environment_prefix():
+    # default prefix during test suite runs should be TEST_
+    assert environment_prefix() == "TEST_"
+
+    with set_env({'ENVIRONMENT': 'CUSTOM'}):
+        assert environment_prefix() == "CUSTOM_"
+
+    with set_env():
+        assert environment_prefix() == ""
