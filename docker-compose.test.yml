@@ -8,7 +8,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - ENVIRONMENT=test
+      - APP_ENV=test
       - TEST_MF_METADATA_DB_HOST=db_test
       - TEST_MF_METADATA_DB_PORT=5432
       - TEST_MF_METADATA_DB_USER=test

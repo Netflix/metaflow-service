@@ -24,9 +24,9 @@ from services.migration_service.data.postgres_async_db import \
 
 def ensure_test_env():
     "Check that tests are run in the correct environment."
-    if os.environ.get("ENVIRONMENT") != "test":
+    if os.environ.get("APP_ENV") != "test":
         pytest.exit("The test suite should only be run in a test environment. \n \
-            Configured environment is not suited for running tests. Run tests with ENVIRONMENT=test")
+            Configured environment is not suited for running tests. Run tests with APP_ENV=test")
 
 
 def init_app(loop, aiohttp_client, queue_ttl=30):

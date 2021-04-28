@@ -117,9 +117,9 @@ def test_db_conf_env_custom_prefix():
 
 
 def test_db_conf_env_prefixes_environment_prefix():
-    # ENVIRONMENT=custom should control which environment variables get used.
+    # APP_ENV=custom should control which environment variables get used.
     with set_env({
-        'ENVIRONMENT': 'custom',
+        'APP_ENV': 'custom',
         'MF_METADATA_DB_HOST': 'production',
         'MF_METADATA_DB_PORT': '1234',
         'MF_METADATA_DB_USER': 'produser',
@@ -171,7 +171,7 @@ def test_environment_prefix():
     # default prefix during test suite runs should be TEST_
     assert environment_prefix() == "TEST_"
 
-    with set_env({'ENVIRONMENT': 'CUSTOM'}):
+    with set_env({'APP_ENV': 'CUSTOM'}):
         assert environment_prefix() == "CUSTOM_"
 
     with set_env():

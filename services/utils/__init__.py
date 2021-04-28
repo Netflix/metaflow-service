@@ -62,7 +62,7 @@ def format_baseurl(request: web.BaseRequest):
 
 
 def environment_prefix():
-    env = os.environ.get("ENVIRONMENT", None)
+    env = os.environ.get("APP_ENV", None)
 
     return "{}_".format(env.upper()) if env else ""
 
@@ -73,8 +73,8 @@ def environment_prefix():
 #   prefix=MF_METADATA_DB_ -> MF_METADATA_DB_USER=username
 #
 # Every environment variable that is used, is sandboxed with environment_prefix(),
-# which is controlled by setting the ENVIRONMENT variable. Defaults to an empty string if not set.
-#   -> ENVIRONMENT=test
+# which is controlled by setting the APP_ENV environment variable. Defaults to an empty string if not set.
+#   -> APP_ENV=test
 #   -> prefix=MF_METADATA_DB_
 #   -> TEST_MF_METADATA_DB_USER=username
 #
