@@ -61,6 +61,11 @@ def format_baseurl(request: web.BaseRequest):
     return "{baseurl}{path}".format(baseurl=baseurl, path=request.path)
 
 
+def environment_prefix():
+    env = os.environ.get("ENVIRONMENT", None)
+
+    return "{}_".format(env.upper()) if env else ""
+
 # Database configuration helper
 # Prioritizes DSN string over individual connection arguments (host,user,...)
 #
@@ -101,6 +106,7 @@ class DBConfiguration(object):
                  pool_min: int = 1,
                  pool_max: int = 10,
                  timeout: int = 60):
+        prefix = environment_prefix() + prefix
         table = str.maketrans({"'": "\'", "`": r"\`"})
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)

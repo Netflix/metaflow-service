@@ -22,7 +22,15 @@ from services.migration_service.data.postgres_async_db import \
 # Test fixture helpers begin
 
 
+def ensure_test_env():
+    "Check that tests are run in the correct environment."
+    if os.environ.get("ENVIRONMENT") != "test":
+        pytest.exit("The test suite should only be run in a test environment. \n \
+            Configured environment is not suited for running tests. Run tests with ENVIRONMENT=test")
+
+
 def init_app(loop, aiohttp_client, queue_ttl=30):
+    ensure_test_env()
     app = web.Application()
 
     # Migration routes as a subapp
@@ -42,12 +50,8 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
 
 async def init_db(cli):
-    db_conf = DBConfiguration(database_name="test")
-    # Doublecheck for config values that we set,
-    # as ENV variables override anything we pass in.
-    if db_conf.database_name != "test" or \
-            "dbname=test" not in db_conf.dsn:
-        pytest.exit("The test suite should only be run in a test environment. Configured database is not suited for running tests")
+    ensure_test_env()
+    db_conf = DBConfiguration()
 
     # Make sure migration scripts are applied
     migration_db = MigrationAsyncPostgresDB.get_instance()
