@@ -15,9 +15,7 @@ class AutoCompleteApi(object):
         app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
         app.router.add_route("GET", "/flows/{flow_id}/runs/autocomplete", self.get_runs_for_flow)
         app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/steps/autocomplete", self.get_steps_for_run)
-        self._flow_table = self.db.flow_table_postgres
-        self._run_table = self.db.run_table_postgres
-        self._step_table = self.db.step_table_postgres
+        app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/artifacts/autocomplete", self.get_artifacts_for_run)
 
     @handle_exceptions
     async def get_tags(self, request):
@@ -34,7 +32,7 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteTagList'
         """
-        return await resource_response(request, self._run_table.get_tags, allowed_keys=["tag"])
+        return await resource_response(request, self.db.run_table_postgres.get_tags, allowed_keys=["tag"])
 
     @handle_exceptions
     async def get_flows(self, request):
@@ -53,7 +51,7 @@ class AutoCompleteApi(object):
                     $ref: '#/definitions/ResponsesAutocompleteFlowList'
         """
 
-        return await resource_response(request, self._flow_table.get_flow_ids, allowed_keys=["flow_id"])
+        return await resource_response(request, self.db.flow_table_postgres.get_flow_ids, allowed_keys=["flow_id"])
 
     @handle_exceptions
     async def get_runs_for_flow(self, request):
@@ -75,7 +73,7 @@ class AutoCompleteApi(object):
 
         return await resource_response(
             request,
-            self._run_table.get_run_keys,
+            self.db.run_table_postgres.get_run_keys,
             initial_conditions=["flow_id=%s"],
             initial_values=[flow_id],
             allowed_keys=["run"]
@@ -104,10 +102,39 @@ class AutoCompleteApi(object):
 
         return await resource_response(
             request,
-            self._step_table.get_step_names,
+            self.db.step_table_postgres.get_step_names,
             initial_conditions=["flow_id=%s", "{}=%s".format(run_key)],
             initial_values=[flow_id, run_value],
             allowed_keys=["step_name"]
+        )
+
+    @handle_exceptions
+    async def get_artifacts_for_run(self, request):
+        """
+        ---
+        description: Get all artifact names for single run
+        tags:
+        - Autocomplete
+        - Artifact
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Returns string list of step names
+                schema:
+                    $ref: '#/definitions/ResponsesAutocompleteArtifactList'
+        """
+        flow_id = request.match_info.get("flow_id")
+        run_id = request.match_info.get("run_id")
+
+        run_key, run_value = translate_run_key(run_id)
+
+        return await resource_response(
+            request,
+            self.db.artifact_table_postgres.get_artifact_names,
+            initial_conditions=["flow_id=%s", "{}=%s".format(run_key)],
+            initial_values=[flow_id, run_value],
+            allowed_keys=["name"]
         )
 
 
