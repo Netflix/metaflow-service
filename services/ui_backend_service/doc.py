@@ -321,6 +321,7 @@ swagger_definitions = {
     "ResponsesAutocompleteFlowList": response_list("#/definitions/ModelsAutocompleteFlow"),
     "ResponsesAutocompleteRunList": response_list("#/definitions/ModelsAutocompleteRun"),
     "ResponsesAutocompleteStepList": response_list("#/definitions/ModelsAutocompleteStep"),
+    "ResponsesAutocompleteArtifactList": response_list("#/definitions/ModelsAutocompleteArtifact"),
     "ResponsesFlow": response_object("#/definitions/ModelsFlow"),
     "ResponsesFlowList": response_list("#/definitions/ModelsFlow"),
     "ResponsesRun": response_object("#/definitions/ModelsRun"),
@@ -401,6 +402,10 @@ swagger_definitions = {
     "ModelsAutocompleteStep": {
         "type": "string",
         "default": "step name"
+    },
+    "ModelsAutocompleteArtifact": {
+        "type": "string",
+        "default": "artifact name"
     },
     "ModelsRunParameters": {
         "type": "object",

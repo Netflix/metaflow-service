@@ -1,6 +1,7 @@
 import pytest
 from .utils import (
-    init_app, init_db, add_flow, clean_db, _test_list_resources, add_run, add_step
+    init_app, init_db, add_flow, clean_db, _test_list_resources,
+    add_run, add_step, add_task, add_artifact
 )
 pytestmark = [pytest.mark.integration_tests]
 
@@ -85,3 +86,32 @@ async def test_tags_autocomplete(cli, db):
 
     # Custom match
     await _test_list_resources(cli, db, '/tags/autocomplete?tag:li=tag:%25thing', 200, ['tag:something'])
+
+
+async def test_artifacts_autocomplete(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="regular_step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db, flow_id=_step.get("flow_id"), step_name=_step.get("step_name"), run_number=_step.get("run_number"), run_id=_step.get("run_id"))).body
+
+    async def _create_artifact(name, task):
+        await add_artifact(
+            db,
+            flow_id=task.get("flow_id"),
+            run_number=task.get("run_number"),
+            step_name=task.get("step_name"),
+            task_id=task.get("task_id"),
+            artifact={"name": name}
+        )
+
+    await _create_artifact("first", _task)
+    await _create_artifact("second", _task)
+    await _create_artifact("first3", _task)
+
+    await _test_list_resources(cli, db, '/flows/{flowid}/runs/{runid}/artifacts/autocomplete'.format(flowid=_task.get('flow_id'), runid=_task.get('run_number')), 200, ["first", "first3", "second"])
+
+    # Partial match
+    await _test_list_resources(cli, db, '/flows/{flowid}/runs/{runid}/artifacts/autocomplete?name:co=rst'.format(flowid=_task.get('flow_id'), runid=_task.get('run_number')), 200, ["first", "first3"])
+
+    # no-match
+    await _test_list_resources(cli, db, '/flows/{flowid}/runs/{runid}/artifacts/autocomplete?name:co=test'.format(flowid=_task.get('flow_id'), runid=_task.get('run_number')), 200, [])
