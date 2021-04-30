@@ -9,7 +9,7 @@ from subprocess import Popen, PIPE
 from .api.admin import AdminApi
 
 from .data.postgres_async_db import AsyncPostgresDB
-from services.utils import DBConfiguration
+from services.utils import DBConfiguration, environment_prefix
 from .migration_config import db_conf
 
 
@@ -28,8 +28,9 @@ def main():
     loop = asyncio.get_event_loop()
     the_app = app(loop, db_conf)
     handler = the_app.make_handler()
-    port = os.environ.get("MF_MIGRATION_PORT", 8082)
-    host = str(os.environ.get("MF_METADATA_HOST", "0.0.0.0"))
+    prefix = environment_prefix()
+    port = os.environ.get(prefix + "MF_MIGRATION_PORT", 8082)
+    host = str(os.environ.get(prefix + "MF_METADATA_HOST", "0.0.0.0"))
     f = loop.create_server(handler, host, port)
 
     srv = loop.run_until_complete(f)
