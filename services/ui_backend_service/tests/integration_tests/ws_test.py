@@ -86,7 +86,7 @@ async def test_subscription_queue(cli, db, loop):
     ws = await cli.ws_connect("/ws")
 
     # Subscribe and request events that happened in the past
-    await _subscribe(ws=ws, resource="/flows", since=now-10)
+    await _subscribe(ws=ws, resource="/flows", since=now - 10)
 
     msg = await ws.receive_json(timeout=TIMEOUT_FUTURE)
     assert msg["type"] == "INSERT"
@@ -105,7 +105,7 @@ async def test_subscription_queue_without_since(cli, db, loop):
         # Make sure nothing is received via websocket
         await ws.receive_json(timeout=TIMEOUT_FUTURE)
         assert False
-    except:
+    except asyncio.TimeoutError:
         pass
 
     # Above flow should not be returned without `since` parameter
@@ -115,7 +115,7 @@ async def test_subscription_queue_without_since(cli, db, loop):
         # Make sure still nothing is received via websocket
         await ws.receive_json(timeout=TIMEOUT_FUTURE)
         assert False
-    except:
+    except asyncio.TimeoutError:
         # This is expected since queue data has expired
         pass
 
@@ -134,7 +134,7 @@ async def test_subscription_queue_ttl_expired(cli_short_ttl, db, loop):
         # Make sure nothing is received via websocket
         await ws.receive_json(timeout=TIMEOUT_FUTURE)
         assert False
-    except:
+    except asyncio.TimeoutError:
         pass
 
     # Sleep 1 second to make sure we are past queue TTL (0.5s in this case)
@@ -147,7 +147,7 @@ async def test_subscription_queue_ttl_expired(cli_short_ttl, db, loop):
     try:
         await ws.receive_json(timeout=TIMEOUT_FUTURE)
         assert False
-    except:
+    except asyncio.TimeoutError:
         # This is expected since queue data has expired
         pass
 
@@ -162,7 +162,7 @@ async def test_no_subscription(cli, db, loop):
     try:
         await ws.receive_json(timeout=TIMEOUT_FUTURE)
         assert False
-    except:
+    except asyncio.TimeoutError:
         # This is expected since there's no subscriptions
         pass
 
@@ -187,7 +187,7 @@ async def test_unubscribe(cli, db, loop):
     try:
         await ws.receive_json(timeout=TIMEOUT_FUTURE)
         assert False
-    except:
+    except asyncio.TimeoutError:
         # This is expected since there's no subscriptions any longer
         pass
 
@@ -199,20 +199,33 @@ async def test_subscription_filters(cli, db, loop):
 
     await _subscribe(ws, "/flows?_tags=custom:tag")
 
+    # Should receive resource as it matches subscription conditions
     _flow = (await add_flow(db, flow_id="HelloFlow", tags=["custom:tag"])).body
 
     msg = await ws.receive_json(timeout=TIMEOUT_FUTURE)
     assert msg["type"] == "INSERT"
     assert msg["data"] == _flow
 
+    # Does not match subscription so this resource should never be received.
+    await add_flow(db, flow_id="SecondFlow", tags=["different:tag"])
+
+    try:
+        await ws.receive_json(timeout=TIMEOUT_FUTURE)
+        assert False  # We should not have received anything from the web socket!
+    except asyncio.TimeoutError:
+        # This is expected since the subscription does not match the resource
+        pass
+
+    # After unsubscribing, no updates should be received.
+
     await _unsubscribe(ws)
 
-    await add_flow(db, flow_id="AnotherFlow", tags=["unknown:tag"])
+    await add_flow(db, flow_id="AnotherFlow", tags=["custom:tag"])
 
     try:
         await ws.receive_json(timeout=TIMEOUT_FUTURE)
         assert False
-    except:
+    except asyncio.TimeoutError:
         # This is expected since there's no subscriptions any longer
         pass
 
