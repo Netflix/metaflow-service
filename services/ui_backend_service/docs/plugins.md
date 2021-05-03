@@ -77,6 +77,10 @@ Following JSON describes different ways to register plugins. Each plugin will be
     "parameters": {
       "color": "blue"
     }
+  },
+  "plugin-repository-multiple": {
+    "repository": "https://github.com/Netflix/metaflow-ui-plugin-example.git",
+    "paths": ["path/to/first-plugin", "second-plugin"]
   }
 }
 ```
@@ -90,6 +94,9 @@ Following JSON describes different ways to register local plugins. Each plugin s
     "parameters": {
       "color": "yellow"
     }
+  },
+  "plugin-local-multiple": {
+    "paths": ["path/to/first-plugin", "second-plugin"]
   }
 }
 ```
@@ -98,4 +105,3 @@ Following JSON describes different ways to register local plugins. Each plugin s
 
 - Only HTTPS repositories are supported
 - Repository should be publicly available without authentication
-- Support for repository/root folder with multiple plugins as sub-folder

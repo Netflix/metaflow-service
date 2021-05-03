@@ -1,6 +1,7 @@
 import os
 import json
 import glob
+import collections
 import pygit2
 from typing import List
 from services.utils import logging
@@ -11,27 +12,33 @@ INSTALLED_PLUGINS_DIR = 'installed'
 
 _dirname = os.path.dirname(os.path.realpath(__file__))
 
+PluginConfig = collections.namedtuple("PluginConfig", "name version entrypoint")
+
 
 class Plugin(object):
-    name: str = None
+    identifier: str = None
     repository: str = None
     ref: str = None
     path: str = None
     parameters: dict = {}
 
-    config: dict = {}
+    config: PluginConfig = {}
     files: List[str] = []
 
     _repo: pygit2.Repository = None
 
-    def __init__(self, name: str, repository: str, ref: str = None, parameters: dict = {}):
-        self.logger = logging.getLogger("Plugin:{}".format(name))
+    def __init__(self, identifier: str, repository: str, ref: str = None, parameters: dict = {}, path: str = None):
+        self.logger = logging.getLogger("Plugin:{}:{}".format(identifier, path))
 
-        self.name = name
+        self.identifier = identifier
         self.repository = repository
         self.ref = ref
-        self.path = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.name)
         self.parameters = parameters
+
+        if path:
+            self.path = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier, path)
+        else:
+            self.path = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier)
 
     def init(self):
         """
@@ -77,16 +84,16 @@ class Plugin(object):
 
             self.logger.info("Checkout {} at {}".format(resolved_refish.name, commit.short_id))
 
-    def _load_config(self):
+    def _load_config(self) -> PluginConfig:
         try:
             config = json.loads(self.get_file(CONFIG_FILENAME))
             if not all(key in config for key in ('name', 'version', 'entrypoint')):
                 return None
-            return config
+            return dict(config)
         except:
             return None
 
-    def _list_files(self):
+    def _list_files(self) -> List[str]:
         files = []
         static_files = glob.glob(os.path.join(self.path, '**'), recursive=True)
         for filepath in static_files:
@@ -95,7 +102,7 @@ class Plugin(object):
                 files.append(filename)
         return files
 
-    def has_file(self, filename):
+    def has_file(self, filename) -> bool:
         return filename in self.files
 
     def get_file(self, filename):

@@ -3,7 +3,7 @@ from ..api.utils import get_json_from_env
 
 from .plugin import (Plugin, PluginException)
 
-_PLUGINS = {}
+_PLUGINS = []
 
 logger = logging.getLogger("Plugin")
 
@@ -20,30 +20,41 @@ def init_plugins():
 
     plugins = get_json_from_env("PLUGINS")
     if plugins:
-        for name, value in plugins.items():
+        for identifier, value in plugins.items():
             if isinstance(value, str):
                 repository = value
                 ref = None
-                paramaters = {}
+                parameters = {}
+                paths = None
             elif isinstance(value, dict):
                 repository = value.get("repository", None)
                 ref = value.get("ref", None)
-                paramaters = value.get("parameters", {})
+                parameters = value.get("parameters", {})
+                paths = value.get("paths", None)
             else:
-                logger.warn("   [{}] Invalid plugin format, skipping".format(name))
+                logger.warn("   [{}] Invalid plugin format, skipping".format(identifier))
                 continue
 
-            try:
-                plugin = Plugin(name, repository=repository, ref=ref, parameters=paramaters)
-                _PLUGINS[name] = plugin.init()
-            except PluginException as err:
-                logger.error("  [{}] PluginException: {}".format(name, err))
-            except Exception as err:
-                logger.error("  [{}] Unknown error loading plugin {}".format(name, err))
+            if paths and isinstance(paths, list):
+                for path in paths:
+                    _load_plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters, path=path)
+            else:
+                _load_plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters)
 
-    logger.info("Plugins ready: {}".format(list(_PLUGINS.keys())))
+    logger.info("Plugins ready: {}".format(list(_PLUGINS)))
 
 
-def reset_plugins():
+def _load_plugin(identifier: str, repository: str = None, ref: str = None, parameters: dict = {}, path: str = None):
     global _PLUGINS
-    _PLUGINS = {}
+    try:
+        plugin = Plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters, path=path)
+        _PLUGINS.append(plugin.init())
+    except PluginException as err:
+        logger.error("  [{}:{}] PluginException: {}".format(identifier, path, err))
+    except Exception as err:
+        logger.error("  [{}:{}] Unknown error loading plugin {}".format(identifier, path, err))
+
+
+def _reset_plugins():
+    global _PLUGINS
+    _PLUGINS = []

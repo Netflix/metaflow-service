@@ -547,9 +547,13 @@ swagger_definitions = {
     "ModelsPlugin": {
         "type": "object",
         "properties": {
+            "identifier": {
+                "type": "string",
+                "description": "Plugin identifier (repository/folder name)"
+            },
             "name": {
                 "type": "string",
-                "description": "Plugin name (identifier)"
+                "description": "Plugin name (manifest.json)"
             },
             "repository": {
                 "type": "string",
@@ -583,7 +587,7 @@ swagger_definitions = {
                 "description": "List of files available for this plugin"
             }
         },
-        "required": ["name", "repository", "ref", "parameters", "config", "files"]
+        "required": ["identifier", "name", "repository", "ref", "parameters", "config", "files"]
     },
     "ModelsPluginConfig": {
         "type": "object",
@@ -598,7 +602,7 @@ swagger_definitions = {
             },
             "entrypoint": {
                 "type": "string",
-                "description": "Entrypoint for the plugin. Loaded inside iframe with plugin parameters"
+                "description": "Entrypoint for the plugin, relative or absolute. Loaded inside iframe with parameters"
             }
         },
         "required": ["name", "version", "entrypoint"]

@@ -6,7 +6,7 @@ import contextlib
 from .utils import (
     init_app, init_db, clean_db
 )
-from ...plugins import init_plugins, reset_plugins, Plugin
+from ...plugins import init_plugins, _reset_plugins, Plugin
 from aiohttp import web
 
 
@@ -39,7 +39,14 @@ async def setup_plugins():
         "solid-waffle": {
             "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
             "ref": "origin/feature/extra-syrup"
-        }
+        },
+        "metaflow-ui-plugins": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugins.git",
+            "paths": [
+                "plugin-first",
+                "plugin-second"
+            ]
+        },
     }
     custom_string = json.dumps(_plugins)
     os.environ["PLUGINS"] = custom_string
@@ -65,7 +72,7 @@ def mock_plugins():
         try:
             yield
         finally:
-            reset_plugins()
+            _reset_plugins()
 
 
 async def test_plugins_not_initialized(setup_plugins, cli, db):
@@ -82,26 +89,43 @@ async def test_plugins_all(setup_plugins, cli, db):
         body = await resp.json()
 
     assert resp.status == 200
-    assert len(body) == 3
+    assert len(body) == 5
 
     plugin_mock_plugin = body[0]
     plugin_turbo_eureka = body[1]
     plugin_solid_waffle = body[2]
+    plugin_first = body[3]
+    plugin_secondary = body[4]
 
+    assert plugin_mock_plugin["identifier"] == "mock-plugin"
     assert plugin_mock_plugin["name"] == "mock-plugin"
     assert plugin_mock_plugin["repository"] == None
     assert plugin_mock_plugin["ref"] == None
     assert plugin_mock_plugin["parameters"] == {"color": "yellow"}
 
+    assert plugin_turbo_eureka["identifier"] == "turbo-eureka"
     assert plugin_turbo_eureka["name"] == "turbo-eureka"
     assert plugin_turbo_eureka["repository"] == "https://github.com/Netflix/metaflow-ui-plugin-turbo-eureka.git"
     assert plugin_turbo_eureka["ref"] == None
     assert plugin_turbo_eureka["parameters"] == {}
 
+    assert plugin_solid_waffle["identifier"] == "solid-waffle"
     assert plugin_solid_waffle["name"] == "solid-waffle"
     assert plugin_solid_waffle["repository"] == "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git"
     assert plugin_solid_waffle["ref"] == "origin/feature/extra-syrup"
     assert plugin_solid_waffle["parameters"] == {}
+
+    assert plugin_first["identifier"] == "metaflow-ui-plugins"
+    assert plugin_first["name"] == "plugin-first"
+    assert plugin_first["repository"] == "https://github.com/Netflix/metaflow-ui-plugins.git"
+    assert plugin_first["ref"] == None
+    assert plugin_first["parameters"] == {}
+
+    assert plugin_secondary["identifier"] == "metaflow-ui-plugins"
+    assert plugin_secondary["name"] == "plugin-second"
+    assert plugin_secondary["repository"] == "https://github.com/Netflix/metaflow-ui-plugins.git"
+    assert plugin_secondary["ref"] == None
+    assert plugin_secondary["parameters"] == {}
 
 
 async def test_plugins_mock_plugin(setup_plugins, cli, db):
@@ -118,6 +142,26 @@ async def test_plugins_mock_plugin(setup_plugins, cli, db):
     assert body["files"] == ["manifest.json", "index.html"]
     assert body["config"] == {
         "name": "mock-plugin",
+        "version": "1.0.0",
+        "entrypoint": "index.html"
+    }
+
+
+async def test_plugins_multiple_plugins_first(setup_plugins, cli, db):
+    with mock_plugins():
+        resp = await cli.get("/plugin/plugin-first")
+        body = await resp.json()
+
+    assert resp.status == 200
+
+    assert body["identifier"] == "metaflow-ui-plugins"
+    assert body["name"] == "plugin-first"
+    assert body["repository"] == "https://github.com/Netflix/metaflow-ui-plugins.git"
+    assert body["ref"] == None
+    assert body["parameters"] == {}
+    assert body["files"] == ["manifest.json", "index.html"]
+    assert body["config"] == {
+        "name": "plugin-first",
         "version": "1.0.0",
         "entrypoint": "index.html"
     }
@@ -157,8 +201,9 @@ async def test_broken_json_plugins(broken_env, cli, db):
 
 class MockPlugin(Plugin):
     def init(self):
+        plugin_name = os.path.basename(os.path.normpath(self.path))
         self.files = ["manifest.json", "index.html"]
-        self.config = {"name": self.name, "version": "1.0.0", "entrypoint": "index.html"}
+        self.config = {"name": plugin_name, "version": "1.0.0", "entrypoint": "index.html"}
         return self
 
     def checkout(self):
@@ -167,7 +212,7 @@ class MockPlugin(Plugin):
     def get_file(self, filename):
         _files = {
             "manifest.json": json.dumps(self.config),
-            "index.html": "<h1>Hello from {}</h1>".format(self.name)
+            "index.html": "<h1>Hello from {}</h1>".format(self.config.get("name", self.identifier))
         }
         return _files.get(filename, None)
 

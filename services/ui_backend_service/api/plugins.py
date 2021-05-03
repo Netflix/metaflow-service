@@ -32,7 +32,7 @@ class PluginsApi(object):
                   $ref: '#/definitions/ResponsesError405'
         """
         plugins = []
-        for plugin in list_plugins().values():
+        for plugin in list_plugins():
             plugins.append(_plugin_dict(plugin))
 
         return web_response(200, plugins)
@@ -95,7 +95,7 @@ class PluginsApi(object):
             return web_response(500, "Internal server error")
 
 
-def _get_plugin_from_request(request):
+def _get_plugin_from_request_old(request):
     _plugins = list_plugins()
     plugin_name = request.match_info.get("plugin_name")
     if plugin_name not in _plugins:
@@ -103,9 +103,19 @@ def _get_plugin_from_request(request):
     return _plugins[plugin_name]
 
 
+def _get_plugin_from_request(request):
+    _plugins = list_plugins()
+    plugin_name = request.match_info.get("plugin_name")
+    for plugin in _plugins:
+        if plugin.config.get("name", None) == plugin_name:
+            return plugin
+    return None
+
+
 def _plugin_dict(plugin):
     return {
-        "name": plugin.name,
+        "identifier": plugin.identifier,
+        "name": plugin.config.get("name", plugin.identifier),
         "repository": plugin.repository,
         "ref": plugin.ref,
         "parameters": plugin.parameters,
