@@ -6,7 +6,8 @@ from services.utils import get_traceback_str
 
 from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
                     MetaflowS3Exception, MetaflowS3NotFound,
-                    MetaflowS3URLException, NoRetryS3, batchiter, decode)
+                    MetaflowS3URLException, NoRetryS3, batchiter, decode,
+                    error_event_msg)
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
@@ -90,7 +91,7 @@ class GetArtifacts(CacheAction):
 
         # Helper function for streaming status updates.
         def stream_error(err, id, traceback=None):
-            return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
+            return stream_output(error_event_msg(err, id, traceback))
 
         # Make a list of artifact locations that require fetching (not cached previously)
         locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]

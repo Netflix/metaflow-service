@@ -8,7 +8,11 @@ pytestmark = [pytest.mark.unit_tests]
 
 
 def test_error_event_msg():
-  assert error_event_msg("test message", "test-id") == {"type": "error", "message": "test message", "id": "test-id"}
+  assert error_event_msg("test message", "test-id") == \
+      {"type": "error", "message": "test message", "id": "test-id", "traceback": None}
+
+  assert error_event_msg("test message", "test-id", "test-traceback") == \
+      {"type": "error", "message": "test message", "id": "test-id", "traceback": "test-traceback"}
 
 
 def test_progress_event_msg():
