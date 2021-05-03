@@ -1,13 +1,12 @@
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
+from services.ui_backend_service.data.cache.utils import (
+    search_result_event_msg, error_event_msg, StreamedCacheError
+)
 
 from aiohttp import web
 import json
 
-
-class StreamedCacheError(Exception):
-    "Used for custom raises during cache action stream errors"
-    pass
 
 class ArtifactSearchApi(object):
     def __init__(self, app, db, cache=None):
@@ -53,14 +52,15 @@ class ArtifactSearchApi(object):
 
                 results = await _search_dict_filter(meta_artifacts, artifact_data)
 
-            await ws.send_str(json.dumps({"event": {"type": "result", "matches": results}}))
+            await ws.send_str(json.dumps({"event": search_result_event_msg(results)}))
 
+        # close websocket if an error is encountered.
         except StreamedCacheError:
+            # something went wrong with the search!
             await ws.close(code=1011)
         except:
-            # something went wrong with the search!
-            # close websocket if an error is encountered.
-            await ws.send_str(json.dumps({"event": {"type": "error", "message": "Accessing cache failed", "id": "cache-access-failed"}}))
+            # TODO: maybe except the specific errors from cache server only? (CacheServerUnreachable, CacheFullException)
+            await ws.send_str(json.dumps({"event": error_event_msg("Accessing cache failed", "cache-access-failed")}))
             await ws.close(code=1011)
         return ws
 
