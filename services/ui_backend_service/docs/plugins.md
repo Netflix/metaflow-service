@@ -98,5 +98,4 @@ Following JSON describes different ways to register local plugins. Each plugin s
 
 - Only HTTPS repositories are supported
 - Repository should be publicly available without authentication
-- Git plugin remote repository cannot be changed after plugin has been initially registered
-  - Workaround is to delete the folder under `services/ui_backend_service/plugins/installed/plugin-example` and restart the service
+- Support for repository/root folder with multiple plugins as sub-folder

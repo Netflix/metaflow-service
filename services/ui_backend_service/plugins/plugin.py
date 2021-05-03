@@ -42,7 +42,7 @@ class Plugin(object):
         local_repository = pygit2.discover_repository(self.path)
         if local_repository:
             self._repo = pygit2.Repository(local_repository)
-            self.checkout()
+            self.checkout(self.repository)
         elif self.repository:
             self._repo = pygit2.clone_repository(self.repository, self.path, bare=False)
             self.checkout()
@@ -60,9 +60,13 @@ class Plugin(object):
 
         return self
 
-    def checkout(self):
+    def checkout(self, repository_url: str = None):
         """Fetch latest changes and checkout repository"""
         if self._repo:
+            # Update repository url in case it has changed
+            if repository_url:
+                self._repo.remotes.set_url("origin", repository_url)
+
             # Fetch latest changes
             for remote in self._repo.remotes:
                 remote.fetch()
