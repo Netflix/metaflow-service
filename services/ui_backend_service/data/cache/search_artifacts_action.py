@@ -2,10 +2,10 @@ import hashlib
 import json
 
 from metaflow.client.cache import CacheAction
-
+from services.utils import get_traceback_str
 from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
-                    MetaflowS3Exception, MetaflowS3NotFound,
-                    MetaflowS3URLException, NoRetryS3, batchiter, decode)
+                    MetaflowS3URLException, NoRetryS3, batchiter, decode,
+                    error_event_msg, progress_event_msg)
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
@@ -99,10 +99,10 @@ class SearchArtifacts(CacheAction):
 
         # Helper functions for streaming status updates.
         def stream_progress(num):
-            return stream_output({"type": "progress", "fraction": num})
+            return stream_output(progress_event_msg(num))
 
-        def stream_error(err, id):
-            return stream_output({"type": "error", "message": err, "id": id})
+        def stream_error(err, id, traceback=None):
+            return stream_output(error_event_msg(err, id, traceback))
 
         # Make a list of artifact locations that require fetching (not cached previously)
         locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
@@ -130,7 +130,7 @@ class SearchArtifacts(CacheAction):
                             except Exception as ex:
                                 # Exceptions might be fixable with configuration changes or other measures,
                                 # therefore we do not want to write anything to the cache for these artifacts.
-                                stream_error(str(ex), "artifact-handle-failed")
+                                stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
                         else:
                             results[artifact_key] = json.dumps([False, 'object is too large'])
                 except MetaflowS3AccessDenied as ex:
@@ -142,7 +142,7 @@ class SearchArtifacts(CacheAction):
                 except MetaflowS3CredentialsMissing as ex:
                     stream_error(str(ex), "s3-missing-credentials")
                 except MetaflowS3Exception as ex:
-                    stream_error(str(ex), "s3-generic-error")
+                    stream_error(str(ex), "s3-generic-error", get_traceback_str())
         # Skip the inaccessible locations
         other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
         for loc in other_locations:

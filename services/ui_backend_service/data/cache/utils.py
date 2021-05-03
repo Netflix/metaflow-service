@@ -119,3 +119,36 @@ else:
                         raise MetaflowS3CredentialsMissing(err_out)
 
             return None, err_out
+
+# Cache action stream output helpers
+
+
+class StreamedCacheError(Exception):
+    "Used for custom raises during cache action stream errors"
+    pass
+
+
+def progress_event_msg(number):
+    "formatter for cache action progress stream messages"
+    return {
+        "type": "progress",
+        "fraction": number
+    }
+
+
+def error_event_msg(msg, id, traceback=None):
+    "formatter for cache action error stream messages"
+    return {
+        "type": "error",
+        "message": msg,
+        "id": id,
+        "traceback": traceback
+    }
+
+
+def search_result_event_msg(results):
+    "formatter for cache action search result message"
+    return {
+        "type": "result",
+        "matches": results
+    }

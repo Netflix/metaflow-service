@@ -1,5 +1,8 @@
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
+from services.ui_backend_service.data.cache.utils import (
+    search_result_event_msg, error_event_msg, StreamedCacheError
+)
 
 from aiohttp import web
 import json
@@ -27,30 +30,38 @@ class ArtifactSearchApi(object):
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
-        if value is None:
-            # For empty search terms simply return the list of tasks that have artifacts by the specified name.
-            # Do not unnecessarily hit the cache.
-            results = [{**_result_format(art), "searchable": True} for art in meta_artifacts]
-        else:
-            # Search through the artifact contents from S3 using the CacheClient
-            locations = [art['location'] for art in meta_artifacts]
-            res = await self._artifact_store.cache.SearchArtifacts(locations, value)
-
-            if res.is_ready():
-                artifact_data = res.get()
+        try:
+            if value is None:
+                # For empty search terms simply return the list of tasks that have artifacts by the specified name.
+                # Do not unnecessarily hit the cache.
+                results = [{**_result_format(art), "searchable": True} for art in meta_artifacts]
             else:
-                async for event in res.stream():
-                    await ws.send_str(json.dumps(event))
-                    if event["event"]["type"] == "error":
-                        # close websocket if an error is encountered.
-                        await ws.close(code=1011)
-                await res.wait()
-                artifact_data = res.get()
+                # Search through the artifact contents from S3 using the CacheClient
+                locations = [art['location'] for art in meta_artifacts]
+                res = await self._artifact_store.cache.SearchArtifacts(locations, value)
 
-            results = await _search_dict_filter(meta_artifacts, artifact_data)
+                if res.is_ready():
+                    artifact_data = res.get()
+                else:
+                    async for event in res.stream():
+                        await ws.send_str(json.dumps(event))
+                        if event["event"]["type"] == "error":
+                            raise StreamedCacheError
+                    await res.wait()
+                    artifact_data = res.get()
 
-        await ws.send_str(json.dumps({"event": {"type": "result", "matches": results}}))
+                results = await _search_dict_filter(meta_artifacts, artifact_data)
 
+            await ws.send_str(json.dumps({"event": search_result_event_msg(results)}))
+
+        # close websocket if an error is encountered.
+        except StreamedCacheError:
+            # something went wrong with the search!
+            await ws.close(code=1011)
+        except:
+            # TODO: maybe except the specific errors from cache server only? (CacheServerUnreachable, CacheFullException)
+            await ws.send_str(json.dumps({"event": error_event_msg("Accessing cache failed", "cache-access-failed")}))
+            await ws.close(code=1011)
         return ws
 
     async def get_run_artifacts(self, flow_name, run_key, artifact_name):
