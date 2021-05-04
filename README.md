@@ -131,16 +131,11 @@ Usage without Docker:
 
 The test suite requires a PostgreSQL database, along with the following environment variables for connecting the tested services to the DB.
 
-  - MF_METADATA_DB_HOST [defaults to localhost]
-  - MF_METADATA_DB_PORT [defaults to 5432]
-  - MF_METADATA_DB_USER [defaults to postgres]
-  - MF_METADATA_DB_PSWD [defaults to postgres]
-
-Test data insertion and cleanup is performed with the following fixed connection string to make sure tests are run against a suitable database.
-
-```
-dbname=test user=test password=test host=db_test port=5432
-```
+  - MF_METADATA_DB_HOST=db_test
+  - MF_METADATA_DB_PORT=5432
+  - MF_METADATA_DB_USER=test
+  - MF_METADATA_DB_PSWD=test
+  - MF_METADATA_DB_NAME=test
 
 
 > ```sh
