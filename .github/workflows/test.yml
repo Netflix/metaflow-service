@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      postgres: # This will be the hostname
+      db_test: # This will be the hostname
         image: postgres:11
         env:
           POSTGRES_USER: test
@@ -67,7 +67,7 @@ jobs:
         golang-version: ["^1.14.5"]
 
     env:
-      MF_METADATA_DB_HOST: 127.0.0.1 # localhost won't work here
+      MF_METADATA_DB_HOST: db_test
       MF_METADATA_DB_PORT: 5432
       MF_METADATA_DB_USER: test
       MF_METADATA_DB_PSWD: test
