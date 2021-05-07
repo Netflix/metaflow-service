@@ -372,7 +372,8 @@ async def test_task_attempt_statuses_with_attempt_ok_failed(cli, db):
 # STATUS: attempt_ok in task metadata for the attempt is set to True
 # STARTED_AT: created_at property for attempt attribute for the attempt in task metadata
 # FINISHED_AT: created_at property for attempt_ok attribute for the attempt in task metadata
-
+# NOTE: for a more accurate finished_at timestamp, use the greatest timestamp out of task_ok / attempt_ok / attempt-done
+# as this is the latest write_timestamp for the task
 
 async def test_task_attempt_status_completed(cli, db):
     _task = await create_task(db)
@@ -384,7 +385,7 @@ async def test_task_attempt_status_completed(cli, db):
 
     _task['started_at'] = _attempt['ts_epoch']
 
-    _task['finished_at'] = _attempt_ok['ts_epoch']
+    _task['finished_at'] = _attempt_done['ts_epoch']
     _task['duration'] = _task['finished_at'] - _task['started_at']
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
 

@@ -103,7 +103,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, next_attempt_start.ts_epoch)"
+            finished_at_column="COALESCE(GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch), next_attempt_start.ts_epoch)"
         ),
         "attempt_ok.value::boolean as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
@@ -150,7 +150,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         END) AS duration
         """.format(
             table_name=table_name,
-            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, next_attempt_start.ts_epoch)"
+            finished_at_column="COALESCE(GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch), next_attempt_start.ts_epoch)"
         ),
         "foreach_stack.location as foreach_stack"
     ]

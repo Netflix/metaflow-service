@@ -7,7 +7,8 @@ from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
     AsyncStepTablePostgres as MetadataStepTable,
     AsyncTaskTablePostgres as MetadataTaskTable,
-    AsyncArtifactTablePostgres as MetadataArtifactTable
+    AsyncArtifactTablePostgres as MetadataArtifactTable,
+    AsyncMetadataTablePostgres as MetaMetadataTable
 )
 
 
@@ -23,6 +24,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     _command = MetadataStepTable._command
     task_table_name = MetadataTaskTable.table_name
     artifact_table_name = MetadataArtifactTable.table_name
+    metadata_table_name = MetaMetadataTable.table_name
     joins = [
         """
         LEFT JOIN LATERAL (
@@ -53,6 +55,25 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             artifact_table=artifact_table_name
+        ),
+        """
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch as ts_epoch
+            FROM {metadata_table}
+            WHERE {table_name}.flow_id={metadata_table}.flow_id
+            AND {table_name}.run_number={metadata_table}.run_number
+            AND {table_name}.step_name={metadata_table}.step_name
+            AND (
+                {metadata_table}.field_name = 'attempt_ok' OR
+                {metadata_table}.field_name = 'attempt-done'
+            )
+            ORDER BY
+                ts_epoch DESC
+            LIMIT 1
+        ) AS latest_metadata_done ON true
+        """.format(
+            table_name=table_name,
+            metadata_table=metadata_table_name
         )
     ]
 
@@ -65,6 +86,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         """
         GREATEST(
             latest_task_ok.ts_epoch,
+            latest_metadata_done.ts_epoch,
             latest_task_hb.heartbeat_ts*1000
         ) - {table_name}.ts_epoch as duration
         """.format(
