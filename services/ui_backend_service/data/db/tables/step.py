@@ -84,10 +84,13 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
 
     join_columns = [
         """
-        GREATEST(
-            latest_task_ok.ts_epoch,
-            latest_metadata_done.ts_epoch,
-            latest_task_hb.heartbeat_ts*1000
+        COALESCE(
+            GREATEST(
+                latest_task_ok.ts_epoch,
+                latest_metadata_done.ts_epoch,
+                latest_task_hb.heartbeat_ts*1000
+            ),
+            @(extract(epoch from now())::bigint*1000)
         ) - {table_name}.ts_epoch as duration
         """.format(
             table_name=table_name
