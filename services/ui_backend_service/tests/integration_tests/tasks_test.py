@@ -32,9 +32,10 @@ async def test_list_tasks(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_step), 200, [])
 
     _task = await create_task(db, step=_step)
+    _task['duration'] = 1  # approx duration for started task
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task], approx_keys=["duration"])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task], approx_keys=["duration"])
 
 
 async def test_list_tasks_non_numerical(cli, db):
@@ -59,8 +60,9 @@ async def test_single_task(cli, db):
     await _test_single_resource(cli, db, "/flows/HelloFlow/runs/404/steps/none/tasks/5", 404, {})
 
     _task = await create_task(db)
+    _task['duration'] = 1  # approx duration for started task
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task)
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), 200, _task, approx_keys=["duration"])
 
 
 async def test_single_task_non_numerical(cli, db):
@@ -75,8 +77,9 @@ async def test_single_task_non_numerical(cli, db):
 async def test_list_old_metadata_task_attempts(cli, db):
     # Test tasks with old (missing attempt) metadata
     _task = await create_task(db)
+    _task['duration'] = 1  # approx duration
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task], approx_keys=["duration"])
 
     _artifact_first = await create_ok_artifact_for_task(db, _task)
     _artifact_second = await create_ok_artifact_for_task(db, _task, attempt=1)
@@ -105,8 +108,9 @@ async def test_list_old_metadata_task_attempts(cli, db):
 async def test_old_metadata_task_with_multiple_attempts(cli, db):
     # Test tasks with old (missing attempt) metadata
     _task = await create_task(db)
+    _task['duration'] = 1  # approx duration
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task], approx_keys=["duration"])
 
     _artifact_first = await create_ok_artifact_for_task(db, _task)
 
@@ -125,8 +129,9 @@ async def test_old_metadata_task_with_multiple_attempts(cli, db):
 
 async def test_task_with_attempt_metadata(cli, db):
     _task = await create_task(db)
+    _task['duration'] = 1  # approx duration
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task], approx_keys=["duration"])
 
     _attempt_first = await create_task_attempt_metadata(db, _task)
     _artifact_first = await create_ok_artifact_for_task(db, _task)
@@ -172,8 +177,9 @@ async def test_task_running_status_with_heartbeat(cli, db):
 
 async def test_list_task_attempts(cli, db):
     _task = await create_task(db)
+    _task['duration'] = 1  # approx duration
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task], approx_keys=["duration"])
 
     _attempt_first = await create_task_attempt_metadata(db, _task)
     _artifact_first = await create_ok_artifact_for_task(db, _task)
@@ -284,8 +290,9 @@ async def test_list_task_multiple_attempts_failure(cli, db):
 
 async def test_task_attempts_with_attempt_metadata(cli, db):
     _task = await create_task(db)
+    _task['duration'] = 1  # approx duration
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task], approx_keys=["duration"])
 
     _attempt_first = await create_task_attempt_metadata(db, _task)
     _artifact_first = await create_ok_artifact_for_task(db, _task)
@@ -310,8 +317,8 @@ async def test_task_attempts_with_attempt_metadata(cli, db):
     _task_second_attempt['status'] = 'running'
     _task_second_attempt['started_at'] = _attempt_second['ts_epoch']
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt], approx_keys=["duration"])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt], approx_keys=["duration"])
 
     # Write attempt_ok data for first attempt to check for status changes.
     _first_attempt_ok = await create_task_attempt_ok_metadata(db, _task, 0, False)
@@ -324,14 +331,15 @@ async def test_task_attempts_with_attempt_metadata(cli, db):
     _task_first_attempt['task_ok'] = None  # should have no task_ok location, as status can be determined from db.
     _task_first_attempt['status'] = 'failed'  # 'failed' because now we have attempt_ok false in db.
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?task_id={task_id}".format(**_task), 200, [_task_second_attempt, _task_first_attempt], approx_keys=["duration"])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task_second_attempt, _task_first_attempt], approx_keys=["duration"])
 
 
 async def test_task_attempt_statuses_with_attempt_ok_failed(cli, db):
     _task = await create_task(db)
+    _task['duration'] = 1  # approx duration
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task], approx_keys=["duration"])
 
     _attempt_first = await create_task_attempt_metadata(db, _task)
     _artifact_first = await create_ok_artifact_for_task(db, _task)
@@ -377,7 +385,9 @@ async def test_task_attempt_statuses_with_attempt_ok_failed(cli, db):
 
 async def test_task_attempt_status_completed(cli, db):
     _task = await create_task(db)
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task])
+    _task['duration'] = 1  # approx duration
+
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_task], approx_keys=["duration"])
     _attempt = await create_task_attempt_metadata(db, _task, 0)
     _attempt_ok = await create_task_attempt_ok_metadata(db, _task, 0, True)
     _attempt_done = await create_task_attempt_done_metadata(db, _task, 0)

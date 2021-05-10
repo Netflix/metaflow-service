@@ -141,16 +141,14 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
         ),
         """
-        (CASE
-            WHEN {finished_at_column} IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-            THEN {table_name}.last_heartbeat_ts*1000-COALESCE(start.ts_epoch, {table_name}.ts_epoch)
-            WHEN {finished_at_column} IS NOT NULL
-            THEN {finished_at_column} - COALESCE(start.ts_epoch, {table_name}.ts_epoch)
-            ELSE NULL
-        END) AS duration
+        COALESCE(
+            GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch),
+            next_attempt_start.ts_epoch,
+            {table_name}.last_heartbeat_ts*1000,
+            @(extract(epoch from now())::bigint*1000)
+        ) - COALESCE(start.ts_epoch, {table_name}.ts_epoch) as duration
         """.format(
-            table_name=table_name,
-            finished_at_column="COALESCE(GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch), next_attempt_start.ts_epoch)"
+            table_name=table_name
         ),
         "foreach_stack.location as foreach_stack"
     ]
