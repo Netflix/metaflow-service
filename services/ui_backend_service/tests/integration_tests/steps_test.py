@@ -57,10 +57,10 @@ async def test_step_duration(cli, db):
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
     _step['run_id'] = _run['run_number']
-    _step['duration'] = None
+    _step['duration'] = 1  # approx step duration for started step
 
-    # No tasks exist so step should have no duration.
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}".format(**_step), 200, _step)
+    # step duration should fallback to current time when no tasks exist.
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}".format(**_step), 200, _step, approx_keys=["duration"])
 
     # existing task should have an effect on step duration
     _task = (await add_task(
