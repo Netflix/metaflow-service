@@ -142,7 +142,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         ),
         """
         COALESCE(
-            COALESCE(GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch), next_attempt_start.ts_epoch),
+            GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch),
+            next_attempt_start.ts_epoch,
             {table_name}.last_heartbeat_ts*1000,
             @(extract(epoch from now())::bigint*1000)
         ) - COALESCE(start.ts_epoch, {table_name}.ts_epoch) as duration
