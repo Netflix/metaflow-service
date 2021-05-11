@@ -132,7 +132,7 @@ class StepVisitor(ast.NodeVisitor):
 class FlowGraph(object):
     # NOTE: This implementation relies on passing in the name of the FlowSpec class
     # to be parsed from the sourcecode.
-    def __init__(self, source=None, name=None):
+    def __init__(self, source, name):
         self.name = name
 
         self.nodes = self._create_nodes(source)
