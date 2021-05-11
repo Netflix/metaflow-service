@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from tarfile import TarFile
 
 from metaflow.client.cache import CacheAction
@@ -121,7 +122,9 @@ def generate_dag(flow_id, tarball_path):
         # Break if language is not supported.
         if "use_r" in info and info["use_r"]:
             raise UnsupportedFlowLanguage
-        script_name = info['script']
+        # script name contains the full path passed to the python executable,
+        # trim this down to the python filename
+        script_name = os.path.basename(info['script'])
         sourcecode = f.extractfile(script_name).read().decode('utf-8')
 
     # Initialize a FlowGraph object
