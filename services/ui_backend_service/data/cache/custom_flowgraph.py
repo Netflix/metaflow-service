@@ -143,7 +143,7 @@ class FlowGraph(object):
         def _flow(n):
             if isinstance(n, ast.ClassDef):
                 return n.name == self.name
-        
+
         # NOTE: Can possibly fail if filter returns multiple results,
         # but this would mean there are duplicate class names.
         [root] = list(filter(_flow, ast.parse(source).body))
