@@ -1,8 +1,8 @@
+
 import os
 import json
-import boto3
+import aiobotocore
 import botocore
-import codecs
 import heapq
 import io
 import re
@@ -333,44 +333,51 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
 
 
 async def read_and_output(bucket, path):
-    s3 = boto3.client('s3')
-    obj = s3.get_object(Bucket=bucket, Key=path)
+    session = aiobotocore.get_session()
+    async with session.create_client('s3') as s3:
+        obj = await s3.get_object(Bucket=bucket, Key=path)
 
     lines = []
-    body = obj['Body']
-    for row, line in enumerate(codecs.getreader('utf-8')(body), start=1):
-        lines.append({
-            'row': row,
-            'line': line.strip(),
-        })
+    async with obj['Body'] as stream:
+        async for row, line in aenumerate(stream, start=1):
+            lines.append({
+                'row': row,
+                'line': line.strip(),
+            })
     return lines
 
 
 async def read_and_output_ws(bucket, path, ws):
-    s3 = boto3.client('s3')
-    obj = s3.get_object(Bucket=bucket, Key=path)
+    session = aiobotocore.get_session()
+    async with session.create_client('s3') as s3:
+        obj = await s3.get_object(Bucket=bucket, Key=path)
 
-    body = obj['Body']
-    for row, line in enumerate(codecs.getreader('utf-8')(body), start=1):
-        await ws.send_str(json.dumps({
-            'row': row,
-            'line': line.strip(),
-        }))
+    async with obj['Body'] as stream:
+        async for row, line in aenumerate(stream, start=1):
+            await ws.send_str(json.dumps({
+                'row': row,
+                'line': line.strip(),
+            }))
 
 
 async def read_and_output_mflog(paths):
-    s3 = boto3.client('s3')
+    session = aiobotocore.get_session()
     logs = []
-    for bucket, path in paths:
-        try:
-            obj = s3.get_object(Bucket=bucket, Key=path)
-            logs.append(obj['Body'].read())
-        except botocore.exceptions.ClientError as err:
-            if err.response['Error']['Code'] == 'NoSuchKey':
-                pass
-            else:
-                raise
+    async with session.create_client('s3') as s3:
+        for bucket, path in paths:
+            try:
+                obj = await s3.get_object(Bucket=bucket, Key=path)
+
+                async with obj['Body'] as stream:
+                    data = await stream.read()
+                    logs.append(data)
+            except botocore.exceptions.ClientError as err:
+                if err.response['Error']['Code'] == 'NoSuchKey':
+                    pass
+                else:
+                    raise
     lines = []
+    # TODO: This could be an async iterator instead?
     for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
         lines.append({
             'row': row,
@@ -379,15 +386,29 @@ async def read_and_output_mflog(paths):
 
 
 async def read_and_output_mflog_ws(paths, ws):
-    s3 = boto3.client('s3')
+    session = aiobotocore.get_session()
     logs = []
-    for bucket, path in paths:
-        obj = s3.get_object(Bucket=bucket, Key=path)
-        logs.append(obj['Body'].read())
+    async with session.create_client('s3') as s3:
+        for bucket, path in paths:
+            obj = await s3.get_object(Bucket=bucket, Key=path)
+
+            async with obj['Body'] as stream:
+                data = await stream.read()
+                logs.append(data)
     for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
         await ws.send_str(json.dumps({
             'row': row,
             'line': to_unicode(line.msg)}))
+
+
+async def aenumerate(stream, start=0):
+    i = start
+    while True:
+        line = await stream.readline()
+        if not line:
+            break
+        yield i, line.decode('utf-8')
+        i += 1
 
 
 class LogException(Exception):
