@@ -1,7 +1,7 @@
 
 import os
 import json
-import aiobotocore
+import aioboto3
 import botocore
 import heapq
 import io
@@ -333,8 +333,7 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
 
 
 async def read_and_output(bucket, path):
-    session = aiobotocore.get_session()
-    async with session.create_client('s3') as s3:
+    async with aioboto3.client('s3') as s3:
         obj = await s3.get_object(Bucket=bucket, Key=path)
 
     lines = []
@@ -348,8 +347,7 @@ async def read_and_output(bucket, path):
 
 
 async def read_and_output_ws(bucket, path, ws):
-    session = aiobotocore.get_session()
-    async with session.create_client('s3') as s3:
+    async with aioboto3.client('s3') as s3:
         obj = await s3.get_object(Bucket=bucket, Key=path)
 
     async with obj['Body'] as stream:
@@ -361,9 +359,8 @@ async def read_and_output_ws(bucket, path, ws):
 
 
 async def read_and_output_mflog(paths):
-    session = aiobotocore.get_session()
     logs = []
-    async with session.create_client('s3') as s3:
+    async with aioboto3.client('s3') as s3:
         for bucket, path in paths:
             try:
                 obj = await s3.get_object(Bucket=bucket, Key=path)
@@ -386,9 +383,8 @@ async def read_and_output_mflog(paths):
 
 
 async def read_and_output_mflog_ws(paths, ws):
-    session = aiobotocore.get_session()
     logs = []
-    async with session.create_client('s3') as s3:
+    async with aioboto3.client('s3') as s3:
         for bucket, path in paths:
             obj = await s3.get_object(Bucket=bucket, Key=path)
 
