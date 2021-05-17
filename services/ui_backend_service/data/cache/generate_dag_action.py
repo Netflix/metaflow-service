@@ -3,7 +3,7 @@ import json
 import os
 from tarfile import TarFile
 
-from metaflow.client.cache import CacheAction
+from .client import CacheAction
 from services.utils import get_traceback_str
 
 # TODO: change to metaflow.graph when the AST-only PR is merged: https://github.com/Netflix/metaflow/pull/249

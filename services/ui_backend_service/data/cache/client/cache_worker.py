@@ -3,7 +3,7 @@ import importlib
 
 import click
 
-from metaflow.client.cache.cache_action import import_action_class_spec
+from .cache_action import import_action_class_spec
 
 def best_effort_read(key_paths):
     for key, path in key_paths:

@@ -107,7 +107,7 @@ def subprocess_cmd_and_env(mod):
     pypath = os.environ.get('PYTHONPATH', '')
     env = os.environ.copy()
     env['PYTHONPATH'] = ':'.join((os.getcwd(), pypath))
-    return [sys.executable, '-m', 'metaflow.client.cache.%s' % mod], env
+    return [sys.executable, '-m', 'services.ui_backend_service.data.cache.client.%s' % mod], env
 
 class Worker(object):
 
