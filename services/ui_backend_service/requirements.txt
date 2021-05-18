@@ -6,3 +6,6 @@ yarl==1.5.1
 throttler==1.2.0
 psycopg2==2.8.6
 aiopg==1.2.1
+
+idna==2.10 # have to pin idna due to metaflow dependency
+metaflow==2.0.5
