@@ -9,8 +9,10 @@ from .cache_action import Check
 
 FOREVER = 60 * 60 * 24 * 3650
 
+
 class CacheServerUnreachable(Exception):
     pass
+
 
 class CacheClientTimeout(Exception):
     pass
@@ -18,6 +20,7 @@ class CacheClientTimeout(Exception):
 
 class CacheStreamCorrupted(Exception):
     pass
+
 
 class CacheFuture(object):
 
@@ -51,8 +54,8 @@ class CacheFuture(object):
                 return f.read()
 
         if self.key_objs is None and self.is_ready():
-            self.key_objs = {key: _read(path)\
-                             for key, path in self.key_paths.items()\
+            self.key_objs = {key: _read(path)
+                             for key, path in self.key_paths.items()
                              if key != self.stream_key}
         if self.key_objs:
             return self.action.response(self.key_objs)
@@ -119,6 +122,7 @@ class CacheFuture(object):
             return self.client.wait_iter(self.action.stream_response(it),
                                          timeout)
 
+
 class CacheClient(object):
 
     def __init__(self, root, action_classes, max_actions=16, max_size=10000):
@@ -136,11 +140,11 @@ class CacheClient(object):
 
     def start(self):
         cmd, env = subprocess_cmd_and_env('cache_server')
-        cmdline = cmd + [\
-                   '--root', os.path.abspath(self._root),\
-                   '--max-actions', str(self._max_actions),\
-                   '--max-size', str(self._max_size)\
-                ]
+        cmdline = cmd + [
+            '--root', os.path.abspath(self._root),
+            '--max-actions', str(self._max_actions),
+            '--max-size', str(self._max_size)
+        ]
 
         msg = {
             'actions': [[c.__module__, c.__name__] for c in self._action_classes]
@@ -169,7 +173,7 @@ class CacheClient(object):
 
         def _call(*args, **kwargs):
             msg, keys, stream_key, disposable_keys =\
-                 cls.format_request(*args, **kwargs)
+                cls.format_request(*args, **kwargs)
             future = CacheFuture(keys, stream_key, self, cls, self._root)
             if future.is_ready():
                 # cache hit

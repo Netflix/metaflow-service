@@ -13,17 +13,19 @@ import click
 from metaflow.procpoll import make_poll
 
 from .cache_action import CacheAction,\
-                          LO_PRIO,\
-                          HI_PRIO,\
-                          import_action_class
+    LO_PRIO,\
+    HI_PRIO,\
+    import_action_class
 
 from .cache_store import CacheStore,\
-                         CacheFullException,\
-                         key_filename,\
-                         is_safely_readable
+    CacheFullException,\
+    key_filename,\
+    is_safely_readable
+
 
 class CacheServerException(Exception):
     pass
+
 
 def server_request(op,
                    action=None,
@@ -57,9 +59,11 @@ def server_request(op,
         'disposable_keys': disposable_keys
     }
 
+
 def echo(msg):
     now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%f')
     sys.stderr.write('CACHE [%s] %s\n' % (now, msg))
+
 
 class MessageReader(object):
 
@@ -77,7 +81,7 @@ class MessageReader(object):
                 if not b:
                     return
             except OSError as e:
-                if e.errno == 11: # EAGAIN
+                if e.errno == 11:  # EAGAIN
                     return
             else:
                 self.buf.write(b)
@@ -103,11 +107,13 @@ class MessageReader(object):
             uni = tail.decode('utf-8', errors='replace')
             echo("WARNING: Truncated message: %s" % uni)
 
+
 def subprocess_cmd_and_env(mod):
     pypath = os.environ.get('PYTHONPATH', '')
     env = os.environ.copy()
     env['PYTHONPATH'] = ':'.join((os.getcwd(), pypath))
     return [sys.executable, '-m', 'services.ui_backend_service.data.cache.client.%s' % mod], env
+
 
 class Worker(object):
 
@@ -121,7 +127,7 @@ class Worker(object):
                                                    request['stream_key'])
 
         if self.tempdir is None:
-            self.echo("Store couldn't create a temp directory. "\
+            self.echo("Store couldn't create a temp directory. "
                       "WORKER NOT STARTED.")
 
     def start(self):
@@ -142,10 +148,10 @@ class Worker(object):
             json.dump(request, f)
 
         cmd, _ = subprocess_cmd_and_env('cache_worker')
-        cmdline = cmd + [\
-                   '--request-file', 'request.json',\
-                   self.request['action']\
-                  ]
+        cmdline = cmd + [
+            '--request-file', 'request.json',
+            self.request['action']
+        ]
 
         self.proc = Popen(cmdline, cwd=self.tempdir, stdin=PIPE)
         self.fd = self.proc.stdin.fileno()
@@ -165,13 +171,14 @@ class Worker(object):
                                             self.request['stream_key'],
                                             self.request['disposable_keys'])
             if missing:
-                self.echo("failed to produce the following keys: %s"\
+                self.echo("failed to produce the following keys: %s"
                           % ','.join(missing))
 
         self.filestore.close_tempdir(self.tempdir)
 
     def kill(self):
         self.proc.kill()
+
 
 class Scheduler(object):
 
@@ -193,7 +200,7 @@ class Scheduler(object):
             prio = msg['priority']
             action = msg['action']
 
-            #echo("MESSAGE: %s" % msg)
+            # echo("MESSAGE: %s" % msg)
 
             if op == 'ping':
                 pass
@@ -220,10 +227,10 @@ class Scheduler(object):
             try:
                 cls = import_action_class(mod_str, cls_str)
                 if not issubclass(cls, CacheAction):
-                    raise CacheServerException("Invalid action: %s.%s"\
+                    raise CacheServerException("Invalid action: %s.%s"
                                                % (mod_str, cls_str))
             except ImportError:
-                raise CacheServerException("Import failed: %s.%s"\
+                raise CacheServerException("Import failed: %s.%s"
                                            % (mod_str, cls_str))
 
     def schedule(self):
@@ -294,6 +301,7 @@ class Scheduler(object):
                         poller.remove(event.fd)
                         new_worker()
 
+
 @click.command()
 @click.option("--root",
               default='cache_data',
@@ -309,6 +317,7 @@ def cli(root=None,
         max_size=None):
     store = CacheStore(root, max_size, echo)
     Scheduler(store, max_actions).loop()
+
 
 if __name__ == '__main__':
     cli(auto_envvar_prefix='MFCACHE')

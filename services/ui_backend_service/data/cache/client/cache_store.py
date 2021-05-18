@@ -10,8 +10,10 @@ TIMESTAMP_FOR_DELETABLE = 1
 TIMESTAMP_FOR_DISPOSABLE = 10
 GC_MARKER_QUARANTINE = 60
 
+
 class CacheFullException(Exception):
     pass
+
 
 def makedirs(path):
     # This is for python2 compatibility.
@@ -24,16 +26,20 @@ def makedirs(path):
         else:
             raise
 
+
 def key_filename(key):
     return hashlib.sha1(key.encode('utf-8')).hexdigest()
+
 
 def object_path(root, key):
     hsh = key_filename(key)
     prefix = hsh[:2]
     return os.path.join(root, prefix, hsh)
 
+
 def stream_path(root, key):
     return object_path(root, key) + '.stream'
+
 
 def is_safely_readable(path):
     try:
@@ -42,8 +48,10 @@ def is_safely_readable(path):
     except:
         return False
 
+
 def filesize(path):
     return os.stat(path).st_size
+
 
 class CacheStore(object):
 
@@ -97,7 +105,7 @@ class CacheStore(object):
 
         self.objects_queue.update(x for _, x in sorted(objects))
         self.total_size = sum(self.disposables_queue.values()) +\
-                          sum(self.objects_queue.values())
+            sum(self.objects_queue.values())
 
         # It is possible that the datastore contains more than gc_watermark
         # bytes. To ensure that we start below the gc_watermark, we run the GC:
@@ -107,8 +115,8 @@ class CacheStore(object):
         # yet, so we can safely delete the marked objects without a quarantine:
         self._gc_objects(quarantine=-1)
 
-        self.echo("Cache initialized with %d permanents objects, "\
-                  "%d disposable objects, totaling %d bytes."\
+        self.echo("Cache initialized with %d permanents objects, "
+                  "%d disposable objects, totaling %d bytes."
                   % (len(self.objects_queue),
                      len(self.disposables_queue),
                      self.total_size))
@@ -163,7 +171,7 @@ class CacheStore(object):
     def open_tempdir(self, token, action_name, stream_key):
         self._gc_objects()
         if self.total_size > self.max_size:
-            raise CacheFullException("Cache full! Used %d bytes, max %s bytes"\
+            raise CacheFullException("Cache full! Used %d bytes, max %s bytes"
                                      % (self.total_size, self.max_size))
         else:
             try:
@@ -256,4 +264,3 @@ class CacheStore(object):
 
         self._gc_objects()
         return missing
-

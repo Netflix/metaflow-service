@@ -6,6 +6,7 @@ from .cache_client import CacheClient, CacheServerUnreachable, CacheClientTimeou
 WAIT_FREQUENCY = 0.2
 HEARTBEAT_FREQUENCY = 1
 
+
 class CacheSyncClient(CacheClient):
 
     def start_server(self, cmdline, env):

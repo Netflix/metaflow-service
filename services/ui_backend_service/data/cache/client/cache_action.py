@@ -4,8 +4,10 @@ import importlib
 LO_PRIO = 'lo_prio'
 HI_PRIO = 'hi_prio'
 
+
 class CacheServerInitFailed(Exception):
     pass
+
 
 def import_action_class_spec(action_spec):
     parts = action_spec.split('.')
@@ -13,8 +15,10 @@ def import_action_class_spec(action_spec):
     action_name = action_spec.split('.')[-1]
     return import_action_class('.'.join(parts[:-1]), parts[-1])
 
+
 def import_action_class(mod, cls):
     return getattr(importlib.import_module(mod), cls)
+
 
 class CacheAction(object):
 
@@ -38,7 +42,7 @@ class CacheAction(object):
         4. `disposable_keys`: a subset of `obj_keys` that will
            be purged from the cache before other objects.
         """
-        #return message, obj_keys, stream_key, disposable_keys
+        # return message, obj_keys, stream_key, disposable_keys
         raise NotImplementedError
 
     @classmethod
@@ -88,6 +92,7 @@ class CacheAction(object):
         per key that will be stored in the cache.
         """
         raise NotImplementedError
+
 
 class Check(CacheAction):
 

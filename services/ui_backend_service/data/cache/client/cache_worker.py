@@ -5,6 +5,7 @@ import click
 
 from .cache_action import import_action_class_spec
 
+
 def best_effort_read(key_paths):
     for key, path in key_paths:
         try:
@@ -12,6 +13,7 @@ def best_effort_read(key_paths):
                 yield key, f.read()
         except:
             pass
+
 
 @click.command()
 @click.option("--request-file",
@@ -31,6 +33,7 @@ def cli(action_spec, request_file=None):
         stream = None
         if req['stream_key']:
             stream = open(req['stream_key'], 'a', buffering=1)
+
             def stream_output(obj):
                 stream.write(json.dumps(obj) + '\n')
         else:
@@ -41,7 +44,7 @@ def cli(action_spec, request_file=None):
         ex_keys = dict(best_effort_read(req['existing_keys'].items()))
 
         # execute action
-        res = action_cls.execute(\
+        res = action_cls.execute(
             message=req['message'],
             keys=keys,
             existing_keys=ex_keys,
@@ -58,6 +61,7 @@ def cli(action_spec, request_file=None):
         if stream:
             stream.write('\n\n')
             stream.close()
+
 
 if __name__ == '__main__':
     cli(auto_envvar_prefix='MFCACHE_WORKER')
