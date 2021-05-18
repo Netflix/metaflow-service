@@ -1,4 +1,4 @@
-from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, WAIT_TIME
+from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, WAIT_TIME, OLD_RUN_FAILURE_CUTOFF_TIME
 from .step import AsyncStepTablePostgres
 from ..models import TaskRow
 from services.data.db_utils import DBPagination, DBResponse, translate_run_key, translate_task_key
@@ -8,7 +8,7 @@ from services.data.postgres_async_db import (
     AsyncArtifactTablePostgres as MetadataArtifactTable,
     AsyncMetadataTablePostgres as MetaMetadataTable
 )
-from typing import List, Callable
+from typing import List, Callable, Tuple
 import json
 import datetime
 
@@ -129,26 +129,40 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             THEN 'completed'
             WHEN next_attempt_start.ts_epoch IS NOT NULL
             THEN 'failed'
-            WHEN {finished_at_column} IS NULL
-                AND {table_name}.last_heartbeat_ts IS NOT NULL
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                AND {finished_at_column} IS NULL
+            THEN 'failed'
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+                AND @(extract(epoch from now()) - COALESCE(start.ts_epoch, {table_name}.ts_epoch))>{cutoff}
+                AND {finished_at_column} IS NULL
             THEN 'failed'
             ELSE 'running'
         END) AS status
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)"
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)",
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         ),
         """
-        COALESCE(
-            GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch),
-            next_attempt_start.ts_epoch,
-            {table_name}.last_heartbeat_ts*1000,
-            @(extract(epoch from now())::bigint*1000)
-        ) - COALESCE(start.ts_epoch, {table_name}.ts_epoch) as duration
+        (CASE
+            WHEN {table_name}.last_heartbeat_ts IS NULL
+                AND @(extract(epoch from now()) - COALESCE(start.ts_epoch, {table_name}.ts_epoch))>{cutoff}
+                AND {finished_at_column} IS NULL
+            THEN NULL
+            ELSE
+                COALESCE(
+                    GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch),
+                    next_attempt_start.ts_epoch,
+                    {table_name}.last_heartbeat_ts*1000,
+                    @(extract(epoch from now())::bigint*1000)
+                ) - COALESCE(start.ts_epoch, {table_name}.ts_epoch)
+        END) as duration
         """.format(
-            table_name=table_name
+            table_name=table_name,
+            finished_at_column="COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch)",
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         ),
         "foreach_stack.location as foreach_stack"
     ]
@@ -160,7 +174,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
                            benchmark: bool = False, overwrite_select_from: str = None
-                           ) -> (DBResponse, DBPagination):
+                           ) -> Tuple[DBResponse, DBPagination]:
         if enable_joins:
             # NOTE: This is a required workaround to be able to JOIN attempt specific records to tasks.
             # the estimated max_attempts is a best guess, as tasks might have less,
