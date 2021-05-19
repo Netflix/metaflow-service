@@ -1,8 +1,9 @@
+
 import os
 import json
-import boto3
+import aiobotocore
+import contextlib
 import botocore
-import codecs
 import heapq
 import io
 import re
@@ -15,6 +16,8 @@ from services.utils import handle_exceptions, web_response
 
 from aiohttp import web
 
+# Configure the global connection pool size for S3 log fetches
+S3_MAX_POOL_CONNECTIONS = int(os.environ.get('LOG_S3_MAX_CONNECTIONS', 100))
 
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
@@ -132,6 +135,22 @@ class LogApi(object):
         )
         self._async_table = self.db.metadata_table_postgres
 
+        # Shared S3 session config for LOG fetching
+        self.context_stack = contextlib.AsyncExitStack()
+        self.s3_client = None
+        app.on_startup.append(self.init_s3_client)
+        app.on_cleanup.append(self.teardown_s3_client)
+
+    async def init_s3_client(self, app):
+        "Initializes an S3 client for this API handler"
+        session = aiobotocore.get_session()
+        conf = botocore.config.Config(max_pool_connections=S3_MAX_POOL_CONNECTIONS)
+        self.s3_client = await self.context_stack.enter_async_context(session.create_client('s3', config=conf))
+
+    async def teardown_s3_client(self, app):
+        "closes the async context for the S3 client"
+        await self.context_stack.aclose()
+
     @handle_exceptions
     async def get_task_log_stdout(self, request):
         """
@@ -217,7 +236,7 @@ class LogApi(object):
 
         if bucket and path:
             try:
-                lines = await read_and_output(bucket, path)
+                lines = await read_and_output(self.s3_client, bucket, path)
                 return web_response(200, {'data': lines})
             except botocore.exceptions.ClientError as err:
                 raise LogException(
@@ -262,7 +281,7 @@ class LogApi(object):
                         path = url.path.lstrip('/')
                         to_fetch.append((bucket, path))
                     bucket = url.netloc
-                lines = await read_and_output_mflog(to_fetch)
+                lines = await read_and_output_mflog(self.s3_client, to_fetch)
                 return web_response(200, {'data': lines})
         return web_response(404, {'data': []})
 
@@ -332,45 +351,46 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
     return None, None, None
 
 
-async def read_and_output(bucket, path):
-    s3 = boto3.client('s3')
-    obj = s3.get_object(Bucket=bucket, Key=path)
+async def read_and_output(s3_client, bucket, path):
+    obj = await s3_client.get_object(Bucket=bucket, Key=path)
 
     lines = []
-    body = obj['Body']
-    for row, line in enumerate(codecs.getreader('utf-8')(body), start=1):
-        lines.append({
-            'row': row,
-            'line': line.strip(),
-        })
+    async with obj['Body'] as stream:
+        async for row, line in aenumerate(stream, start=1):
+            lines.append({
+                'row': row,
+                'line': line.strip(),
+            })
     return lines
 
 
-async def read_and_output_ws(bucket, path, ws):
-    s3 = boto3.client('s3')
-    obj = s3.get_object(Bucket=bucket, Key=path)
+async def read_and_output_ws(s3_client, bucket, path, ws):
+    obj = await s3_client.get_object(Bucket=bucket, Key=path)
 
-    body = obj['Body']
-    for row, line in enumerate(codecs.getreader('utf-8')(body), start=1):
-        await ws.send_str(json.dumps({
-            'row': row,
-            'line': line.strip(),
-        }))
+    async with obj['Body'] as stream:
+        async for row, line in aenumerate(stream, start=1):
+            await ws.send_str(json.dumps({
+                'row': row,
+                'line': line.strip(),
+            }))
 
 
-async def read_and_output_mflog(paths):
-    s3 = boto3.client('s3')
+async def read_and_output_mflog(s3_client, paths):
     logs = []
     for bucket, path in paths:
         try:
-            obj = s3.get_object(Bucket=bucket, Key=path)
-            logs.append(obj['Body'].read())
+            obj = await s3_client.get_object(Bucket=bucket, Key=path)
+
+            async with obj['Body'] as stream:
+                data = await stream.read()
+                logs.append(data)
         except botocore.exceptions.ClientError as err:
             if err.response['Error']['Code'] == 'NoSuchKey':
                 pass
             else:
                 raise
     lines = []
+    # TODO: This could be an async iterator instead?
     for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
         lines.append({
             'row': row,
@@ -378,16 +398,28 @@ async def read_and_output_mflog(paths):
     return lines
 
 
-async def read_and_output_mflog_ws(paths, ws):
-    s3 = boto3.client('s3')
+async def read_and_output_mflog_ws(s3_client, paths, ws):
     logs = []
     for bucket, path in paths:
-        obj = s3.get_object(Bucket=bucket, Key=path)
-        logs.append(obj['Body'].read())
+        obj = await s3_client.get_object(Bucket=bucket, Key=path)
+
+        async with obj['Body'] as stream:
+            data = await stream.read()
+            logs.append(data)
     for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
         await ws.send_str(json.dumps({
             'row': row,
             'line': to_unicode(line.msg)}))
+
+
+async def aenumerate(stream, start=0):
+    i = start
+    while True:
+        line = await stream.readline()
+        if not line:
+            break
+        yield i, line.decode('utf-8')
+        i += 1
 
 
 class LogException(Exception):
