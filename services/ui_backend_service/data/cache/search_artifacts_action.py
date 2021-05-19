@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from metaflow.client.cache import CacheAction
+from .client import CacheAction
 from services.utils import get_traceback_str
 from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
                     MetaflowS3URLException, NoRetryS3, batchiter, decode,

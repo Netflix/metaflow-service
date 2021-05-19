@@ -4,7 +4,7 @@ import shutil
 import time
 from typing import Dict, List, Optional
 
-from metaflow.client.cache.cache_async_client import CacheAsyncClient
+from .client import CacheAsyncClient
 from pyee import AsyncIOEventEmitter
 from services.ui_backend_service.features import (FEATURE_CACHE_ENABLE,
                                                   FEATURE_PREFETCH_ENABLE,
