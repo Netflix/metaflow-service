@@ -136,11 +136,8 @@ class LogApi(object):
         self._async_table = self.db.metadata_table_postgres
 
         # Shared S3 session config for LOG fetching
-        # NOTE: It was necessary to share an S3 client over requests,
-        # as calling create_client() inside a request handler for every request
-        # was resulting in timeouts while load testing the API.
         self.context_stack = contextlib.AsyncExitStack()
-        self.client = None
+        self.s3_client = None
         app.on_startup.append(self.init_s3_client)
         app.on_cleanup.append(self.teardown_s3_client)
 
@@ -148,7 +145,7 @@ class LogApi(object):
         "Initializes an S3 client for this API handler"
         session = aiobotocore.get_session()
         conf = botocore.config.Config(max_pool_connections=S3_MAX_POOL_CONNECTIONS)
-        self.client = await self.context_stack.enter_async_context(session.create_client('s3', config=conf))
+        self.s3_client = await self.context_stack.enter_async_context(session.create_client('s3', config=conf))
 
     async def teardown_s3_client(self, app):
         "closes the async context for the S3 client"
@@ -239,7 +236,7 @@ class LogApi(object):
 
         if bucket and path:
             try:
-                lines = await read_and_output(self.client, bucket, path)
+                lines = await read_and_output(self.s3_client, bucket, path)
                 return web_response(200, {'data': lines})
             except botocore.exceptions.ClientError as err:
                 raise LogException(
@@ -284,7 +281,7 @@ class LogApi(object):
                         path = url.path.lstrip('/')
                         to_fetch.append((bucket, path))
                     bucket = url.netloc
-                lines = await read_and_output_mflog(self.client, to_fetch)
+                lines = await read_and_output_mflog(self.s3_client, to_fetch)
                 return web_response(200, {'data': lines})
         return web_response(404, {'data': []})
 
