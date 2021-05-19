@@ -9,5 +9,8 @@ throttler==1.2.0
 psycopg2==2.8.6
 aiopg==1.2.1
 
-idna==2.10 # have to pin idna due to metaflow dependency
+# have to pin due to metaflow dependency
+idna==2.10
+wrapt==1.11.2
+pylint==2.4.4
 metaflow==2.0.5
