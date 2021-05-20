@@ -134,7 +134,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 AND {finished_at_column} IS NULL
             THEN 'failed'
             WHEN {table_name}.last_heartbeat_ts IS NULL
-                AND @(extract(epoch from now()) - COALESCE(start.ts_epoch, {table_name}.ts_epoch))>{cutoff}
+                AND @(extract(epoch from now())*1000 - COALESCE(start.ts_epoch, {table_name}.ts_epoch))>{cutoff}
                 AND {finished_at_column} IS NULL
             THEN 'failed'
             ELSE 'running'
@@ -148,7 +148,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """
         (CASE
             WHEN {table_name}.last_heartbeat_ts IS NULL
-                AND @(extract(epoch from now()) - COALESCE(start.ts_epoch, {table_name}.ts_epoch))>{cutoff}
+                AND @(extract(epoch from now())*1000 - COALESCE(start.ts_epoch, {table_name}.ts_epoch))>{cutoff}
                 AND {finished_at_column} IS NULL
             THEN NULL
             ELSE
