@@ -84,16 +84,20 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
 
     join_columns = [
         """
-        COALESCE(
-            GREATEST(
+        (CASE
+            WHEN COALESCE(latest_task_ok, latest_metadata_done, latest_task_hb) IS NOT NULL
+            THEN GREATEST(
                 latest_task_ok.ts_epoch,
                 latest_metadata_done.ts_epoch,
                 latest_task_hb.heartbeat_ts*1000
-            ),
-            @(extract(epoch from now())::bigint*1000)
-        ) - {table_name}.ts_epoch as duration
+            ) - {table_name}.ts_epoch
+            WHEN @(extract(epoch from now())::bigint*1000) - {table_name}.ts_epoch > {cutoff}
+            THEN NULL
+            ELSE @(extract(epoch from now())::bigint*1000) - {table_name}.ts_epoch
+        END) as duration
         """.format(
-            table_name=table_name
+            table_name=table_name,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         )
     ]
 
