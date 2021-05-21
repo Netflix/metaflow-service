@@ -269,9 +269,9 @@ async def test_old_run_status_without_heartbeat(cli, db):
         }
     )
     _run_failed["ts_epoch"] = _old_ts
-    # finished at should be the start time + cutoff period
-    _run_failed["finished_at"] = _run_failed["ts_epoch"] + (60 * 60 * 24 * 14 * 1000)
-    _run_failed["duration"] = _run_failed["finished_at"] - _run_failed["ts_epoch"]
+    # finished at should be none, as we can not determine a clear one.
+    _run_failed["finished_at"] = None
+    _run_failed["duration"] = None  # duration should also be none as it is indeterminate.
     _run_failed["status"] = "failed"
     _run_failed["user"] = None
     _run_failed["run"] = _run_failed["run_number"]
