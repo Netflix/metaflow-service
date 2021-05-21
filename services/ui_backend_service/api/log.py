@@ -219,7 +219,7 @@ class LogApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesLogError500'
         """
-        return await self.get_task_log(request, STDERR)
+        return await self.get_task_log_ws(request, STDERR)
 
     async def get_task_log(self, request, logtype=STDOUT):
         flow_id = request.match_info.get("flow_id")
