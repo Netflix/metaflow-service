@@ -358,7 +358,7 @@ swagger_definitions = {
             "$ref": "#/definitions/ModelsNotification"
         }
     },
-    "ResponsesLog": response_object("#/definitions/ModelsLog"),
+    "ResponsesLog": response_list("#/definitions/ModelsLogRow"),
     "ResponsesLogError500": response_internal_error(
         {
             "log-error-s3": "Something went wrong with S3 access",
@@ -570,13 +570,6 @@ swagger_definitions = {
             }
         },
         "required": ["type", "box_next", "box_ends", "next"]
-    },
-    "ModelsLog": {
-        "type": "array",
-        "items": {
-            "type": "object",
-            "$ref": "#/definitions/ModelsLogRow"
-        }
     },
     "ModelsLogRow": {
         "type": "object",

@@ -435,6 +435,7 @@ def paginate_log_lines(request, lines):
     pagination = DBPagination(limit, offset, len(response.body), page)
     return format_response_list(request, response, pagination, page)
 
+
 class LogException(Exception):
     def __init__(self, msg='Failed to read log', id='log-error'):
         self.message = msg
