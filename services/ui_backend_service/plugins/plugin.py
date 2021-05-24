@@ -79,10 +79,14 @@ class Plugin(object):
                 remote.fetch()
 
             # Resolve ref and checkout
-            commit, resolved_refish = self._repo.resolve_refish(self.ref if self.ref else 'HEAD')
+            commit, resolved_refish = self._repo.resolve_refish(self.ref if self.ref else 'origin/master')
             self._repo.checkout(resolved_refish, strategy=pygit2.GIT_CHECKOUT_FORCE)
 
             self.logger.info("Checkout {} at {}".format(resolved_refish.name, commit.short_id))
+
+    @property
+    def name(self) -> str:
+        return self.config.get("name", self.identifier)
 
     def _load_config(self) -> PluginConfig:
         try:

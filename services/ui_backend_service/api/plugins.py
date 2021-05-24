@@ -107,7 +107,7 @@ def _get_plugin_from_request(request):
     _plugins = list_plugins()
     plugin_name = request.match_info.get("plugin_name")
     for plugin in _plugins:
-        if plugin.config.get("name", None) == plugin_name:
+        if plugin.name == plugin_name:
             return plugin
     return None
 
@@ -115,7 +115,7 @@ def _get_plugin_from_request(request):
 def _plugin_dict(plugin):
     return {
         "identifier": plugin.identifier,
-        "name": plugin.config.get("name", plugin.identifier),
+        "name": plugin.name,
         "repository": plugin.repository,
         "ref": plugin.ref,
         "parameters": plugin.parameters,

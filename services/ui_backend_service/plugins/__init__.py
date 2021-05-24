@@ -41,7 +41,7 @@ def init_plugins():
             else:
                 _load_plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters)
 
-    logger.info("Plugins ready: {}".format(list(_PLUGINS)))
+    logger.info("Plugins ready: {}".format(list(map(lambda p: p.name, _PLUGINS))))
 
 
 def _load_plugin(identifier: str, repository: str = None, ref: str = None, parameters: dict = {}, path: str = None):
