@@ -1,6 +1,4 @@
 import os
-import math
-import time
 import json
 
 from .cache_server import server_request, subprocess_cmd_and_env
@@ -35,8 +33,14 @@ class CacheFuture(object):
             self.key_paths[stream_key] = object_path(root, stream_key)
         self.key_objs = None
 
-    def is_ready(self):
+    def key_paths_ready(self):
         return all(map(is_safely_readable, self.key_paths.values()))
+
+    def is_ready(self):
+        return self.key_paths_ready() or not self.has_pending_request()
+
+    def has_pending_request(self):
+        return self.client.has_pending_request(self.stream_key)
 
     @property
     def is_streamable(self):
@@ -47,8 +51,6 @@ class CacheFuture(object):
                                 timeout)
 
     def get(self):
-        # NOTE: how to tie cachefuture together with cache_server stderr/stdout streams.
-        # NOTE: using idempotency_token so we only get messages related to this cachefuture?
         def _read(path):
             with open(path, 'rb') as f:
                 return f.read()
@@ -138,6 +140,8 @@ class CacheClient(object):
         self._max_actions = max_actions
         self._max_size = max_size
 
+        self.pending_requests = set()
+
     def start(self):
         cmd, env = subprocess_cmd_and_env('cache_server')
         cmdline = cmd + [
@@ -150,8 +154,7 @@ class CacheClient(object):
             'actions': [[c.__module__, c.__name__] for c in self._action_classes]
         }
         return self.request_and_return([self.start_server(cmdline, env),
-                                        self._send('init', message=msg),
-                                        self.check()],
+                                        self._send('init', message=msg), ],
                                        None)
 
     def stop(self):
@@ -169,16 +172,18 @@ class CacheClient(object):
         return self.send_request(json.dumps(req).encode('utf-8') + b'\n')
 
     def _action(self, cls):
-        # NOTE: Can this be tied to an idempotency_token for streaming errors?
 
         def _call(*args, **kwargs):
             msg, keys, stream_key, disposable_keys =\
                 cls.format_request(*args, **kwargs)
             future = CacheFuture(keys, stream_key, self, cls, self._root)
-            if future.is_ready():
+            if future.key_paths_ready():
                 # cache hit
                 req = None
             else:
+                # Set stream_key as pending
+                self.pending_requests.add(stream_key)
+
                 # cache miss
                 action_spec = '%s.%s' % (cls.__module__, cls.__name__)
                 req = self._send('action',
@@ -189,10 +194,15 @@ class CacheClient(object):
                                  message=msg,
                                  disposable_keys=disposable_keys)
 
-            # NOTE: Why is request_and_return speced to take a list of requests, when self._send
             return self.request_and_return([req] if req else [], future)
 
         return _call
+
+    def has_pending_request(self, stream_key: str) -> bool:
+        """
+        Check if stream_key is listed as pending request.
+        """
+        return stream_key in self.pending_requests
 
     def start_server(self, cmdline, env):
         """

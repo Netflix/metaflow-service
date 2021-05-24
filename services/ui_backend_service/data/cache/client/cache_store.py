@@ -122,7 +122,6 @@ class CacheStore(object):
                      self.total_size))
 
     def _gc_objects(self, quarantine=GC_MARKER_QUARANTINE):
-
         def mark_for_deletion(path, size):
             self.safe_fileop(os.utime, path, (TIMESTAMP_FOR_DELETABLE,
                                               TIMESTAMP_FOR_DELETABLE))
@@ -170,42 +169,43 @@ class CacheStore(object):
 
     def open_tempdir(self, token, action_name, stream_key):
         self._gc_objects()
+
         if self.total_size > self.max_size:
-            raise CacheFullException("Cache full! Used %d bytes, max %s bytes"
-                                     % (self.total_size, self.max_size))
+            self.warn(None, "Cache soft limit reached! Used %d bytes, max %s bytes"
+                      % (self.total_size, self.max_size))
+
+        try:
+            tmp = tempfile.mkdtemp(prefix='cache_action_%s.' % token,
+                                   dir=self.tmproot)
+        except Exception as ex:
+            msg = "Could not create a temp directory for request %s" % token
+            self.warn(ex, msg)
         else:
-            try:
-                tmp = tempfile.mkdtemp(prefix='cache_action_%s.' % token,
-                                       dir=self.tmproot)
-            except Exception as ex:
-                msg = "Could not create a temp directory for request %s" % token
-                self.warn(ex, msg)
-            else:
-                if stream_key:
-                    src = stream_path(self.root, stream_key)
-                    dst = os.path.join(tmp, key_filename(stream_key))
-                    # make sure that the new symlink points at a valid (empty!)
-                    # file by creating a dummy destination file
-                    self.ensure_path(src)
-                    open_res = self.safe_fileop(open, dst, 'w')
-                    if open_res:
-                        _, f = open_res
-                        f.close()
-                        try:
-                            os.symlink(dst, src)
-                        except OSError as ex:
-                            # two actions may be streaming the same object
-                            # simultaneously. We don't consider an existing
-                            # symlink (errno 17) to be an error.
-                            if ex.errno != 17:
-                                err = "Could not create a symlink %s->%s"\
-                                      % (src, dst)
-                                self.warn(ex, err)
-                        else:
-                            self.active_streams[tmp] = src
-                        return tmp
-                else:
+            if stream_key:
+                src = stream_path(self.root, stream_key)
+                dst = os.path.join(tmp, key_filename(stream_key))
+                # make sure that the new symlink points at a valid (empty!)
+                # file by creating a dummy destination file
+                self.ensure_path(src)
+                open_res = self.safe_fileop(open, dst, 'w')
+                if open_res:
+                    _, f = open_res
+                    f.close()
+                    try:
+                        os.symlink(dst, src)
+                    except Exception as ex:
+                        # two actions may be streaming the same object
+                        # simultaneously. We don't consider an existing
+                        # symlink (errno 17) to be an error.
+                        if ex.errno != 17:
+                            err = "Could not create a symlink %s->%s"\
+                                % (src, dst)
+                            self.warn(ex, err)
+                    else:
+                        self.active_streams[tmp] = src
                     return tmp
+            else:
+                return tmp
 
     def safe_fileop(self, fun, *args, **kwargs):
         try:
@@ -221,7 +221,6 @@ class CacheStore(object):
         self.safe_fileop(shutil.rmtree, tempdir)
 
     def commit(self, tempdir, keys, stream_key, disposable_keys):
-
         def _insert(queue, key, value):
             # we want to update the object's location in the
             # OrderedDict, so we will need to delete any possible

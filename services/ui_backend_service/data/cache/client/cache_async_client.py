@@ -1,8 +1,10 @@
 import time
 import asyncio
+import json
 from subprocess import PIPE
 
-from .cache_client import CacheClient, CacheServerUnreachable, CacheClientTimeout
+from .cache_client import CacheClient, CacheServerUnreachable
+from .cache_server import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
 WAIT_FREQUENCY = 0.2
 HEARTBEAT_FREQUENCY = 1
@@ -10,12 +12,49 @@ HEARTBEAT_FREQUENCY = 1
 
 class CacheAsyncClient(CacheClient):
 
-    # NOTE: add poller or something for server heartbeat checks. restart subprocess if down.
     async def start_server(self, cmdline, env):
         self._proc = await asyncio.create_subprocess_exec(*cmdline,
                                                           env=env,
-                                                          stdin=PIPE)
-        asyncio.create_task(self._heartbeat())
+                                                          stdin=PIPE,
+                                                          stdout=PIPE,
+                                                          stderr=PIPE)
+
+        asyncio.gather(
+            self._heartbeat(),
+            self.read_stdout(),
+            self.read_stderr()
+        )
+
+    async def _read_pipe(self, src):
+        while True:
+            line = await src.readline()
+            if not line:
+                await asyncio.sleep(WAIT_FREQUENCY)
+                break
+            yield line.rstrip().decode("utf-8")
+
+    async def read_stdout(self):
+        async for line in self._read_pipe(self._proc.stdout):
+            await self.read_message(line)
+
+    async def read_stderr(self):
+        async for line in self._read_pipe(self._proc.stderr):
+            await self.read_message(line)
+
+    async def read_message(self, line: str):
+        try:
+            message = json.loads(line)
+            if message['op'] == OP_WORKER_CREATE:
+                self.pending_requests.add(message['stream_key'])
+            elif message['op'] == OP_WORKER_TERMINATE:
+                self.pending_requests.remove(message['stream_key'])
+            else:
+                return
+
+            print("Pending stream keys: {}".format(
+                list(self.pending_requests)), flush=True)
+        except Exception:
+            pass
 
     async def check(self):
         ret = await self.Check()  # pylint: disable=no-member

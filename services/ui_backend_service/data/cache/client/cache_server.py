@@ -18,9 +18,18 @@ from .cache_action import CacheAction,\
     import_action_class
 
 from .cache_store import CacheStore,\
-    CacheFullException,\
     key_filename,\
     is_safely_readable
+
+OP_WORKER_CREATE = 'worker_create'
+OP_WORKER_TERMINATE = 'worker_terminate'
+
+
+def send_message(op: str, data: dict):
+    print(json.dumps({
+        'op': op,
+        **data
+    }), flush=True)
 
 
 class CacheServerException(Exception):
@@ -62,7 +71,7 @@ def server_request(op,
 
 def echo(msg):
     now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%f')
-    sys.stderr.write('CACHE [%s] %s\n' % (now, msg))
+    sys.stdout.write('CACHE [%s] %s\n' % (now, msg))
 
 
 class MessageReader(object):
@@ -125,13 +134,11 @@ class Worker(object):
         self.tempdir = self.filestore.open_tempdir(request['idempotency_token'],
                                                    request['action'],
                                                    request['stream_key'])
-
         if self.tempdir is None:
             self.echo("Store couldn't create a temp directory. "
                       "WORKER NOT STARTED.")
 
     def start(self):
-
         keys = self.request['keys']
         ex_paths = map(self.filestore.object_path, keys)
         ex_keys = {key: path for key, path in zip(keys, ex_paths)
@@ -153,8 +160,12 @@ class Worker(object):
             self.request['action']
         ]
 
-        self.proc = Popen(cmdline, cwd=self.tempdir, stdin=PIPE)
+        self.proc = Popen(cmdline, cwd=self.tempdir,
+                          stdin=PIPE, stdout=PIPE, stderr=PIPE)
+
         self.fd = self.proc.stdin.fileno()
+
+        send_message(OP_WORKER_CREATE, self._worker_details())
 
     def echo(self, msg):
         token = self.request['idempotency_token']
@@ -162,6 +173,14 @@ class Worker(object):
         echo("Worker%s[token %s] %s" % (pid_prefix, token, msg))
 
     def terminate(self):
+        stdout_output = self.proc.stdout.read().rstrip().decode("utf-8")
+        stderr_output = self.proc.stderr.read().rstrip().decode("utf-8")
+
+        if stdout_output:
+            self.echo("stdout: {}".format(stdout_output))
+        if stderr_output:
+            self.echo("stderr: {}".format(stderr_output))
+
         ret = self.proc.wait()
         if ret:
             self.echo("crashed with error code %d" % ret)
@@ -176,8 +195,19 @@ class Worker(object):
 
         self.filestore.close_tempdir(self.tempdir)
 
+        send_message(OP_WORKER_TERMINATE, self._worker_details())
+
     def kill(self):
         self.proc.kill()
+
+        send_message(OP_WORKER_TERMINATE, self._worker_details())
+
+    def _worker_details(self):
+        return {
+            'keys': self.request['keys'],
+            'stream_key': self.request['stream_key'],
+            'idempotency_token': self.request["idempotency_token"],
+        }
 
 
 class Scheduler(object):
@@ -199,8 +229,6 @@ class Scheduler(object):
             op = msg['op']
             prio = msg['priority']
             action = msg['action']
-
-            # echo("MESSAGE: %s" % msg)
 
             if op == 'ping':
                 pass
@@ -234,7 +262,6 @@ class Scheduler(object):
                                            % (mod_str, cls_str))
 
     def schedule(self):
-
         def queued_request(queue):
             while queue:
                 yield queue.popleft()
@@ -242,18 +269,12 @@ class Scheduler(object):
         for request in chain(queued_request(self.hi_prio_requests),
                              queued_request(self.lo_prio_requests)):
 
-            try:
-                worker = Worker(request, self.filestore)
-                if worker.tempdir:
-                    # NOTE: Cleanup this logic.
-                    worker.start()
-                    return worker
-            except CacheFullException:
-                echo("Cache storage is full, worker failed to start!")
-                return None
+            worker = Worker(request, self.filestore)
+            if worker.tempdir:
+                worker.start()
+                return worker
 
     def loop(self):
-
         workers = {HI_PRIO: {}, LO_PRIO: OrderedDict()}
         poller = make_poll()
         poller.add(self.stdin_fileno)
