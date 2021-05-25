@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
-from .utils import pagination_query, format_response_list
+from .utils import format_response_list
 
 from aiohttp import web
 
@@ -430,8 +430,17 @@ async def aenumerate(stream, start=0):
 def paginate_log_lines(request, lines):
     """Paginates the log lines based on url parameters
     """
-    page, limit, offset, *_ = pagination_query(request)
-    response = DBResponse(200, lines[-offset:][:limit:])  # Read loglines in reverse order as latest ones are most important.
+    # Page
+    page = max(int(request.query.get("_page", 1)), 1)
+
+    # Limit
+    # Default limit is 1000, maximum is 10_000
+    limit = min(int(request.query.get("_limit", 1000)), 10000)
+
+    # Offset
+    offset = limit * (page - 1)
+
+    response = DBResponse(200, lines[::-1][offset:][:limit])  # Read loglines in reverse order as latest ones are most important.
     pagination = DBPagination(limit, offset, len(response.body), page)
     return format_response_list(request, response, pagination, page)
 
