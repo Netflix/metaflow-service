@@ -67,6 +67,10 @@ class CacheFuture(object):
         def _wait_paths(paths):
             # wait until one of the paths is readable
             while True:
+                # Make sure we still have pending cache worker request
+                if not self.has_pending_request():
+                    return
+
                 for path in paths:
                     if is_safely_readable(path):
                         try:

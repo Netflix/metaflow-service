@@ -193,7 +193,7 @@ class CacheStore(object):
                     f.close()
                     try:
                         os.symlink(dst, src)
-                    except Exception as ex:
+                    except OSError as ex:
                         # two actions may be streaming the same object
                         # simultaneously. We don't consider an existing
                         # symlink (errno 17) to be an error.
@@ -201,11 +201,11 @@ class CacheStore(object):
                             err = "Could not create a symlink %s->%s"\
                                 % (src, dst)
                             self.warn(ex, err)
+                    except Exception as ex:
+                        self.warn(ex, "Unknown error")
                     else:
                         self.active_streams[tmp] = src
                     return tmp
-            else:
-                return tmp
 
     def safe_fileop(self, fun, *args, **kwargs):
         try:

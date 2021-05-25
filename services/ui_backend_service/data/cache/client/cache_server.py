@@ -131,10 +131,14 @@ class Worker(object):
         self.prio = request['priority']
         self.filestore = filestore
         self.proc = None
-        self.tempdir = self.filestore.open_tempdir(request['idempotency_token'],
-                                                   request['action'],
-                                                   request['stream_key'])
-        if self.tempdir is None:
+
+        try:
+            self.tempdir = self.filestore.open_tempdir(
+                request['idempotency_token'],
+                request['action'],
+                request['stream_key'])
+        except Exception:
+            self.tempdir = None
             self.echo("Store couldn't create a temp directory. "
                       "WORKER NOT STARTED.")
 
@@ -270,9 +274,15 @@ class Scheduler(object):
                              queued_request(self.lo_prio_requests)):
 
             worker = Worker(request, self.filestore)
-            if worker.tempdir:
-                worker.start()
-                return worker
+            try:
+                if worker.tempdir:
+                    worker.start()
+                    return worker
+            except Exception as ex:
+                echo("Failed to start worker %s" % ex)
+
+            send_message(OP_WORKER_TERMINATE, worker._worker_details())
+            return None
 
     def loop(self):
         workers = {HI_PRIO: {}, LO_PRIO: OrderedDict()}
