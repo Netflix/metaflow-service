@@ -10,12 +10,14 @@ import re
 from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse
+from typing import List, Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
 from .utils import format_response_list
 
 from aiohttp import web
+from multidict import MultiDict
 
 # Configure the global connection pool size for S3 log fetches
 S3_MAX_POOL_CONNECTIONS = int(os.environ.get('LOG_S3_MAX_CONNECTIONS', 100))
@@ -134,6 +136,16 @@ class LogApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/err",
             self.get_task_log_stderr,
         )
+        app.router.add_route(
+            "GET",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out/download",
+            self.get_task_log_stdout_file,
+        )
+        app.router.add_route(
+            "GET",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/err/download",
+            self.get_task_log_stderr_file,
+        )
         self._async_table = self.db.metadata_table_postgres
 
         # Shared S3 session config for LOG fetching
@@ -222,7 +234,74 @@ class LogApi(object):
         """
         return await self.get_task_log(request, STDERR)
 
+    @handle_exceptions
+    async def get_task_log_stdout_file(self, request):
+        """
+        ---
+        description: Get STDOUT log of a Task
+        tags:
+        - Task
+        parameters:
+          - $ref: '#/definitions/Params/Path/flow_id'
+          - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/definitions/Params/Path/step_name'
+          - $ref: '#/definitions/Params/Path/task_id'
+          - $ref: '#/definitions/Params/Custom/attempt_id'
+        produces:
+        - text/plain
+        responses:
+            "200":
+                description: Return a tasks stdout log as a file download
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+            "404":
+                description: Log for task could not be found
+                schema:
+                  $ref: '#/definitions/ResponsesError404'
+            "500":
+                description: Internal Server Error (with error id)
+                schema:
+                    $ref: '#/definitions/ResponsesLogError500'
+        """
+        return await self.get_task_log_file(request, STDOUT)
+
+    @handle_exceptions
+    async def get_task_log_stderr_file(self, request):
+        """
+        ---
+        description: Get STDERR log of a Task
+        tags:
+        - Task
+        parameters:
+          - $ref: '#/definitions/Params/Path/flow_id'
+          - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/definitions/Params/Path/step_name'
+          - $ref: '#/definitions/Params/Path/task_id'
+          - $ref: '#/definitions/Params/Custom/attempt_id'
+        produces:
+        - text/plain
+        responses:
+            "200":
+                description: Return a tasks stderr log as a file download
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+            "404":
+                description: Log for task could not be found
+                schema:
+                  $ref: '#/definitions/ResponsesError404'
+            "500":
+                description: Internal Server Error (with error id)
+                schema:
+                    $ref: '#/definitions/ResponsesLogError500'
+        """
+        return await self.get_task_log_file(request, STDERR)
+
     async def get_task_log(self, request, logtype=STDOUT):
+        "fetches log and emits it as a list of rows wrapped in json"
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
@@ -247,51 +326,103 @@ class LogApi(object):
             except Exception as err:
                 raise LogException(str(err), 'log-error')
         elif DS_ROOT:
-            # Check if we have logs in the MFLog format (we need to have a valid root)
-
-            # We first need to translate run_number and task_id into run_id
-            # and task_name so that we can extract the proper path
-            run_id_key, run_id_value = translate_run_key(run_number)
-            task_id_key, task_id_value = translate_task_key(task_id)
-
-            db_response, *_ = await self.db.task_table_postgres.find_records(
-                fetch_single=True,
-                conditions=[
-                    "flow_id = %s",
-                    "{run_id_key} = %s".format(run_id_key=run_id_key),
-                    "step_name = %s",
-                    "{task_id_key} = %s".format(task_id_key=task_id_key)],
-                values=[flow_id, run_id_value, step_name, task_id_value],
-                expanded=True)
-
-            if db_response.response_code == 200:
-                stream = 'stderr' if logtype == STDERR else 'stdout'
-                task_row = db_response.body
-                if task_row['run_id'].startswith('mli_') and \
-                        task_row['task_name'].startswith('mli_'):
-                    run_id_value = task_row['run_id'][4:]
-                    task_id_value = task_row['task_name'][4:]
-
-                urls = [os.path.join(
-                    DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
-                    '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
-                    for s in LOG_SOURCES]
-                to_fetch = []
-                for u in urls:
-                    url = urlparse(u, allow_fragments=False)
-                    if url.scheme == 's3':
-                        bucket = url.netloc
-                        path = url.path.lstrip('/')
-                        to_fetch.append((bucket, path))
-                    bucket = url.netloc
+            to_fetch = await get_metadata_mflog_paths(
+                self._async_table.find_records,
+                flow_id, run_number, step_name, task_id,
+                attempt_id, logtype)
+            if to_fetch:
                 lines = await read_and_output_mflog(self.s3_client, to_fetch)
                 # paginate response
                 code, body = paginate_log_lines(request, lines)
                 return web_response(code, body)
         return web_response(404, {'data': []})
 
+    async def get_task_log_file(self, request, logtype=STDOUT):
+        "fetches log and emits it as a single file download response"
+        flow_id = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        step_name = request.match_info.get("step_name")
+        task_id = request.match_info.get("task_id")
+        attempt_id = request.query.get("attempt_id", None)
 
-async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> (str, str, int):
+        log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}{attempt}.txt".format(
+            type="stdout" if logtype == STDOUT else "stderr",
+            flow_id=flow_id,
+            run_number=run_number,
+            step_name=step_name,
+            task_id=task_id,
+            attempt="_attempt{}".format(attempt_id or 0)
+        )
+
+        bucket, path, _ = \
+            await get_metadata_log_assume_path(
+                self._async_table.find_records,
+                flow_id, run_number, step_name, task_id,
+                attempt_id, logtype)
+
+        if bucket and path:
+            try:
+                lines = await read_and_output(self.s3_client, bucket, path)
+                logstring = "\n".join(line['line'] for line in lines)
+                return file_download_response(log_filename, logstring)
+            except botocore.exceptions.ClientError as err:
+                raise LogException(
+                    err.response['Error']['Message'], 'log-error-s3')
+            except Exception as err:
+                raise LogException(str(err), 'log-error')
+        elif DS_ROOT:
+            to_fetch = await get_metadata_mflog_paths(
+                self._async_table.find_records,
+                flow_id, run_number, step_name, task_id,
+                attempt_id, logtype)
+            if to_fetch:
+                lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                logstring = "\n".join(line['line'] for line in lines)
+                return file_download_response(log_filename, logstring)
+        return web_response(404, {'data': []})
+
+
+async def get_metadata_mflog_paths(find_records, flow_id, run_number, step_name, task_id, attempt_id, logtype) -> Optional[List[str]]:
+    # Check if we have logs in the MFLog format (we need to have a valid root)
+    # We first need to translate run_number and task_id into run_id
+    # and task_name so that we can extract the proper path
+    run_id_key, run_id_value = translate_run_key(run_number)
+    task_id_key, task_id_value = translate_task_key(task_id)
+
+    db_response, *_ = await find_records(
+        fetch_single=True,
+        conditions=[
+            "flow_id = %s",
+            "{run_id_key} = %s".format(run_id_key=run_id_key),
+            "step_name = %s",
+            "{task_id_key} = %s".format(task_id_key=task_id_key)],
+        values=[flow_id, run_id_value, step_name, task_id_value],
+        expanded=True)
+
+    if db_response.response_code == 200:
+        stream = 'stderr' if logtype == STDERR else 'stdout'
+        task_row = db_response.body
+        if task_row['run_id'].startswith('mli_') and \
+                task_row['task_name'].startswith('mli_'):
+            run_id_value = task_row['run_id'][4:]
+            task_id_value = task_row['task_name'][4:]
+
+        urls = [os.path.join(
+            DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
+            '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
+            for s in LOG_SOURCES]
+        to_fetch = []
+        for u in urls:
+            url = urlparse(u, allow_fragments=False)
+            if url.scheme == 's3':
+                bucket = url.netloc
+                path = url.path.lstrip('/')
+                to_fetch.append((bucket, path))
+        return to_fetch
+    return None
+
+
+async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
     bucket, path, _ = \
         await get_metadata_log(
             find_records,
@@ -315,7 +446,7 @@ async def get_metadata_log_assume_path(find_records, flow_name, run_number, step
     return bucket, path, attempt_id
 
 
-async def get_metadata_log(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> (str, str, int):
+async def get_metadata_log(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
     run_id_key, run_id_value = translate_run_key(run_number)
     task_id_key, task_id_value = translate_task_key(task_id)
 
@@ -443,6 +574,13 @@ def paginate_log_lines(request, lines):
     response = DBResponse(200, lines[::-1][offset:][:limit])  # Read loglines in reverse order as latest ones are most important.
     pagination = DBPagination(limit, offset, len(response.body), page)
     return format_response_list(request, response, pagination, page)
+
+
+def file_download_response(filename, body):
+    return web.Response(
+        headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
+        body=body
+    )
 
 
 class LogException(Exception):
