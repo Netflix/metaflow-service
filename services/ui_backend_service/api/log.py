@@ -11,8 +11,9 @@ from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse
 
-from services.data.db_utils import translate_run_key, translate_task_key
+from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
+from .utils import format_response_list
 
 from aiohttp import web
 
@@ -237,7 +238,9 @@ class LogApi(object):
         if bucket and path:
             try:
                 lines = await read_and_output(self.s3_client, bucket, path)
-                return web_response(200, {'data': lines})
+                # paginate response
+                code, body = paginate_log_lines(request, lines)
+                return web_response(code, body)
             except botocore.exceptions.ClientError as err:
                 raise LogException(
                     err.response['Error']['Message'], 'log-error-s3')
@@ -282,7 +285,9 @@ class LogApi(object):
                         to_fetch.append((bucket, path))
                     bucket = url.netloc
                 lines = await read_and_output_mflog(self.s3_client, to_fetch)
-                return web_response(200, {'data': lines})
+                # paginate response
+                code, body = paginate_log_lines(request, lines)
+                return web_response(code, body)
         return web_response(404, {'data': []})
 
 
@@ -420,6 +425,24 @@ async def aenumerate(stream, start=0):
             break
         yield i, line.decode('utf-8')
         i += 1
+
+
+def paginate_log_lines(request, lines):
+    """Paginates the log lines based on url parameters
+    """
+    # Page
+    page = max(int(request.query.get("_page", 1)), 1)
+
+    # Limit
+    # Default limit is 1000, maximum is 10_000
+    limit = min(int(request.query.get("_limit", 1000)), 10000)
+
+    # Offset
+    offset = limit * (page - 1)
+
+    response = DBResponse(200, lines[::-1][offset:][:limit])  # Read loglines in reverse order as latest ones are most important.
+    pagination = DBPagination(limit, offset, len(response.body), page)
+    return format_response_list(request, response, pagination, page)
 
 
 class LogException(Exception):
