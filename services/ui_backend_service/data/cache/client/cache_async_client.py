@@ -1,7 +1,7 @@
 import time
 import asyncio
 import json
-from subprocess import PIPE
+from asyncio.subprocess import PIPE
 
 from .cache_client import CacheClient, CacheServerUnreachable
 from .cache_server import OP_WORKER_CREATE, OP_WORKER_TERMINATE
@@ -11,6 +11,8 @@ HEARTBEAT_FREQUENCY = 1
 
 
 class CacheAsyncClient(CacheClient):
+
+    _drain_lock = asyncio.Lock()
 
     async def start_server(self, cmdline, env):
         self._proc = await asyncio.create_subprocess_exec(*cmdline,
@@ -51,6 +53,8 @@ class CacheAsyncClient(CacheClient):
             else:
                 return
 
+            print("Message {}".format(message), flush=True)
+
             print("Pending stream keys: {}".format(
                 list(self.pending_requests)), flush=True)
         except Exception:
@@ -69,6 +73,7 @@ class CacheAsyncClient(CacheClient):
 
     async def send_request(self, blob):
         try:
+            # async with self._drain_lock:
             self._proc.stdin.write(blob)
             await self._proc.stdin.drain()
         except ConnectionResetError:
