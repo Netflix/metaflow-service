@@ -29,54 +29,78 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     # nothing joined, otherwise we end up with ghost attempts for the task.
     joins = [
         """
-        LEFT JOIN {metadata_table} as start ON (
-            {table_name}.flow_id = start.flow_id AND
-            {table_name}.run_number = start.run_number AND
-            {table_name}.step_name = start.step_name AND
-            {table_name}.task_id = start.task_id AND
-            start.field_name = 'attempt' AND
-            {table_name}.attempt_id = start.value::int
-        )
-        LEFT JOIN {metadata_table} as done ON (
-            {table_name}.flow_id = done.flow_id AND
-            {table_name}.run_number = done.run_number AND
-            {table_name}.step_name = done.step_name AND
-            {table_name}.task_id = done.task_id AND
-            done.field_name = 'attempt-done' AND
-            {table_name}.attempt_id = done.value::int
-        )
-        LEFT JOIN {metadata_table} as next_attempt_start ON (
-            {table_name}.flow_id = next_attempt_start.flow_id AND
-            {table_name}.run_number = next_attempt_start.run_number AND
-            {table_name}.step_name = next_attempt_start.step_name AND
-            {table_name}.task_id = next_attempt_start.task_id AND
-            next_attempt_start.field_name = 'attempt' AND
-            ({table_name}.attempt_id + 1) = next_attempt_start.value::int
-        )
-        LEFT JOIN {metadata_table} as attempt_ok ON (
-            {table_name}.flow_id = attempt_ok.flow_id AND
-            {table_name}.run_number = attempt_ok.run_number AND
-            {table_name}.step_name = attempt_ok.step_name AND
-            {table_name}.task_id = attempt_ok.task_id AND
-            attempt_ok.field_name = 'attempt_ok' AND
-            attempt_ok.tags ? ('attempt_id:' || {table_name}.attempt_id)
-        )
-        LEFT JOIN {artifact_table} as foreach_stack ON (
-            {table_name}.flow_id = foreach_stack.flow_id AND
-            {table_name}.run_number = foreach_stack.run_number AND
-            {table_name}.step_name = foreach_stack.step_name AND
-            {table_name}.task_id = foreach_stack.task_id AND
-            foreach_stack.name = '_foreach_stack' AND
-            {table_name}.attempt_id = foreach_stack.attempt_id
-        )
-        LEFT JOIN {artifact_table} as task_ok ON (
-            {table_name}.flow_id = task_ok.flow_id AND
-            {table_name}.run_number = task_ok.run_number AND
-            {table_name}.step_name = task_ok.step_name AND
-            {table_name}.task_id = task_ok.task_id AND
-            task_ok.name = '_task_ok' AND
-            {table_name}.attempt_id = task_ok.attempt_id
-        )
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch
+            FROM {metadata_table} as start
+            WHERE
+                {table_name}.flow_id = start.flow_id AND
+                {table_name}.run_number = start.run_number AND
+                {table_name}.step_name = start.step_name AND
+                {table_name}.task_id = start.task_id AND
+                start.field_name = 'attempt' AND
+                {table_name}.attempt_id = start.value::int
+            LIMIT 1
+        ) as start ON true
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch
+            FROM {metadata_table} as done
+            WHERE
+                {table_name}.flow_id = done.flow_id AND
+                {table_name}.run_number = done.run_number AND
+                {table_name}.step_name = done.step_name AND
+                {table_name}.task_id = done.task_id AND
+                done.field_name = 'attempt-done' AND
+                {table_name}.attempt_id = done.value::int
+            LIMIT 1
+        ) as done ON true
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch
+            FROM {metadata_table} as next_attempt_start
+            WHERE
+                {table_name}.flow_id = next_attempt_start.flow_id AND
+                {table_name}.run_number = next_attempt_start.run_number AND
+                {table_name}.step_name = next_attempt_start.step_name AND
+                {table_name}.task_id = next_attempt_start.task_id AND
+                next_attempt_start.field_name = 'attempt' AND
+                ({table_name}.attempt_id + 1) = next_attempt_start.value::int
+            LIMIT 1
+        ) as next_attempt_start ON true
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch, value::boolean
+            FROM {metadata_table} as attempt_ok
+            WHERE
+                {table_name}.flow_id = attempt_ok.flow_id AND
+                {table_name}.run_number = attempt_ok.run_number AND
+                {table_name}.step_name = attempt_ok.step_name AND
+                {table_name}.task_id = attempt_ok.task_id AND
+                attempt_ok.field_name = 'attempt_ok' AND
+                attempt_ok.tags ? ('attempt_id:' || {table_name}.attempt_id)
+            LIMIT 1
+        ) as attempt_ok ON true
+        LEFT JOIN LATERAL (
+            SELECT location
+            FROM {artifact_table} as foreach_stack
+            WHERE
+                {table_name}.flow_id = foreach_stack.flow_id AND
+                {table_name}.run_number = foreach_stack.run_number AND
+                {table_name}.step_name = foreach_stack.step_name AND
+                {table_name}.task_id = foreach_stack.task_id AND
+                foreach_stack.name = '_foreach_stack' AND
+                {table_name}.attempt_id = foreach_stack.attempt_id
+            LIMIT 1
+        ) as foreach_stack ON true
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch, location
+            FROM {artifact_table} as task_ok
+            WHERE
+                {table_name}.flow_id = task_ok.flow_id AND
+                {table_name}.run_number = task_ok.run_number AND
+                {table_name}.step_name = task_ok.step_name AND
+                {table_name}.task_id = task_ok.task_id AND
+                task_ok.name = '_task_ok' AND
+                {table_name}.attempt_id = task_ok.attempt_id
+            LIMIT 1
+        ) as task_ok ON true
         """.format(
             table_name=table_name,
             metadata_table=metadata_table,
@@ -105,7 +129,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
             finished_at_column="COALESCE(GREATEST(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch), next_attempt_start.ts_epoch)"
         ),
-        "attempt_ok.value::boolean as attempt_ok",
+        "attempt_ok.value as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
         #   that is used to fetch the artifact value from remote location.
         # This process is performed at TaskRefiner (data_refiner.py)
@@ -118,9 +142,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """,
         """
         (CASE
-            WHEN attempt_ok.value::boolean IS TRUE
+            WHEN attempt_ok.value IS TRUE
             THEN 'completed'
-            WHEN attempt_ok.value::boolean IS FALSE
+            WHEN attempt_ok.value IS FALSE
             THEN 'failed'
             WHEN COALESCE(done.ts_epoch, task_ok.ts_epoch) IS NOT NULL
                 AND attempt_ok IS NULL
