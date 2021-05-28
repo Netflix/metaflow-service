@@ -20,6 +20,8 @@ def format_response(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         db_response = await func(*args, **kwargs)
+        if isinstance(db_response, web.Response):
+            return db_response
         return web.Response(status=db_response.response_code,
                             body=json.dumps(db_response.body),
                             headers=MultiDict(

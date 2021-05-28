@@ -11,6 +11,7 @@ from .api.step import StepApi
 from .api.task import TaskApi
 from .api.artifact import ArtificatsApi
 from .api.admin import AuthApi
+from .api.tag import TagApi
 
 from .api.metadata import MetadataApi
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -30,6 +31,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     MetadataApi(app)
     ArtificatsApi(app)
     AuthApi(app)
+    TagApi(app)
     setup_swagger(app)
     return app
 

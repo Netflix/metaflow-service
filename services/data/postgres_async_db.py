@@ -95,7 +95,7 @@ class _AsyncPostgresDB(object):
 
                 break  # Break the retry loop
             except Exception as e:
-                self.logger.exception("Exception occured")
+                self.logger.exception("Exception occurred")
                 if retries - i <= 1:
                     raise e
                 time.sleep(connection_retry_wait_time_seconds)
@@ -466,6 +466,10 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
     )
     _row_type = FlowRow
 
+    @staticmethod
+    def get_filter_dict(flow_id: str):
+        return {"flow_id": flow_id}
+
     async def add_flow(self, flow: FlowRow):
         dict = {
             "flow_id": flow.flow_id,
@@ -476,7 +480,7 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
         return await self.create_record(dict)
 
     async def get_flow(self, flow_id: str):
-        filter_dict = {"flow_id": flow_id}
+        filter_dict = self.get_filter_dict(flow_id)
         return await self.get_records(filter_dict=filter_dict, fetch_single=True)
 
     async def get_all_flows(self):
@@ -523,9 +527,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
+    @staticmethod
+    def get_filter_dict(flow_id: str, run_id: str):
         key, value = translate_run_key(run_id)
-        filter_dict = {"flow_id": flow_id, key: str(value)}
+        return {"flow_id": flow_id, key: str(value)}
+
+    async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
+        filter_dict = self.get_filter_dict(flow_id, run_id)
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, expanded=expanded)
 
@@ -534,9 +542,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict)
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
-        run_key, run_value = translate_run_key(run_id)
-        filter_dict = {"flow_id": flow_id,
-                       run_key: str(run_value)}
+        filter_dict = self.get_filter_dict(flow_id, run_id)
         set_dict = {
             "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
         }
@@ -589,6 +595,15 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
+    @staticmethod
+    def get_filter_dict(flow_id: str, run_id: str, step_name: str):
+        run_id_key, run_id_value = translate_run_key(run_id)
+        return {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+        }
+
     async def get_steps(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,
@@ -596,12 +611,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict)
 
     async def get_step(self, flow_id: str, run_id: str, step_name: str):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-        }
+        filter_dict = self.get_filter_dict(flow_id, run_id, step_name)
         return await self.get_records(filter_dict=filter_dict, fetch_single=True)
 
 
@@ -651,6 +661,17 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
+    @staticmethod
+    def get_filter_dict(flow_id: str, run_id: str, step_name: str, task_id: str):
+        run_id_key, run_id_value = translate_run_key(run_id)
+        task_id_key, task_id_value = translate_task_key(task_id)
+        return {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+            task_id_key: task_id_value,
+        }
+
     async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
@@ -662,25 +683,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,
                        task_id: str, expanded: bool = False):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        task_id_key, task_id_value = translate_task_key(task_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-            task_id_key: task_id_value,
-        }
+        filter_dict = self.get_filter_dict(flow_id, run_id, step_name, task_id)
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, expanded=expanded)
 
     async def update_heartbeat(self, flow_id: str, run_id: str, step_name: str,
                                task_id: str):
-        run_key, run_value = translate_run_key(run_id)
-        task_key, task_value = translate_task_key(task_id)
-        filter_dict = {"flow_id": flow_id,
-                       run_key: str(run_value),
-                       "step_name": step_name,
-                       task_key: str(task_value)}
+        filter_dict = self.get_filter_dict(flow_id, run_id, step_name, task_id)
         set_dict = {
             "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
         }
@@ -757,6 +766,17 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
+    @staticmethod
+    def get_filter_dict(flow_id: str, run_id: str, step_name: str, task_id: str):
+        run_id_key, run_id_value = translate_run_key(run_id)
+        task_id_key, task_id_value = translate_task_key(task_id)
+        return {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+            task_id_key: task_id_value,
+        }
+
     async def get_metadata_in_runs(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,
@@ -764,16 +784,9 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict)
 
     async def get_metadata(
-        self, flow_id: str, run_id: int, step_name: str, task_id: str
+        self, flow_id: str, run_id: str, step_name: str, task_id: str
     ):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        task_id_key, task_id_value = translate_task_key(task_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-            task_id_key: task_id_value,
-        }
+        filter_dict = self.get_filter_dict(flow_id, run_id, step_name, task_id)
         return await self.get_records(filter_dict=filter_dict)
 
 
@@ -856,7 +869,20 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_artifacts_in_runs(self, flow_id: str, run_id: int):
+    @staticmethod
+    def get_filter_dict(
+            flow_id: str, run_id: str, step_name: str, task_id: str, name: str):
+        run_id_key, run_id_value = translate_run_key(run_id)
+        task_id_key, task_id_value = translate_task_key(task_id)
+        return {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+            task_id_key: task_id_value,
+            '"name"': name,
+        }
+
+    async def get_artifacts_in_runs(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
@@ -865,7 +891,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict,
                                       ordering=self.ordering)
 
-    async def get_artifact_in_steps(self, flow_id: str, run_id: int, step_name: str):
+    async def get_artifact_in_steps(self, flow_id: str, run_id: str, step_name: str):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
@@ -876,7 +902,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
                                       ordering=self.ordering)
 
     async def get_artifact_in_task(
-        self, flow_id: str, run_id: int, step_name: str, task_id: int
+        self, flow_id: str, run_id: str, step_name: str, task_id: str
     ):
         run_id_key, run_id_value = translate_run_key(run_id)
         task_id_key, task_id_value = translate_task_key(task_id)
@@ -890,16 +916,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
                                       ordering=self.ordering)
 
     async def get_artifact(
-        self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str
+        self, flow_id: str, run_id: str, step_name: str, task_id: str, name: str
     ):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        task_id_key, task_id_value = translate_task_key(task_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-            task_id_key: task_id_value,
-            '"name"': name,
-        }
+        filter_dict = self.get_filter_dict(flow_id, run_id, step_name, task_id, name)
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, ordering=self.ordering)
