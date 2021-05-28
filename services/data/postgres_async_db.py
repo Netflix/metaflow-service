@@ -7,7 +7,7 @@ import math
 import time
 import datetime
 from services.utils import logging
-from typing import List
+from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -110,17 +110,15 @@ class _AsyncPostgresDB(object):
         return None
 
     async def get_run_ids(self, flow_id: str, run_id: str):
-        run = await self.run_table_postgres.get_run(flow_id, run_id,
+        return await self.run_table_postgres.get_run(flow_id, run_id,
                                                     expanded=True)
-        return run.body['run_number'], run.body['run_id']
 
     async def get_task_ids(self, flow_id: str, run_id: str,
                            step_name: str, task_name: str):
 
-        task = await self.task_table_postgres.get_task(flow_id, run_id,
+        return await self.task_table_postgres.get_task(flow_id, run_id,
                                                        step_name, task_name,
                                                        expanded=True)
-        return task.body['task_id'], task.body['task_name']
 
 
 class AsyncPostgresDB(object):
@@ -186,7 +184,7 @@ class AsyncPostgresTable(object):
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
-                           enable_joins=False) -> (DBResponse, DBPagination):
+                           enable_joins=False) -> Tuple[DBResponse, DBPagination]:
         sql_template = """
         SELECT * FROM (
             SELECT
@@ -215,7 +213,7 @@ class AsyncPostgresTable(object):
                                       expanded=expanded, limit=limit, offset=offset)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         try:
             with (
                 await self.db.pool.cursor(
@@ -547,9 +545,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                                        update_dict=set_dict)
         body = {"wait_time_in_seconds": WAIT_TIME}
 
-        return DBResponse(response_code=result.response_code,
-                          body=json.dumps(body))
-
+        return DBResponse(response_code=result.response_code, body=body)
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
@@ -692,8 +688,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
 
         body = {"wait_time_in_seconds": WAIT_TIME}
 
-        return DBResponse(response_code=result.response_code,
-                          body=json.dumps(body))
+        return DBResponse(response_code=result.response_code, body=body)
 
 
 class AsyncMetadataTablePostgres(AsyncPostgresTable):

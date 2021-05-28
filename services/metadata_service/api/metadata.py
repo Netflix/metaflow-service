@@ -4,6 +4,7 @@ from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import asyncio
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.data.db_utils import DBResponse
 
 
 class MetadataApi(object):
@@ -31,12 +32,12 @@ class MetadataApi(object):
         self._db = AsyncPostgresDB.get_instance()
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_metadata(self, request):
         """
         ---
-        description: get all metadata associated with the specified task.
+        description: Get all metadata associated with the specified task.
         tags:
         - Metadata
         parameters:
@@ -61,7 +62,7 @@ class MetadataApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
@@ -76,12 +77,12 @@ class MetadataApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_metadata_by_run(self, request):
         """
         ---
-        description: get all metadata associated with the specified run.
+        description: Get all metadata associated with the specified run.
         tags:
         - Metadata
         parameters:
@@ -96,7 +97,7 @@ class MetadataApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
@@ -109,10 +110,12 @@ class MetadataApi(object):
             flow_name, run_number
         )
 
+    @handle_exceptions
+    @format_response
     async def create_metadata(self, request):
         """
         ---
-        description: persist metadata
+        description: Saves metadata to the service
         tags:
         - Metadata
         parameters:
@@ -158,7 +161,7 @@ class MetadataApi(object):
                     system_tags:
                         type: object
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "202":
                 description: successful operation.
@@ -172,13 +175,15 @@ class MetadataApi(object):
 
         body = await request.json()
         count = 0
-        try:
-            run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
-            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
-                                                             step_name, task_id)
-        except Exception:
-            return web.Response(status=400, body=json.dumps(
-                {"message": "need to register run_id and task_id first"}))
+        run = await self._db.get_run_ids(flow_name, run_number)
+        task = await self._db.get_task_ids(flow_name, run_number,
+                                            step_name, task_id)
+        if run.response_code != 200 or task.response_code != 200:
+            return DBResponse(400, {"message": "need to register run_id and task_id first"})
+        run_id = run.body['run_id']
+        run_number = run.body['run_number']
+        task_id = task.body['task_id']
+        task_name = task.body['task_name']
 
         for datum in body:
             values = {

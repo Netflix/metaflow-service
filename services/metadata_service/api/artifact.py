@@ -1,6 +1,6 @@
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import filter_artifacts_by_attempt_id_for_tasks
+from services.data.db_utils import DBResponse, filter_artifacts_by_attempt_id_for_tasks
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
@@ -42,12 +42,12 @@ class ArtificatsApi(object):
         self._async_table = AsyncPostgresDB.get_instance().artifact_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_artifact(self, request):
         """
         ---
-        description: get all artifacts associated with the specified task.
+        description: get a specific artifact
         tags:
         - Artifacts
         parameters:
@@ -77,10 +77,12 @@ class ArtificatsApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
+            "404":
+                description: no such artifact
             "405":
                 description: invalid HTTP Method
         """
@@ -94,6 +96,8 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id, artifact_name
         )
 
+    @handle_exceptions
+    @format_response
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -122,7 +126,7 @@ class ArtificatsApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
@@ -137,17 +141,17 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_task(
             flow_name, run_number, step_name, task_id
         )
+        if artifacts.response_code == 200:
+            artifacts.body = filter_artifacts_by_attempt_id_for_tasks(
+                artifacts.body)
+        return artifacts
 
-        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
-            artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
-
+    @handle_exceptions
+    @format_response
     async def get_artifacts_by_step(self, request):
         """
         ---
-        description: get all artifacts associated with the specified task.
+        description: get all artifacts associated with a given step
         tags:
         - Artifacts
         parameters:
@@ -167,7 +171,7 @@ class ArtificatsApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
@@ -182,16 +186,17 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name
         )
 
-        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
-            artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
+        if artifacts.response_code == 200:
+            artifacts.body = filter_artifacts_by_attempt_id_for_tasks(
+                artifacts.body)
+        return artifacts
 
+    @handle_exceptions
+    @format_response
     async def get_artifacts_by_run(self, request):
         """
         ---
-        description: get all artifacts associated with the specified task.
+        description: get all artifacts associated with the specified run.
         tags:
         - Artifacts
         parameters:
@@ -206,7 +211,7 @@ class ArtificatsApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
@@ -217,16 +222,18 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
-            artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
 
+        if artifacts.response_code == 200:
+            artifacts.body = filter_artifacts_by_attempt_id_for_tasks(
+                artifacts.body)
+        return artifacts
+
+    @handle_exceptions
+    @format_response
     async def create_artifacts(self, request):
         """
         ---
-        description: This end-point allow to test that service is up.
+        description: Registers artifacts with the service
         tags:
         - Artifacts
         parameters:
@@ -276,7 +283,7 @@ class ArtificatsApi(object):
                     system_tags:
                         type: object
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "202":
                 description: successful operation.
@@ -308,13 +315,15 @@ class ArtificatsApi(object):
         body = await request.json()
         count = 0
 
-        try:
-            run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
-            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
-                                                             step_name, task_id)
-        except Exception:
-            return web.Response(status=400, body=json.dumps(
-                {"message": "need to register run_id and task_id first"}))
+        run = await self._db.get_run_ids(flow_name, run_number)
+        task = await self._db.get_task_ids(flow_name, run_number,
+                                            step_name, task_id)
+        if run.response_code != 200 or task.response_code != 200:
+            return DBResponse(400, {"message": "need to register run_id and task_id first"})
+        run_id = run.body['run_id']
+        run_number = run.body['run_number']
+        task_id = task.body['task_id']
+        task_name = task.body['task_name']
 
         # todo change to bulk insert
         for artifact in body:

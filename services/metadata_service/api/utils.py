@@ -22,6 +22,7 @@ def format_response(func):
         db_response = await func(*args, **kwargs)
         return web.Response(status=db_response.response_code,
                             body=json.dumps(db_response.body),
+                            content_type='application/json',
                             headers=MultiDict(
                                 {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
