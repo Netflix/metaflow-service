@@ -4,7 +4,6 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
-from aiohttp import web
 
 import asyncio
 
@@ -98,14 +97,14 @@ class TagApi(object):
                     raise ValueError("invalid artifact specification: %s" % o['id'])
                 obj_filter = table.get_filter_dict(*pathspec)
             except ValueError as e:
-                return web.Response(status=400, body=json.dumps(
+                return DBResponse(response_code=400, body=json.dumps(
                     {"message": "invalid input: %s" % str(e)}))
 
             # Now we can get the object
             obj = await table.get_records(
                 filter_dict=obj_filter, fetch_single=True, expanded=True)
             if obj.response_code != 200:
-                return web.Response(status=obj.response_code, body=json.dumps(
+                return DBResponse(response_code=obj.response_code, body=json.dumps(
                     {"message": "could not get object %s: %s" % (o['id'], obj.body)}))
 
             # At this point do some checks and update the tags
@@ -115,7 +114,7 @@ class TagApi(object):
                 # This is the only error we fail hard on; adding a tag that is
                 # in system tag
                 if o['tag'] in obj['system_tags']:
-                    return web.Response(status=405, body=json.dumps(
+                    return DBResponse(response_code=405, body=json.dumps(
                         {"message": "tag %s is already a system tag and can't be added to %s"
                         % (o['tag'], o['id'])}))
                 if o['tag'] not in obj['tags']:
@@ -126,15 +125,15 @@ class TagApi(object):
                     modified = True
                     obj['tags'].remove(o['tag'])
             else:
-                return web.Response(status=400, body=json.dumps(
+                return DBResponse(response_code=400, body=json.dumps(
                     {"message": "invalid tag operation %s" % o['operation']}))
             if modified:
                 # We save the value back
                 result = await table.update_row(filter_dict=obj_filter, update_dict={
                     'tags': "'%s'" % json.dumps(obj['tags'])})
                 if result.response_code != 200:
-                    return web.Response(status=result.response_code, body=json.dumps(
+                    return DBResponse(response_code=result.response_code, body=json.dumps(
                         {"message": "error updating tags for %s: %s" % (o['id'], result.body)}))
             results.append(obj)
 
-        return DBResponse(response_code=200, body=results)
+        return DBResponse(response_code=200, body=json.dumps(results))
