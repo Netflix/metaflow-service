@@ -12,8 +12,6 @@ HEARTBEAT_FREQUENCY = 1
 
 class CacheAsyncClient(CacheClient):
 
-    _drain_lock = asyncio.Lock()
-
     async def start_server(self, cmdline, env):
         self._proc = await asyncio.create_subprocess_exec(*cmdline,
                                                           env=env,
@@ -28,7 +26,7 @@ class CacheAsyncClient(CacheClient):
         )
 
     async def _read_pipe(self, src):
-        while True:
+        while self._is_alive:
             line = await src.readline()
             if not line:
                 await asyncio.sleep(WAIT_FREQUENCY)
@@ -73,7 +71,6 @@ class CacheAsyncClient(CacheClient):
 
     async def send_request(self, blob):
         try:
-            # async with self._drain_lock:
             self._proc.stdin.write(blob)
             await self._proc.stdin.drain()
         except ConnectionResetError:
