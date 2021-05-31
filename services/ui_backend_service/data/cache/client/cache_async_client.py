@@ -1,7 +1,7 @@
 import time
 import asyncio
 import json
-from asyncio.subprocess import PIPE
+from asyncio.subprocess import PIPE, STDOUT
 
 from .cache_client import CacheClient, CacheServerUnreachable
 from .cache_server import OP_WORKER_CREATE, OP_WORKER_TERMINATE
@@ -11,18 +11,18 @@ HEARTBEAT_FREQUENCY = 1
 
 
 class CacheAsyncClient(CacheClient):
+    _drain_lock = asyncio.Lock()
 
     async def start_server(self, cmdline, env):
         self._proc = await asyncio.create_subprocess_exec(*cmdline,
                                                           env=env,
                                                           stdin=PIPE,
                                                           stdout=PIPE,
-                                                          stderr=PIPE)
+                                                          stderr=STDOUT)
 
         asyncio.gather(
             self._heartbeat(),
-            self.read_stdout(),
-            self.read_stderr()
+            self.read_stdout()
         )
 
     async def _read_pipe(self, src):
@@ -35,10 +35,6 @@ class CacheAsyncClient(CacheClient):
 
     async def read_stdout(self):
         async for line in self._read_pipe(self._proc.stdout):
-            await self.read_message(line)
-
-    async def read_stderr(self):
-        async for line in self._read_pipe(self._proc.stderr):
             await self.read_message(line)
 
     async def read_message(self, line: str):
@@ -72,7 +68,12 @@ class CacheAsyncClient(CacheClient):
     async def send_request(self, blob):
         try:
             self._proc.stdin.write(blob)
-            await self._proc.stdin.drain()
+            async with self._drain_lock:
+                await asyncio.wait_for(
+                    self._proc.stdin.drain(),
+                    timeout=WAIT_FREQUENCY)
+        except asyncio.TimeoutError:
+            print("StreamWriter.drain timeout", flush=True)
         except ConnectionResetError:
             self._is_alive = False
             raise CacheServerUnreachable()
