@@ -1,6 +1,9 @@
 import time
 import asyncio
 import json
+import os
+import fcntl
+from datetime import datetime
 from asyncio.subprocess import PIPE, STDOUT
 
 from .cache_client import CacheClient, CacheServerUnreachable
@@ -8,6 +11,13 @@ from .cache_server import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
 WAIT_FREQUENCY = 0.2
 HEARTBEAT_FREQUENCY = 1
+
+os.environ["PYTHONASYNCIODEBUG"] = "1"
+
+
+def get_object_methods(obj):
+    return [method_name for method_name in dir(obj)
+            if callable(getattr(obj, method_name))]
 
 
 class CacheAsyncClient(CacheClient):
@@ -20,6 +30,21 @@ class CacheAsyncClient(CacheClient):
                                                           stdout=PIPE,
                                                           stderr=STDOUT)
 
+        def _make_fd_non_blocking(fd):
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+        self.stdin_pipe = self._proc.stdin.get_extra_info('pipe')
+        self.stdin_fileno = self.stdin_pipe.fileno()
+
+        print("stdin {}".format(get_object_methods(self._proc.stdin)), flush=True)
+        print("stdin_pipe {}".format(get_object_methods(self.stdin_pipe)), flush=True)
+        print("stdin_fileno {}".format(get_object_methods(self.stdin_fileno)), flush=True)
+
+        _make_fd_non_blocking(self.stdin_fileno)
+
+        self._proc.stdin.transport.set_write_buffer_limits(0)
+
         asyncio.gather(
             self._heartbeat(),
             self.read_stdout()
@@ -27,7 +52,20 @@ class CacheAsyncClient(CacheClient):
 
     async def _read_pipe(self, src):
         while self._is_alive:
+
+            # try:
+            #     async with self._drain_lock:
+            #         await asyncio.wait_for(
+            #             self._proc.stdin.drain(),
+            #             timeout=WAIT_FREQUENCY)
+            # except asyncio.TimeoutError:
+            #     print("StreamWriter.drain timeout (_read_pipe)", flush=True)
+
             line = await src.readline()
+
+            now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%f')
+            print("[{}] stdout ({}) - {}".format(now, self._root, repr(self._proc.stdout)), flush=True)
+
             if not line:
                 await asyncio.sleep(WAIT_FREQUENCY)
                 break
@@ -77,6 +115,9 @@ class CacheAsyncClient(CacheClient):
         except ConnectionResetError:
             self._is_alive = False
             raise CacheServerUnreachable()
+        finally:
+            now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%f')
+            print("[{}] stdin ({}) - {}".format(now, self._root, repr(self._proc.stdin)), flush=True)
 
     async def wait_iter(self, it, timeout):
         end = time.time() + timeout
