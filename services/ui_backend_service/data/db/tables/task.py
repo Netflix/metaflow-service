@@ -74,7 +74,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL as task_ok_finished_at,
                     NULL as task_ok_location,
                     value as attempt_ok,
-                    (regexp_matches(tags::text, 'attempt_id:(\d+)'))[1]::int as attempt_id
+                    (regexp_matches(tags::text, 'attempt_id:(\\d+)'))[1]::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
                     {table_name}.flow_id = meta.flow_id AND
