@@ -32,7 +32,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 max(task_ok_finished_at) as task_ok_finished_at,
                 max(task_ok_location) as task_ok_location,
                 attempt_id :: int as attempt_id,
-                max(attempt_ok) :: boolean as attempt_ok,
+                bool_or(attempt_ok) as attempt_ok,
                 task_id
             FROM (
                 SELECT
@@ -41,7 +41,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL::bigint as attempt_finished_at,
                     NULL::bigint as task_ok_finished_at,
                     NULL::text as task_ok_location,
-                    NULL::text as attempt_ok,
+                    NULL::boolean as attempt_ok,
                     value::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
@@ -73,7 +73,23 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     ts_epoch as attempt_finished_at,
                     NULL as task_ok_finished_at,
                     NULL as task_ok_location,
-                    value as attempt_ok,
+                    (CASE
+                        WHEN value::text = '1'
+                        THEN TRUE
+                        WHEN value::text = 'True'
+                        THEN TRUE
+                        WHEN value::text = '"True"'
+                        THEN TRUE
+                        WHEN value::text = '0'
+                        THEN FALSE
+                        WHEN value::text = 'False'
+                        THEN FALSE
+                        WHEN value::text = '"False"'
+                        THEN FALSE
+                        WHEN value::text = '"0"'
+                        THEN FALSE
+                        ELSE NULL
+                    END) as attempt_ok,
                     (regexp_matches(tags::text, 'attempt_id:(\\d+)'))[1]::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
