@@ -111,26 +111,20 @@ class TagApi(object):
             obj = obj.body
             modified = False
             if o['operation'] == 'add':
-                # This is the only error we fail hard on; adding a tag that is
-                # in system tag
-                if o['tag'] in obj['system_tags']:
-                    return DBResponse(response_code=405, body=json.dumps(
-                        {"message": "tag %s is already a system tag and can't be added to %s"
-                        % (o['tag'], o['id'])}))
-                if o['tag'] not in obj['tags']:
+                if o['tag'] not in obj['system_tags'] and o['tag'] not in obj['tags']:
                     modified = True
                     obj['tags'].append(o['tag'])
             elif o['operation'] == 'remove':
                 if o['tag'] in obj['tags']:
                     modified = True
-                    obj['tags'].remove(o['tag'])
+                    obj['tags'] = [x for x in obj['tags'] if x != o['tag']]
             else:
                 return DBResponse(response_code=400, body=json.dumps(
                     {"message": "invalid tag operation %s" % o['operation']}))
             if modified:
                 # We save the value back
                 result = await table.update_row(filter_dict=obj_filter, update_dict={
-                    'tags': "'%s'" % json.dumps(obj['tags'])})
+                    'tags': json.dumps(obj['tags'])})
                 if result.response_code != 200:
                     return DBResponse(response_code=result.response_code, body=json.dumps(
                         {"message": "error updating tags for %s: %s" % (o['id'], result.body)}))

@@ -296,13 +296,12 @@ class AsyncPostgresTable(object):
             return aiopg_exception_handling(error)
 
     async def update_row(self, filter_dict={}, update_dict={}):
+        query_params = {}
         # generate where clause
         filters = []
         for col_name, col_val in filter_dict.items():
-            v = str(col_val).strip("'")
-            if not v.isnumeric():
-                v = "'" + v + "'"
-            filters.append(col_name + "=" + str(v))
+            query_params['_filter_%s' % col_name] = col_val
+            filters.append('%s = %%(_filter_%s)s' % (col_name, col_name))
 
         seperator = " and "
         where_clause = ""
@@ -311,11 +310,12 @@ class AsyncPostgresTable(object):
 
         sets = []
         for col_name, col_val in update_dict.items():
-            sets.append(col_name + " = " + str(col_val))
+            query_params['_set_%s' % col_name] = col_val
+            sets.append('%s = %%(_filter_%s)s' % (col_name, col_name))
 
         set_seperator = ", "
         set_clause = ""
-        if bool(filter_dict):
+        if bool(sets):
             set_clause = set_seperator.join(sets)
         update_sql = """
                 UPDATE {0} SET {1} WHERE {2};
@@ -326,7 +326,7 @@ class AsyncPostgresTable(object):
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
-                await cur.execute(update_sql)
+                await cur.execute(update_sql, query_params)
                 if cur.rowcount < 1:
                     return DBResponse(response_code=404,
                                       body={"msg": "could not find row"})
@@ -338,7 +338,7 @@ class AsyncPostgresTable(object):
                 cur.close()
                 return DBResponse(response_code=200, body=body)
         except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
+            self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
 
 
