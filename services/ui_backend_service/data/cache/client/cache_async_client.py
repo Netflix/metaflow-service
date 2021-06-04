@@ -1,32 +1,36 @@
 import time
 import asyncio
 import json
-from subprocess import PIPE
+from asyncio.subprocess import PIPE, STDOUT
 
 from .cache_client import CacheClient, CacheServerUnreachable
 from .cache_server import OP_WORKER_CREATE, OP_WORKER_TERMINATE
+
+from services.utils import logging
 
 WAIT_FREQUENCY = 0.2
 HEARTBEAT_FREQUENCY = 1
 
 
 class CacheAsyncClient(CacheClient):
+    _drain_lock = asyncio.Lock()
 
     async def start_server(self, cmdline, env):
+        self.logger = logging.getLogger("CacheAsyncClient:{root}".format(root=self._root))
+
         self._proc = await asyncio.create_subprocess_exec(*cmdline,
                                                           env=env,
                                                           stdin=PIPE,
                                                           stdout=PIPE,
-                                                          stderr=PIPE)
+                                                          stderr=STDOUT)
 
         asyncio.gather(
             self._heartbeat(),
-            self.read_stdout(),
-            self.read_stderr()
+            self.read_stdout()
         )
 
     async def _read_pipe(self, src):
-        while True:
+        while self._is_alive:
             line = await src.readline()
             if not line:
                 await asyncio.sleep(WAIT_FREQUENCY)
@@ -35,10 +39,6 @@ class CacheAsyncClient(CacheClient):
 
     async def read_stdout(self):
         async for line in self._read_pipe(self._proc.stdout):
-            await self.read_message(line)
-
-    async def read_stderr(self):
-        async for line in self._read_pipe(self._proc.stderr):
             await self.read_message(line)
 
     async def read_message(self, line: str):
@@ -51,8 +51,8 @@ class CacheAsyncClient(CacheClient):
             else:
                 return
 
-            print("Pending stream keys: {}".format(
-                list(self.pending_requests)), flush=True)
+            self.logger.info("Pending stream keys: {}".format(
+                list(self.pending_requests)))
         except Exception:
             pass
 
@@ -70,7 +70,12 @@ class CacheAsyncClient(CacheClient):
     async def send_request(self, blob):
         try:
             self._proc.stdin.write(blob)
-            await self._proc.stdin.drain()
+            async with self._drain_lock:
+                await asyncio.wait_for(
+                    self._proc.stdin.drain(),
+                    timeout=WAIT_FREQUENCY)
+        except asyncio.TimeoutError:
+            self.logger.warn("StreamWriter.drain timeout: {}".format(repr(self._proc.stdin)))
         except ConnectionResetError:
             self._is_alive = False
             raise CacheServerUnreachable()
