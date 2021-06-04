@@ -75,11 +75,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN {table_name}.last_heartbeat_ts*1000
-            WHEN {table_name}.last_heartbeat_ts IS NULL
-            AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
-            THEN {table_name}.ts_epoch + {cutoff}
             ELSE NULL
         END) AS finished_at
         """.format(
@@ -115,8 +112,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN artifacts.ts_epoch IS NOT NULL
             THEN artifacts.ts_epoch - {table_name}.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NULL
-            AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
-            THEN {cutoff}
+                AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
+            THEN NULL
             ELSE @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)
         END) AS duration
         """.format(

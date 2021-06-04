@@ -1,5 +1,5 @@
-from typing import List
-from .base import AsyncPostgresTable
+from typing import List, Tuple
+from .base import AsyncPostgresTable, OLD_RUN_FAILURE_CUTOFF_TIME
 from ..models import StepRow
 from services.data.db_utils import DBResponse, DBPagination
 # use schema constants from the .data module to keep things consistent
@@ -84,21 +84,25 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
 
     join_columns = [
         """
-        COALESCE(
-            GREATEST(
+        (CASE
+            WHEN COALESCE(latest_task_ok, latest_metadata_done, latest_task_hb) IS NOT NULL
+            THEN GREATEST(
                 latest_task_ok.ts_epoch,
                 latest_metadata_done.ts_epoch,
                 latest_task_hb.heartbeat_ts*1000
-            ),
-            @(extract(epoch from now())::bigint*1000)
-        ) - {table_name}.ts_epoch as duration
+            ) - {table_name}.ts_epoch
+            WHEN @(extract(epoch from now())::bigint*1000) - {table_name}.ts_epoch > {cutoff}
+            THEN NULL
+            ELSE @(extract(epoch from now())::bigint*1000) - {table_name}.ts_epoch
+        END) as duration
         """.format(
-            table_name=table_name
+            table_name=table_name,
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         )
     ]
 
     async def get_step_names(self, conditions: List[str] = [],
-                             values: List[str] = [], limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                             values: List[str] = [], limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         """
         Get a paginated set of step names.
 
