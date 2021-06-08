@@ -257,7 +257,7 @@ async def test_old_run_status_without_heartbeat(cli, db):
 
     # A run with no end task and a timestamp older than two weeks should count as failed.
     _run_failed = (await add_run(db, flow_id=_flow.get("flow_id"))).body
-    _old_ts = _run_failed["ts_epoch"] - (60 * 60 * 24 * 14 * 1000 + 20)
+    _old_ts = _run_failed["ts_epoch"] - (60 * 60 * 24 * 14 * 1000 + 3600)
     # TODO: consider mocking get_db_ts_epoch_str() in the database adapter to be able to insert custom epochs.
     await db.run_table_postgres.update_row(
         filter_dict={
@@ -269,14 +269,14 @@ async def test_old_run_status_without_heartbeat(cli, db):
         }
     )
     _run_failed["ts_epoch"] = _old_ts
-    # finished at should be the start time + cutoff period
-    _run_failed["finished_at"] = _run_failed["ts_epoch"] + (60 * 60 * 24 * 14 * 1000)
-    _run_failed["duration"] = _run_failed["finished_at"] - _run_failed["ts_epoch"]
+    # finished at should be none, as we can not determine a clear one.
+    _run_failed["finished_at"] = None
+    _run_failed["duration"] = None  # duration should also be none as it is indeterminate.
     _run_failed["status"] = "failed"
     _run_failed["user"] = None
     _run_failed["run"] = _run_failed["run_number"]
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_failed), 200, _run_failed, approx_keys=["duration"])
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_failed), 200, _run_failed)
 
 
 async def test_single_run_attempt_ok_completed(cli, db):
