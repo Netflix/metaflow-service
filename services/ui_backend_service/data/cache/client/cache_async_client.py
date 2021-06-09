@@ -23,11 +23,12 @@ class CacheAsyncClient(CacheClient):
                                                           env=env,
                                                           stdin=PIPE,
                                                           stdout=PIPE,
-                                                          stderr=STDOUT)
+                                                          stderr=STDOUT,
+                                                          limit=1024000)  # 1024KB
 
         asyncio.gather(
             self._heartbeat(),
-            self.read_stdout(),
+            self.read_stdout()
         )
 
     async def _read_pipe(self, src):
@@ -45,7 +46,7 @@ class CacheAsyncClient(CacheClient):
     async def read_message(self, line: str):
         try:
             message = json.loads(line)
-            self.logger.info("Operation: {}".format(message))
+            self.logger.info(message)
             if message['op'] == OP_WORKER_CREATE:
                 self.pending_requests.add(message['stream_key'])
             elif message['op'] == OP_WORKER_TERMINATE:
