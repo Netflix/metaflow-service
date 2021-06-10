@@ -14,7 +14,7 @@ class AutoCompleteApi(object):
         self.db = db
         # Cached resources
         # Cache tags so we don't have to request DB everytime
-        self.tags = []
+        self.tags = None
         app.router.add_route("GET", "/tags/autocomplete", self.get_tags)
         # Non-cached resources
         app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
@@ -30,14 +30,17 @@ class AutoCompleteApi(object):
         so its better to cache the result.
         '''
         while True:
-            # Get all tags that are mentioned in runs table
-            res, _ = await self.db.run_table_postgres.get_tags()
-            if res.response_code == 200:
-                self.tags = sorted(res.body)
-            size = sys.getsizeof(self.tags) // 1024 // 1024
-            print("SIZE OF TAGS IN MEM: {} Mb".format(size), flush=True)
+            await self.update_cached_tags()
             # Check tags again after some sleep
             await asyncio.sleep(TAGS_FILL_INTERVAL_SECONDS)
+
+    async def update_cached_tags(self):
+        # Get all tags that are mentioned in runs table
+        res, _ = await self.db.run_table_postgres.get_tags()
+        if res.response_code == 200:
+            self.tags = sorted(res.body)
+        size = sys.getsizeof(self.tags) // 1024 // 1024
+        print("SIZE OF TAGS IN MEM: {} Mb".format(size), flush=True)
 
     @handle_exceptions
     async def get_tags(self, request):
@@ -54,6 +57,10 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteTagList'
         """
+        if not self.tags:
+            # fetch tags from DB if they were not cached yet.
+            await self.update_cached_tags()
+
         # pagination setup
         page, limit, offset, _, _, _ = pagination_query(request)
 
