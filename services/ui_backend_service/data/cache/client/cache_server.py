@@ -208,7 +208,7 @@ class Worker(object):
 
     def _worker_details(self):
         return {
-            'keys': self.request['keys'],
+            'keys': len(self.request['keys']),
             'stream_key': self.request['stream_key'],
             'idempotency_token': self.request["idempotency_token"],
         }

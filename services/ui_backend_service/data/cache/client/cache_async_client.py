@@ -1,3 +1,4 @@
+from json.decoder import JSONDecodeError
 import time
 import asyncio
 import json
@@ -22,7 +23,8 @@ class CacheAsyncClient(CacheClient):
                                                           env=env,
                                                           stdin=PIPE,
                                                           stdout=PIPE,
-                                                          stderr=STDOUT)
+                                                          stderr=STDOUT,
+                                                          limit=1024000)  # 1024KB
 
         asyncio.gather(
             self._heartbeat(),
@@ -44,17 +46,18 @@ class CacheAsyncClient(CacheClient):
     async def read_message(self, line: str):
         try:
             message = json.loads(line)
+            self.logger.info(message)
             if message['op'] == OP_WORKER_CREATE:
                 self.pending_requests.add(message['stream_key'])
             elif message['op'] == OP_WORKER_TERMINATE:
                 self.pending_requests.remove(message['stream_key'])
-            else:
-                return
 
             self.logger.info("Pending stream keys: {}".format(
                 list(self.pending_requests)))
-        except Exception:
-            pass
+        except JSONDecodeError as ex:
+            self.logger.info("Message: {}".format(line))
+        except Exception as ex:
+            self.logger.exception(ex)
 
     async def check(self):
         ret = await self.Check()  # pylint: disable=no-member
