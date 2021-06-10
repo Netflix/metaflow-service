@@ -84,8 +84,8 @@ async def test_tags_autocomplete(cli, db):
     # no-match
     await _test_list_resources(cli, db, '/tags/autocomplete?tag:co=nothing', 200, [])
 
-    # Custom match
-    await _test_list_resources(cli, db, '/tags/autocomplete?tag:li=tag:%25thing', 200, ['tag:something'])
+    # Custom match 'tag:.*thing'
+    await _test_list_resources(cli, db, '/tags/autocomplete?tag:re=tag:%46%42thing', 200, ['tag:something'])
 
 
 async def test_artifacts_autocomplete(cli, db):
