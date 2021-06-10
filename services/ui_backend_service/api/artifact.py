@@ -3,11 +3,14 @@ from aiohttp import web
 from services.data.db_utils import DBResponse, filter_artifacts_by_attempt_id_for_tasks, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
+from ..data.refiner import ArtifactRefiner
 
 
 class ArtificatsApi(object):
-    def __init__(self, app, db):
+    def __init__(self, app, db, cache=None):
         self.db = db
+        self.refiner = ArtifactRefiner(cache.artifact_cache) if cache else None
+        self._async_table = self.db.artifact_table_postgres
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts",
@@ -23,7 +26,6 @@ class ArtificatsApi(object):
             "/flows/{flow_id}/runs/{run_number}/artifacts",
             self.get_artifacts_by_run,
         )
-        self._async_table = self.db.artifact_table_postgres
 
     @handle_exceptions
     async def get_artifacts_by_task(self, request):
@@ -86,7 +88,7 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=ArtificatsApi._postprocess
+                                  postprocess=self.refiner
                                   )
 
     @handle_exceptions
@@ -145,7 +147,7 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=ArtificatsApi._postprocess
+                                  postprocess=self.refiner
                                   )
 
     @handle_exceptions
@@ -201,7 +203,7 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=ArtificatsApi._postprocess
+                                  postprocess=self.refiner
                                   )
 
     @staticmethod
