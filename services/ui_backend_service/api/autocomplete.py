@@ -14,7 +14,7 @@ class AutoCompleteApi(object):
         self.db = db
         # Cached resources
         # Cache tags so we don't have to request DB everytime
-        self.tags = None
+        self.tags = []
         app.router.add_route("GET", "/tags/autocomplete", self.get_tags)
         # Non-cached resources
         app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
@@ -57,10 +57,6 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteTagList'
         """
-        if not self.tags:
-            # fetch tags from DB if they were not cached yet.
-            await self.update_cached_tags()
-
         # pagination setup
         page, limit, offset, _, _, _ = pagination_query(request)
 
@@ -68,6 +64,8 @@ class AutoCompleteApi(object):
             'co': (lambda item, term: term in item),
             're': (lambda item, pattern: re.compile(pattern).match(item))
         }
+
+        filter_func = None
         for key, val in request.query.items():
             deconstruct = key.split(":", 1)
             if len(deconstruct) > 1:
@@ -79,10 +77,12 @@ class AutoCompleteApi(object):
 
             if field == 'tag' and operator in array_filter_ops:
                 filter_func = array_filter_ops[operator]
-            else:
-                filter_func = None
 
-        tags = [tag for tag in self.tags if filter_func(tag, val)][offset:(offset + limit)]
+        if filter_func:
+            tags = [tag for tag in self.tags if filter_func(tag, val)][offset:(offset + limit)]
+        else:
+            tags = self.tags[offset:(offset + limit)]
+
         count = len(tags)
         pagination = DBPagination(limit, offset, count, page)
 
