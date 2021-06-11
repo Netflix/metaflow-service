@@ -451,6 +451,7 @@ swagger_definitions = {
         **modelprop("task_id", "integer", "Task id", 32),
         **modelprop("name", "string", "Name", "bonus"),
         **modelprop("location", "string", "Name", "/local/path/.metaflow/HelloFlow/data/8d/8de2c3d91a9384069a3b014fdc3b60b4eb68567c"),
+        **modelprop("content", "string", "Artifact value", None),
         **modelprop("ds_type", "string", "Datastore type", "local"),
         **modelprop("sha", "string", "SHA hash", "8de2c3d91a9384069a3b014fdc3b60b4eb68567c"),
         **modelprop("type", "string", "Type", "metaflow.artifact"),

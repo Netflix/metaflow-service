@@ -52,6 +52,7 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/type'
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -115,6 +116,7 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/type'
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -173,6 +175,7 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/type'
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -212,10 +215,3 @@ class ArtificatsApi(object):
             return self.refiner.postprocess
         else:
             return None
-
-    @staticmethod
-    def _postprocess(response: DBResponse):
-        if response.response_code != 200 or not response.body:
-            return response
-        return DBResponse(response_code=response.response_code,
-                          body=filter_artifacts_by_attempt_id_for_tasks(response.body))
