@@ -12,7 +12,6 @@ class ArtifactRow(BaseRow):
     task_name: str = None
     name: str = None
     location: str = None
-    content: str = None
     sha: str = None
     type: str = None
     content_type: str = None
@@ -49,7 +48,6 @@ class ArtifactRow(BaseRow):
         self.task_name = task_name
         self.name = name
         self.location = location
-        self.content = location  # used for postprocessing
         self.ds_type = ds_type
         self.sha = sha
         self.type = type
@@ -74,7 +72,6 @@ class ArtifactRow(BaseRow):
                 "task_name": self.task_name,
                 "name": self.name,
                 "location": self.location,
-                "content": self.content,
                 "ds_type": self.ds_type,
                 "sha": self.sha,
                 "type": self.type,
@@ -93,7 +90,6 @@ class ArtifactRow(BaseRow):
                 "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
                 "name": self.name,
                 "location": self.location,
-                "content": self.content,
                 "ds_type": self.ds_type,
                 "sha": self.sha,
                 "type": self.type,

@@ -34,7 +34,18 @@ class ArtifactRefiner(Refinery):
         """
         if response.response_code != 200 or not response.body:
             return response
-        refined_response = await self._postprocess(response)
+
+        def _preprocess(item):
+            'copy location field for refinement purposes'
+            item['content'] = item['location']
+            return item
+
+        if isinstance(response.body, list):
+            body = [_preprocess(task) for task in response.body]
+        else:
+            body = _preprocess(response.body)
+
+        refined_response = await self._postprocess(DBResponse(response_code=response.response_code, body=body))
 
         def _process(item):
             if item['content'] is not None:
