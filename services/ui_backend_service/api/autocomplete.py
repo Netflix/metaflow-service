@@ -1,4 +1,4 @@
-from services.utils import handle_exceptions
+from services.utils import handle_exceptions, logging
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 from .utils import format_response, format_response_list, web_response, custom_conditions_query, pagination_query
 import sys
@@ -15,6 +15,7 @@ class AutoCompleteApi(object):
         # Cached resources
         # Cache tags so we don't have to request DB everytime
         self.tags = []
+        self.logger = logging.getLogger("AutoCompleteApi")
         app.router.add_route("GET", "/tags/autocomplete", self.get_tags)
         # Non-cached resources
         app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
@@ -40,7 +41,8 @@ class AutoCompleteApi(object):
         if res.response_code == 200:
             self.tags = sorted(res.body)
         size = sys.getsizeof(self.tags) // 1024 // 1024
-        print("SIZE OF TAGS IN MEM: {} Mb".format(size), flush=True)
+        count = len(self.tags)
+        self.logger.info("{} cached tags in memory consuming {} Mb".format(count, size))
 
     @handle_exceptions
     async def get_tags(self, request):
