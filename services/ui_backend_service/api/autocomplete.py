@@ -1,21 +1,48 @@
-from services.utils import handle_exceptions
-from services.data.db_utils import translate_run_key
+from services.utils import handle_exceptions, logging
+from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 from .utils import format_response, format_response_list, web_response, custom_conditions_query, pagination_query
+import sys
+import asyncio
+import re
+
+TAGS_FILL_INTERVAL_SECONDS = 60 * 5
 
 
 class AutoCompleteApi(object):
-    # Cache tags so we don't have to request DB everytime
-    tags = None
 
     def __init__(self, app, db):
         self.db = db
         # Cached resources
+        # Cache tags so we don't have to request DB everytime
+        self.tags = []
+        self.logger = logging.getLogger("AutoCompleteApi")
         app.router.add_route("GET", "/tags/autocomplete", self.get_tags)
         # Non-cached resources
         app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
         app.router.add_route("GET", "/flows/{flow_id}/runs/autocomplete", self.get_runs_for_flow)
         app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/steps/autocomplete", self.get_steps_for_run)
         app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/artifacts/autocomplete", self.get_artifacts_for_run)
+        loop = asyncio.get_event_loop()
+        loop.create_task(self.periodic_tags_fetch_and_cache())
+
+    async def periodic_tags_fetch_and_cache(self):
+        '''
+        Async task that fill tags cache every 5minutes. Database query might take a while
+        so its better to cache the result.
+        '''
+        while True:
+            await self.update_cached_tags()
+            # Check tags again after some sleep
+            await asyncio.sleep(TAGS_FILL_INTERVAL_SECONDS)
+
+    async def update_cached_tags(self):
+        # Get all tags that are mentioned in runs table
+        res, _ = await self.db.run_table_postgres.get_tags()
+        if res.response_code == 200:
+            self.tags = sorted(res.body)
+        size = sys.getsizeof(self.tags) // 1024 // 1024
+        count = len(self.tags)
+        self.logger.info("{} cached tags in memory consuming {} Mb".format(count, size))
 
     @handle_exceptions
     async def get_tags(self, request):
@@ -32,7 +59,37 @@ class AutoCompleteApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteTagList'
         """
-        return await resource_response(request, self.db.run_table_postgres.get_tags, allowed_keys=["tag"])
+        # pagination setup
+        page, limit, offset, _, _, _ = pagination_query(request)
+
+        array_filter_ops = {
+            'co': (lambda item, term: term in item),
+            're': (lambda item, pattern: re.compile(pattern).match(item))
+        }
+
+        filter_func = None
+        for key, val in request.query.items():
+            deconstruct = key.split(":", 1)
+            if len(deconstruct) > 1:
+                field = deconstruct[0]
+                operator = deconstruct[1]
+            else:
+                field = key
+                operator = None
+
+            if field == 'tag' and operator in array_filter_ops:
+                filter_func = array_filter_ops[operator]
+
+        if filter_func:
+            tags = [tag for tag in self.tags if filter_func(tag, val)][offset:(offset + limit)]
+        else:
+            tags = self.tags[offset:(offset + limit)]
+
+        count = len(tags)
+        pagination = DBPagination(limit, offset, count, page)
+
+        status, body = format_response_list(request, DBResponse(200, tags), pagination, page)
+        return web_response(status, body)
 
     @handle_exceptions
     async def get_flows(self, request):

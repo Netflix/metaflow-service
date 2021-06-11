@@ -75,6 +75,9 @@ async def test_tags_autocomplete(cli, db):
     await _test_list_resources(cli, db, '/tags/autocomplete', 200, [])
     await add_flow(db, flow_id="HelloFlow")
     await add_run(db, flow_id="HelloFlow", run_id="HelloRun", tags=["tag:something"])
+
+    # manually refresh the cached tags
+    await cli.server.app.AutoCompleteApi.update_cached_tags()
     # Note that runtime:dev tags gets assigned automatically
     await _test_list_resources(cli, db, '/tags/autocomplete', 200, ['runtime:dev', 'tag:something'])
     
@@ -84,8 +87,8 @@ async def test_tags_autocomplete(cli, db):
     # no-match
     await _test_list_resources(cli, db, '/tags/autocomplete?tag:co=nothing', 200, [])
 
-    # Custom match
-    await _test_list_resources(cli, db, '/tags/autocomplete?tag:li=tag:%25thing', 200, ['tag:something'])
+    # Custom match 'tag:.*thing'
+    await _test_list_resources(cli, db, '/tags/autocomplete?tag:re=tag:.*thing', 200, ['tag:something'])
 
 
 async def test_artifacts_autocomplete(cli, db):
