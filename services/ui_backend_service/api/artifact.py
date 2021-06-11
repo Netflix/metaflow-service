@@ -9,7 +9,7 @@ from ..data.refiner import ArtifactRefiner
 class ArtificatsApi(object):
     def __init__(self, app, db, cache=None):
         self.db = db
-        self.refiner = ArtifactRefiner(cache.artifact_cache) if cache else None
+        self.refiner = ArtifactRefiner(cache=cache.artifact_cache) if cache else None
         self._async_table = self.db.artifact_table_postgres
         app.router.add_route(
             "GET",
@@ -88,7 +88,7 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=self.refiner
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -147,7 +147,7 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=self.refiner
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -203,8 +203,15 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=self.refiner
+                                  postprocess=self.get_postprocessor(request)
                                   )
+
+    def get_postprocessor(self, request):
+        "pass query param &postprocess=true to enable postprocessing of S3 content. Otherwise returns None as postprocessor"
+        if request.query.get("postprocess", False) in ["true", "True", "1"]:
+            return self.refiner.postprocess
+        else:
+            return None
 
     @staticmethod
     def _postprocess(response: DBResponse):

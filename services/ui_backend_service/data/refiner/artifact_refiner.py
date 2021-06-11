@@ -37,20 +37,10 @@ class ArtifactRefiner(Refinery):
         refined_response = await self._postprocess(response)
 
         def _process(item):
-            if item['status'] == 'unknown':
-                # cover boolean cases explicitly, as S3 refinement might fail,
-                # in which case we want the 'unknown' status to remain.
-                if item['task_ok'] is False:
-                    item['status'] = 'failed'
-                elif item['task_ok'] is True:
-                    item['status'] = 'completed'
-
-            item.pop('task_ok', None)
-
-            if item['foreach_stack'] and len(item['foreach_stack']) > 0 and len(item['foreach_stack'][0]) >= 4:
-                _, _name, _, _index = item['foreach_stack'][0]
-                item['foreach_label'] = "{}[{}]".format(item['task_id'], _index)
-            item.pop('foreach_stack', None)
+            if item['content'] is not None:
+                # cast artifact content to string if it was successfully fetched
+                # as some artifacts retain their type if they are Json serializable.
+                item['content'] = str(item['content'])
             return item
 
         if isinstance(refined_response.body, list):
