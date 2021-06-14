@@ -291,7 +291,7 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
 async def test_pg_notify_dag_code_package_url(cli, db, loop):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
-    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="start", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
     _task = (await add_task(db,
                             flow_id=_step.get("flow_id"),
                             step_name=_step.get("step_name"),
@@ -327,7 +327,7 @@ async def test_pg_notify_dag_code_package_url(cli, db, loop):
 async def test_pg_notify_dag_code_package(cli, db, loop):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
-    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="start", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
     _task = (await add_task(db,
                             flow_id=_step.get("flow_id"),
                             step_name=_step.get("step_name"),
