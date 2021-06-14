@@ -42,7 +42,7 @@ class CacheStore(object):
 
     def __init__(self, db, event_emitter=None):
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
-        self.dag_cache = DAGCacheStore(db)
+        self.dag_cache = DAGCacheStore(event_emitter, db)
 
     async def start_caches(self, app):
         "Starts all caches as part of app startup"
@@ -211,9 +211,14 @@ class DAGCacheStore(object):
         An initialized instance of a DB adapter for fetching data.
     """
 
-    def __init__(self, db):
+    def __init__(self, event_emitter, db):
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self._run_table = db.run_table_postgres
         self.cache = None
+        self.loop = asyncio.get_event_loop()
+
+        if FEATURE_PREFETCH_ENABLE:
+            self.event_emitter.on("preload-dag", self.preload_event_handler)
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for DAG caching"
@@ -227,3 +232,36 @@ class DAGCacheStore(object):
 
     async def stop_cache(self):
         await self.cache.stop()
+
+    async def preload_event_handler(self, flow_name: str, codepackage_loc: str):
+        """
+        Handler for event-emitter for preloading dag
+
+        Parameters
+        ----------
+        flow_name : str
+            Flow name
+        codepackage_loc : str
+            Codepackage location (S3 string)
+        """
+        asyncio.run_coroutine_threadsafe(self.preload_dag(flow_name, codepackage_loc), self.loop)
+
+    async def preload_dag(self, flow_name: str, codepackage_loc: str):
+        """
+        Preloads dag for given flow_name and codepackage location
+
+        Parameters
+        ----------
+        flow_name : str
+            Flow name
+        codepackage_loc : str
+            Codepackage location (S3 string)
+        """
+        logger.info("Preload DAG {} from {}".format(flow_name, codepackage_loc))
+
+        res = await self.cache.GenerateDag(flow_name, codepackage_loc)
+        async for event in res.stream():
+            if event["type"] == "error":
+                logger.error(event)
+            else:
+                logger.info(event)
