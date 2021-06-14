@@ -145,6 +145,7 @@ class ListenNotify(object):
                 # Notify DAG cache store to preload artifact
                 if operation == "INSERT" and \
                         table.table_name == self.db.metadata_table_postgres.table_name and \
+                        data["step_name"] == "start" and \
                         data["field_name"] in ["code-package-url", "code-package"]:
                     flow_name = data.get("flow_id", None)
                     codepackage_loc = None
