@@ -1,7 +1,6 @@
 import json
-import time
 import asyncio
-from typing import Dict, List
+from typing import Dict
 from services.utils import logging
 from services.data.postgres_async_db import (
     FLOW_TABLE_NAME, RUN_TABLE_NAME, STEP_TABLE_NAME, TASK_TABLE_NAME
@@ -34,16 +33,23 @@ class ListenNotify(object):
         self.loop.create_task(self._init(self.db.pool))
 
     async def _init(self, pool):
-        async with pool.acquire() as conn:
-            await asyncio.gather(
-                self.listen(conn),
-                self.ping(conn)
-            )
+        while True:
+            try:
+                async with pool.acquire() as conn:
+                    self.logger.info("Connection acquired")
+                    await asyncio.gather(
+                        self.listen(conn),
+                        self.ping(conn)
+                    )
+            except Exception as ex:
+                self.logger.warn(str(ex))
+            finally:
+                await asyncio.sleep(1)
 
     async def listen(self, conn):
         async with conn.cursor() as cur:
             await cur.execute("LISTEN notify")
-            while True:
+            while not cur.closed:
                 try:
                     msg = conn.notifies.get_nowait()
                     self.loop.create_task(self.handle_trigger_msg(msg))
@@ -54,7 +60,7 @@ class ListenNotify(object):
 
     async def ping(self, conn):
         async with conn.cursor() as cur:
-            while True:
+            while not cur.closed:
                 try:
                     await cur.execute("NOTIFY ping")
                 except Exception:
