@@ -1,4 +1,3 @@
-import hashlib
 import json
 
 from .get_artifacts_action import GetArtifacts, artifact_location_from_key
