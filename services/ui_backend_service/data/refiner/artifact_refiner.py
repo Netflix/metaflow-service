@@ -111,8 +111,8 @@ class ArtifactRefiner(Refinery):
                     # as some artifacts retain their type if they are Json serializable.
                     item['content'] = str(value)
                 else:
-                    # artifact was too big and was skipped
-                    item['postprocess_error'] = format_error_body("object-too-large", "The artifact is too large to be processed")
+                    # artifact is too big and was skipped
+                    item['postprocess_error'] = format_error_body("artifact-too-large", "The artifact is too large to be processed")
             return item
 
         if isinstance(refined_response.body, list):
