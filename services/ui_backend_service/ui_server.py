@@ -67,7 +67,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     StepApi(app, async_db)
     TaskApi(app, async_db, cache_store)
     MetadataApi(app, async_db)
-    ArtificatsApi(app, async_db)
+    ArtificatsApi(app, async_db, cache_store)
     TagApi(app, async_db)
     ArtifactSearchApi(app, async_db, cache_store)
     DagApi(app, async_db, cache_store)

@@ -38,7 +38,7 @@ async def test_list_artifact(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(**_task), 200, [])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task), 200, [])
 
-    _artifact = (await add_artifact(db,
+    _first = (await add_artifact(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
                                     run_id=_task.get("run_id"),
@@ -54,7 +54,7 @@ async def test_list_artifact(cli, db):
                                         "content_type": "content_type",
                                         "attempt_id": 0})).body
 
-    _artifact = (await add_artifact(db,
+    _second = (await add_artifact(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
                                     run_id=_task.get("run_id"),
@@ -70,9 +70,9 @@ async def test_list_artifact(cli, db):
                                         "content_type": "content_type",
                                         "attempt_id": 1})).body
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task), 200, [_artifact])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(**_task), 200, [_artifact])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task), 200, [_artifact])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task), 200, [_first, _second])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(**_task), 200, [_first, _second])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task), 200, [_first, _second])
 
 
 async def test_list_artifact_attempt_ids(cli, db):
@@ -95,8 +95,7 @@ async def test_list_artifact_attempt_ids(cli, db):
                                             task_id=_task.get("task_id"), task_name=_task.get("task_name"),
                                             artifact={"attempt_id": attempt_id})).body
 
-            if attempt_id == 1:
-                artifacts_visible_for_first_step.append(_artifact)
+            artifacts_visible_for_first_step.append(_artifact)
 
     artifacts_visible_for_second_step = []
     for _ in range(2):

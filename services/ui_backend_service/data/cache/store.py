@@ -14,6 +14,7 @@ from services.utils import logging
 from ..refiner import ParameterRefiner
 from .generate_dag_action import GenerateDag
 from .get_artifacts_action import GetArtifacts
+from .get_artifacts_with_status_action import GetArtifactsWithStatus
 from .search_artifacts_action import SearchArtifacts
 
 # Tagged logger
@@ -91,7 +92,7 @@ class ArtifactCacheStore(object):
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for artifact caching"
-        actions = [SearchArtifacts, GetArtifacts]
+        actions = [SearchArtifacts, GetArtifacts, GetArtifactsWithStatus]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
                                       max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
