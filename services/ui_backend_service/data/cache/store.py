@@ -1,7 +1,6 @@
 import asyncio
 import os
 import shutil
-import time
 from typing import Dict, List, Optional
 
 from .client import CacheAsyncClient
@@ -50,6 +49,23 @@ class CacheStore(object):
         await self.artifact_cache.start_cache()
         await self.dag_cache.start_cache()
 
+        asyncio.gather(
+            self._monitor_restart_requests()
+        )
+
+    async def _monitor_restart_requests(self):
+        while True:
+            for _cache in [self.artifact_cache, self.dag_cache]:
+                if await _cache.restart_requested():
+                    cache_name = type(_cache).__name__
+                    logger.info("[{}] restart requested...".format(cache_name))
+                    await _cache.stop_cache()
+                    await _cache.start_cache()
+                    logger.info("[{}] restart done.".format(cache_name))
+
+            # Wait 5 seconds until checking requested restarts again
+            await asyncio.sleep(5)
+
     async def stop_caches(self, app):
         "Stops all caches as part of app teardown"
         await self.artifact_cache.stop_cache()
@@ -89,6 +105,9 @@ class ArtifactCacheStore(object):
         if FEATURE_PREFETCH_ENABLE:
             self.event_emitter.on("preload-artifacts", self.preload_event_handler)
         self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
+
+    async def restart_requested(self):
+        return self.cache._restart_requested if self.cache else False
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for artifact caching"
@@ -220,6 +239,9 @@ class DAGCacheStore(object):
 
         if FEATURE_PREFETCH_ENABLE:
             self.event_emitter.on("preload-dag", self.preload_event_handler)
+
+    async def restart_requested(self):
+        return self.cache._restart_requested if self.cache else False
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for DAG caching"
