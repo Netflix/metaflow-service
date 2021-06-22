@@ -129,12 +129,11 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             # construct the group_where clause.
             group_label_selects = []
             for group in groups:
-                _group_values = []
-                for row in group_results.body:
-                    _group_values.append("\'{}\'".format(row[group.strip("\"")]))
+                _group_values = [row[group.strip("\"")] for row in group_results.body]
                 if len(_group_values) > 0:
-                    _clause = "{group} IN ({values})".format(group=group, values=", ".join(_group_values))
+                    _clause = "{group} = ANY(%s)".format(group=group)
                     group_label_selects.append(_clause)
+                    values.append(_group_values)
 
             # Query for group content. Restricted by groups received from previous query.
             sql_template = """
