@@ -1,6 +1,5 @@
+from typing import Tuple
 from services.data.db_utils import DBResponse
-import json
-
 from services.ui_backend_service.features import FEATURE_REFINE_DISABLE
 from services.utils import logging
 
@@ -84,3 +83,27 @@ class Refinery(object):
 
         return DBResponse(response_code=response.response_code,
                           body=body)
+
+
+def unpack_processed_value(value) -> Tuple[bool, str, int]:
+    return (list(value) + [None] * 3)[:3]
+
+
+def format_error_body(id, detail):
+    '''
+    formatter for the "postprocess_error" key added to refined items in case of errors.
+    '''
+    return {
+        "id": id or "artifact-refine-failure",
+        "detail": detail
+    }
+
+
+class GetArtifactsFailed(Exception):
+    def __init__(self, msg="Failed to Get Artifacts", id="get-artifacts-failed", traceback_str=None):
+        self.message = msg
+        self.id = id
+        self.traceback_str = traceback_str
+
+    def __str__(self):
+        return self.message

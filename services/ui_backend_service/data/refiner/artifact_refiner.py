@@ -1,15 +1,5 @@
-from .refinery import Refinery
+from .refinery import Refinery, unpack_processed_value, format_error_body, GetArtifactsFailed
 from services.data.db_utils import DBResponse
-
-
-class GetArtifactsFailed(Exception):
-    def __init__(self, msg="Failed to Get Artifacts", id="get-artifacts-failed", traceback_str=None):
-        self.message = msg
-        self.id = id
-        self.traceback_str = traceback_str
-
-    def __str__(self):
-        return self.message
 
 
 class ArtifactRefiner(Refinery):
@@ -105,14 +95,17 @@ class ArtifactRefiner(Refinery):
 
         def _process(item):
             if item['content'] is not None:
-                success, value = item['content']
+                success, value, detail = unpack_processed_value(item['content'])
                 if success:
                     # cast artifact content to string if it was successfully fetched
                     # as some artifacts retain their type if they are Json serializable.
                     item['content'] = str(value)
                 else:
                     # artifact is too big and was skipped
-                    item['postprocess_error'] = format_error_body("artifact-too-large", "The artifact is too large to be processed")
+                    item['postprocess_error'] = format_error_body(
+                        value if value else "artifact-handle-failed",
+                        detail if detail else "Unknown error during artifact processing"
+                    )
             return item
 
         if isinstance(refined_response.body, list):
@@ -121,13 +114,3 @@ class ArtifactRefiner(Refinery):
             body = _process(refined_response.body)
 
         return DBResponse(response_code=refined_response.response_code, body=body)
-
-
-def format_error_body(id, detail):
-    '''
-    formatter for the "postprocess_error" key added to refined items in case of errors.
-    '''
-    return {
-        "id": id or "artifact-refine-failure",
-        "detail": detail
-    }

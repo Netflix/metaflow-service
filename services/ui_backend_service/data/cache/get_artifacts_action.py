@@ -100,41 +100,44 @@ class GetArtifacts(CacheAction):
         s3_locations = [loc for loc in locations_to_fetch if loc.startswith("s3://")]
         with NoRetryS3() as s3:
             for locations in batchiter(s3_locations, S3_BATCH_SIZE):
-                try:
-                    for artifact_data in s3.get_many(locations):
-                        artifact_key = artifact_cache_id(artifact_data.url)
+                for location in locations:
+                    artifact_key = artifact_cache_id(location)
+                    try:
+                        artifact_data = s3.get(location)
                         if artifact_data.size < MAX_SIZE:
-                            try:
-                                # TODO: Figure out a way to store the artifact content without decoding?
-                                # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                                # so we can not rely on the file existing if we only return a filepath as a cached response
-                                content = decode(artifact_data.path)
-                                results[artifact_key] = json.dumps([True, content])
-                            except TypeError:
-                                # In case the artifact was of a type that can not be json serialized,
-                                # we try casting it to a string first.
-                                results[artifact_key] = json.dumps([True, str(content)])
-                            except Exception as ex:
-                                # Exceptions might be fixable with configuration changes or other measures,
-                                # therefore we do not want to write anything to the cache for these artifacts.
-                                stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
+                            # TODO: Figure out a way to store the artifact content without decoding?
+                            # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
+                            # so we can not rely on the file existing if we only return a filepath as a cached response
+                            content = decode(artifact_data.path)
+                            results[artifact_key] = json.dumps([True, content])
                         else:
                             # TODO: does this case need to raise an error as well? As is, the fetch simply fails silently.
-                            results[artifact_key] = json.dumps([False, 'object is too large'])
-                except MetaflowS3AccessDenied as ex:
-                    stream_error(str(ex), "s3-access-denied")
-                except MetaflowS3NotFound as ex:
-                    stream_error(str(ex), "s3-not-found")
-                except MetaflowS3URLException as ex:
-                    stream_error(str(ex), "s3-bad-url")
-                except MetaflowS3CredentialsMissing as ex:
-                    stream_error(str(ex), "s3-missing-credentials")
-                except MetaflowS3Exception as ex:
-                    stream_error(str(ex), "s3-generic-error", get_traceback_str())
+                            results[artifact_key] = json.dumps([False, 'artifact-too-large', artifact_data.size])
+
+                    except TypeError:
+                        # In case the artifact was of a type that can not be json serialized,
+                        # we try casting it to a string first.
+                        results[artifact_key] = json.dumps([True, str(content)])
+                    except MetaflowS3AccessDenied as ex:
+                        results[artifact_key] = json.dumps([False, 's3-access-denied', location])
+                    except MetaflowS3NotFound as ex:
+                        results[artifact_key] = json.dumps([False, 's3-not-found', location])
+                    except MetaflowS3URLException as ex:
+                        results[artifact_key] = json.dumps([False, 's3-bad-url', location])
+                    except MetaflowS3CredentialsMissing as ex:
+                        results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
+                    except MetaflowS3Exception as ex:
+                        results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
+                    except Exception as ex:
+                        # Exceptions might be fixable with configuration changes or other measures,
+                        # therefore we do not want to write anything to the cache for these artifacts.
+                        results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
+
         # Skip the inaccessible locations
         other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
         for loc in other_locations:
-            stream_error("Artifact is not accessible at URL: {}".format(loc), "artifact-not-accessible")
+            artifact_key = artifact_cache_id(loc)
+            results[artifact_key] = json.dumps([False, 'artifact-not-accessible', loc])
 
         return results
 
