@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from collections import deque
 from typing import Callable, Dict, List
@@ -211,6 +212,29 @@ operators_to_sql_values = {
     "li": "{}",
     "is": "{}",
 }
+
+array_filter_ops = {
+    "eq": (lambda item, term: item == term),
+    "ne": (lambda item, term: item != term),
+    "lt": (lambda item, term: item < term),
+    "le": (lambda item, term: item <= term),
+    "gt": (lambda item, term: item > term),
+    "ge": (lambda item, term: item >= term),
+    "co": (lambda item, term: term in item),
+    "sw": (lambda item, term: item.startswith(term)),
+    "ew": (lambda item, term: item.endswith(term)),
+    "li": (lambda item, term: item),  # Not implemented yet
+    "is": (lambda item, term: item is term),
+    're': (lambda item, pattern: re.compile(pattern).match(item)),
+}
+
+
+def filter_and(filter_a, filter_b):
+    return lambda item, term: filter_a(item, term) and filter_b(item, term)
+
+
+def filter_or(filter_a, filter_b):
+    return lambda item, term: filter_a(item, term) or filter_b(item, term)
 
 
 # Custom conditions parser (table columns, never prefixed with _)
