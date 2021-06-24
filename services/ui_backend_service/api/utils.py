@@ -10,6 +10,7 @@ from aiohttp import web
 from multidict import MultiDict
 from services.data.db_utils import DBPagination, DBResponse
 from services.utils import format_baseurl, format_qs, web_response
+from functools import reduce
 
 
 def get_json_from_env(variable_name: str):
@@ -213,29 +214,83 @@ operators_to_sql_values = {
     "is": "{}",
 }
 
+
+def bound_filter(op, term, key):
+    "returns function that binds the key, and the term that should be compared to, on an item"
+    _filter = array_filter_ops[op]
+    return lambda item: _filter(item[key], term) if key in item else False
+
+# NOTE: keep these as simple comparisons,
+# any kind of value decoding should be done outside the lambdas instead
+# to promote reusability.
 array_filter_ops = {
-    "eq": (lambda item, term: item == term),
-    "ne": (lambda item, term: item != term),
-    "lt": (lambda item, term: item < term),
-    "le": (lambda item, term: item <= term),
-    "gt": (lambda item, term: item > term),
-    "ge": (lambda item, term: item >= term),
-    "co": (lambda item, term: term in item),
-    "sw": (lambda item, term: item.startswith(term)),
-    "ew": (lambda item, term: item.endswith(term)),
+    "eq": (lambda item, term: str(item) == term),
+    "ne": (lambda item, term: str(item) != term),
+    "lt": (lambda item, term: int(item) < int(term)),
+    "le": (lambda item, term: int(item) <= int(term)),
+    "gt": (lambda item, term: int(item) > int(term)),
+    "ge": (lambda item, term: int(item) >= int(term)),
+    "co": (lambda item, term: str(term) in str(item)),
+    "sw": (lambda item, term: str(item).startswith(str(term))),
+    "ew": (lambda item, term: str(item).endswith(str(term))),
     "li": (lambda item, term: item),  # Not implemented yet
-    "is": (lambda item, term: item is term),
-    're': (lambda item, pattern: re.compile(pattern).match(item)),
+    "is": (lambda item, term: str(item) is str(term)),
+    're': (lambda item, pattern: re.compile(pattern).match(str(item))),
 }
 
 
 def filter_and(filter_a, filter_b):
-    return lambda item, term: filter_a(item, term) and filter_b(item, term)
+    return lambda item: filter_a(item) and filter_b(item)
 
 
 def filter_or(filter_a, filter_b):
-    return lambda item, term: filter_a(item, term) or filter_b(item, term)
+    return lambda item: filter_a(item) or filter_b(item)
 
+
+def filter_from_conditions_query(request: web.BaseRequest, allowed_keys: List[str] = []):
+    """
+    Gathers all custom conditions from request query and returns a filter function
+    """
+    filters = []
+    def _no_op(item): return True
+
+    for key, val in request.query.items():
+        if key.startswith("_"):
+            continue  # skip internal conditions
+
+        deconstruct = key.split(":", 1)
+        if len(deconstruct) > 1:
+            field = deconstruct[0]
+            operator = deconstruct[1]
+        else:
+            field = key
+            operator = "eq"
+
+        if allowed_keys is not None and field not in allowed_keys:
+            continue  # skip conditions on non-allowed fields
+
+        if operator not in array_filter_ops:
+            continue  # skip conditions with no known operators
+
+        vals = val.split(",")
+
+        _val_filters = []
+        for val in vals:
+            _val_filters.append(bound_filter(operator, val, field))
+
+        # OR with a no_op filter would break, so handle the case of no values separately.
+        if len(_val_filters) == 0:
+            _fil = _no_op
+        elif len(_val_filters) == 1:
+            _fil = _val_filters[0]
+        else:
+            # if multiple values, join filters with filter_or()
+            _fil = reduce(filter_or, _val_filters)
+        filters.append(_fil)
+
+    _final_filter = reduce(filter_and, filters, _no_op)
+
+    return _final_filter  # return filters reduced with filter_and()
 
 # Custom conditions parser (table columns, never prefixed with _)
 def custom_conditions_query(request: web.BaseRequest, allowed_keys: List[str] = []):

@@ -9,7 +9,8 @@ from services.ui_backend_service.api.utils import (
     pagination_query,
     builtin_conditions_query,
     custom_conditions_query,
-    resource_conditions
+    resource_conditions,
+    filter_from_conditions_query
 )
 
 pytestmark = [pytest.mark.unit_tests]
@@ -286,3 +287,22 @@ def test_resource_conditions():
     assert len(values) == 2
     assert values[0] == "HelloFlow"
     assert values[1] == "running"
+
+
+def test_filter_from_conditions_query():
+    # setup a test list for filtering
+    _run_1 = {"run": "test_1", "ts_epoch": 6}
+    _run_2 = {"run": "test_2", "ts_epoch": 1}
+    _run_3 = {"run": "test", "ts_epoch": 6}
+    _test_data = [_run_1, _run_2, _run_3]
+
+    # mock request
+    request = make_mocked_request(
+        'GET', '/?run=test&ts_epoch:gt=1',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=['run', 'ts_epoch'])
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_3]
