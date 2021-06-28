@@ -248,15 +248,19 @@ def filter_or(filter_a, filter_b):
 
 
 def filter_from_conditions_query(request: web.BaseRequest, allowed_keys: List[str] = []):
+    return filter_from_conditions_query_dict(request.query, allowed_keys)
+
+
+def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = []):
     """
     Gathers all custom conditions from request query and returns a filter function
     """
     filters = []
     def _no_op(item): return True
 
-    for key, val in request.query.items():
-        if key.startswith("_"):
-            continue  # skip internal conditions
+    for key, val in query.items():
+        if key.startswith("_") and not key.startswith('_tags'):
+            continue  # skip internal conditions except _tags
 
         deconstruct = key.split(":", 1)
         if len(deconstruct) > 1:
@@ -269,24 +273,63 @@ def filter_from_conditions_query(request: web.BaseRequest, allowed_keys: List[st
         if allowed_keys is not None and field not in allowed_keys:
             continue  # skip conditions on non-allowed fields
 
-        if operator not in array_filter_ops:
+        if operator not in array_filter_ops and field != '_tags':
             continue  # skip conditions with no known operators
 
-        vals = val.split(",")
+        # Tags
+        if field == "_tags":
+            tags = val.split(",")
+            _fils = []
+            # support likeany, likeall, any, all. default to all
+            if operator == "likeany":
+                joiner_fn = filter_or
+                op = "re"
+            elif operator == "likeall":
+                joiner_fn = filter_and
+                op = "re"
+            elif operator == "any":
+                joiner_fn = filter_or
+                op = "co"
+            else:
+                joiner_fn = filter_and
+                op = "co"
 
-        _val_filters = []
-        for val in vals:
-            _val_filters.append(bound_filter(operator, val, field))
+            def bound(op, term):
+                _filter = array_filter_ops[op]
+                return lambda item: _filter(item['tags'] + item['system_tags'], term) if 'tags' in item and 'system_tags' in item else False
 
-        # OR with a no_op filter would break, so handle the case of no values separately.
-        if len(_val_filters) == 0:
-            _fil = _no_op
-        elif len(_val_filters) == 1:
-            _fil = _val_filters[0]
+            for tag in tags:
+                # Necessary to wrap value inside quotes as we are
+                # checking for containment on a list that has been cast to a string
+                _pattern = ".*{}.*".format(tag) if op == "re" else "'{}'"
+                _val = _pattern.format(tag)
+                _fils.append(bound(op, _val))
+
+            if len(_fils) == 0:
+                _fil = _no_op
+            elif len(_fils) == 1:
+                _fil = _fils[0]
+            else:
+                _fil = reduce(joiner_fn, _fils)
+            filters.append(_fil)
+
+        # Default case
         else:
-            # if multiple values, join filters with filter_or()
-            _fil = reduce(filter_or, _val_filters)
-        filters.append(_fil)
+            vals = val.split(",")
+
+            _val_filters = []
+            for val in vals:
+                _val_filters.append(bound_filter(operator, val, field))
+
+            # OR with a no_op filter would break, so handle the case of no values separately.
+            if len(_val_filters) == 0:
+                _fil = _no_op
+            elif len(_val_filters) == 1:
+                _fil = _val_filters[0]
+            else:
+                # if multiple values, join filters with filter_or()
+                _fil = reduce(filter_or, _val_filters)
+            filters.append(_fil)
 
     _final_filter = reduce(filter_and, filters, _no_op)
 
@@ -345,14 +388,9 @@ def resource_conditions(fullpath: str = None) -> (str, MultiDict, List[str], Lis
     parsedurl = urlsplit(fullpath)
     query = MultiDict(parse_qsl(parsedurl.query))
 
-    builtin_conditions, builtin_vals = builtin_conditions_query_dict(query)
-    custom_conditions, custom_vals = custom_conditions_query_dict(
-        query, allowed_keys=None)
+    filter_fn = filter_from_conditions_query_dict(query, allowed_keys=None)
 
-    conditions = builtin_conditions + custom_conditions
-    values = builtin_vals + custom_vals
-
-    return parsedurl.path, query, conditions, values
+    return parsedurl.path, query, filter_fn
 
 
 async def find_records(request: web.BaseRequest, async_table=None, initial_conditions: List[str] = [], initial_values=[],
