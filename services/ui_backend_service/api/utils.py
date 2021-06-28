@@ -220,6 +220,7 @@ def bound_filter(op, term, key):
     _filter = array_filter_ops[op]
     return lambda item: _filter(item[key], term) if key in item else False
 
+
 # NOTE: keep these as simple comparisons,
 # any kind of value decoding should be done outside the lambdas instead
 # to promote reusability.
@@ -256,7 +257,9 @@ def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] 
     Gathers all custom conditions from request query and returns a filter function
     """
     filters = []
-    def _no_op(item): return True
+
+    def _no_op(item):
+        return True
 
     for key, val in query.items():
         if key.startswith("_") and not key.startswith('_tags'):
@@ -334,6 +337,7 @@ def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] 
     _final_filter = reduce(filter_and, filters, _no_op)
 
     return _final_filter  # return filters reduced with filter_and()
+
 
 # Custom conditions parser (table columns, never prefixed with _)
 def custom_conditions_query(request: web.BaseRequest, allowed_keys: List[str] = []):
