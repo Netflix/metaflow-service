@@ -217,14 +217,14 @@ operators_to_sql_values = {
 
 def bound_filter(op, term, key):
     "returns function that binds the key, and the term that should be compared to, on an item"
-    _filter = array_filter_ops[op]
+    _filter = operators_to_filters[op]
     return lambda item: _filter(item[key], term) if key in item else False
 
 
 # NOTE: keep these as simple comparisons,
 # any kind of value decoding should be done outside the lambdas instead
 # to promote reusability.
-array_filter_ops = {
+operators_to_filters = {
     "eq": (lambda item, term: str(item) == term),
     "ne": (lambda item, term: str(item) != term),
     "lt": (lambda item, term: int(item) < int(term)),
@@ -234,7 +234,7 @@ array_filter_ops = {
     "co": (lambda item, term: str(term) in str(item)),
     "sw": (lambda item, term: str(item).startswith(str(term))),
     "ew": (lambda item, term: str(item).endswith(str(term))),
-    "li": (lambda item, term: item),  # Not implemented yet
+    "li": (lambda item, term: True),  # Not implemented yet
     "is": (lambda item, term: str(item) is str(term)),
     're': (lambda item, pattern: re.compile(pattern).match(str(item))),
 }
@@ -276,7 +276,7 @@ def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] 
         if allowed_keys is not None and field not in allowed_keys:
             continue  # skip conditions on non-allowed fields
 
-        if operator not in array_filter_ops and field != '_tags':
+        if operator not in operators_to_filters and field != '_tags':
             continue  # skip conditions with no known operators
 
         # Tags
@@ -298,7 +298,7 @@ def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] 
                 op = "co"
 
             def bound(op, term):
-                _filter = array_filter_ops[op]
+                _filter = operators_to_filters[op]
                 return lambda item: _filter(item['tags'] + item['system_tags'], term) if 'tags' in item and 'system_tags' in item else False
 
             for tag in tags:

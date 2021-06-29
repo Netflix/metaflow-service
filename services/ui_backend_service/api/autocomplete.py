@@ -1,6 +1,6 @@
 from services.utils import handle_exceptions, logging
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
-from .utils import format_response_list, web_response, custom_conditions_query, pagination_query, array_filter_ops
+from .utils import format_response_list, web_response, custom_conditions_query, pagination_query, operators_to_filters
 import sys
 import asyncio
 
@@ -71,8 +71,8 @@ class AutoCompleteApi(object):
                 field = key
                 operator = None
 
-            if field == 'tag' and operator in array_filter_ops:
-                filter_func = array_filter_ops[operator]
+            if field == 'tag' and operator in operators_to_filters:
+                filter_func = operators_to_filters[operator]
 
         if filter_func:
             tags = [tag for tag in self.tags if filter_func(tag, val)][offset:(offset + limit)]
