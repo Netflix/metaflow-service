@@ -355,3 +355,25 @@ def test_filter_from_conditions_query():
 
     _list = list(filter(_filter, _test_data))
     assert _list == [_run_2, _run_3]
+
+    # test non-existent fields in query (should still work, not match any records)
+    request = make_mocked_request(
+        'GET', '/?nonexistent:eq=b,3',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=None)
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == []
+
+    # test comparison operators with non-numeric values
+    request = make_mocked_request(
+        'GET', '/?ts_epoch:gt=*#*#',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=None)
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == []

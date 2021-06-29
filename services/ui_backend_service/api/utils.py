@@ -3,7 +3,7 @@ import os
 import re
 import time
 from collections import deque
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 from urllib.parse import parse_qsl, urlsplit
 
 from aiohttp import web
@@ -20,7 +20,7 @@ def get_json_from_env(variable_name: str):
         return None
 
 
-def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
+def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[int, Dict]:
     query = {}
     for key in request.query:
         query[key] = request.query.get(key)
@@ -218,7 +218,13 @@ operators_to_sql_values = {
 def bound_filter(op, term, key):
     "returns function that binds the key, and the term that should be compared to, on an item"
     _filter = operators_to_filters[op]
-    return lambda item: _filter(item[key], term) if key in item else False
+
+    def _fn(item):
+        try:
+            return _filter(item[key], term) if key in item else False
+        except Exception:
+            return False
+    return _fn
 
 
 # NOTE: keep these as simple comparisons,
@@ -388,7 +394,7 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
 #   -> Query: MultiDict('flow_id': 'HelloFlow', 'status': 'completed')
 #   -> Conditions: ["(flow_id = %s)", "(status = %s)"]
 #   -> Values: ["HelloFlow", "Completed"]
-def resource_conditions(fullpath: str = None) -> (str, MultiDict, List[str], List):
+def resource_conditions(fullpath: str = None) -> Tuple[str, MultiDict, List[str], List]:
     parsedurl = urlsplit(fullpath)
     query = MultiDict(parse_qsl(parsedurl.query))
 
