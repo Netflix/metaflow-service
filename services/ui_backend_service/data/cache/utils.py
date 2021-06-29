@@ -136,13 +136,14 @@ def progress_event_msg(number):
     }
 
 
-def error_event_msg(msg, id, traceback=None):
+def error_event_msg(msg, id, traceback=None, key=None):
     "formatter for cache action error stream messages"
     return {
         "type": "error",
         "message": msg,
         "id": id,
-        "traceback": traceback
+        "traceback": traceback,
+        "key": key
     }
 
 

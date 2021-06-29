@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Any
 from services.data.db_utils import DBResponse
 from services.ui_backend_service.features import FEATURE_REFINE_DISABLE
 from services.utils import logging
@@ -85,17 +85,31 @@ class Refinery(object):
                           body=body)
 
 
-def unpack_processed_value(value) -> Tuple[bool, str, int]:
+def unpack_processed_value(value) -> Tuple[bool, str, Any]:
+    '''
+    Unpack refined response returning tuple of: success, value, detail
+
+    Defaults to None in case values are not defined.
+
+    Success example:
+        True, 'foo', None
+
+    Failure examples:
+        False, 'failure-id', 'error-details'
+        False, 'failure-id-without-details', None
+        False, None, None
+    '''
     return (list(value) + [None] * 3)[:3]
 
 
-def format_error_body(id, detail):
+def format_error_body(id=None, detail=None, traceback=None):
     '''
     formatter for the "postprocess_error" key added to refined items in case of errors.
     '''
     return {
         "id": id or "artifact-refine-failure",
-        "detail": detail
+        "detail": detail,
+        "traceback": traceback
     }
 
 

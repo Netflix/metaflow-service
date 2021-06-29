@@ -4,8 +4,9 @@ import json
 from .client import CacheAction
 from services.utils import get_traceback_str
 from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
-                    MetaflowS3URLException, NoRetryS3, batchiter, decode,
-                    error_event_msg, progress_event_msg)
+                    MetaflowS3NotFound, MetaflowS3Exception,
+                    MetaflowS3URLException, NoRetryS3,
+                    batchiter, decode, error_event_msg, progress_event_msg)
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512

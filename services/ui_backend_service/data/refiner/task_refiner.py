@@ -1,4 +1,4 @@
-from .refinery import Refinery, unpack_processed_value, format_error_body, GetArtifactsFailed
+from .refinery import Refinery, unpack_processed_value, format_error_body
 from services.data.db_utils import DBResponse
 
 
@@ -18,48 +18,43 @@ class TaskRefiner(Refinery):
         super().__init__(field_names=["task_ok", "foreach_stack"], cache=cache)
 
     async def refine_record(self, record):
-        locations = [record[field] for field in self.field_names if field in record]
-        fetch_error = None
-        try:
-            data = await self.fetch_data(locations)
-        except GetArtifactsFailed as ex:
-            data = {}
-            fetch_error = format_error_body(getattr(ex, "id", None), str(ex))
-
-        _rec = record
-        for k, v in _rec.items():
-            if k in self.field_names:
-                _rec[k] = data[v] if v in data else None
-        if fetch_error:
-            _rec["postprocess_error"] = fetch_error
-        return _rec
+        _recs = self.refine_records([record])
+        return _recs[0] if len(_recs) > 0 else record
 
     async def refine_records(self, records):
         locations = [record[field] for field in self.field_names for record in records if field in record]
-        fetch_error = None
-        try:
-            data = await self.fetch_data(locations)
-        except GetArtifactsFailed as ex:
-            data = {}
-            fetch_error = format_error_body(getattr(ex, "id", None), str(ex))
+        errors = {}
+
+        def _event_stream(event):
+            if event.get("type") == "error" and event.get("key"):
+                loc = artifact_location_from_key(event["key"])
+                errors[loc] = event
+
+        responses = await self.fetch_data(locations, event_stream=_event_stream)
 
         _recs = []
         for rec in records:
+            _rec = rec.copy()
             for k, v in rec.items():
                 if k in self.field_names:
-                    rec[k] = data[v] if v in data else None
-            if fetch_error:
-                rec["postprocess_error"] = fetch_error
-            _recs.append(rec)
+                    if v in errors:
+                        _rec["postprocess_error"] = format_error_body(
+                            errors[v].get("id"),
+                            errors[v].get("message"),
+                            errors[v].get("traceback")
+                        )
+                    else:
+                        _rec[k] = responses[v] if v in responses else None
+            _recs.append(_rec)
         return _recs
 
-    async def fetch_data(self, locations):
+    async def fetch_data(self, locations, event_stream=None):
         _res = await self.artifact_store.cache.GetArtifactsWithStatus(locations)
         if not _res.is_ready():
             async for event in _res.stream():
                 if event["type"] == "error":
-                    # raise error, there was an exception during processing.
-                    raise GetArtifactsFailed(event["message"], event["id"], event["traceback"])
+                    if event_stream:
+                        event_stream(event)
             await _res.wait()  # wait for results to be ready
         return _res.get() or {}  # cache get() might return None if no keys are produced.
 
@@ -120,3 +115,8 @@ class TaskRefiner(Refinery):
             body = _process(refined_response.body)
 
         return DBResponse(response_code=refined_response.response_code, body=body)
+
+
+def artifact_location_from_key(x):
+    "extract location from the artifact cache key"
+    return x[len("search:artifactdata:"):]

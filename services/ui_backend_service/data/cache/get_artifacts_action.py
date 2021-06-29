@@ -83,21 +83,41 @@ class GetArtifacts(CacheAction):
                 existing_keys={},
                 stream_output=None,
                 **kwargs):
+        """
+        Execute fetching of artifacts from predefined S3 locations.
+        Produces cache results that are either successful or failed.
 
+        Success cached example:
+            results[artifact_key] = json.dumps([True, str(content)])
+        Failure cached example:
+            results[artifact_key] = json.dumps([False, 'artifact-too-large', artifact_data.size])
+
+        Alternatively errors can be streamed to cache client using `stream_error`.
+        This way failures won't be cached for individual artifacts, thus making
+        it necessary to retry fetching during next attempt. (Will add significant overhead/delay).
+
+        Streaming errors should be avoided to minimize latency for subsequent requests.
+
+        Stream error example:
+            stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
+        """
         # make a copy of already existing results, as the cache action has to produce all keys it promised
         # in the format_request response.
         results = {**existing_keys}
         locations = message['artifact_locations']
 
-        # Helper function for streaming status updates.
-        def stream_error(err, id, traceback=None):
-            return stream_output(error_event_msg(err, id, traceback))
+        # Helper function for streaming status errors.
+        #
+        # Example usage with catched exception:
+        #    stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
+        def stream_error(err, id, traceback=None, key=None):
+            return stream_output(error_event_msg(err, id, traceback, key))
 
         # Make a list of artifact locations that require fetching (not cached previously)
         locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
 
         # Fetch the S3 locations data
-        s3_locations = [loc for loc in locations_to_fetch if loc.startswith("s3://")]
+        s3_locations = [loc for loc in locations_to_fetch if loc.startswith('s3://')]
         with NoRetryS3() as s3:
             for locations in batchiter(s3_locations, S3_BATCH_SIZE):
                 for location in locations:
@@ -129,12 +149,10 @@ class GetArtifacts(CacheAction):
                     except MetaflowS3Exception as ex:
                         results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
                     except Exception as ex:
-                        # Exceptions might be fixable with configuration changes or other measures,
-                        # therefore we do not want to write anything to the cache for these artifacts.
                         results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
 
         # Skip the inaccessible locations
-        other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
+        other_locations = [loc for loc in locations_to_fetch if not loc.startswith('s3://')]
         for loc in other_locations:
             artifact_key = artifact_cache_id(loc)
             results[artifact_key] = json.dumps([False, 'artifact-not-accessible', loc])

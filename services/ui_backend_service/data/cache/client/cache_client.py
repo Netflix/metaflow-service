@@ -55,10 +55,12 @@ class CacheFuture(object):
             with open(path, 'rb') as f:
                 return f.read()
 
+        _safe_key_paths = {key: path for key, path in self.key_paths.items() if is_safely_readable(path)}
         if self.key_objs is None and self.is_ready():
             self.key_objs = {key: _read(path)
-                             for key, path in self.key_paths.items()
+                             for key, path in _safe_key_paths.items()
                              if key != self.stream_key}
+
         if self.key_objs:
             return self.action.response(self.key_objs)
 
