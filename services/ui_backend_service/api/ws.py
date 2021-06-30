@@ -5,7 +5,7 @@ import asyncio
 import collections
 
 from aiohttp import web, WSMsgType
-from typing import List, Dict, Any, Callable, NamedTuple
+from typing import List, Dict, Any, Callable
 
 from .utils import resource_conditions, TTLQueue
 from services.utils import logging
