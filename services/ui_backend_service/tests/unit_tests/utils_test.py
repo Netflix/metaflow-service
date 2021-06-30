@@ -377,3 +377,14 @@ def test_filter_from_conditions_query():
 
     _list = list(filter(_filter, _test_data))
     assert _list == []
+
+    # test no-op filter with no params
+    request = make_mocked_request(
+        'GET', '/',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=None)
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_1, _run_2, _run_3]
