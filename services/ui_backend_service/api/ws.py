@@ -21,7 +21,7 @@ SUBSCRIBE = 'SUBSCRIBE'
 UNSUBSCRIBE = 'UNSUBSCRIBE'
 
 WSSubscription = collections.namedtuple(
-    "WSSubscription", "ws disconnected_ts fullpath resource query uuid conditions values")
+    "WSSubscription", "ws disconnected_ts fullpath resource query uuid filter")
 
 
 class Websocket(object):
@@ -109,9 +109,8 @@ class Websocket(object):
             if subscription.resource == resource:
                 # Check if possible filters match this event
                 # only if the subscription actually provided conditions.
-                if subscription.conditions:
-                    filters_match_request = await self.db.apply_filters_to_data(
-                        data=data, conditions=subscription.conditions, values=subscription.values)
+                if subscription.filter:
+                    filters_match_request = subscription.filter(data)
                 else:
                     filters_match_request = True
                 if filters_match_request:
@@ -124,10 +123,10 @@ class Websocket(object):
         await self.unsubscribe_from(ws, uuid)
 
         # Create new subscription
-        _resource, query, conditions, values = resource_conditions(resource)
+        _resource, query, filter_fn = resource_conditions(resource)
         subscription = WSSubscription(
             ws=ws, fullpath=resource, resource=_resource, query=query, uuid=uuid,
-            conditions=conditions, values=values, disconnected_ts=None)
+            filter=filter_fn, disconnected_ts=None)
         self.subscriptions.append(subscription)
 
         # Send previous events that client might have missed due to disconnection

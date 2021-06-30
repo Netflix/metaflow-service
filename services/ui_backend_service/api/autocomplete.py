@@ -1,9 +1,8 @@
 from services.utils import handle_exceptions, logging
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
-from .utils import format_response, format_response_list, web_response, custom_conditions_query, pagination_query
+from .utils import format_response_list, web_response, custom_conditions_query, pagination_query, operators_to_filters
 import sys
 import asyncio
-import re
 
 TAGS_FILL_INTERVAL_SECONDS = 60 * 5
 
@@ -62,11 +61,6 @@ class AutoCompleteApi(object):
         # pagination setup
         page, limit, offset, _, _, _ = pagination_query(request)
 
-        array_filter_ops = {
-            'co': (lambda item, term: term in item),
-            're': (lambda item, pattern: re.compile(pattern).match(item))
-        }
-
         filter_func = None
         for key, val in request.query.items():
             deconstruct = key.split(":", 1)
@@ -77,8 +71,8 @@ class AutoCompleteApi(object):
                 field = key
                 operator = None
 
-            if field == 'tag' and operator in array_filter_ops:
-                filter_func = array_filter_ops[operator]
+            if field == 'tag' and operator in operators_to_filters:
+                filter_func = operators_to_filters[operator]
 
         if filter_func:
             tags = [tag for tag in self.tags if filter_func(tag, val)][offset:(offset + limit)]

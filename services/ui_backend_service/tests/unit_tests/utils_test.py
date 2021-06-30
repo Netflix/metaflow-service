@@ -9,7 +9,8 @@ from services.ui_backend_service.api.utils import (
     pagination_query,
     builtin_conditions_query,
     custom_conditions_query,
-    resource_conditions
+    resource_conditions,
+    filter_from_conditions_query
 )
 
 pytestmark = [pytest.mark.unit_tests]
@@ -271,7 +272,7 @@ def test_custom_conditions_query_allow_any_key():
 
 
 def test_resource_conditions():
-    path, query, conditions, values = resource_conditions(
+    path, query, _ = resource_conditions(
         "/runs?flow_id=HelloFlow&status=running")
 
     assert path == "/runs"
@@ -279,10 +280,111 @@ def test_resource_conditions():
     assert query.get("flow_id") == "HelloFlow"
     assert query.get("status") == "running"
 
-    assert len(conditions) == 2
-    assert conditions[0] == "(\"flow_id\" = %s)"
-    assert conditions[1] == "(\"status\" = %s)"
+    # TODO: test out the returned filter_fn as well?
 
-    assert len(values) == 2
-    assert values[0] == "HelloFlow"
-    assert values[1] == "running"
+
+def test_filter_from_conditions_query():
+    # setup a test list for filtering
+    _run_1 = {"run": "test_1", "ts_epoch": 6, "tags": ["a", "b"], "system_tags": ["1", "2"]}
+    _run_2 = {"run": "test_2", "ts_epoch": 1, "tags": ["b", "c", "-a-"], "system_tags": ["2", "3"]}
+    _run_3 = {"run": "test", "ts_epoch": 6, "tags": ["a", "c", "-b-"], "system_tags": ["1", "3"]}
+    _test_data = [_run_1, _run_2, _run_3]
+
+    # mock request for AND
+    request = make_mocked_request(
+        'GET', '/?run=test&ts_epoch:gt=1',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=['run', 'ts_epoch'])
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_3]
+
+    # mock request for combined AND, OR
+    request = make_mocked_request(
+        'GET', '/?run=test,test_1&ts_epoch:gt=1',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=['run', 'ts_epoch'])
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_1, _run_3]
+
+    # mock request for _tags:any filter
+    request = make_mocked_request(
+        'GET', '/?_tags:any=a,2',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=['_tags'])
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_1, _run_2, _run_3]
+
+    # mock request for _tags:all filter
+    request = make_mocked_request(
+        'GET', '/?_tags:all=a,2',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=['_tags'])
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_1]
+
+    # mock request for _tags:likeany filter
+    request = make_mocked_request(
+        'GET', '/?_tags:likeany=a',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=['_tags'])
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_1, _run_2, _run_3]
+
+    # mock request for _tags:likeall filter
+    request = make_mocked_request(
+        'GET', '/?_tags:likeall=b,3',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=['_tags'])
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_2, _run_3]
+
+    # test non-existent fields in query (should still work, not match any records)
+    request = make_mocked_request(
+        'GET', '/?nonexistent:eq=b,3',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=None)
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == []
+
+    # test comparison operators with non-numeric values
+    request = make_mocked_request(
+        'GET', '/?ts_epoch:gt=*#*#',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=None)
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == []
+
+    # test no-op filter with no params
+    request = make_mocked_request(
+        'GET', '/',
+        headers={'Host': 'test'}
+    )
+
+    _filter = filter_from_conditions_query(request, allowed_keys=None)
+
+    _list = list(filter(_filter, _test_data))
+    assert _list == [_run_1, _run_2, _run_3]

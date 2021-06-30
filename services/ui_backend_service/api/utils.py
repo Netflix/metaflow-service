@@ -1,14 +1,16 @@
 import json
 import os
+import re
 import time
 from collections import deque
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 from urllib.parse import parse_qsl, urlsplit
 
 from aiohttp import web
 from multidict import MultiDict
 from services.data.db_utils import DBPagination, DBResponse
 from services.utils import format_baseurl, format_qs, web_response
+from functools import reduce
 
 
 def get_json_from_env(variable_name: str):
@@ -18,7 +20,7 @@ def get_json_from_env(variable_name: str):
         return None
 
 
-def format_response(request: web.BaseRequest, db_response: DBResponse) -> (int, Dict):
+def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[int, Dict]:
     query = {}
     for key in request.query:
         query[key] = request.query.get(key)
@@ -213,6 +215,136 @@ operators_to_sql_values = {
 }
 
 
+def bound_filter(op, term, key):
+    "returns function that binds the key, and the term that should be compared to, on an item"
+    _filter = operators_to_filters[op]
+
+    def _fn(item):
+        try:
+            return _filter(item[key], term) if key in item else False
+        except Exception:
+            return False
+    return _fn
+
+
+# NOTE: keep these as simple comparisons,
+# any kind of value decoding should be done outside the lambdas instead
+# to promote reusability.
+operators_to_filters = {
+    "eq": (lambda item, term: str(item) == term),
+    "ne": (lambda item, term: str(item) != term),
+    "lt": (lambda item, term: int(item) < int(term)),
+    "le": (lambda item, term: int(item) <= int(term)),
+    "gt": (lambda item, term: int(item) > int(term)),
+    "ge": (lambda item, term: int(item) >= int(term)),
+    "co": (lambda item, term: str(term) in str(item)),
+    "sw": (lambda item, term: str(item).startswith(str(term))),
+    "ew": (lambda item, term: str(item).endswith(str(term))),
+    "li": (lambda item, term: True),  # Not implemented yet
+    "is": (lambda item, term: str(item) is str(term)),
+    're': (lambda item, pattern: re.compile(pattern).match(str(item))),
+}
+
+
+def filter_and(filter_a, filter_b):
+    return lambda item: filter_a(item) and filter_b(item)
+
+
+def filter_or(filter_a, filter_b):
+    return lambda item: filter_a(item) or filter_b(item)
+
+
+def filter_from_conditions_query(request: web.BaseRequest, allowed_keys: List[str] = []):
+    return filter_from_conditions_query_dict(request.query, allowed_keys)
+
+
+def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = []):
+    """
+    Gathers all custom conditions from request query and returns a filter function
+    """
+    filters = []
+
+    def _no_op(item):
+        return True
+
+    for key, val in query.items():
+        if key.startswith("_") and not key.startswith('_tags'):
+            continue  # skip internal conditions except _tags
+
+        deconstruct = key.split(":", 1)
+        if len(deconstruct) > 1:
+            field = deconstruct[0]
+            operator = deconstruct[1]
+        else:
+            field = key
+            operator = "eq"
+
+        if allowed_keys is not None and field not in allowed_keys:
+            continue  # skip conditions on non-allowed fields
+
+        if operator not in operators_to_filters and field != '_tags':
+            continue  # skip conditions with no known operators
+
+        # Tags
+        if field == "_tags":
+            tags = val.split(",")
+            _fils = []
+            # support likeany, likeall, any, all. default to all
+            if operator == "likeany":
+                joiner_fn = filter_or
+                op = "re"
+            elif operator == "likeall":
+                joiner_fn = filter_and
+                op = "re"
+            elif operator == "any":
+                joiner_fn = filter_or
+                op = "co"
+            else:
+                joiner_fn = filter_and
+                op = "co"
+
+            def bound(op, term):
+                _filter = operators_to_filters[op]
+                return lambda item: _filter(item['tags'] + item['system_tags'], term) if 'tags' in item and 'system_tags' in item else False
+
+            for tag in tags:
+                # Necessary to wrap value inside quotes as we are
+                # checking for containment on a list that has been cast to a string
+                _pattern = ".*{}.*".format(tag) if op == "re" else "'{}'"
+                _val = _pattern.format(tag)
+                _fils.append(bound(op, _val))
+
+            if len(_fils) == 0:
+                _fil = _no_op
+            elif len(_fils) == 1:
+                _fil = _fils[0]
+            else:
+                _fil = reduce(joiner_fn, _fils)
+            filters.append(_fil)
+
+        # Default case
+        else:
+            vals = val.split(",")
+
+            _val_filters = []
+            for val in vals:
+                _val_filters.append(bound_filter(operator, val, field))
+
+            # OR with a no_op filter would break, so handle the case of no values separately.
+            if len(_val_filters) == 0:
+                _fil = _no_op
+            elif len(_val_filters) == 1:
+                _fil = _val_filters[0]
+            else:
+                # if multiple values, join filters with filter_or()
+                _fil = reduce(filter_or, _val_filters)
+            filters.append(_fil)
+
+    _final_filter = reduce(filter_and, filters, _no_op)
+
+    return _final_filter  # return filters reduced with filter_and()
+
+
 # Custom conditions parser (table columns, never prefixed with _)
 def custom_conditions_query(request: web.BaseRequest, allowed_keys: List[str] = []):
     return custom_conditions_query_dict(request.query, allowed_keys)
@@ -262,18 +394,13 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
 #   -> Query: MultiDict('flow_id': 'HelloFlow', 'status': 'completed')
 #   -> Conditions: ["(flow_id = %s)", "(status = %s)"]
 #   -> Values: ["HelloFlow", "Completed"]
-def resource_conditions(fullpath: str = None) -> (str, MultiDict, List[str], List):
+def resource_conditions(fullpath: str = None) -> Tuple[str, MultiDict, List[str], List]:
     parsedurl = urlsplit(fullpath)
     query = MultiDict(parse_qsl(parsedurl.query))
 
-    builtin_conditions, builtin_vals = builtin_conditions_query_dict(query)
-    custom_conditions, custom_vals = custom_conditions_query_dict(
-        query, allowed_keys=None)
+    filter_fn = filter_from_conditions_query_dict(query, allowed_keys=None)
 
-    conditions = builtin_conditions + custom_conditions
-    values = builtin_vals + custom_vals
-
-    return parsedurl.path, query, conditions, values
+    return parsedurl.path, query, filter_fn
 
 
 async def find_records(request: web.BaseRequest, async_table=None, initial_conditions: List[str] = [], initial_values=[],
