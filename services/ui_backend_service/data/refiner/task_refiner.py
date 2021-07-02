@@ -17,37 +17,6 @@ class TaskRefiner(Refinery):
     def __init__(self, cache):
         super().__init__(field_names=["task_ok", "foreach_stack"], cache=cache)
 
-    async def refine_record(self, record, invalidate_cache=False):
-        _recs = self.refine_records([record], invalidate_cache=invalidate_cache)
-        return _recs[0] if len(_recs) > 0 else record
-
-    async def refine_records(self, records, invalidate_cache=False):
-        locations = [record[field] for field in self.field_names for record in records if field in record]
-        errors = {}
-
-        def _event_stream(event):
-            if event.get("type") == "error" and event.get("key"):
-                loc = artifact_location_from_key(event["key"])
-                errors[loc] = event
-
-        responses = await self.fetch_data(locations, event_stream=_event_stream, invalidate_cache=invalidate_cache)
-
-        _recs = []
-        for rec in records:
-            _rec = rec.copy()
-            for k, v in rec.items():
-                if k in self.field_names:
-                    if v in errors:
-                        _rec["postprocess_error"] = format_error_body(
-                            errors[v].get("id"),
-                            errors[v].get("message"),
-                            errors[v].get("traceback")
-                        )
-                    else:
-                        _rec[k] = responses[v] if v in responses else None
-            _recs.append(_rec)
-        return _recs
-
     async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
         _res = await self.artifact_store.cache.GetArtifactsWithStatus(
             locations, invalidate_cache=invalidate_cache)
@@ -116,8 +85,3 @@ class TaskRefiner(Refinery):
             body = _process(refined_response.body)
 
         return DBResponse(response_code=refined_response.response_code, body=body)
-
-
-def artifact_location_from_key(x):
-    "extract location from the artifact cache key"
-    return x[len("search:artifactdata:"):]

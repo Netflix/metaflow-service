@@ -19,7 +19,6 @@ class ParameterRefiner(Refinery):
         super().__init__(field_names=['location'], cache=cache)
 
     async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
-
         try:
             _res = await self.artifact_store.cache.GetArtifacts(locations, invalidate_cache=invalidate_cache)
             if _res.has_pending_request():

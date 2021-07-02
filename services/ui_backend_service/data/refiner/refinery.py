@@ -27,27 +27,43 @@ class Refinery(object):
 
     async def refine_records(self, records, invalidate_cache=False):
         locations = [record[field] for field in self.field_names for record in records if field in record]
-        data = await self.fetch_data(locations, invalidate_cache=invalidate_cache)
+        errors = {}
+
+        def _event_stream(event):
+            if event.get("type") == "error" and event.get("key"):
+                loc = artifact_location_from_key(event["key"])
+                errors[loc] = event
+
+        responses = await self.fetch_data(
+            locations, event_stream=_event_stream, invalidate_cache=invalidate_cache)
 
         _recs = []
         for rec in records:
+            _rec = rec.copy()
             for k, v in rec.items():
                 if k in self.field_names:
-                    rec[k] = data[v] if v in data else None
-            _recs.append(rec)
+                    if v in errors:
+                        _rec["postprocess_error"] = format_error_body(
+                            errors[v].get("id"),
+                            errors[v].get("message"),
+                            errors[v].get("traceback")
+                        )
+                    else:
+                        _rec[k] = responses[v] if v in responses else None
+            _recs.append(_rec)
         return _recs
 
     async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
-        try:
-            # only fetch S3 locations, otherwise the long timeout of CacheFuture will cause problems.
-            _locs = [loc for loc in locations if isinstance(loc, str) and loc.startswith("s3://")]
-            _res = await self.artifact_store.cache.GetArtifacts(_locs, invalidate_cache=invalidate_cache)
-            if _res.has_pending_request():
-                await _res.wait()  # wait for results to be ready
-            return _res.get() or {}  # cache get() might return None if no keys are produced.
-        except Exception:
-            self.logger.exception("Exception when fetching artifact data from cache")
-            return {}
+        _locs = [loc for loc in locations if isinstance(loc, str) and loc.startswith("s3://")]
+        _res = await self.artifact_store.cache.GetArtifacts(
+            _locs, invalidate_cache=invalidate_cache)
+        if _res.has_pending_request():
+            async for event in _res.stream():
+                if event["type"] == "error":
+                    if event_stream:
+                        event_stream(event)
+            await _res.wait()  # wait for results to be ready
+        return _res.get() or {}  # cache get() might return None if no keys are produced.
 
     async def _postprocess(self, response: DBResponse, invalidate_cache=False):
         """
@@ -111,6 +127,11 @@ def format_error_body(id=None, detail=None, traceback=None):
         "detail": detail,
         "traceback": traceback
     }
+
+
+def artifact_location_from_key(x):
+    "extract location from the artifact cache key"
+    return x[len("search:artifactdata:"):]
 
 
 class GetArtifactsFailed(Exception):
