@@ -17,11 +17,11 @@ class ArtifactRefiner(Refinery):
     def __init__(self, cache):
         super().__init__(field_names=["content"], cache=cache)
 
-    async def refine_record(self, record):
-        _recs = self.refine_records([record])
+    async def refine_record(self, record, invalidate_cache=False):
+        _recs = self.refine_records([record], invalidate_cache=invalidate_cache)
         return _recs[0] if len(_recs) > 0 else record
 
-    async def refine_records(self, records):
+    async def refine_records(self, records, invalidate_cache=False):
         locations = [record[field] for field in self.field_names for record in records if field in record]
         errors = {}
 
@@ -30,7 +30,8 @@ class ArtifactRefiner(Refinery):
                 loc = artifact_location_from_key(event["key"])
                 errors[loc] = event
 
-        responses = await self.fetch_data(locations, event_stream=_event_stream)
+        responses = await self.fetch_data(
+            locations, event_stream=_event_stream, invalidate_cache=invalidate_cache)
 
         _recs = []
         for rec in records:
@@ -48,9 +49,10 @@ class ArtifactRefiner(Refinery):
             _recs.append(_rec)
         return _recs
 
-    async def fetch_data(self, locations, event_stream=None):
-        _res = await self.artifact_store.cache.GetArtifactsWithStatus(locations)
-        if not _res.is_ready():
+    async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
+        _res = await self.artifact_store.cache.GetArtifactsWithStatus(
+            locations, invalidate_cache=invalidate_cache)
+        if _res.has_pending_request():
             async for event in _res.stream():
                 if event["type"] == "error":
                     if event_stream:
@@ -58,7 +60,7 @@ class ArtifactRefiner(Refinery):
             await _res.wait()  # wait for results to be ready
         return _res.get() or {}  # cache get() might return None if no keys are produced.
 
-    async def postprocess(self, response: DBResponse):
+    async def postprocess(self, response: DBResponse, invalidate_cache=False):
         """
         Calls the refiner postprocessing to fetch S3 values for content.
         In case of a successful artifact fetch, places the contents from the 'location'
@@ -86,7 +88,9 @@ class ArtifactRefiner(Refinery):
         else:
             body = _preprocess(response.body)
 
-        refined_response = await self._postprocess(DBResponse(response_code=response.response_code, body=body))
+        refined_response = await self._postprocess(
+            DBResponse(response_code=response.response_code, body=body),
+            invalidate_cache=invalidate_cache)
 
         def _process(item):
             if item['content'] is not None:

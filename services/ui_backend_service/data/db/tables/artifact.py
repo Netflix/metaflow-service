@@ -36,7 +36,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         # be sure to return a list of unique locations
         return list(frozenset(artifact['location'] for artifact in _records.body if 'location' in artifact))
 
-    async def get_run_parameter_artifacts(self, flow_name, run_number, postprocess=None):
+    async def get_run_parameter_artifacts(self, flow_name, run_number, postprocess=None, invalidate_cache=False):
         run_id_key, run_id_value = translate_run_key(run_number)
 
         # '_parameters' step has all the parameters as artifacts. only pick the
@@ -60,7 +60,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             ],
             fetch_single=False,
             expanded=True,
-            postprocess=postprocess
+            postprocess=postprocess,
+            invalidate_cache=invalidate_cache
         )
 
     async def get_artifact_names(self, conditions: List[str] = [],

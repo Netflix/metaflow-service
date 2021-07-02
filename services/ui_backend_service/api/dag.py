@@ -1,6 +1,6 @@
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
-from .utils import format_response, web_response
+from .utils import format_response, web_response, query_param_enabled
 
 import json
 
@@ -24,6 +24,7 @@ class DagApi(object):
         parameters:
           - $ref: '#/definitions/Params/Path/flow_id'
           - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -75,9 +76,12 @@ class DagApi(object):
             codepackage_loc = json.loads(db_response.body['value'])['location']
         flow_name = db_response.body['flow_id']
 
+        invalidate_cache = query_param_enabled(request, "invalidate")
+
         # Fetch or Generate the DAG from the codepackage.
-        dag = await self._dag_store.cache.GenerateDag(flow_name, codepackage_loc)
-        if not dag.is_ready():
+        dag = await self._dag_store.cache.GenerateDag(
+            flow_name, codepackage_loc, invalidate_cache=invalidate_cache)
+        if dag.has_pending_request():
             async for event in dag.stream():
                 if event["type"] == "error":
                     # raise error, there was an exception during processing.

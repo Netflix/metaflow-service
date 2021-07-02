@@ -47,7 +47,7 @@ class CacheFuture(object):
         return bool(self.stream_key)
 
     def wait(self, timeout=FOREVER):
-        return self.client.wait(lambda: True if self.is_ready() else None,
+        return self.client.wait(lambda: None if self.has_pending_request() else True,
                                 timeout)
 
     def get(self):
@@ -183,7 +183,8 @@ class CacheClient(object):
             msg, keys, stream_key, disposable_keys =\
                 cls.format_request(*args, **kwargs)
             future = CacheFuture(keys, stream_key, self, cls, self._root)
-            if future.key_paths_ready():
+            invalidate_cache = msg.get('invalidate_cache', False)
+            if future.key_paths_ready() and not invalidate_cache:
                 # cache hit
                 req = None
             else:

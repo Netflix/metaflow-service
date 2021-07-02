@@ -3,6 +3,7 @@ from services.utils import handle_exceptions
 from services.ui_backend_service.data.cache.utils import (
     search_result_event_msg, error_event_msg, StreamedCacheError
 )
+from .utils import query_param_enabled
 
 from aiohttp import web
 import json
@@ -25,6 +26,8 @@ class ArtifactSearchApi(object):
         artifact_name = request.query['key']
         value = request.query.get('value', None)
 
+        invalidate_cache = query_param_enabled(request, "invalidate")
+
         meta_artifacts = await self.get_run_artifacts(flow_name, run_key, artifact_name)
 
         ws = web.WebSocketResponse()
@@ -38,17 +41,16 @@ class ArtifactSearchApi(object):
             else:
                 # Search through the artifact contents from S3 using the CacheClient
                 locations = [art['location'] for art in meta_artifacts]
-                res = await self._artifact_store.cache.SearchArtifacts(locations, value)
+                res = await self._artifact_store.cache.SearchArtifacts(
+                    locations, value, invalidate_cache=invalidate_cache)
 
-                if res.is_ready():
-                    artifact_data = res.get()
-                else:
+                if res.has_pending_request():
                     async for event in res.stream():
                         await ws.send_str(json.dumps(event))
                         if event["event"]["type"] == "error":
                             raise StreamedCacheError
                     await res.wait()
-                    artifact_data = res.get()
+                artifact_data = res.get()
 
                 results = await _search_dict_filter(meta_artifacts, artifact_data)
 

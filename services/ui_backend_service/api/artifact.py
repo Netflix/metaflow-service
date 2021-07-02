@@ -53,6 +53,7 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -117,6 +118,7 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -176,6 +178,7 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:

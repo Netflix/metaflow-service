@@ -147,7 +147,7 @@ class ArtifactCacheStore(object):
             else:
                 logger.info(event)
 
-    async def get_run_parameters(self, flow_id: str, run_number: int) -> Optional[Dict]:
+    async def get_run_parameters(self, flow_id: str, run_number: int, invalidate_cache=False) -> Optional[Dict]:
         """
         Fetches run parameter artifact locations, fetches the artifact content from S3, parses it, and returns
         a formatted dict of names&values
@@ -171,7 +171,8 @@ class ArtifactCacheStore(object):
         """
         db_response, *_ = await self._artifact_table.get_run_parameter_artifacts(
             flow_id, run_number,
-            self.parameter_refiner.postprocess)
+            postprocess=self.parameter_refiner.postprocess,
+            invalidate_cache=invalidate_cache)
 
         # Return nothing if params artifacts were not found.
         if not db_response.response_code == 200:

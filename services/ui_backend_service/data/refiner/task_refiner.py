@@ -17,11 +17,11 @@ class TaskRefiner(Refinery):
     def __init__(self, cache):
         super().__init__(field_names=["task_ok", "foreach_stack"], cache=cache)
 
-    async def refine_record(self, record):
-        _recs = self.refine_records([record])
+    async def refine_record(self, record, invalidate_cache=False):
+        _recs = self.refine_records([record], invalidate_cache=invalidate_cache)
         return _recs[0] if len(_recs) > 0 else record
 
-    async def refine_records(self, records):
+    async def refine_records(self, records, invalidate_cache=False):
         locations = [record[field] for field in self.field_names for record in records if field in record]
         errors = {}
 
@@ -30,7 +30,7 @@ class TaskRefiner(Refinery):
                 loc = artifact_location_from_key(event["key"])
                 errors[loc] = event
 
-        responses = await self.fetch_data(locations, event_stream=_event_stream)
+        responses = await self.fetch_data(locations, event_stream=_event_stream, invalidate_cache=invalidate_cache)
 
         _recs = []
         for rec in records:
@@ -48,9 +48,10 @@ class TaskRefiner(Refinery):
             _recs.append(_rec)
         return _recs
 
-    async def fetch_data(self, locations, event_stream=None):
-        _res = await self.artifact_store.cache.GetArtifactsWithStatus(locations)
-        if not _res.is_ready():
+    async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
+        _res = await self.artifact_store.cache.GetArtifactsWithStatus(
+            locations, invalidate_cache=invalidate_cache)
+        if _res.has_pending_request():
             async for event in _res.stream():
                 if event["type"] == "error":
                     if event_stream:
@@ -58,7 +59,7 @@ class TaskRefiner(Refinery):
             await _res.wait()  # wait for results to be ready
         return _res.get() or {}  # cache get() might return None if no keys are produced.
 
-    async def postprocess(self, response: DBResponse):
+    async def postprocess(self, response: DBResponse, invalidate_cache=False):
         """
         Calls the refiner postprocessing to fetch S3 values for content.
         Combines 'task_ok' boolean into the 'status' key. Processes the 'foreach_stack' for the relevant content.
@@ -74,7 +75,7 @@ class TaskRefiner(Refinery):
         """
         if response.response_code != 200 or not response.body:
             return response
-        refined_response = await self._postprocess(response)
+        refined_response = await self._postprocess(response, invalidate_cache=invalidate_cache)
 
         def _process(item):
             if item['status'] == 'unknown' and item['task_ok'] is not None:

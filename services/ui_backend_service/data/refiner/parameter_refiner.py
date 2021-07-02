@@ -18,10 +18,11 @@ class ParameterRefiner(Refinery):
     def __init__(self, cache):
         super().__init__(field_names=['location'], cache=cache)
 
-    async def fetch_data(self, locations):
+    async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
+
         try:
-            _res = await self.artifact_store.cache.GetArtifacts(locations)
-            if not _res.is_ready():
+            _res = await self.artifact_store.cache.GetArtifacts(locations, invalidate_cache=invalidate_cache)
+            if _res.has_pending_request():
                 async for event in _res.stream():
                     if event["type"] == "error":
                         # raise error, there was an exception during processing.
@@ -32,9 +33,9 @@ class ParameterRefiner(Refinery):
             self.logger.exception("Exception when fetching artifact data from cache")
             return {}
 
-    async def postprocess(self, response: DBResponse):
+    async def postprocess(self, response: DBResponse, invalidate_cache=False):
         """Calls the refiner postprocessing to fetch S3 values for content."""
-        refined_response = await self._postprocess(response)
+        refined_response = await self._postprocess(response, invalidate_cache=invalidate_cache)
         if response.response_code != 200 or not response.body:
             return DBResponse(response_code=response.response_code, body={})
 

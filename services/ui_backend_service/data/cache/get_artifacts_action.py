@@ -33,10 +33,11 @@ class GetArtifacts(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, locations):
+    def format_request(cls, locations, invalidate_cache=False):
         unique_locs = list(frozenset(sorted(loc for loc in locations if isinstance(loc, str))))
         msg = {
             'artifact_locations': unique_locs,
+            'invalidate_cache': invalidate_cache
         }
 
         artifact_keys = []
@@ -101,10 +102,18 @@ class GetArtifacts(CacheAction):
         Stream error example:
             stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
         """
-        # make a copy of already existing results, as the cache action has to produce all keys it promised
-        # in the format_request response.
-        results = {**existing_keys}
+        invalidate_cache = message['invalidate_cache']
         locations = message['artifact_locations']
+
+        if invalidate_cache:
+            results = {}
+            locations_to_fetch = [loc for loc in locations]
+        else:
+            # make a copy of already existing results, as the cache action has to produce all keys it promised
+            # in the format_request response.
+            results = {**existing_keys}
+            # Make a list of artifact locations that require fetching (not cached previously)
+            locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
 
         # Helper function for streaming status errors.
         #
@@ -112,9 +121,6 @@ class GetArtifacts(CacheAction):
         #    stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
         def stream_error(err, id, traceback=None, key=None):
             return stream_output(error_event_msg(err, id, traceback, key))
-
-        # Make a list of artifact locations that require fetching (not cached previously)
-        locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
 
         # Fetch the S3 locations data
         s3_locations = [loc for loc in locations_to_fetch if loc.startswith('s3://')]

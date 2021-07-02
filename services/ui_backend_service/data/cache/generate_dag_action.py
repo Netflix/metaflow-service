@@ -47,10 +47,11 @@ class GenerateDag(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, flow_id, codepackage_location):
+    def format_request(cls, flow_id, codepackage_location, invalidate_cache=False):
         msg = {
             'location': codepackage_location,
-            'flow_id': flow_id
+            'flow_id': flow_id,
+            'invalidate_cache': invalidate_cache
         }
         result_key = 'dag:result:%s' % hashlib.sha1((flow_id + codepackage_location).encode('utf-8')).hexdigest()
         stream_key = 'dag:stream:%s' % hashlib.sha1((flow_id + codepackage_location).encode('utf-8')).hexdigest()

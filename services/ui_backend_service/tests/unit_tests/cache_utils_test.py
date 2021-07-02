@@ -8,16 +8,19 @@ pytestmark = [pytest.mark.unit_tests]
 
 
 def test_error_event_msg():
-  assert error_event_msg("test message", "test-id") == \
-      {"type": "error", "message": "test message", "id": "test-id", "traceback": None}
+    assert error_event_msg("test message", "test-id") == \
+        {"type": "error", "message": "test message", "id": "test-id", "traceback": None, "key": None}
 
-  assert error_event_msg("test message", "test-id", "test-traceback") == \
-      {"type": "error", "message": "test message", "id": "test-id", "traceback": "test-traceback"}
+    assert error_event_msg("test message", "test-id", "test-traceback") == \
+        {"type": "error", "message": "test message", "id": "test-id", "traceback": "test-traceback", "key": None}
+
+    assert error_event_msg("test message", "test-id", "test-traceback", "search:artifact:s3://etc") == \
+        {"type": "error", "message": "test message", "id": "test-id", "traceback": "test-traceback", "key": "search:artifact:s3://etc"}
 
 
 def test_progress_event_msg():
-  assert progress_event_msg(0.5) == {"type": "progress", "fraction": 0.5}
+    assert progress_event_msg(0.5) == {"type": "progress", "fraction": 0.5}
 
 
 def test_search_result_event_msg():
-  assert search_result_event_msg([1, 2, 3]) == {"type": "result", "matches": [1, 2, 3]}
+    assert search_result_event_msg([1, 2, 3]) == {"type": "result", "matches": [1, 2, 3]}

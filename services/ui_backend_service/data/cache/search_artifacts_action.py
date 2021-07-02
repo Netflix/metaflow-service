@@ -40,11 +40,12 @@ class SearchArtifacts(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, locations, searchterm):
+    def format_request(cls, locations, searchterm, invalidate_cache=False):
         unique_locs = list(frozenset(sorted(locations)))
         msg = {
             'artifact_locations': unique_locs,
-            'searchterm': searchterm
+            'searchterm': searchterm,
+            'invalidate_cache': invalidate_cache
         }
 
         artifact_keys = []
