@@ -225,8 +225,8 @@ async def test_task_status_failed_attempt_ok_s3(cli, db):
                                                 "value": "0",
                                                 "type": "attempt"})).body
 
-    async def _refine_record(self, record):
-        return {**record, "task_ok": False}
+    async def _refine_record(self, record, invalidate_cache=False):
+        return {**record, "task_ok": [True, False]}  # Success=True, Value=False
 
     with mock.patch(
         "services.ui_backend_service.data.refiner.task_refiner.Refinery.refine_record",
@@ -266,8 +266,8 @@ async def test_task_status_failed_attempt_ok_s3_artifact_ts_epoch(cli, db):
                             "attempt_id": 0
         })).body
 
-    async def _refine_record(self, record):
-        return {**record, "task_ok": False}
+    async def _refine_record(self, record, invalidate_cache=False):
+        return {**record, "task_ok": [True, False]}  # Success=True, Value=False
 
     with mock.patch(
         "services.ui_backend_service.data.refiner.task_refiner.Refinery.refine_record",

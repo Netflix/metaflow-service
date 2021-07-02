@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Any, Tuple, Optional
 from services.data.db_utils import DBResponse
 from services.ui_backend_service.features import FEATURE_REFINE_DISABLE
 from services.utils import logging
@@ -22,7 +22,7 @@ class Refinery(object):
         self.logger = logging.getLogger("DataRefiner")
 
     async def refine_record(self, record, invalidate_cache=False):
-        _recs = self.refine_records([record], invalidate_cache=invalidate_cache)
+        _recs = await self.refine_records([record], invalidate_cache=invalidate_cache)
         return _recs[0] if len(_recs) > 0 else record
 
     async def refine_records(self, records, invalidate_cache=False):
@@ -101,7 +101,7 @@ class Refinery(object):
         raise NotImplementedError
 
 
-def unpack_processed_value(value) -> Tuple[bool, Optional[str], Optional[str]]:
+def unpack_processed_value(value) -> Tuple[bool, Optional[Any], Optional[Any]]:
     '''
     Unpack refined response returning tuple of: success, value, detail
 
