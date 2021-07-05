@@ -115,47 +115,52 @@ class SearchArtifacts(CacheAction):
             return stream_output(error_event_msg(err, id, traceback))
 
         # Fetch the S3 locations data
-        num_s3_batches = max(1, len(locations_to_fetch) // S3_BATCH_SIZE)
         s3_locations = [loc for loc in locations_to_fetch if loc.startswith("s3://")]
         with NoRetryS3() as s3:
-            for i, locations in enumerate(batchiter(s3_locations, S3_BATCH_SIZE), start=1):
-                stream_progress(i / num_s3_batches)
-                try:
-                    for artifact_data in s3.get_many(locations):
-                        artifact_key = artifact_cache_id(artifact_data.url)
+            for locations in batchiter(s3_locations, S3_BATCH_SIZE):
+                for idx, location in enumerate(locations):
+                    artifact_key = artifact_cache_id(location)
+                    stream_progress((idx + 1) / len(locations))
+                    try:
+                        artifact_data = s3.get(location)
                         if artifact_data.size < MAX_SIZE:
-                            try:
-                                # TODO: Figure out a way to store the artifact content without decoding?
-                                # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                                # so we can not rely on the file existing if we only return a filepath as a cached response
-                                content = decode(artifact_data.path)
-                                results[artifact_key] = json.dumps([True, content])
-                            except TypeError:
-                                # In case the artifact was of a type that can not be json serialized,
-                                # we try casting it to a string first.
-                                results[artifact_key] = json.dumps([True, str(content)])
-                            except Exception as ex:
-                                # Exceptions might be fixable with configuration changes or other measures,
-                                # therefore we do not want to write anything to the cache for these artifacts.
-                                stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
+                            # TODO: Figure out a way to store the artifact content without decoding?
+                            # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
+                            # so we can not rely on the file existing if we only return a filepath as a cached response
+                            content = decode(artifact_data.path)
+                            results[artifact_key] = json.dumps([True, content])
                         else:
                             results[artifact_key] = json.dumps([False, 'object is too large'])
-                except MetaflowS3AccessDenied as ex:
-                    stream_error(str(ex), "s3-access-denied")
-                except MetaflowS3NotFound as ex:
-                    stream_error(str(ex), "s3-not-found")
-                except MetaflowS3URLException as ex:
-                    stream_error(str(ex), "s3-bad-url")
-                except MetaflowS3CredentialsMissing as ex:
-                    stream_error(str(ex), "s3-missing-credentials")
-                except MetaflowS3Exception as ex:
-                    stream_error(str(ex), "s3-generic-error", get_traceback_str())
+                    except TypeError:
+                        # In case the artifact was of a type that can not be json serialized,
+                        # we try casting it to a string first.
+                        results[artifact_key] = json.dumps([True, str(content)])
+                    except MetaflowS3AccessDenied as ex:
+                        stream_error(str(ex), "s3-access-denied")
+                        results[artifact_key] = json.dumps([False, 's3-access-denied', location])
+                    except MetaflowS3NotFound as ex:
+                        stream_error(str(ex), "s3-not-found")
+                        results[artifact_key] = json.dumps([False, 's3-not-found', location])
+                    except MetaflowS3URLException as ex:
+                        stream_error(str(ex), "s3-bad-url")
+                        results[artifact_key] = json.dumps([False, 's3-bad-url', location])
+                    except MetaflowS3CredentialsMissing as ex:
+                        stream_error(str(ex), "s3-missing-credentials")
+                        results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
+                    except MetaflowS3Exception as ex:
+                        stream_error(str(ex), "s3-generic-error", get_traceback_str())
+                        results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
+                    except Exception as ex:
+                        # Exceptions might be fixable with configuration changes or other measures,
+                        # therefore we do not want to write anything to the cache for these artifacts.
+                        stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
+                        results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
         # Skip the inaccessible locations
         other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
         for loc in other_locations:
             artifact_key = artifact_cache_id(loc)
             stream_error("Artifact is not accessible", "artifact-not-accessible")
-            results[artifact_key] = json.dumps([False, 'object is not accessible'])
+            results[artifact_key] = json.dumps([False, 'object is not accessible', loc])
 
         # Perform search on loaded artifacts.
         search_results = {}
@@ -167,13 +172,17 @@ class SearchArtifacts(CacheAction):
 
         for key in artifact_keys:
             if key in results:
-                load_success, value, _ = unpack_processed_value(json.loads(results[key]))
+                load_success, value, detail = unpack_processed_value(json.loads(results[key]))
             else:
                 load_success, value, _ = False, None, None
 
             search_results[format_loc(key)] = {
                 "included": load_success,
-                "matches": str(value) == searchterm
+                "matches": str(value) == searchterm,
+                "error": None if load_success else {
+                    "id": value or "artifact-handle-failed",
+                    "detail": detail or "Unknown error during artifact processing"
+                }
             }
 
         results[result_key] = json.dumps(search_results)

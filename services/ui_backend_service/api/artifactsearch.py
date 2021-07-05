@@ -1,7 +1,7 @@
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 from services.ui_backend_service.data.cache.utils import (
-    search_result_event_msg, error_event_msg, StreamedCacheError
+    search_result_event_msg, error_event_msg
 )
 from .utils import query_param_enabled
 
@@ -47,19 +47,12 @@ class ArtifactSearchApi(object):
                 if res.has_pending_request():
                     async for event in res.stream():
                         await ws.send_str(json.dumps(event))
-                        if event["event"]["type"] == "error":
-                            raise StreamedCacheError
                     await res.wait()
                 artifact_data = res.get()
 
                 results = await _search_dict_filter(meta_artifacts, artifact_data)
 
             await ws.send_str(json.dumps({"event": search_result_event_msg(results)}))
-
-        # close websocket if an error is encountered.
-        except StreamedCacheError:
-            # something went wrong with the search!
-            await ws.close(code=1011)
         except:
             # TODO: maybe except the specific errors from cache server only? (CacheServerUnreachable, CacheFullException)
             await ws.send_str(json.dumps({"event": error_event_msg("Accessing cache failed", "cache-access-failed")}))
@@ -111,11 +104,21 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
                 'run_number': int,
                 'step_name': str,
                 'task_id': int,
-                'searchable': boolean
+                'searchable': boolean,
+                'error': null
             }
         ]
         searchable: denotes whether the task had an artifact that could be searched or not.
         False in cases where the artifact could not be included in the search
+
+        error: either null or error object with following structure
+            {
+                'id': str,
+                'detail': str
+            }
+
+            example:
+              { 'id': 's3-access-denied', 'detail': 's3://...' }
     """
 
     results = []
@@ -124,7 +127,11 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
         if loc in artifact_match_dict:
             match_data = artifact_match_dict[loc]
             if match_data['matches'] or not match_data['included']:
-                results.append({**_result_format(artifact), "searchable": match_data['included']})
+                results.append({
+                    **_result_format(artifact),
+                    "searchable": match_data['included'],
+                    "error": match_data['error']
+                })
 
     return results
 
