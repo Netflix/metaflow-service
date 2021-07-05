@@ -180,10 +180,9 @@ class CacheClient(object):
     def _action(self, cls):
 
         def _call(*args, **kwargs):
-            msg, keys, stream_key, disposable_keys =\
+            msg, keys, stream_key, disposable_keys, invalidate_cache =\
                 cls.format_request(*args, **kwargs)
             future = CacheFuture(keys, stream_key, self, cls, self._root)
-            invalidate_cache = msg.get('invalidate_cache', False)
             if future.key_paths_ready() and not invalidate_cache:
                 # cache hit
                 req = None
@@ -199,7 +198,8 @@ class CacheClient(object):
                                  keys=keys,
                                  stream_key=stream_key,
                                  message=msg,
-                                 disposable_keys=disposable_keys)
+                                 disposable_keys=disposable_keys,
+                                 invalidate_cache=invalidate_cache)
 
             return self.request_and_return([req] if req else [], future)
 

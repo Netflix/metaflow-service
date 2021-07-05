@@ -43,7 +43,8 @@ def server_request(op,
                    stream_key=None,
                    message=None,
                    disposable_keys=None,
-                   idempotency_token=None):
+                   idempotency_token=None,
+                   invalidate_cache=False):
 
     if idempotency_token is None:
         fields = [op]
@@ -65,7 +66,8 @@ def server_request(op,
         'stream_key': stream_key,
         'message': message,
         'idempotency_token': token,
-        'disposable_keys': disposable_keys
+        'disposable_keys': disposable_keys,
+        'invalidate_cache': invalidate_cache
     }
 
 
@@ -154,7 +156,8 @@ class Worker(object):
                 'message': self.request['message'],
                 'keys': {key: key_filename(key) for key in keys},
                 'existing_keys': ex_keys,
-                'stream_key': key_filename(stream) if stream else None
+                'stream_key': key_filename(stream) if stream else None,
+                'invalidate_cache': self.request.get('invalidate_cache', False)
             }
             json.dump(request, f)
 

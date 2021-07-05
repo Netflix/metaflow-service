@@ -36,8 +36,7 @@ class GetArtifacts(CacheAction):
     def format_request(cls, locations, invalidate_cache=False):
         unique_locs = list(frozenset(sorted(loc for loc in locations if isinstance(loc, str))))
         msg = {
-            'artifact_locations': unique_locs,
-            'invalidate_cache': invalidate_cache
+            'artifact_locations': unique_locs
         }
 
         artifact_keys = []
@@ -50,7 +49,8 @@ class GetArtifacts(CacheAction):
         return msg,\
             artifact_keys,\
             stream_key,\
-            [stream_key]
+            [stream_key],\
+            invalidate_cache
 
     @classmethod
     def response(cls, keys_objs):
@@ -83,6 +83,7 @@ class GetArtifacts(CacheAction):
                 keys=None,
                 existing_keys={},
                 stream_output=None,
+                invalidate_cache=False,
                 **kwargs):
         """
         Execute fetching of artifacts from predefined S3 locations.
@@ -102,7 +103,6 @@ class GetArtifacts(CacheAction):
         Stream error example:
             stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
         """
-        invalidate_cache = message['invalidate_cache']
         locations = message['artifact_locations']
 
         if invalidate_cache:

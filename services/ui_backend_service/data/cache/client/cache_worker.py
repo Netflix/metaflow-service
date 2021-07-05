@@ -48,7 +48,8 @@ def cli(action_spec, request_file=None):
             message=req['message'],
             keys=keys,
             existing_keys=ex_keys,
-            stream_output=stream_output)
+            stream_output=stream_output,
+            invalidate_cache=req.get('invalidate_cache', False))
 
         # write outputs to keys
         for key, val in res.items():

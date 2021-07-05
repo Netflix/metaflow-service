@@ -7,6 +7,7 @@ from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
                     MetaflowS3NotFound, MetaflowS3Exception,
                     MetaflowS3URLException, NoRetryS3,
                     batchiter, decode, error_event_msg, progress_event_msg)
+from ..refiner.refinery import unpack_processed_value
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
@@ -44,8 +45,7 @@ class SearchArtifacts(CacheAction):
         unique_locs = list(frozenset(sorted(locations)))
         msg = {
             'artifact_locations': unique_locs,
-            'searchterm': searchterm,
-            'invalidate_cache': invalidate_cache
+            'searchterm': searchterm
         }
 
         artifact_keys = []
@@ -59,7 +59,8 @@ class SearchArtifacts(CacheAction):
         return msg,\
             [result_key, *artifact_keys],\
             stream_key,\
-            [stream_key, result_key]
+            [stream_key, result_key],\
+            invalidate_cache
 
     @classmethod
     def response(cls, keys_objs):
@@ -89,12 +90,19 @@ class SearchArtifacts(CacheAction):
                 keys=None,
                 existing_keys={},
                 stream_output=None,
+                invalidate_cache=False,
                 **kwargs):
-
-        # make a copy of already existing results, as the cache action has to produce all keys it promised
-        # in the format_request response.
-        results = {**existing_keys}
         locations = message['artifact_locations']
+
+        if invalidate_cache:
+            results = {}
+            locations_to_fetch = [loc for loc in locations]
+        else:
+            # make a copy of already existing results, as the cache action has to produce all keys it promised
+            # in the format_request response.
+            results = {**existing_keys}
+            # Make a list of artifact locations that require fetching (not cached previously)
+            locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
 
         artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
         result_key = [key for key in keys if key.startswith('search:result')][0]
@@ -105,9 +113,6 @@ class SearchArtifacts(CacheAction):
 
         def stream_error(err, id, traceback=None):
             return stream_output(error_event_msg(err, id, traceback))
-
-        # Make a list of artifact locations that require fetching (not cached previously)
-        locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
 
         # Fetch the S3 locations data
         num_s3_batches = max(1, len(locations_to_fetch) // S3_BATCH_SIZE)
@@ -162,9 +167,9 @@ class SearchArtifacts(CacheAction):
 
         for key in artifact_keys:
             if key in results:
-                load_success, value = json.loads(results[key])
+                load_success, value, _ = unpack_processed_value(json.loads(results[key]))
             else:
-                load_success, value = False, None
+                load_success, value, _ = False, None, None
 
             search_results[format_loc(key)] = {
                 "included": load_success,
