@@ -55,6 +55,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -112,6 +113,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -160,6 +162,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Path/step_name'
           - $ref: '#/definitions/Params/Path/task_id'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -223,6 +226,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:

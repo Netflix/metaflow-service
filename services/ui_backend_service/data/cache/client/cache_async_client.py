@@ -4,7 +4,7 @@ import asyncio
 import json
 from asyncio.subprocess import PIPE, STDOUT
 
-from .cache_client import CacheClient, CacheServerUnreachable
+from .cache_client import CacheClient, CacheServerUnreachable, CacheClientTimeout
 from .cache_server import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
 from services.utils import logging

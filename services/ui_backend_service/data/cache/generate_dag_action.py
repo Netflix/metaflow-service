@@ -47,7 +47,7 @@ class GenerateDag(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, flow_id, codepackage_location):
+    def format_request(cls, flow_id, codepackage_location, invalidate_cache=False):
         msg = {
             'location': codepackage_location,
             'flow_id': flow_id
@@ -58,7 +58,8 @@ class GenerateDag(CacheAction):
         return msg,\
             [result_key],\
             stream_key,\
-            [stream_key]
+            [stream_key],\
+            invalidate_cache
 
     @classmethod
     def response(cls, keys_objs):
@@ -78,6 +79,7 @@ class GenerateDag(CacheAction):
                 keys=None,
                 existing_keys={},
                 stream_output=None,
+                invalidate_cache=False,
                 **kwargs):
 
         results = {}

@@ -1,15 +1,5 @@
-from .refinery import Refinery
+from .refinery import Refinery, unpack_processed_value, format_error_body
 from services.data.db_utils import DBResponse
-
-
-class GetArtifactsFailed(Exception):
-    def __init__(self, msg="Failed to Get Artifacts", id="get-artifacts-failed", traceback_str=None):
-        self.message = msg
-        self.id = id
-        self.traceback_str = traceback_str
-
-    def __str__(self):
-        return self.message
 
 
 class ArtifactRefiner(Refinery):
@@ -27,53 +17,18 @@ class ArtifactRefiner(Refinery):
     def __init__(self, cache):
         super().__init__(field_names=["content"], cache=cache)
 
-    async def refine_record(self, record):
-        locations = [record[field] for field in self.field_names if field in record]
-        fetch_error = None
-        try:
-            data = await self.fetch_data(locations)
-        except GetArtifactsFailed as ex:
-            data = {}
-            fetch_error = format_error_body(getattr(ex, "id", None), str(ex))
-
-        _rec = record
-        for k, v in _rec.items():
-            if k in self.field_names:
-                _rec[k] = data[v] if v in data else None
-        if fetch_error:
-            _rec["postprocess_error"] = fetch_error
-        return _rec
-
-    async def refine_records(self, records):
-        locations = [record[field] for field in self.field_names for record in records if field in record]
-        fetch_error = None
-        try:
-            data = await self.fetch_data(locations)
-        except GetArtifactsFailed as ex:
-            data = {}
-            fetch_error = format_error_body(getattr(ex, "id", None), str(ex))
-
-        _recs = []
-        for rec in records:
-            for k, v in rec.items():
-                if k in self.field_names:
-                    rec[k] = data[v] if v in data else None
-            if fetch_error:
-                rec["postprocess_error"] = fetch_error
-            _recs.append(rec)
-        return _recs
-
-    async def fetch_data(self, locations):
-        _res = await self.artifact_store.cache.GetArtifactsWithStatus(locations)
-        if not _res.is_ready():
+    async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
+        _res = await self.artifact_store.cache.GetArtifactsWithStatus(
+            locations, invalidate_cache=invalidate_cache)
+        if _res.has_pending_request():
             async for event in _res.stream():
                 if event["type"] == "error":
-                    # raise error, there was an exception during processing.
-                    raise GetArtifactsFailed(event["message"], event["id"], event["traceback"])
+                    if event_stream:
+                        event_stream(event)
             await _res.wait()  # wait for results to be ready
         return _res.get() or {}  # cache get() might return None if no keys are produced.
 
-    async def postprocess(self, response: DBResponse):
+    async def postprocess(self, response: DBResponse, invalidate_cache=False):
         """
         Calls the refiner postprocessing to fetch S3 values for content.
         In case of a successful artifact fetch, places the contents from the 'location'
@@ -101,18 +56,23 @@ class ArtifactRefiner(Refinery):
         else:
             body = _preprocess(response.body)
 
-        refined_response = await self._postprocess(DBResponse(response_code=response.response_code, body=body))
+        refined_response = await self._postprocess(
+            DBResponse(response_code=response.response_code, body=body),
+            invalidate_cache=invalidate_cache)
 
         def _process(item):
             if item['content'] is not None:
-                success, value = item['content']
+                success, value, detail = unpack_processed_value(item['content'])
                 if success:
                     # cast artifact content to string if it was successfully fetched
                     # as some artifacts retain their type if they are Json serializable.
                     item['content'] = str(value)
                 else:
                     # artifact is too big and was skipped
-                    item['postprocess_error'] = format_error_body("artifact-too-large", "The artifact is too large to be processed")
+                    item['postprocess_error'] = format_error_body(
+                        value if value else "artifact-handle-failed",
+                        detail if detail else "Unknown error during artifact processing"
+                    )
             return item
 
         if isinstance(refined_response.body, list):
@@ -121,13 +81,3 @@ class ArtifactRefiner(Refinery):
             body = _process(refined_response.body)
 
         return DBResponse(response_code=refined_response.response_code, body=body)
-
-
-def format_error_body(id, detail):
-    '''
-    formatter for the "postprocess_error" key added to refined items in case of errors.
-    '''
-    return {
-        "id": id or "artifact-refine-failure",
-        "detail": detail
-    }

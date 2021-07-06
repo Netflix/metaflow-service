@@ -59,7 +59,8 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                            limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
                            group_limit: int = 10, expanded=False, enable_joins=False,
                            postprocess: Callable[[DBResponse], DBResponse] = None,
-                           benchmark: bool = False, overwrite_select_from: str = None
+                           invalidate_cache=False, benchmark: bool = False,
+                           overwrite_select_from: str = None
                            ) -> (DBResponse, DBPagination):
         # Grouping not enabled
         if groups is None or len(groups) == 0:
@@ -183,9 +184,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         # Modify the response after the fetch has been executed
         if postprocess is not None:
             if iscoroutinefunction(postprocess):
-                result = await postprocess(result)
+                result = await postprocess(result, invalidate_cache=invalidate_cache)
             else:
-                result = postprocess(result)
+                result = postprocess(result, invalidate_cache=invalidate_cache)
 
         return result, pagination, benchmark_results
 

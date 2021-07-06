@@ -41,8 +41,10 @@ class CacheAction(object):
            doesn't have any streaming results.
         4. `disposable_keys`: a subset of `obj_keys` that will
            be purged from the cache before other objects.
+        5. `invalidate_cache`: boolean to indicate if existing
+           cache keys should be invalidated.
         """
-        # return message, obj_keys, stream_key, disposable_keys
+        # return message, obj_keys, stream_key, disposable_keys, invalidate_cache
         raise NotImplementedError
 
     @classmethod
@@ -76,7 +78,8 @@ class CacheAction(object):
                 message=None,
                 keys=[],
                 existing_keys={},
-                stream_output=None):
+                stream_output=None,
+                invalidate_cache=False):
         """
         Execute an action. This method is called by `cache_worker` to
         execute the action as a subprocess.
@@ -87,6 +90,8 @@ class CacheAction(object):
           available.
         - `stream_output` is a function that can be called to produce
           an output event to the stream object.
+        - `invalidate_cache` boolean to indicate whether to invalidate
+          existing cache keys.
 
         Returns a dictionary that includes a string/byte result
         per key that will be stored in the cache.
@@ -101,7 +106,7 @@ class Check(CacheAction):
     @classmethod
     def format_request(cls, *args, **kwargs):
         key = 'check-%s' % uuid.uuid4()
-        return None, [key], None, [key]
+        return None, [key], None, [key], False
 
     @classmethod
     def response(cls, keys_objs):

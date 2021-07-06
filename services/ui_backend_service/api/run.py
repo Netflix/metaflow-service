@@ -1,6 +1,7 @@
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
-from .utils import find_records, web_response, format_response, builtin_conditions_query, pagination_query
+from .utils import find_records, web_response, format_response,\
+    builtin_conditions_query, pagination_query, query_param_enabled
 
 import json
 
@@ -184,6 +185,7 @@ class RunApi(object):
           parameters:
             - $ref: '#/definitions/Params/Path/flow_id'
             - $ref: '#/definitions/Params/Path/run_number'
+            - $ref: '#/definitions/Params/Custom/invalidate'
           produces:
           - application/json
           responses:
@@ -203,8 +205,11 @@ class RunApi(object):
         flow_name = request.match_info['flow_id']
         run_number = request.match_info.get("run_number")
 
+        invalidate_cache = query_param_enabled(request, "invalidate")
+
         # _artifact_store.get_run_parameters will translate run_number/run_id properly
-        combined_results = await self._artifact_store.get_run_parameters(flow_name, run_number)
+        combined_results = await self._artifact_store.get_run_parameters(
+            flow_name, run_number, invalidate_cache=invalidate_cache)
 
         response = DBResponse(200, combined_results)
         status, body = format_response(request, response)

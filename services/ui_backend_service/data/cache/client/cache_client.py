@@ -47,7 +47,7 @@ class CacheFuture(object):
         return bool(self.stream_key)
 
     def wait(self, timeout=FOREVER):
-        return self.client.wait(lambda: True if self.is_ready() else None,
+        return self.client.wait(lambda: None if self.has_pending_request() else True,
                                 timeout)
 
     def get(self):
@@ -55,10 +55,12 @@ class CacheFuture(object):
             with open(path, 'rb') as f:
                 return f.read()
 
+        _safe_key_paths = {key: path for key, path in self.key_paths.items() if is_safely_readable(path)}
         if self.key_objs is None and self.is_ready():
             self.key_objs = {key: _read(path)
-                             for key, path in self.key_paths.items()
+                             for key, path in _safe_key_paths.items()
                              if key != self.stream_key}
+
         if self.key_objs:
             return self.action.response(self.key_objs)
 
@@ -178,10 +180,10 @@ class CacheClient(object):
     def _action(self, cls):
 
         def _call(*args, **kwargs):
-            msg, keys, stream_key, disposable_keys =\
+            msg, keys, stream_key, disposable_keys, invalidate_cache =\
                 cls.format_request(*args, **kwargs)
             future = CacheFuture(keys, stream_key, self, cls, self._root)
-            if future.key_paths_ready():
+            if future.key_paths_ready() and not invalidate_cache:
                 # cache hit
                 req = None
             else:
@@ -196,7 +198,8 @@ class CacheClient(object):
                                  keys=keys,
                                  stream_key=stream_key,
                                  message=msg,
-                                 disposable_keys=disposable_keys)
+                                 disposable_keys=disposable_keys,
+                                 invalidate_cache=invalidate_cache)
 
             return self.request_and_return([req] if req else [], future)
 

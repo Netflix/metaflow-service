@@ -314,6 +314,15 @@ swagger_definitions = {
                 "required": False,
                 "default": False,
                 "type": "boolean",
+            },
+            "invalidate": {
+                "name": "invalidate",
+                "in": "query",
+                "description": "Invalidate cache before fetching new results from S3. Requires refining/postprocessing\
+                    to be effective, usually defined with postprocess=true query parameter.",
+                "required": False,
+                "default": False,
+                "type": "boolean",
             }
         }
     },

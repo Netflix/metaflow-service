@@ -420,7 +420,8 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
     conditions = initial_conditions + builtin_conditions + custom_conditions
     values = initial_values + builtin_vals + custom_vals
     ordering = (initial_order or []) + (order or [])
-    benchmark = request.query.get("benchmark", False) in ['True', 'true', '1', "t"]
+    benchmark = query_param_enabled(request, "benchmark")
+    invalidate_cache = query_param_enabled(request, "invalidate")
 
     results, pagination, benchmark_result = await async_table.find_records(
         conditions=conditions, values=values, limit=limit, offset=offset,
@@ -428,6 +429,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         fetch_single=fetch_single, enable_joins=enable_joins,
         expanded=True,
         postprocess=postprocess,
+        invalidate_cache=invalidate_cache,
         benchmark=benchmark,
         overwrite_select_from=overwrite_select_from
     )
@@ -441,6 +443,11 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
         res["benchmark_result"] = benchmark_result
 
     return web_response(status, res)
+
+
+def query_param_enabled(request: web.BaseRequest, name: str) -> bool:
+    """Parse boolean query parameter and return enabled status"""
+    return request.query.get(name, False) in ['True', 'true', '1', "t"]
 
 
 class TTLQueue:
