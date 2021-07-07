@@ -7,7 +7,9 @@ import math
 import time
 import datetime
 from services.utils import logging
-from typing import List
+from typing import List, Tuple, Dict, Any
+
+from psycopg2.extras import Json
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -341,6 +343,85 @@ class AsyncPostgresTable(object):
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error)
 
+    async def tag_add(self, cur, filter_dict, tag):
+        cond, params = build_where_condition(filter_dict)
+        # This query adds new tag to the tag list (stored in jsonb format), if it
+        # does not already exist (neither as a tag nor system tag).
+        #
+        # The slightly weird CTE ("with..") is needed to avoid repeating the new
+        # tag value multiple times in the query.
+        #
+        # Note that "cond" just filters by flow_id and run_id.
+        query = """
+            with new_tag(t) as (values (jsonb %s))
+            update """ + self.table_name + """
+            set    tags = tags || t
+            from   new_tag
+            where  """ + cond + """
+            and    not exists(
+            select 1
+            from   jsonb_array_elements(tags) e
+            where  e = t
+            )
+            and    not exists(
+            select 1
+            from   jsonb_array_elements(system_tags) e
+            where  e = t
+            )
+        """
+        await cur.execute(query, [Json(tag)] + params)
+        return cur.rowcount
+
+    async def tag_remove(self, cur, filter_dict, tag):
+        cond, params = build_where_condition(filter_dict)
+
+        # See comment above for tag_add(). Also, "t #>> {}" bit here is a way to
+        # convert jsonb string type to pg TEXT type, otherwise minus operator doesn't
+        # work.
+        query = """
+            with remove_tag(t) as (values (jsonb %s))
+            update """ + self.table_name + """
+            set    tags = tags - (t #>> '{}')
+            from remove_tag
+            where  """ + cond + """
+            and    exists(
+            select 1
+            from   jsonb_array_elements(tags) e
+            where  e = t
+            )
+        """
+        await cur.execute(query, [Json(tag)] + params)
+        return cur.rowcount
+
+    async def tag_replace(self, cur, filter_dict, old_tag, new_tag):
+        cond, params = build_where_condition(filter_dict)
+
+        # See comment above for tag_remove(). The bit with removing both new tag and
+        # old tag from the tags before adding new_tag back is there to properly handle
+        # the case when the object has tags A, B, C and we are asked to replace B with
+        # C. The correct output would be [A, C] not [A, C, C].
+        query = """
+            with
+                new_tag(t_new) as (values (jsonb %s)),
+                remove_tag(t_remove) as (values (jsonb %s))
+            update """ + self.table_name + """
+            set    tags = (tags - (t_remove #>> '{}') - (t_new #>> '{}')) || t_new
+            from remove_tag, new_tag
+            where  """ + cond + """
+            and    exists(
+            select 1
+            from   jsonb_array_elements(tags) e
+            where  e = t_remove
+            )
+        """
+        await cur.execute(query, [Json(new_tag), Json(old_tag)] + params)
+        return cur.rowcount
+
+def build_where_condition(filter_dict: Dict[str, Any]) -> Tuple[str, List[Any]]:
+    filter_items = list(filter_dict.items())
+    filter_values = [v for k,v in filter_items]
+    where_condition = ' AND '.join((k + '=%s') for k,v in filter_items)
+    return where_condition, filter_values
 
 class PostgresUtils(object):
     @staticmethod

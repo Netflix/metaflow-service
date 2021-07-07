@@ -68,3 +68,19 @@ def filter_artifacts_by_attempt_id_for_tasks(artifacts):
         if artifact['attempt_id'] == attempt_ids[artifact['task_id']]:
             result.append(artifact)
     return result
+
+async def transaction_helper(db, fun):
+    """ Calls fun(), passes the db cursor to it, and wraps all that in a transaction """
+    try:
+        with (
+            await db.pool.cursor(
+                cursor_factory=psycopg2.extras.DictCursor
+            )
+        ) as cur:
+            async with cur.begin():
+                res = await fun(cur)
+            cur.close()
+            return res
+    except (Exception, psycopg2.DatabaseError) as error:
+        db.logger.exception("Exception occured")
+        return aiopg_exception_handling(error)
