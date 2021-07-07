@@ -360,7 +360,7 @@ class PostgresUtils(object):
 
         name_prefix = "notify_ui"
         operations = ["INSERT", "UPDATE", "DELETE"]
-        _commands = ["""
+        _create_trigger_fn = """
         CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -392,31 +392,51 @@ class PostgresUtils(object):
             table=table_name,
             keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
             events=" OR ".join(operations)
-        )]
-        _commands += ["DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};".format(
-            schema=schema,
-            prefix=name_prefix,
-            table=table_name
-        )]
+        )
 
-        _commands += ["""
+        _create_trigger = """
             CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
-                FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
+            FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
             """.format(
             schema=schema,
             prefix=name_prefix,
             table=table_name,
             events=" OR ".join(operations)
-        )]
+        )
+
         # This enables trigger on both replica and non-replica mode
-        _commands += ["ALTER TABLE {schema}.{table} ENABLE ALWAYS TRIGGER {prefix}_{table};".format(
+        _add_trigger_to_table = "ALTER TABLE {schema}.{table} ENABLE ALWAYS TRIGGER {prefix}_{table};".format(
             schema=schema,
             prefix=name_prefix,
             table=table_name
-        )]
+        )
+
+        # Wrap all creation inside a check if a trigger already exists.
+        _command = """
+            DO 
+            $$
+            BEGIN
+                IF NOT EXISTS(
+                    SELECT * 
+                    FROM information_schema.triggers
+                    WHERE event_object_table = '{table}'
+                    AND trigger_name = '{prefix}_{table}'
+                ) 
+                THEN
+                    {create_trigger}
+                    {activate_trigger}
+                END IF;
+            END;
+            $$
+            """.format(
+            table=table_name,
+            prefix=name_prefix,
+            create_trigger=_create_trigger,
+            activate_trigger=_add_trigger_to_table
+        )
 
         with (await db.pool.cursor()) as cur:
-            for _command in _commands:
+            for _command in [_create_trigger_fn, _command]:
                 await cur.execute(_command)
             cur.close()
 
