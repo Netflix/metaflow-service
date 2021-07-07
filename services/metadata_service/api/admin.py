@@ -137,7 +137,7 @@ class AuthApi(object):
                 "SessionToken"
             ]
 
-            return web.Response(status=200, body=json.dumps(credentials))
+            return web.Response(status=200, body=json.dumps(credentials).encode('utf8'))
         except Exception as ex:
             body = {"err_msg": str(ex), "traceback": get_traceback_str()}
-            return web.Response(status=500, body=json.dumps(body))
+            return web.Response(status=500, body=json.dumps(body).encode('utf8'))
