@@ -79,11 +79,6 @@ class _AsyncPostgresDB(object):
                     timeout=db_conf.timeout,
                     echo=AIOPG_ECHO)
 
-                # Clean existing trigger functions before creating new ones
-                if create_triggers:
-                    self.logger.info("Cleanup existing notify triggers")
-                    await PostgresUtils.function_cleanup(self)
-
                 for table in self.tables:
                     await table._init(create_tables=create_tables, create_triggers=create_triggers)
 
@@ -357,26 +352,6 @@ class PostgresUtils(object):
             finally:
                 cur.close()
     # todo add method to check schema version
-
-    @staticmethod
-    async def function_cleanup(db: _AsyncPostgresDB):
-        name_prefix = "notify_ui"
-        _command = """
-        DO $$DECLARE r RECORD;
-        BEGIN
-            FOR r IN SELECT routine_schema, routine_name FROM information_schema.routines
-                    WHERE routine_name LIKE '{prefix}%'
-            LOOP
-                EXECUTE 'DROP FUNCTION ' || quote_ident(r.routine_schema) || '.' || quote_ident(r.routine_name) || '() CASCADE';
-            END LOOP;
-        END$$;
-        """.format(
-            prefix=name_prefix
-        )
-
-        with (await db.pool.cursor()) as cur:
-            await cur.execute(_command)
-            cur.close()
 
     @staticmethod
     async def trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
