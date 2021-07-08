@@ -417,7 +417,7 @@ class PostgresUtils(object):
 
         _commands += ["""
             CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
-            FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
+                FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
             """.format(
             schema=schema,
             prefix=name_prefix,
