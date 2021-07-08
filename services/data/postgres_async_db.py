@@ -9,7 +9,7 @@ import math
 import time
 import datetime
 from services.utils import logging
-from typing import List
+from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -78,11 +78,6 @@ class _AsyncPostgresDB(object):
                     maxsize=db_conf.pool_max,
                     timeout=db_conf.timeout,
                     echo=AIOPG_ECHO)
-
-                # Clean existing trigger functions before creating new ones
-                if create_triggers:
-                    self.logger.info("Cleanup existing notify triggers")
-                    await PostgresUtils.function_cleanup(self)
 
                 for table in self.tables:
                     await table._init(create_tables=create_tables, create_triggers=create_triggers)
@@ -163,9 +158,9 @@ class AsyncPostgresTable(object):
             await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
         if create_triggers:
             self.db.logger.info(
-                "Create notify trigger for {table_name}\n   Keys: {keys}".format(
+                "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
                     table_name=self.table_name, keys=self.trigger_keys))
-            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
+            await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
@@ -183,7 +178,7 @@ class AsyncPostgresTable(object):
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
-                           enable_joins=False) -> (DBResponse, DBPagination):
+                           enable_joins=False) -> Tuple[DBResponse, DBPagination]:
         sql_template = """
         SELECT * FROM (
             SELECT
@@ -212,7 +207,7 @@ class AsyncPostgresTable(object):
                                       expanded=expanded, limit=limit, offset=offset)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         try:
             with (
                 await self.db.pool.cursor(
@@ -359,27 +354,28 @@ class PostgresUtils(object):
     # todo add method to check schema version
 
     @staticmethod
-    async def function_cleanup(db: _AsyncPostgresDB):
-        name_prefix = "notify_ui"
-        _command = """
-        DO $$DECLARE r RECORD;
-        BEGIN
-            FOR r IN SELECT routine_schema, routine_name FROM information_schema.routines
-                    WHERE routine_name LIKE '{prefix}%'
-            LOOP
-                EXECUTE 'DROP FUNCTION ' || quote_ident(r.routine_schema) || '.' || quote_ident(r.routine_name) || '() CASCADE';
-            END LOOP;
-        END$$;
-        """.format(
-            prefix=name_prefix
-        )
-
+    async def create_trigger_if_missing(db: _AsyncPostgresDB, table_name, trigger_name, commands=[]):
+        "executes the commands only if a trigger with the given name does not already exist on the table"
         with (await db.pool.cursor()) as cur:
-            await cur.execute(_command)
-            cur.close()
+            try:
+                await cur.execute(
+                    """
+                    SELECT *
+                    FROM information_schema.triggers
+                    WHERE event_object_table = %s
+                    AND trigger_name = %s
+                    """,
+                    (table_name, trigger_name),
+                )
+                trigger_exist = bool(cur.rowcount)
+                if not trigger_exist:
+                    for command in commands:
+                        await cur.execute(command)
+            finally:
+                cur.close()
 
     @staticmethod
-    async def trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
+    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
         if not keys:
             pass
 
@@ -418,11 +414,6 @@ class PostgresUtils(object):
             keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
             events=" OR ".join(operations)
         )]
-        _commands += ["DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};".format(
-            schema=schema,
-            prefix=name_prefix,
-            table=table_name
-        )]
 
         _commands += ["""
             CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
@@ -433,6 +424,7 @@ class PostgresUtils(object):
             table=table_name,
             events=" OR ".join(operations)
         )]
+
         # This enables trigger on both replica and non-replica mode
         _commands += ["ALTER TABLE {schema}.{table} ENABLE ALWAYS TRIGGER {prefix}_{table};".format(
             schema=schema,
@@ -440,10 +432,14 @@ class PostgresUtils(object):
             table=table_name
         )]
 
-        with (await db.pool.cursor()) as cur:
-            for _command in _commands:
-                await cur.execute(_command)
-            cur.close()
+        # NOTE: Only try to setup triggers if they do not already exist.
+        # This will require a table level lock so it should be performed during initial setup at off-peak hours.
+        await PostgresUtils.create_trigger_if_missing(
+            db=db,
+            table_name=table_name,
+            trigger_name="{}_{}".format(name_prefix, table_name),
+            commands=_commands
+        )
 
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):
