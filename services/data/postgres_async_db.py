@@ -9,7 +9,7 @@ import math
 import time
 import datetime
 from services.utils import logging
-from typing import List
+from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -158,9 +158,9 @@ class AsyncPostgresTable(object):
             await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
         if create_triggers:
             self.db.logger.info(
-                "Create notify trigger for {table_name}\n   Keys: {keys}".format(
+                "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
                     table_name=self.table_name, keys=self.trigger_keys))
-            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
+            await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
@@ -178,7 +178,7 @@ class AsyncPostgresTable(object):
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
-                           enable_joins=False) -> (DBResponse, DBPagination):
+                           enable_joins=False) -> Tuple[DBResponse, DBPagination]:
         sql_template = """
         SELECT * FROM (
             SELECT
@@ -207,7 +207,7 @@ class AsyncPostgresTable(object):
                                       expanded=expanded, limit=limit, offset=offset)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         try:
             with (
                 await self.db.pool.cursor(
@@ -354,13 +354,34 @@ class PostgresUtils(object):
     # todo add method to check schema version
 
     @staticmethod
-    async def trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
+    async def create_trigger_if_missing(db: _AsyncPostgresDB, table_name, trigger_name, commands=[]):
+        "executes the commands only if a trigger with the given name does not already exist on the table"
+        with (await db.pool.cursor()) as cur:
+            try:
+                await cur.execute(
+                    """
+                    SELECT *
+                    FROM information_schema.triggers
+                    WHERE event_object_table = %s
+                    AND trigger_name = %s
+                    """,
+                    (table_name, trigger_name),
+                )
+                trigger_exist = bool(cur.rowcount)
+                if not trigger_exist:
+                    for command in commands:
+                        await cur.execute(command)
+            finally:
+                cur.close()
+
+    @staticmethod
+    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
         if not keys:
             pass
 
         name_prefix = "notify_ui"
         operations = ["INSERT", "UPDATE", "DELETE"]
-        _create_trigger_fn = """
+        _commands = ["""
         CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
             LANGUAGE plpgsql
             AS $$
@@ -392,9 +413,9 @@ class PostgresUtils(object):
             table=table_name,
             keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
             events=" OR ".join(operations)
-        )
+        )]
 
-        _create_trigger = """
+        _commands += ["""
             CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
             FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
             """.format(
@@ -402,43 +423,23 @@ class PostgresUtils(object):
             prefix=name_prefix,
             table=table_name,
             events=" OR ".join(operations)
-        )
+        )]
 
         # This enables trigger on both replica and non-replica mode
-        _add_trigger_to_table = "ALTER TABLE {schema}.{table} ENABLE ALWAYS TRIGGER {prefix}_{table};".format(
+        _commands += ["ALTER TABLE {schema}.{table} ENABLE ALWAYS TRIGGER {prefix}_{table};".format(
             schema=schema,
             prefix=name_prefix,
             table=table_name
-        )
+        )]
 
-        # Wrap all creation inside a check if a trigger already exists.
-        _command = """
-            DO 
-            $$
-            BEGIN
-                IF NOT EXISTS(
-                    SELECT * 
-                    FROM information_schema.triggers
-                    WHERE event_object_table = '{table}'
-                    AND trigger_name = '{prefix}_{table}'
-                ) 
-                THEN
-                    {create_trigger}
-                    {activate_trigger}
-                END IF;
-            END;
-            $$
-            """.format(
-            table=table_name,
-            prefix=name_prefix,
-            create_trigger=_create_trigger,
-            activate_trigger=_add_trigger_to_table
+        # NOTE: Only try to setup triggers if they do not already exist.
+        # This will require a table level lock so it should be performed during initial setup at off-peak hours.
+        await PostgresUtils.create_trigger_if_missing(
+            db=db,
+            table_name=table_name,
+            trigger_name="{}_{}".format(name_prefix, table_name),
+            commands=_commands
         )
-
-        with (await db.pool.cursor()) as cur:
-            for _command in [_create_trigger_fn, _command]:
-                await cur.execute(_command)
-            cur.close()
 
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):
