@@ -1,12 +1,15 @@
+import boto3
 import hashlib
 import json
+from tempfile import NamedTemporaryFile
+from urllib.parse import urlparse
 
 from .client import CacheAction
 from services.utils import get_traceback_str
 
 from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
                     MetaflowS3Exception, MetaflowS3NotFound,
-                    MetaflowS3URLException, NoRetryS3, batchiter, decode,
+                    MetaflowS3URLException, batchiter, decode,
                     error_event_msg)
 
 MAX_SIZE = 4096
@@ -124,38 +127,38 @@ class GetArtifacts(CacheAction):
 
         # Fetch the S3 locations data
         s3_locations = [loc for loc in locations_to_fetch if loc.startswith('s3://')]
-        with NoRetryS3() as s3:
-            for locations in batchiter(s3_locations, S3_BATCH_SIZE):
-                for location in locations:
-                    artifact_key = artifact_cache_id(location)
-                    try:
-                        artifact_data = s3.get(location)
-                        if artifact_data.size < MAX_SIZE:
-                            # TODO: Figure out a way to store the artifact content without decoding?
-                            # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                            # so we can not rely on the file existing if we only return a filepath as a cached response
-                            content = decode(artifact_data.path)
-                            results[artifact_key] = json.dumps([True, content])
-                        else:
-                            # TODO: does this case need to raise an error as well? As is, the fetch simply fails silently.
-                            results[artifact_key] = json.dumps([False, 'artifact-too-large', artifact_data.size])
+        s3 = boto3.client('s3')
+        for locations in batchiter(s3_locations, S3_BATCH_SIZE):
+            for location in locations:
+                artifact_key = artifact_cache_id(location)
+                try:
+                    obj_size = get_s3_size(s3, location)
+                    if obj_size < MAX_SIZE:
+                        temp_obj = get_s3_obj(s3, location)
+                        # TODO: Figure out a way to store the artifact content without decoding?
+                        # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
+                        # so we can not rely on the file existing if we only return a filepath as a cached response
+                        content = decode(temp_obj.name)
+                        results[artifact_key] = json.dumps([True, content])
+                    else:
+                        results[artifact_key] = json.dumps([False, 'artifact-too-large', obj_size])
 
-                    except TypeError:
-                        # In case the artifact was of a type that can not be json serialized,
-                        # we try casting it to a string first.
-                        results[artifact_key] = json.dumps([True, str(content)])
-                    except MetaflowS3AccessDenied as ex:
-                        results[artifact_key] = json.dumps([False, 's3-access-denied', location])
-                    except MetaflowS3NotFound as ex:
-                        results[artifact_key] = json.dumps([False, 's3-not-found', location])
-                    except MetaflowS3URLException as ex:
-                        results[artifact_key] = json.dumps([False, 's3-bad-url', location])
-                    except MetaflowS3CredentialsMissing as ex:
-                        results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
-                    except MetaflowS3Exception as ex:
-                        results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
-                    except Exception as ex:
-                        results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
+                except TypeError:
+                    # In case the artifact was of a type that can not be json serialized,
+                    # we try casting it to a string first.
+                    results[artifact_key] = json.dumps([True, str(content)])
+                except MetaflowS3AccessDenied as ex:
+                    results[artifact_key] = json.dumps([False, 's3-access-denied', location])
+                except MetaflowS3NotFound as ex:
+                    results[artifact_key] = json.dumps([False, 's3-not-found', location])
+                except MetaflowS3URLException as ex:
+                    results[artifact_key] = json.dumps([False, 's3-bad-url', location])
+                except MetaflowS3CredentialsMissing as ex:
+                    results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
+                except MetaflowS3Exception as ex:
+                    results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
+                except Exception as ex:
+                    results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
 
         # Skip the inaccessible locations
         other_locations = [loc for loc in locations_to_fetch if not loc.startswith('s3://')]
@@ -180,3 +183,21 @@ def artifact_cache_id(location):
 def artifact_location_from_key(x):
     "extract location from the artifact cache key"
     return x[len("search:artifactdata:"):]
+
+
+def get_s3_size(s3_client, location):
+    bucket, key = bucket_and_key(location)
+    resp = s3_client.head_object(Bucket=bucket, Key=key)
+    return resp['ContentLength']
+
+
+def get_s3_obj(s3_client, location):
+    bucket, key = bucket_and_key(location)
+    tmp = NamedTemporaryFile(prefix='metaflow.s3.one_file.')
+    s3_client.download_file(bucket, key, tmp.name)
+    return tmp
+
+
+def bucket_and_key(location):
+    loc = urlparse(location)
+    return loc.netloc, loc.path.lstrip('/')
