@@ -1,8 +1,6 @@
 import boto3
 import hashlib
 import json
-from tempfile import NamedTemporaryFile
-from urllib.parse import urlparse
 
 from .client import CacheAction
 from services.utils import get_traceback_str
@@ -10,7 +8,7 @@ from services.utils import get_traceback_str
 from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
                     MetaflowS3Exception, MetaflowS3NotFound,
                     MetaflowS3URLException, batchiter, decode,
-                    error_event_msg)
+                    error_event_msg, get_s3_obj, get_s3_size)
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
@@ -183,21 +181,3 @@ def artifact_cache_id(location):
 def artifact_location_from_key(x):
     "extract location from the artifact cache key"
     return x[len("search:artifactdata:"):]
-
-
-def get_s3_size(s3_client, location):
-    bucket, key = bucket_and_key(location)
-    resp = s3_client.head_object(Bucket=bucket, Key=key)
-    return resp['ContentLength']
-
-
-def get_s3_obj(s3_client, location):
-    bucket, key = bucket_and_key(location)
-    tmp = NamedTemporaryFile(prefix='metaflow.s3.one_file.')
-    s3_client.download_file(bucket, key, tmp.name)
-    return tmp
-
-
-def bucket_and_key(location):
-    loc = urlparse(location)
-    return loc.netloc, loc.path.lstrip('/')

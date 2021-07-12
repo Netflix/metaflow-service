@@ -1,4 +1,5 @@
 from metaflow.datatools.s3 import MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException, MetaflowException
+from urllib.parse import urlparse
 from . import s3op
 from metaflow.datatools.s3 import S3, get_s3_client, debug
 from botocore.exceptions import NoCredentialsError, ClientError
@@ -153,3 +154,26 @@ def search_result_event_msg(results):
         "type": "result",
         "matches": results
     }
+
+# S3 helpers
+
+
+def get_s3_size(s3_client, location):
+    "Gets the S3 object size for a location, by only fetching the HEAD"
+    bucket, key = bucket_and_key(location)
+    resp = s3_client.head_object(Bucket=bucket, Key=key)
+    return resp['ContentLength']
+
+
+def get_s3_obj(s3_client, location):
+    "Gets the s3 file from the given location and returns a temporary file object that will get deleted upon dereferencing."
+    bucket, key = bucket_and_key(location)
+    tmp = NamedTemporaryFile(prefix='ui_backend.cache.s3.')
+    s3_client.download_file(bucket, key, tmp.name)
+    return tmp
+
+
+def bucket_and_key(location):
+    "Parse S3 bucket name and the object key from a location"
+    loc = urlparse(location)
+    return loc.netloc, loc.path.lstrip('/')
