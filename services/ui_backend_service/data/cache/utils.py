@@ -25,6 +25,7 @@ def decode(path):
 
 # Cache action stream output helpers
 
+
 class StreamedCacheError(Exception):
     "Used for custom raises during cache action stream errors"
     pass
@@ -57,6 +58,7 @@ def search_result_event_msg(results):
     }
 
 # S3 helpers
+
 
 def get_s3_size(s3_client, location):
     "Gets the S3 object size for a location, by only fetching the HEAD"
@@ -100,7 +102,10 @@ def wrap_boto_client_error(err):
     else:
         raise CacheS3Exception
 
+
 # Custom error classes for S3 access
+
+
 class CacheS3AccessDenied(Exception):
     "Access to the S3 object is denied"
     pass
