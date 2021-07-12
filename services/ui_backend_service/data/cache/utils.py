@@ -5,7 +5,6 @@ from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 
 from botocore.exceptions import ClientError, NoCredentialsError
-from features import FEATURE_S3_DISABLE
 
 
 def batchiter(it, batch_size):
