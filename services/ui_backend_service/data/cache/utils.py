@@ -91,7 +91,7 @@ def bucket_and_key(location):
 
 def wrap_boto_client_error(err):
     "Wrap relevant botocore ClientError error codes as custom error classes and raise them"
-    if err.response['Error']['Code'] == 'AccessDenied':
+    if err.response['Error']['Code'] in ['AccessDenied', '403']:
         raise CacheS3AccessDenied
     elif err.response['Error']['Code'] == '404':
         raise CacheS3NotFound
