@@ -1,13 +1,14 @@
 import boto3
+from botocore.exceptions import ClientError
 import hashlib
 import json
 
 from .client import CacheAction
 from services.utils import get_traceback_str
 
-from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
-                    MetaflowS3Exception, MetaflowS3NotFound,
-                    MetaflowS3URLException, batchiter, decode,
+from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
+                    CacheS3Exception, CacheS3NotFound,
+                    CacheS3URLException, batchiter, decode,
                     error_event_msg, get_s3_obj, get_s3_size)
 
 MAX_SIZE = 4096
@@ -145,15 +146,15 @@ class GetArtifacts(CacheAction):
                     # In case the artifact was of a type that can not be json serialized,
                     # we try casting it to a string first.
                     results[artifact_key] = json.dumps([True, str(content)])
-                except MetaflowS3AccessDenied as ex:
+                except CacheS3AccessDenied as ex:
                     results[artifact_key] = json.dumps([False, 's3-access-denied', location])
-                except MetaflowS3NotFound as ex:
+                except CacheS3NotFound as ex:
                     results[artifact_key] = json.dumps([False, 's3-not-found', location])
-                except MetaflowS3URLException as ex:
+                except CacheS3URLException as ex:
                     results[artifact_key] = json.dumps([False, 's3-bad-url', location])
-                except MetaflowS3CredentialsMissing as ex:
+                except CacheS3CredentialsMissing as ex:
                     results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
-                except MetaflowS3Exception as ex:
+                except CacheS3Exception as ex:
                     results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
                 except Exception as ex:
                     results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])

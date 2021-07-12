@@ -1,16 +1,10 @@
-from metaflow.datatools.s3 import MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException, MetaflowException
-from urllib.parse import urlparse
-from . import s3op
-from metaflow.datatools.s3 import S3, get_s3_client, debug
-from botocore.exceptions import NoCredentialsError, ClientError
-from tempfile import NamedTemporaryFile
-import subprocess
-import sys
-import os
 import pickle
 from gzip import GzipFile
 from itertools import islice
+from tempfile import NamedTemporaryFile
+from urllib.parse import urlparse
 
+from botocore.exceptions import ClientError, NoCredentialsError
 from features import FEATURE_S3_DISABLE
 
 
@@ -30,99 +24,7 @@ def decode(path):
         obj = pickle.load(f)
         return obj
 
-
-# No-Retry S3 client
-
-
-class MetaflowS3CredentialsMissing(MetaflowException):
-    headline = 'could not locate s3 credentials'
-
-
-if FEATURE_S3_DISABLE:
-    class NoRetryS3(S3):
-        def _read_many_files(self, op, prefixes, **options):
-            raise MetaflowS3Exception("S3 disabled.")
-
-        def _one_boto_op(self, op, url):
-            raise MetaflowS3Exception("S3 disabled.")
-
-        def _s3op_with_retries(self, mode, **options):
-            return None, "S3 disabled."
-
-else:
-    class NoRetryS3(S3):
-        '''Custom S3 class with no retries for quick failing.
-        Base implementation is the metaflow library S3 client
-
-        Used only for get() and get_many() operations.
-        '''
-
-        def _one_boto_op(self, op, url):
-            error = ''
-            tmp = NamedTemporaryFile(dir=self._tmpdir,
-                                     prefix='metaflow.s3.one_file.',
-                                     delete=False)
-            try:
-                s3, _ = get_s3_client()
-                op(s3, tmp.name)
-                return tmp.name
-            except ClientError as err:
-                error_code = s3op.normalize_client_error(err)
-                if error_code == 404:
-                    raise MetaflowS3NotFound(url)
-                elif error_code == 403:
-                    raise MetaflowS3AccessDenied(url)
-                elif error_code == 'NoSuchBucket':
-                    raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
-                error = str(err)
-            except NoCredentialsError as err:
-                raise MetaflowS3CredentialsMissing(err)
-            except Exception as ex:
-                # TODO specific error message for out of disk space
-                error = str(ex)
-            os.unlink(tmp.name)
-            raise MetaflowS3Exception("S3 operation failed.\n"
-                                      "Key requested: %s\n"
-                                      "Error: %s" % (url, error))
-
-        def _s3op_with_retries(self, mode, **options):
-
-            cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
-            for key, value in options.items():
-                key = key.replace('_', '-')
-                if isinstance(value, bool):
-                    if value:
-                        cmdline.append('--%s' % key)
-                    else:
-                        cmdline.append('--no-%s' % key)
-                else:
-                    cmdline.extend(('--%s' % key, value))
-
-            with NamedTemporaryFile(dir=self._tmpdir,
-                                    mode='wb+',
-                                    delete=not debug.s3client,
-                                    prefix='metaflow.s3op.stderr') as stderr:
-                try:
-                    debug.s3client_exec(cmdline)
-                    stdout = subprocess.check_output(cmdline,
-                                                     cwd=self._tmpdir,
-                                                     stderr=stderr.file)
-                    return stdout, None
-                except subprocess.CalledProcessError as ex:
-                    stderr.seek(0)
-                    err_out = stderr.read().decode('utf-8', errors='replace')
-                    stderr.seek(0)
-                    if ex.returncode == s3op.ERROR_URL_NOT_FOUND:
-                        raise MetaflowS3NotFound(err_out)
-                    elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
-                        raise MetaflowS3AccessDenied(err_out)
-                    elif ex.returncode == s3op.ERROR_MISSING_CREDENTIALS:
-                        raise MetaflowS3CredentialsMissing(err_out)
-
-            return None, err_out
-
 # Cache action stream output helpers
-
 
 class StreamedCacheError(Exception):
     "Used for custom raises during cache action stream errors"
@@ -157,11 +59,15 @@ def search_result_event_msg(results):
 
 # S3 helpers
 
-
 def get_s3_size(s3_client, location):
     "Gets the S3 object size for a location, by only fetching the HEAD"
     bucket, key = bucket_and_key(location)
-    resp = s3_client.head_object(Bucket=bucket, Key=key)
+    try:
+        resp = s3_client.head_object(Bucket=bucket, Key=key)
+    except ClientError as ex:
+        wrap_boto_client_error(ex)
+    except NoCredentialsError:
+        raise CacheS3CredentialsMissing
     return resp['ContentLength']
 
 
@@ -169,7 +75,12 @@ def get_s3_obj(s3_client, location):
     "Gets the s3 file from the given location and returns a temporary file object that will get deleted upon dereferencing."
     bucket, key = bucket_and_key(location)
     tmp = NamedTemporaryFile(prefix='ui_backend.cache.s3.')
-    s3_client.download_file(bucket, key, tmp.name)
+    try:
+        s3_client.download_file(bucket, key, tmp.name)
+    except ClientError as ex:
+        wrap_boto_client_error(ex)
+    except NoCredentialsError:
+        raise CacheS3CredentialsMissing
     return tmp
 
 
@@ -177,3 +88,40 @@ def bucket_and_key(location):
     "Parse S3 bucket name and the object key from a location"
     loc = urlparse(location)
     return loc.netloc, loc.path.lstrip('/')
+
+
+def wrap_boto_client_error(err):
+    "Wrap relevant botocore ClientError error codes as custom error classes and raise them"
+    if err.response['Error']['Code'] == 'AccessDenied':
+        raise CacheS3AccessDenied
+    elif err.response['Error']['Code'] == '404':
+        raise CacheS3NotFound
+    elif err.response['Error']['Code'] == 'NoSuchBucket':
+        raise CacheS3URLException
+    else:
+        raise CacheS3Exception
+
+# Custom error classes for S3 access
+class CacheS3AccessDenied(Exception):
+    "Access to the S3 object is denied"
+    pass
+
+
+class CacheS3NotFound(Exception):
+    "Object could not be found in the bucket"
+    pass
+
+
+class CacheS3URLException(Exception):
+    "Bucket does not exist"
+    pass
+
+
+class CacheS3CredentialsMissing(Exception):
+    "S3 client is missing credentials"
+    pass
+
+
+class CacheS3Exception(Exception):
+    "Generic S3 client exception"
+    pass
