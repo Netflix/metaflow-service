@@ -7,7 +7,6 @@ from tarfile import TarFile
 from .client import CacheAction
 from services.utils import get_traceback_str
 
-# TODO: change to metaflow.graph when the AST-only PR is merged: https://github.com/Netflix/metaflow/pull/249
 from .custom_flowgraph import FlowGraph
 from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
                     CacheS3Exception, CacheS3NotFound,
