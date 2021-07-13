@@ -8,7 +8,8 @@ from services.utils import get_traceback_str
 from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
                     CacheS3Exception, CacheS3NotFound,
                     CacheS3URLException, batchiter, decode,
-                    error_event_msg, get_s3_obj, get_s3_size)
+                    error_event_msg, get_s3_obj, get_s3_size,
+                    artifact_cache_id, artifact_location_from_key)
 
 MAX_SIZE = 4096
 S3_BATCH_SIZE = 512
@@ -147,15 +148,15 @@ class GetArtifacts(CacheAction):
                     results[artifact_key] = json.dumps([True, str(content)])
                 except CacheS3AccessDenied as ex:
                     results[artifact_key] = json.dumps([False, 's3-access-denied', location])
-                except CacheS3NotFound as ex:
+                except CacheS3NotFound:
                     results[artifact_key] = json.dumps([False, 's3-not-found', location])
-                except CacheS3URLException as ex:
+                except CacheS3URLException:
                     results[artifact_key] = json.dumps([False, 's3-bad-url', location])
-                except CacheS3CredentialsMissing as ex:
+                except CacheS3CredentialsMissing:
                     results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
-                except CacheS3Exception as ex:
+                except CacheS3Exception:
                     results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
-                except Exception as ex:
+                except Exception:
                     results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
 
         # Skip the inaccessible locations
@@ -171,13 +172,3 @@ def lookup_id(locations):
     "construct a unique id to be used with stream_key and result_key"
     _string = "-".join(list(frozenset(sorted(locations))))
     return hashlib.sha1(_string.encode('utf-8')).hexdigest()
-
-
-def artifact_cache_id(location):
-    "construct a unique cache key for artifact location"
-    return 'search:artifactdata:%s' % location
-
-
-def artifact_location_from_key(x):
-    "extract location from the artifact cache key"
-    return x[len("search:artifactdata:"):]

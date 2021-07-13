@@ -8,7 +8,7 @@ from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
                     CacheS3NotFound, CacheS3Exception,
                     CacheS3URLException,
                     batchiter, decode, error_event_msg, progress_event_msg,
-                    get_s3_size, get_s3_obj)
+                    get_s3_size, get_s3_obj, artifact_cache_id)
 from ..refiner.refinery import unpack_processed_value
 
 MAX_SIZE = 4096
@@ -197,8 +197,3 @@ def lookup_id(locations, searchterm):
     "construct a unique id to be used with stream_key and result_key"
     _string = "-".join(list(frozenset(sorted(locations)))) + searchterm
     return hashlib.sha1(_string.encode('utf-8')).hexdigest()
-
-
-def artifact_cache_id(location):
-    "construct a unique cache key for artifact location"
-    return 'search:artifactdata:%s' % location

@@ -1,7 +1,8 @@
 import pytest
 
 from services.ui_backend_service.data.cache.utils import (
-    error_event_msg, progress_event_msg, search_result_event_msg
+    error_event_msg, progress_event_msg, search_result_event_msg,
+    artifact_location_from_key, artifact_cache_id
 )
 
 pytestmark = [pytest.mark.unit_tests]
@@ -24,3 +25,18 @@ def test_progress_event_msg():
 
 def test_search_result_event_msg():
     assert search_result_event_msg([1, 2, 3]) == {"type": "result", "matches": [1, 2, 3]}
+
+
+def test_artifact_cache_key_and_location_from_key():
+    # first generate an artifact cache key with any location
+    _loc = "s3://test-s3-locations/artifact_location/for/cache/1"
+
+    key = artifact_cache_id(_loc)
+
+    assert _loc in key
+
+    # We need to be able to extract the location from a cache key, to form correctly keyed responses
+    _extracted_loc = artifact_location_from_key(key)
+
+    assert _extracted_loc == _loc
+
