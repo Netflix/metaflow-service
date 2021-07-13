@@ -9,10 +9,8 @@ from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
                     CacheS3Exception, CacheS3NotFound,
                     CacheS3URLException, batchiter, decode,
                     error_event_msg, get_s3_obj, get_s3_size,
-                    artifact_cache_id, artifact_location_from_key)
-
-MAX_SIZE = 4096
-S3_BATCH_SIZE = 512
+                    artifact_cache_id, artifact_location_from_key,
+                    MAX_S3_SIZE)
 
 
 class GetArtifacts(CacheAction):
@@ -127,37 +125,36 @@ class GetArtifacts(CacheAction):
         # Fetch the S3 locations data
         s3_locations = [loc for loc in locations_to_fetch if loc.startswith('s3://')]
         s3 = boto3.client('s3')
-        for locations in batchiter(s3_locations, S3_BATCH_SIZE):
-            for location in locations:
-                artifact_key = artifact_cache_id(location)
-                try:
-                    obj_size = get_s3_size(s3, location)
-                    if obj_size < MAX_SIZE:
-                        temp_obj = get_s3_obj(s3, location)
-                        # TODO: Figure out a way to store the artifact content without decoding?
-                        # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                        # so we can not rely on the file existing if we only return a filepath as a cached response
-                        content = decode(temp_obj.name)
-                        results[artifact_key] = json.dumps([True, content])
-                    else:
-                        results[artifact_key] = json.dumps([False, 'artifact-too-large', obj_size])
+        for location in s3_locations:
+            artifact_key = artifact_cache_id(location)
+            try:
+                obj_size = get_s3_size(s3, location)
+                if obj_size < MAX_SIZE:
+                    temp_obj = get_s3_obj(s3, location)
+                    # TODO: Figure out a way to store the artifact content without decoding?
+                    # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
+                    # so we can not rely on the file existing if we only return a filepath as a cached response
+                    content = decode(temp_obj.name)
+                    results[artifact_key] = json.dumps([True, content])
+                else:
+                    results[artifact_key] = json.dumps([False, 'artifact-too-large', obj_size])
 
-                except TypeError:
-                    # In case the artifact was of a type that can not be json serialized,
-                    # we try casting it to a string first.
-                    results[artifact_key] = json.dumps([True, str(content)])
-                except CacheS3AccessDenied as ex:
-                    results[artifact_key] = json.dumps([False, 's3-access-denied', location])
-                except CacheS3NotFound:
-                    results[artifact_key] = json.dumps([False, 's3-not-found', location])
-                except CacheS3URLException:
-                    results[artifact_key] = json.dumps([False, 's3-bad-url', location])
-                except CacheS3CredentialsMissing:
-                    results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
-                except CacheS3Exception:
-                    results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
-                except Exception:
-                    results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
+            except TypeError:
+                # In case the artifact was of a type that can not be json serialized,
+                # we try casting it to a string first.
+                results[artifact_key] = json.dumps([True, str(content)])
+            except CacheS3AccessDenied as ex:
+                results[artifact_key] = json.dumps([False, 's3-access-denied', location])
+            except CacheS3NotFound:
+                results[artifact_key] = json.dumps([False, 's3-not-found', location])
+            except CacheS3URLException:
+                results[artifact_key] = json.dumps([False, 's3-bad-url', location])
+            except CacheS3CredentialsMissing:
+                results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
+            except CacheS3Exception:
+                results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
+            except Exception:
+                results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
 
         # Skip the inaccessible locations
         other_locations = [loc for loc in locations_to_fetch if not loc.startswith('s3://')]

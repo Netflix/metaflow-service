@@ -16,7 +16,7 @@ Configure amount of seconds realtime events are kept in queue (delivered to UI i
 
 - `WS_QUEUE_TTL_SECONDS` [defaults to 300 (5 minutes)]
 
-## Cache and data preload limits 
+## Cache and data limits 
 
 Configure amount of runs to prefetch during server startup (artifact cache):
 
@@ -32,6 +32,10 @@ Configure the maximum usable space by the cache:
 
 - `CACHE_ARTIFACT_STORAGE_LIMIT` [in bytes, defaults to 600000]
 - `CACHE_DAG_STORAGE_LIMIT` [in bytes, defaults to 100000]
+
+Configure the maximum size of files that should be processed by cache actions:
+
+- `MAX_PROCESSABLE_S3_ARTIFACT_SIZE_KB` [in kilobytes, defaults to 4]
 
 ## Feature flags
 
