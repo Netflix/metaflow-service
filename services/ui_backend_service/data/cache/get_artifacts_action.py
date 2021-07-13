@@ -129,7 +129,7 @@ class GetArtifacts(CacheAction):
             artifact_key = artifact_cache_id(location)
             try:
                 obj_size = get_s3_size(s3, location)
-                if obj_size < MAX_SIZE:
+                if obj_size < MAX_S3_SIZE:
                     temp_obj = get_s3_obj(s3, location)
                     # TODO: Figure out a way to store the artifact content without decoding?
                     # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
