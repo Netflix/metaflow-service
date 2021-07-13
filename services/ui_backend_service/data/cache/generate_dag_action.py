@@ -1,16 +1,16 @@
 import hashlib
 import json
 import os
+import boto3
 from tarfile import TarFile
 
 from .client import CacheAction
 from services.utils import get_traceback_str
 
-# TODO: change to metaflow.graph when the AST-only PR is merged: https://github.com/Netflix/metaflow/pull/249
 from .custom_flowgraph import FlowGraph
-from .utils import (MetaflowS3AccessDenied, MetaflowS3CredentialsMissing,
-                    MetaflowS3Exception, MetaflowS3NotFound,
-                    MetaflowS3URLException, NoRetryS3)
+from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
+                    CacheS3Exception, CacheS3NotFound,
+                    CacheS3URLException, get_s3_obj)
 
 
 class GenerateDag(CacheAction):
@@ -92,24 +92,24 @@ class GenerateDag(CacheAction):
             return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
         # get codepackage from S3
-        with NoRetryS3() as s3:
-            try:
-                codetar = s3.get(location)
-                results[result_key] = json.dumps(generate_dag(flow_name, codetar.path))
-            except MetaflowS3AccessDenied as ex:
-                stream_error(str(ex), "s3-access-denied")
-            except MetaflowS3NotFound as ex:
-                stream_error(str(ex), "s3-not-found")
-            except MetaflowS3URLException as ex:
-                stream_error(str(ex), "s3-bad-url")
-            except MetaflowS3CredentialsMissing as ex:
-                stream_error(str(ex), "s3-missing-credentials")
-            except MetaflowS3Exception as ex:
-                stream_error(str(ex), "s3-generic-error")
-            except UnsupportedFlowLanguage as ex:
-                stream_error(str(ex), "dag-unsupported-flow-language")
-            except Exception as ex:
-                stream_error(str(ex), "dag-processing-error", get_traceback_str())
+        s3 = boto3.client("s3")
+        try:
+            codetar = get_s3_obj(s3, location)
+            results[result_key] = json.dumps(generate_dag(flow_name, codetar.name))
+        except CacheS3AccessDenied as ex:
+            stream_error(str(ex), "s3-access-denied")
+        except CacheS3NotFound as ex:
+            stream_error(str(ex), "s3-not-found")
+        except CacheS3URLException as ex:
+            stream_error(str(ex), "s3-bad-url")
+        except CacheS3CredentialsMissing as ex:
+            stream_error(str(ex), "s3-missing-credentials")
+        except CacheS3Exception as ex:
+            stream_error(str(ex), "s3-generic-error")
+        except UnsupportedFlowLanguage as ex:
+            stream_error(str(ex), "dag-unsupported-flow-language")
+        except Exception as ex:
+            stream_error(str(ex), "dag-processing-error", get_traceback_str())
 
         return results
 
