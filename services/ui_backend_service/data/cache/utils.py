@@ -1,3 +1,4 @@
+import os
 import pickle
 from gzip import GzipFile
 from itertools import islice
@@ -6,6 +7,8 @@ from urllib.parse import urlparse
 
 from botocore.exceptions import ClientError, NoCredentialsError
 from services.ui_backend_service.features import FEATURE_S3_DISABLE
+
+# Generic helpers
 
 
 def batchiter(it, batch_size):
@@ -23,6 +26,24 @@ def decode(path):
     with GzipFile(path) as f:
         obj = pickle.load(f)
         return obj
+
+# Cache Action helpers
+
+
+MAX_S3_SIZE = int(os.environ.get("MAX_PROCESSABLE_S3_ARTIFACT_SIZE_KB", 4)) * 1024
+
+# Cache Key helpers
+
+
+def artifact_cache_id(location):
+    "construct a unique cache key for artifact location"
+    return 'search:artifactdata:%s' % location
+
+
+def artifact_location_from_key(x):
+    "extract location from the artifact cache key"
+    return x[len("search:artifactdata:"):]
+
 
 # Cache action stream output helpers
 
