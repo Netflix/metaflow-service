@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 
 from botocore.exceptions import ClientError, NoCredentialsError
+from services.ui_backend_service.features import FEATURE_S3_DISABLE
 
 
 def batchiter(it, batch_size):
@@ -62,6 +63,8 @@ def search_result_event_msg(results):
 
 def get_s3_size(s3_client, location):
     "Gets the S3 object size for a location, by only fetching the HEAD"
+    if FEATURE_S3_DISABLE:
+        raise CacheS3Exception  # S3 is disabled, do not proceed.
     bucket, key = bucket_and_key(location)
     try:
         resp = s3_client.head_object(Bucket=bucket, Key=key)
@@ -74,6 +77,8 @@ def get_s3_size(s3_client, location):
 
 def get_s3_obj(s3_client, location):
     "Gets the s3 file from the given location and returns a temporary file object that will get deleted upon dereferencing."
+    if FEATURE_S3_DISABLE:
+        raise CacheS3Exception  # S3 is disabled, do not proceed.
     bucket, key = bucket_and_key(location)
     tmp = NamedTemporaryFile(prefix='ui_backend.cache.s3.')
     try:
