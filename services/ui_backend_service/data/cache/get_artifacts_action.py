@@ -1,4 +1,3 @@
-import boto3
 import hashlib
 import json
 
@@ -7,8 +6,8 @@ from services.utils import get_traceback_str
 
 from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
                     CacheS3Exception, CacheS3NotFound,
-                    CacheS3URLException, batchiter, decode,
-                    error_event_msg, get_s3_obj, get_s3_size,
+                    CacheS3URLException, decode, error_event_msg,
+                    get_s3_obj, get_s3_size, get_s3_client,
                     artifact_cache_id, artifact_location_from_key,
                     MAX_S3_SIZE)
 
@@ -124,7 +123,7 @@ class GetArtifacts(CacheAction):
 
         # Fetch the S3 locations data
         s3_locations = [loc for loc in locations_to_fetch if loc.startswith('s3://')]
-        s3 = boto3.client('s3')
+        s3 = get_s3_client()
         for location in s3_locations:
             artifact_key = artifact_cache_id(location)
             try:

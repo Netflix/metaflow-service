@@ -5,6 +5,7 @@ from itertools import islice
 from tempfile import NamedTemporaryFile
 from urllib.parse import urlparse
 
+import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from services.ui_backend_service.features import FEATURE_S3_DISABLE
 
@@ -80,6 +81,13 @@ def search_result_event_msg(results):
     }
 
 # S3 helpers
+
+
+def get_s3_client():
+    return boto3.client(
+        "s3",
+        endpoint_url=os.environ.get("METAFLOW_S3_ENDPOINT_URL", None),
+        verify=os.environ.get("METAFLOW_S3_VERIFY_CERTIFICATE", None))
 
 
 def get_s3_size(s3_client, location):
