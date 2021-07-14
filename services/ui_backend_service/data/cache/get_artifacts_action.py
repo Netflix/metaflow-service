@@ -10,6 +10,7 @@ from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
                     get_s3_obj, get_s3_size, get_s3_client,
                     artifact_cache_id, artifact_location_from_key,
                     MAX_S3_SIZE)
+from ..refiner.refinery import unpack_processed_value
 
 
 class GetArtifacts(CacheAction):
@@ -63,7 +64,7 @@ class GetArtifacts(CacheAction):
 
         collected = {}
         for key, val in artifact_keys:
-            success, value = json.loads(val)
+            success, value, _ = unpack_processed_value(json.loads(val))
 
             # Only include artifacts whose content could successfully be read in the cache response.
             if success:
