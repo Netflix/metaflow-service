@@ -158,7 +158,11 @@ class LogApi(object):
         "Initializes an S3 client for this API handler"
         session = aiobotocore.get_session()
         conf = botocore.config.Config(max_pool_connections=S3_MAX_POOL_CONNECTIONS)
-        self.s3_client = await self.context_stack.enter_async_context(session.create_client('s3', config=conf))
+        self.s3_client = await self.context_stack.enter_async_context(
+            session.create_client(
+                's3', config=conf,
+                endpoint_url=os.environ.get("METAFLOW_S3_ENDPOINT_URL", None),
+                verify=os.environ.get("METAFLOW_S3_VERIFY_CERTIFICATE", None)))
 
     async def teardown_s3_client(self, app):
         "closes the async context for the S3 client"

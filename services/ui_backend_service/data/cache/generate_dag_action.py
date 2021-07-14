@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import boto3
 from tarfile import TarFile
 
 from .client import CacheAction
@@ -10,7 +9,7 @@ from services.utils import get_traceback_str
 from .custom_flowgraph import FlowGraph
 from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
                     CacheS3Exception, CacheS3NotFound,
-                    CacheS3URLException, get_s3_obj)
+                    CacheS3URLException, get_s3_obj, get_s3_client)
 
 
 class GenerateDag(CacheAction):
@@ -92,7 +91,7 @@ class GenerateDag(CacheAction):
             return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
         # get codepackage from S3
-        s3 = boto3.client("s3")
+        s3 = get_s3_client()
         try:
             codetar = get_s3_obj(s3, location)
             results[result_key] = json.dumps(generate_dag(flow_name, codetar.name))
