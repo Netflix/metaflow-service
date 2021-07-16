@@ -9,12 +9,14 @@ Plugins can be registered via `PLUGINS` environment variable. The value should b
 
 ```json
 {
-  "plugin-example": "https://github.com/Netflix/metaflow-ui-plugin-example.git"
+  "plugin-example": "git@github.com:Netflix/metaflow-ui-plugin-example.git"
 }
 ```
 
 All plugins are installed under `services/ui_backend_service/plugins/installed`. Local plugins should be placed under this folder, e.g. `services/ui_backend_service/plugins/installed/plugin-example/`.
 Plugins are loaded only if `PLUGINS` environment variable contains entry for a specific plugin.
+
+Both HTTPS and SSH repositories are supported.
 
 ## Documentation
 
@@ -48,6 +50,33 @@ Following API routes are supported:
 | `GET /plugin/{plugin_name}`            | List plugin details                                                           |
 | `GET /plugin/{plugin_name}/{filename}` | Serve plugin files, such as `manifest.json`, `README.md` or `dist/index.html` |
 
+## Authentication credentials
+
+There are multiple ways to provide authentication credentials:
+
+- Username and password
+- SSH key pair
+- SSH Agent (`~/.ssh`)
+
+Authentication credentials can be provided by using `auth` object at the top level of `PLUGINS` json
+or alternatively by defining `auth` object at repository level.
+
+```json
+{
+  "auth": {
+    "public_key": "/path/to/id_rsa.pub",
+    "private_key": "/path/to/id_rsa"
+  },
+  "metaflow-ui-plugin-example": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+  "metaflow-ui-plugin-noauth": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example-noauth.git",
+    "auth": null
+  }
+}
+```
+
+See Examples -section for reference.
+
 ## Plugin development
 
 - Plugin development documentation can be found from [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui) repository.
@@ -59,7 +88,7 @@ Following JSON describes different ways to register plugins. Each plugin will be
 
 ```json
 {
-  "plugin": "https://github.com/Netflix/metaflow-ui-plugin-example.git",
+  "plugin": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
   "plugin-repository": {
     "repository": "https://github.com/Netflix/metaflow-ui-plugin-example.git"
   },
@@ -72,7 +101,7 @@ Following JSON describes different ways to register plugins. Each plugin will be
     "ref": "3758f6a"
   },
   "plugin-commit-with-parameters": {
-    "repository": "https://github.com/Netflix/metaflow-ui-plugin-example.git",
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
     "ref": "3758f6a",
     "parameters": {
       "color": "blue"
@@ -81,6 +110,66 @@ Following JSON describes different ways to register plugins. Each plugin will be
   "plugin-repository-multiple": {
     "repository": "https://github.com/Netflix/metaflow-ui-plugin-example.git",
     "paths": ["path/to/first-plugin", "second-plugin"]
+  }
+}
+```
+
+Following JSON describes different ways to provide authentication credentials for remote Git repositories:
+
+```json
+{
+  "auth": {
+    "public_key": "/root/id_rsa.pub",
+    "private_key": "/root/id_rsa",
+    "user": "git",
+    "pass": "optional-passphrase"
+  },
+  "plugin-auth-global": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+  "plugin-noauth": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+    "auth": null
+  },
+  "plugin-auth-user": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+    "auth": {
+      "user": "username"
+    }
+  },
+  "plugin-auth-userpass": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+    "auth": {
+      "user": "username",
+      "pass": "password"
+    }
+  },
+  "plugin-auth-key-user": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+    "auth": {
+      "public_key": "ssh-rsa AAAA...",
+      "private_key": "-----BEGIN RSA PRIVATE KEY-----...",
+      "user": "custom"
+    }
+  },
+  "plugin-auth-key-pass": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+    "auth": {
+      "public_key": "/root/id_rsa.pub",
+      "private_key": "/root/id_rsa",
+      "pass": "optional-passphrase"
+    }
+  },
+  "plugin-auth-agent": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+    "auth": {
+      "agent": true
+    }
+  },
+  "plugin-auth-agent-user": {
+    "repository": "git@github.com:Netflix/metaflow-ui-plugin-example.git",
+    "auth": {
+      "agent": true,
+      "user": "custom"
+    }
   }
 }
 ```
@@ -100,8 +189,3 @@ Following JSON describes different ways to register local plugins. Each plugin s
   }
 }
 ```
-
-## Limitations and known issues
-
-- Only HTTPS repositories are supported
-- Repository should be publicly available without authentication

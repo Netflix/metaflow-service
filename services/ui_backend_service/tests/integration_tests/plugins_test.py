@@ -6,8 +6,9 @@ import contextlib
 from .utils import (
     init_app, init_db, clean_db
 )
-from ...plugins import init_plugins, _reset_plugins, Plugin
+from ...plugins import init_plugins, list_plugins, _reset_plugins, Plugin
 from aiohttp import web
+import pygit2
 
 
 pytestmark = [pytest.mark.integration_tests]
@@ -46,7 +47,71 @@ async def setup_plugins():
                 "plugin-first",
                 "plugin-second"
             ]
+        }
+    }
+    custom_string = json.dumps(_plugins)
+    os.environ["PLUGINS"] = custom_string
+
+    yield _plugins
+    del(os.environ["PLUGINS"])  # cleanup afterwards
+
+
+@pytest.fixture
+async def setup_plugins_auth():
+    _plugins = {
+        "auth": {
+            "public_key": "/root/id_rsa.pub",
+            "private_key": "/root/id_rsa",
+            "user": "git",
+            "pass": "optional-passphrase"
         },
+        "plugin-auth-global": "https://github.com/Netflix/metaflow-ui-plugin-turbo-eureka.git",
+        "plugin-noauth": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
+            "auth": None
+        },
+        "plugin-auth-user": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
+            "auth": {
+                "user": "username"
+            }
+        },
+        "plugin-auth-userpass": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
+            "auth": {
+                "user": "username",
+                "pass": "password"
+            }
+        },
+        "plugin-auth-key-user": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
+            "auth": {
+                "public_key": "ssh-rsa AAAA...",
+                "private_key": "-----BEGIN RSA PRIVATE KEY-----...",
+                "user": "custom"
+            }
+        },
+        "plugin-auth-key-pass": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
+            "auth": {
+                "public_key": "/root/id_rsa.pub",
+                "private_key": "/root/id_rsa",
+                "pass": "optional-passphrase"
+            }
+        },
+        "plugin-auth-agent": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
+            "auth": {
+                "agent": True
+            }
+        },
+        "plugin-auth-agent-user": {
+            "repository": "https://github.com/Netflix/metaflow-ui-plugin-solid-waffle.git",
+            "auth": {
+                "agent": True,
+                "user": "custom"
+            }
+        }
     }
     custom_string = json.dumps(_plugins)
     os.environ["PLUGINS"] = custom_string
@@ -197,6 +262,37 @@ async def test_broken_json_plugins(broken_env, cli, db):
 
     assert resp.status == 200
     assert body == []
+
+
+async def test_plugins_auth(setup_plugins_auth, cli, db):
+    with mock_plugins():
+        _plugins_list = list_plugins()
+
+    plugin_noauth = next(p for p in _plugins_list if p.identifier == "plugin-noauth")
+    plugin_auth_global = next(p for p in _plugins_list if p.identifier == "plugin-auth-global")
+    plugin_auth_user = next(p for p in _plugins_list if p.identifier == "plugin-auth-user")
+    plugin_auth_userpass = next(p for p in _plugins_list if p.identifier == "plugin-auth-userpass")
+    plugin_auth_key_user = next(p for p in _plugins_list if p.identifier == "plugin-auth-key-user")
+    plugin_auth_key_pass = next(p for p in _plugins_list if p.identifier == "plugin-auth-key-pass")
+    plugin_auth_agent = next(p for p in _plugins_list if p.identifier == "plugin-auth-agent")
+    plugin_auth_agent_user = next(p for p in _plugins_list if p.identifier == "plugin-auth-agent-user")
+
+    assert plugin_noauth.credentials == None
+    assert isinstance(plugin_auth_global.credentials, pygit2.Keypair)
+    assert isinstance(plugin_auth_user.credentials, pygit2.Username)
+    assert isinstance(plugin_auth_userpass.credentials, pygit2.UserPass)
+    assert isinstance(plugin_auth_key_user.credentials, pygit2.KeypairFromMemory)
+    assert isinstance(plugin_auth_key_pass.credentials, pygit2.Keypair)
+    assert isinstance(plugin_auth_agent.credentials, pygit2.KeypairFromAgent)
+    assert isinstance(plugin_auth_agent_user.credentials, pygit2.KeypairFromAgent)
+
+    assert ("git", "/root/id_rsa.pub", "/root/id_rsa", "optional-passphrase") == plugin_auth_global.credentials.credential_tuple
+    assert ("username",) == plugin_auth_user.credentials.credential_tuple
+    assert ("username", "password") == plugin_auth_userpass.credentials.credential_tuple
+    assert ("custom", "ssh-rsa AAAA...", "-----BEGIN RSA PRIVATE KEY-----...", "") == plugin_auth_key_user.credentials.credential_tuple
+    assert ("git", "/root/id_rsa.pub", "/root/id_rsa", "optional-passphrase") == plugin_auth_key_pass.credentials.credential_tuple
+    assert ("git", None, None, None) == plugin_auth_agent.credentials.credential_tuple
+    assert ("custom", None, None, None) == plugin_auth_agent_user.credentials.credential_tuple
 
 
 class MockPlugin(Plugin):

@@ -33,7 +33,7 @@ class PluginsApi(object):
         """
         plugins = []
         for plugin in list_plugins():
-            plugins.append(_plugin_dict(plugin))
+            plugins.append(dict(plugin))
 
         return web_response(200, plugins)
 
@@ -62,7 +62,7 @@ class PluginsApi(object):
         if not plugin:
             return web_response(404, "Plugin not found")
 
-        return web_response(200, _plugin_dict(plugin))
+        return web_response(200, dict(plugin))
 
     @handle_exceptions
     async def get_plugin_asset(self, request):
@@ -95,14 +95,6 @@ class PluginsApi(object):
             return web_response(500, "Internal server error")
 
 
-def _get_plugin_from_request_old(request):
-    _plugins = list_plugins()
-    plugin_name = request.match_info.get("plugin_name")
-    if plugin_name not in _plugins:
-        return None
-    return _plugins[plugin_name]
-
-
 def _get_plugin_from_request(request):
     _plugins = list_plugins()
     plugin_name = request.match_info.get("plugin_name")
@@ -110,15 +102,3 @@ def _get_plugin_from_request(request):
         if plugin.name == plugin_name:
             return plugin
     return None
-
-
-def _plugin_dict(plugin):
-    return {
-        "identifier": plugin.identifier,
-        "name": plugin.name,
-        "repository": plugin.repository,
-        "ref": plugin.ref,
-        "parameters": plugin.parameters,
-        "config": plugin.config,
-        "files": plugin.files
-    }

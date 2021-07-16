@@ -20,34 +20,45 @@ def init_plugins():
 
     plugins = get_json_from_env("PLUGINS")
     if plugins:
+        global_auth = None
+        if "auth" in plugins and isinstance(plugins["auth"], dict):
+            global_auth = plugins["auth"]
+
         for identifier, value in plugins.items():
             if isinstance(value, str):
                 repository = value
                 ref = None
                 parameters = {}
                 paths = None
+                auth = global_auth
+            elif identifier == "auth":
+                continue
             elif isinstance(value, dict):
                 repository = value.get("repository", None)
                 ref = value.get("ref", None)
                 parameters = value.get("parameters", {})
                 paths = value.get("paths", None)
+                if "auth" in value:
+                    auth = value.get("auth", None)
+                else:
+                    auth = global_auth
             else:
                 logger.warn("   [{}] Invalid plugin format, skipping".format(identifier))
                 continue
 
             if paths and isinstance(paths, list):
                 for path in paths:
-                    _load_plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters, path=path)
+                    _load_plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters, path=path, auth=auth)
             else:
-                _load_plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters)
+                _load_plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters, auth=auth)
 
-    logger.info("Plugins ready: {}".format(list(map(lambda p: p.name, _PLUGINS))))
+    logger.info("Plugins ready: {}".format(list(map(lambda p: p.identifier, _PLUGINS))))
 
 
-def _load_plugin(identifier: str, repository: str = None, ref: str = None, parameters: dict = {}, path: str = None):
+def _load_plugin(identifier: str, repository: str = None, ref: str = None, parameters: dict = {}, path: str = None, auth: dict = {}):
     global _PLUGINS
     try:
-        plugin = Plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters, path=path)
+        plugin = Plugin(identifier=identifier, repository=repository, ref=ref, parameters=parameters, path=path, auth=auth)
         _PLUGINS.append(plugin.init())
     except PluginException as err:
         logger.error("  [{}:{}] PluginException: {}".format(identifier, path, err))

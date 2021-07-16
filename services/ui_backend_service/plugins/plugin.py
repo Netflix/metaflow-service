@@ -27,7 +27,7 @@ class Plugin(object):
 
     _repo: pygit2.Repository = None
 
-    def __init__(self, identifier: str, repository: str, ref: str = None, parameters: dict = {}, path: str = None):
+    def __init__(self, identifier: str, repository: str, ref: str = None, parameters: dict = {}, path: str = None, auth: dict = {}):
         self.logger = logging.getLogger("Plugin:{}:{}".format(identifier, path))
 
         self.identifier = identifier
@@ -40,6 +40,9 @@ class Plugin(object):
         else:
             self.path = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier)
 
+        self.credentials = _get_credentials(auth)
+        self.callbacks = pygit2.RemoteCallbacks(credentials=self.credentials) if self.credentials else None
+
     def init(self):
         """
         Init plugin by loading manifest.json and listing available files from filesystem.
@@ -51,7 +54,8 @@ class Plugin(object):
             self._repo = pygit2.Repository(local_repository)
             self.checkout(self.repository)
         elif self.repository:
-            self._repo = pygit2.clone_repository(self.repository, self.path, bare=False)
+            self._repo = pygit2.clone_repository(
+                self.repository, self.path, bare=False, callbacks=self.callbacks)
             self.checkout()
         else:
             # Target directory is not a Git repository, no need to checkout
@@ -76,7 +80,7 @@ class Plugin(object):
 
             # Fetch latest changes
             for remote in self._repo.remotes:
-                remote.fetch()
+                remote.fetch(callbacks=self.callbacks)
 
             # Resolve ref and checkout
             commit, resolved_refish = self._repo.resolve_refish(self.ref if self.ref else 'origin/master')
@@ -126,6 +130,10 @@ class Plugin(object):
             return web.Response(status=404, body="File not found")
         return web.FileResponse(os.path.join(self.path, filename))
 
+    def __iter__(self):
+        for key in ["identifier", "name", "repository", "ref", "parameters", "config", "files"]:
+            yield key, getattr(self, key)
+
 
 class PluginException(Exception):
     def __init__(self, msg="Error loading plugin", id="plugin-error-unknown", traceback_str=None):
@@ -135,3 +143,30 @@ class PluginException(Exception):
 
     def __str__(self):
         return self.message
+
+
+def _get_credentials(_auth):
+    if not _auth:
+        return None
+
+    _agent = _auth.get("agent", False)
+    _public_key = _auth.get("public_key", None)
+    _private_key = _auth.get("private_key", None)
+    _username = _auth.get("user", None)
+    _passphrase = _auth.get("pass", None)
+
+    if _agent:
+        credentials = pygit2.KeypairFromAgent(_username or "git")
+    elif _public_key and _private_key:
+        if os.path.exists(_public_key) and os.path.exists(_private_key):
+            credentials = pygit2.Keypair(_username or "git", _public_key, _private_key, _passphrase or "")
+        else:
+            credentials = pygit2.KeypairFromMemory(_username or "git", _public_key, _private_key, _passphrase or "")
+    elif _username and _passphrase:
+        credentials = pygit2.UserPass(_username, _passphrase)
+    elif _username:
+        credentials = pygit2.Username(_username)
+    else:
+        credentials = None
+
+    return credentials
