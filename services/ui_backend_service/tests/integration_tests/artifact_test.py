@@ -27,7 +27,6 @@ async def test_list_artifact(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
-    print("STEP: {}".format(_step), flush=True)
     _task = (await add_task(db,
                             flow_id=_step.get("flow_id"),
                             step_name=_step.get("step_name"),

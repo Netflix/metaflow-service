@@ -1,6 +1,7 @@
 import asyncio
 import os
 import signal
+import concurrent
 
 from aiohttp import web
 from aiohttp_swagger import *
@@ -11,7 +12,7 @@ from services.utils import DBConfiguration, logging
 from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
                   MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
-                  TaskApi, TaskHeartbeatMonitor, Websocket)
+                  TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi)
 
 from .data.cache import CacheStore
 from .data.db import AsyncPostgresDB
@@ -19,6 +20,8 @@ from .doc import swagger_definitions, swagger_description
 from .features import (FEATURE_DB_LISTEN_ENABLE, FEATURE_HEARTBEAT_ENABLE,
                        FEATURE_WS_ENABLE)
 from .frontend import Frontend
+
+from .plugins import init_plugins
 
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
@@ -73,6 +76,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     DagApi(app, async_db, cache_store)
     FeaturesApi(app)
     ConfigApi(app)
+    PluginsApi(app)
 
     LogApi(app, async_db)
     AdminApi(app)
@@ -88,6 +92,11 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     if len(PATH_PREFIX) > 0:
         _app.add_subapp(PATH_PREFIX, app)
+
+    async def _init_plugins():
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            await loop.run_in_executor(pool, init_plugins)
+    asyncio.run_coroutine_threadsafe(_init_plugins(), loop)
 
     return _app
 

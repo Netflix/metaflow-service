@@ -4,6 +4,7 @@
 
 - Optional configuration
   - [Configurable environment variables](environment.md)
+  - [Plugin system](plugins.md)
 - API Documentation
   - [REST API routes](api.md)
   - [Realtime resource subscriptions](websockets.md#realtime-state-subscriptions-for-resources)

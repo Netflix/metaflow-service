@@ -287,6 +287,8 @@ swagger_definitions = {
             "run_number": path_param("run_number", "Run number", "integer"),
             "step_name": path_param("step_name", "Step name", "string"),
             "task_id": path_param("task_id", "Task id", "integer"),
+            "plugin_name": path_param("plugin_name", "Plugin name (identifier)", "string"),
+            "plugin_filename": path_param("filename", "Relative path to file (e.g. dist/index.html)", "string"),
         },
         "Custom": {
             "id": custom_param("id", "integer"),
@@ -386,6 +388,17 @@ swagger_definitions = {
             "dag-unsupported-flow-language": "The Flow language is not supported by the DAG parser. DAG graph can not be generated"
         }
     ),
+    "ResponsesPlugin": {
+        "type": "object",
+        "$ref": "#/definitions/ModelsPlugin"
+    },
+    "ResponsesPluginList": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "$ref": "#/definitions/ModelsPlugin"
+        }
+    },
     "ResponsesError405": response_error(405),
     "ResponsesError404": response_error(404),
     "ResponsesError500": response_internal_error(),
@@ -530,6 +543,69 @@ swagger_definitions = {
             }
         },
         "required": ["id", "message", "created", "type", "contentType", "url", "urlText", "start", "end"]
+    },
+    "ModelsPlugin": {
+        "type": "object",
+        "properties": {
+            "identifier": {
+                "type": "string",
+                "description": "Plugin identifier (repository/folder name)"
+            },
+            "name": {
+                "type": "string",
+                "description": "Plugin name (manifest.json)"
+            },
+            "repository": {
+                "type": "string",
+                "description": "Git repository",
+                "default": None
+            },
+            "ref": {
+                "type": "string",
+                "description": "Git refish to use e.g. origin/feature/extra-syrup",
+                "default": None
+            },
+            "parameters": {
+                "type": "object",
+                "description": "Custom parameters to pass to the plugin"
+            },
+            "config": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsPluginConfig",
+                "description": "Plugin manifest.json",
+                "default": {
+                    "name": "plugin-name",
+                    "version": "1.0.0",
+                    "entrypoint": "index.html"
+                }
+            },
+            "files": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "List of files available for this plugin"
+            }
+        },
+        "required": ["identifier", "name", "repository", "ref", "parameters", "config", "files"]
+    },
+    "ModelsPluginConfig": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Plugin name"
+            },
+            "version": {
+                "type": "string",
+                "description": "Semantic version of this plugin"
+            },
+            "entrypoint": {
+                "type": "string",
+                "description": "Entrypoint for the plugin, relative or absolute. Loaded inside iframe with parameters"
+            }
+        },
+        "required": ["name", "version", "entrypoint"]
     },
     "ModelsDag": {
         "type": "object",

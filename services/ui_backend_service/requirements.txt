@@ -14,3 +14,4 @@ idna==2.10
 wrapt==1.11.2
 pylint==2.4.4
 metaflow==2.0.5
+pygit2==1.6.1

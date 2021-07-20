@@ -47,6 +47,7 @@ services:
       - CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
       - NOTIFICATIONS=$NOTIFICATIONS
       - GA_TRACKING_ID=none
+      - PLUGINS=$PLUGINS
     depends_on:
       - db
   metadata:
