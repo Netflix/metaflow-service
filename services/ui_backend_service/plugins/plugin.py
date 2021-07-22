@@ -35,10 +35,12 @@ class Plugin(object):
         self.ref = ref
         self.parameters = parameters
 
-        if path:
-            self.path = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier, path)
-        else:
-            self.path = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier)
+        # Base path for plugin folder
+        self.basepath = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier)
+        
+        # Path to plugin files such as manifest.json.
+        # Differs from root path in case of multi-plugin repositories.
+        self.filepath = os.path.join(self.basepath, path or "")
 
         self.credentials = _get_credentials(auth)
         self.callbacks = pygit2.RemoteCallbacks(credentials=self.credentials) if self.credentials else None
@@ -49,13 +51,13 @@ class Plugin(object):
 
         In case of Git repository, clone, fetch changes and checkout to target ref.
         """
-        local_repository = pygit2.discover_repository(self.path)
+        local_repository = pygit2.discover_repository(self.basepath)
         if local_repository:
             self._repo = pygit2.Repository(local_repository)
             self.checkout(self.repository)
         elif self.repository:
             self._repo = pygit2.clone_repository(
-                self.repository, self.path, bare=False, callbacks=self.callbacks)
+                self.repository, self.basepath, bare=False, callbacks=self.callbacks)
             self.checkout()
         else:
             # Target directory is not a Git repository, no need to checkout
@@ -103,9 +105,9 @@ class Plugin(object):
 
     def _list_files(self) -> List[str]:
         files = []
-        static_files = glob.glob(os.path.join(self.path, '**'), recursive=True)
+        static_files = glob.glob(os.path.join(self.filepath, '**'), recursive=True)
         for filepath in static_files:
-            filename = filepath[len(self.path) + 1:]
+            filename = os.path.basename(filepath)
             if not os.path.isdir(filepath):
                 files.append(filename)
         return files
@@ -116,10 +118,12 @@ class Plugin(object):
     def get_file(self, filename):
         """Return file contents"""
         if not self.has_file(filename):
+            self.logger.error("DID NOT FIND FILE: {}".format(filename))
+            self.logger.error("FILEPATHS: {}".format(self._list_files()))
             return None
 
         try:
-            with open(os.path.join(self.path, filename), 'r') as file:
+            with open(os.path.join(self.filepath, filename), 'r') as file:
                 return file.read()
         except:
             return None
@@ -128,7 +132,7 @@ class Plugin(object):
         """Serve files from plugin repository"""
         if not self.has_file(filename):
             return web.Response(status=404, body="File not found")
-        return web.FileResponse(os.path.join(self.path, filename))
+        return web.FileResponse(os.path.join(self.filepath, filename))
 
     def __iter__(self):
         for key in ["identifier", "name", "repository", "ref", "parameters", "config", "files"]:
