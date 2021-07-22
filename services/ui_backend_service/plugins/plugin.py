@@ -37,7 +37,7 @@ class Plugin(object):
 
         # Base path for plugin folder
         self.basepath = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier)
-        
+
         # Path to plugin files such as manifest.json.
         # Differs from root path in case of multi-plugin repositories.
         self.filepath = os.path.join(self.basepath, path or "")
@@ -118,8 +118,6 @@ class Plugin(object):
     def get_file(self, filename):
         """Return file contents"""
         if not self.has_file(filename):
-            self.logger.error("DID NOT FIND FILE: {}".format(filename))
-            self.logger.error("FILEPATHS: {}".format(self._list_files()))
             return None
 
         try:
