@@ -297,7 +297,7 @@ async def test_plugins_auth(setup_plugins_auth, cli, db):
 
 class MockPlugin(Plugin):
     def init(self):
-        plugin_name = os.path.basename(os.path.normpath(self.path))
+        plugin_name = os.path.basename(os.path.normpath(self.filepath))
         self.files = ["manifest.json", "index.html"]
         self.config = {"name": plugin_name, "version": "1.0.0", "entrypoint": "index.html"}
         return self
