@@ -15,7 +15,7 @@ from services.ui_backend_service.api import (
     FlowApi, RunApi, StepApi, TaskApi,
     MetadataApi, ArtificatsApi, TagApi,
     Websocket, AdminApi, FeaturesApi,
-    AutoCompleteApi, PluginsApi
+    AutoCompleteApi, PluginsApi, LogApi
 )
 
 from services.ui_backend_service.data.db.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
@@ -59,6 +59,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     TagApi(app, db)
     FeaturesApi(app)
     PluginsApi(app)
+    LogApi(app, db)
 
     Websocket(app, db, app.event_emitter, queue_ttl)
 

@@ -30,8 +30,6 @@ STDERR = 'log_location_stderr'
 # then be able to use the MF client directly to get the logs
 
 LOG_SOURCES = ['runtime', 'task']
-# Get the root path for the datastore as this is no longer stored with MFLog
-DS_ROOT = os.environ.get("MF_DATASTORE_ROOT")
 
 RE = br'(\[!)?'\
      br'\[MFLOG\|'\
@@ -380,9 +378,13 @@ class LogApi(object):
                 flow_id, run_number, step_name, task_id,
                 attempt_id, logtype)
             if to_fetch:
-                lines = await read_and_output_mflog(self.s3_client, to_fetch)
-                logstring = "\n".join(line['line'] for line in lines)
-                return file_download_response(log_filename, logstring)
+                try:
+                    lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                    logstring = "\n".join(line['line'] for line in lines)
+                    return file_download_response(log_filename, logstring)
+                except botocore.exceptions.ClientError as err:
+                    raise LogException(
+                        err.response['Error']['Message'], 'log-error-s3')
         return web_response(404, {'data': []})
 
 
@@ -390,6 +392,13 @@ async def get_metadata_mflog_paths(find_records, flow_id, run_number, step_name,
     # Check if we have logs in the MFLog format (we need to have a valid root)
     # We first need to translate run_number and task_id into run_id
     # and task_name so that we can extract the proper path
+    DS_ROOT = _get_ds_root()
+    if not DS_ROOT:
+        raise LogException(
+            msg='MF_DATASTORE_ROOT environment variable is missing and is required for accessing MFLOG format logs. \
+            Configure this on the server.'
+        )
+
     run_id_key, run_id_value = translate_run_key(run_number)
     task_id_key, task_id_value = translate_task_key(task_id)
 
@@ -408,12 +417,6 @@ async def get_metadata_mflog_paths(find_records, flow_id, run_number, step_name,
         task_row = db_response.body
         run_id_value = task_row['run_id'][4:]
         task_id_value = task_row['task_name'][4:]
-
-        if not DS_ROOT:
-            raise LogException(
-                msg='MF_DATASTORE_ROOT environment variable is missing and is required for accessing MFLOG format logs. \
-                Configure this on the server.'
-            )
 
         urls = [os.path.join(
             DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
@@ -594,6 +597,11 @@ def file_download_response(filename, body):
 def is_mflog_type(run_id: str, task_name: str) -> bool:
     return run_id.startswith('mli_') and task_name.startswith('mli_')
 
+
+def _get_ds_root():
+    # Get the root path for the datastore as this is no longer stored with MFLog
+    # required to be a callable so it can be changed for a test-by-test basis
+    return os.environ.get("MF_DATASTORE_ROOT")
 
 class LogException(Exception):
     def __init__(self, msg='Failed to read log', id='log-error'):
