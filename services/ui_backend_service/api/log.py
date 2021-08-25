@@ -329,7 +329,7 @@ class LogApi(object):
                     err.response['Error']['Message'], 'log-error-s3')
             except Exception as err:
                 raise LogException(str(err), 'log-error')
-        elif DS_ROOT:
+        elif is_mflog_type(run_number, task_id):
             to_fetch = await get_metadata_mflog_paths(
                 self._async_table.find_records,
                 flow_id, run_number, step_name, task_id,
@@ -374,7 +374,7 @@ class LogApi(object):
                     err.response['Error']['Message'], 'log-error-s3')
             except Exception as err:
                 raise LogException(str(err), 'log-error')
-        elif DS_ROOT:
+        elif is_mflog_type(run_number, task_id):
             to_fetch = await get_metadata_mflog_paths(
                 self._async_table.find_records,
                 flow_id, run_number, step_name, task_id,
@@ -406,10 +406,14 @@ async def get_metadata_mflog_paths(find_records, flow_id, run_number, step_name,
     if db_response.response_code == 200:
         stream = 'stderr' if logtype == STDERR else 'stdout'
         task_row = db_response.body
-        if task_row['run_id'].startswith('mli_') and \
-                task_row['task_name'].startswith('mli_'):
-            run_id_value = task_row['run_id'][4:]
-            task_id_value = task_row['task_name'][4:]
+        run_id_value = task_row['run_id'][4:]
+        task_id_value = task_row['task_name'][4:]
+
+        if not DS_ROOT:
+            raise LogException(
+                msg='MF_DATASTORE_ROOT environment variable is missing and is required for accessing MFLOG format logs. \
+                Configure this on the server.'
+            )
 
         urls = [os.path.join(
             DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
@@ -585,6 +589,10 @@ def file_download_response(filename, body):
         headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
         body=body
     )
+
+
+def is_mflog_type(run_id: str, task_name: str) -> bool:
+    return run_id.startswith('mli_') and task_name.startswith('mli_')
 
 
 class LogException(Exception):
