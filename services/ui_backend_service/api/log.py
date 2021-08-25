@@ -341,10 +341,14 @@ class LogApi(object):
                 flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
-                lines = await read_and_output_mflog(self.s3_client, to_fetch)
-                # paginate response
-                code, body = paginate_log_lines(request, lines)
-                return web_response(code, body)
+                try:
+                    lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                    # paginate response
+                    code, body = paginate_log_lines(request, lines)
+                    return web_response(code, body)
+                except botocore.exceptions.ClientError as err:
+                    raise LogException(
+                        err.response['Error']['Message'], 'log-error-s3')
         else:
             bucket, path, _ = \
                 await get_metadata_log_assume_path(
@@ -370,6 +374,10 @@ class LogApi(object):
         flow_id, run_number, step_name, task_id, attempt_id = \
             _get_pathspec_from_request(request)
 
+        task = await self.get_task_by_request(request)
+        if not task:
+            return web_response(404, {'data': []})
+
         log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}{attempt}.txt".format(
             type="stdout" if logtype == STDOUT else "stderr",
             flow_id=flow_id,
@@ -379,26 +387,10 @@ class LogApi(object):
             attempt="_attempt{}".format(attempt_id or 0)
         )
 
-        bucket, path, _ = \
-            await get_metadata_log_assume_path(
-                self.metadata_table.find_records,
-                flow_id, run_number, step_name, task_id,
-                attempt_id, logtype)
-
-        if bucket and path:
-            try:
-                lines = await read_and_output(self.s3_client, bucket, path)
-                logstring = "\n".join(line['line'] for line in lines)
-                return file_download_response(log_filename, logstring)
-            except botocore.exceptions.ClientError as err:
-                raise LogException(
-                    err.response['Error']['Message'], 'log-error-s3')
-            except Exception as err:
-                raise LogException(str(err), 'log-error')
-        elif is_mflog_type(run_number):
+        if is_mflog_type(task):
             to_fetch = await get_metadata_mflog_paths(
                 self.metadata_table.find_records,
-                flow_id, run_number, step_name, task_id,
+                flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
                 try:
@@ -408,6 +400,23 @@ class LogApi(object):
                 except botocore.exceptions.ClientError as err:
                     raise LogException(
                         err.response['Error']['Message'], 'log-error-s3')
+        else:
+            bucket, path, _ = \
+                await get_metadata_log_assume_path(
+                    self.metadata_table.find_records,
+                    flow_id, run_number, step_name, task_id,
+                    attempt_id, logtype)
+
+            if bucket and path:
+                try:
+                    lines = await read_and_output(self.s3_client, bucket, path)
+                    logstring = "\n".join(line['line'] for line in lines)
+                    return file_download_response(log_filename, logstring)
+                except botocore.exceptions.ClientError as err:
+                    raise LogException(
+                        err.response['Error']['Message'], 'log-error-s3')
+                except Exception as err:
+                    raise LogException(str(err), 'log-error')
         return web_response(404, {'data': []})
 
 
@@ -621,13 +630,13 @@ def is_mflog_type(task: Dict) -> bool:
     return task['run_id'].startswith('mli_') and task['task_name'].startswith('mli_')
 
 
-def _get_ds_root() -> Optional(str):
+def _get_ds_root() -> Optional[str]:
     # Get the root path for the datastore as this is no longer stored with MFLog
     # required to be a callable so it can be changed for a test-by-test basis
     return os.environ.get("MF_DATASTORE_ROOT")
 
 
-def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional(str)]:
+def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional[str]]:
     flow_id = request.match_info.get("flow_id")
     run_number = request.match_info.get("run_number")
     step_name = request.match_info.get("step_name")
@@ -635,6 +644,7 @@ def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, 
     attempt_id = request.query.get("attempt_id", None)
 
     return flow_id, run_number, step_name, task_id, attempt_id
+
 
 class LogException(Exception):
     def __init__(self, msg='Failed to read log', id='log-error'):
