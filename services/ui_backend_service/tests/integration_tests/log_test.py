@@ -167,8 +167,12 @@ async def test_list_mflogs_assume_path_fail_with_missing_DS_ROOT(cli, db):
     assert resp.status == 500
     assert body['id'] == 'log-error'
     assert 'MF_DATASTORE_ROOT' in body['detail']
-    # await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 500, None)
 
+    # Check that choice of resource primary key does not affect return.
+    resp2 = await cli.get("/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task))
+    body2 = await resp2.json()
+
+    assert body == body2
 
 async def test_list_mflogs_assume_path_with_DS_ROOT(ds_root_env, cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
@@ -199,6 +203,7 @@ async def test_list_mflogs_assume_path_with_DS_ROOT(ds_root_env, cli, db):
     )[0].body
 
     # MFLOG lookup requires at least something to exist in the metadata table for a task.
+    # Check that choice of resource primary key does not affect return.
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_id}/steps/{step_name}/tasks/{task_name}/logs/out".format(**_task), 404, [])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 404, [])
 
@@ -215,5 +220,6 @@ async def test_list_mflogs_assume_path_with_DS_ROOT(ds_root_env, cli, db):
                                               "type": "attempt"})).body
 
     # S3 client not configured so actual log fetch should fail
+    # Check that choice of resource primary key does not affect return.
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_id}/steps/{step_name}/tasks/{task_name}/logs/out".format(**_task), 500, None)
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 404, [])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 500, None)
