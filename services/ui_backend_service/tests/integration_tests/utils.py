@@ -166,6 +166,7 @@ async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
     task = {
         "flow_id": flow_id,
         "run_number": run_number,
+        "run_id": run_id,
         "step_name": step_name,
         "task_name": task_name,
         "user_name": user_name,
