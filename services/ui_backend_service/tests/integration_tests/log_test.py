@@ -200,7 +200,6 @@ async def test_list_mflogs_assume_path_with_DS_ROOT(ds_root_env, cli, db):
 
     # MFLOG lookup requires at least something to exist in the metadata table for a task.
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_id}/steps/{step_name}/tasks/{task_name}/logs/out".format(**_task), 404, [])
-
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 404, [])
 
     _metadata_first = (await add_metadata(db,
@@ -215,5 +214,6 @@ async def test_list_mflogs_assume_path_with_DS_ROOT(ds_root_env, cli, db):
                                               "value": '0',
                                               "type": "attempt"})).body
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_id}/steps/{step_name}/tasks/{task_name}/logs/out".format(**_task), 200, [])
+    # S3 client not configured so actual log fetch should fail
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_id}/steps/{step_name}/tasks/{task_name}/logs/out".format(**_task), 500, None)
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 404, [])
