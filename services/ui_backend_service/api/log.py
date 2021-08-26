@@ -334,8 +334,8 @@ class LogApi(object):
             return web_response(404, {'data': []})
 
         if is_mflog_type(task):
+            # Check if we have logs in the MFLog format (we need to have a valid root)
             to_fetch = await get_metadata_mflog_paths(
-                self.metadata_table.find_records,
                 flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
@@ -386,8 +386,8 @@ class LogApi(object):
         )
 
         if is_mflog_type(task):
+            # Check if we have logs in the MFLog format (we need to have a valid root)
             to_fetch = await get_metadata_mflog_paths(
-                self.metadata_table.find_records,
                 flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
@@ -418,44 +418,26 @@ class LogApi(object):
         return web_response(404, {'data': []})
 
 
-async def get_metadata_mflog_paths(find_records, flow_id, run_number, step_name, task_id, attempt_id, logtype) -> Optional[List[str]]:
-    # Check if we have logs in the MFLog format (we need to have a valid root)
-    # We first need to translate run_number and task_id into run_id
-    # and task_name so that we can extract the proper path
+async def get_metadata_mflog_paths(flow_id, run_id, step_name, task_name, attempt_id, logtype) -> List[str]:
+    # Get the datastore root for mflogs
     DS_ROOT = _get_ds_root()
 
-    run_id_key, run_id_value = translate_run_key(run_number)
-    task_id_key, task_id_value = translate_task_key(task_id)
+    stream = 'stderr' if logtype == STDERR else 'stdout'
+    run_id_value = run_id[4:]
+    task_id_value = task_name[4:]
 
-    db_response, *_ = await find_records(
-        fetch_single=True,
-        conditions=[
-            "flow_id = %s",
-            "{run_id_key} = %s".format(run_id_key=run_id_key),
-            "step_name = %s",
-            "{task_id_key} = %s".format(task_id_key=task_id_key)],
-        values=[flow_id, run_id_value, step_name, task_id_value],
-        expanded=True)
-
-    if db_response.response_code == 200:
-        stream = 'stderr' if logtype == STDERR else 'stdout'
-        task_row = db_response.body
-        run_id_value = task_row['run_id'][4:]
-        task_id_value = task_row['task_name'][4:]
-
-        urls = [os.path.join(
-            DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
-            '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
-            for s in LOG_SOURCES]
-        to_fetch = []
-        for u in urls:
-            url = urlparse(u, allow_fragments=False)
-            if url.scheme == 's3':
-                bucket = url.netloc
-                path = url.path.lstrip('/')
-                to_fetch.append((bucket, path))
-        return to_fetch
-    return None
+    urls = [os.path.join(
+        DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
+        '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
+        for s in LOG_SOURCES]
+    to_fetch = []
+    for u in urls:
+        url = urlparse(u, allow_fragments=False)
+        if url.scheme == 's3':
+            bucket = url.netloc
+            path = url.path.lstrip('/')
+            to_fetch.append((bucket, path))
+    return to_fetch
 
 
 async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:

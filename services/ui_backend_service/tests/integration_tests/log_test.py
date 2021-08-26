@@ -148,19 +148,6 @@ async def test_list_mflogs_assume_path_fail_with_missing_DS_ROOT(cli, db):
     )
     )[0].body
 
-    # MFLOG lookup requires at least something to exist in the metadata table for a task.
-    _metadata_first = (await add_metadata(db,
-                                          flow_id=_task.get("flow_id"),
-                                          run_number=_task.get("run_number"),
-                                          run_id=_task.get("run_id"),
-                                          step_name=_task.get("step_name"),
-                                          task_id=_task.get("task_id"),
-                                          task_name=_task.get("task_name"),
-                                          metadata={
-                                              "field_name": "attempt",
-                                              "value": '0',
-                                              "type": "attempt"})).body
-
     resp = await cli.get("/flows/{flow_id}/runs/{run_id}/steps/{step_name}/tasks/{task_name}/logs/out".format(**_task))
     body = await resp.json()
 
@@ -173,6 +160,7 @@ async def test_list_mflogs_assume_path_fail_with_missing_DS_ROOT(cli, db):
     body2 = await resp2.json()
 
     assert body == body2
+
 
 async def test_list_mflogs_assume_path_with_DS_ROOT(ds_root_env, cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
@@ -201,23 +189,6 @@ async def test_list_mflogs_assume_path_with_DS_ROOT(ds_root_env, cli, db):
         expanded=True
     )
     )[0].body
-
-    # MFLOG lookup requires at least something to exist in the metadata table for a task.
-    # Check that choice of resource primary key does not affect return.
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_id}/steps/{step_name}/tasks/{task_name}/logs/out".format(**_task), 404, [])
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 404, [])
-
-    _metadata_first = (await add_metadata(db,
-                                          flow_id=_task.get("flow_id"),
-                                          run_number=_task.get("run_number"),
-                                          run_id=_task.get("run_id"),
-                                          step_name=_task.get("step_name"),
-                                          task_id=_task.get("task_id"),
-                                          task_name=_task.get("task_name"),
-                                          metadata={
-                                              "field_name": "attempt",
-                                              "value": '0',
-                                              "type": "attempt"})).body
 
     # S3 client not configured so actual log fetch should fail
     # Check that choice of resource primary key does not affect return.
