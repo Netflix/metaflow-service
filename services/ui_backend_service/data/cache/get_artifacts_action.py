@@ -5,9 +5,9 @@ from .client import CacheAction
 from services.utils import get_traceback_str
 
 from ..s3 import (
-    CacheS3AccessDenied, CacheS3CredentialsMissing,
-    CacheS3Exception, CacheS3NotFound,
-    CacheS3URLException, get_s3_obj, get_s3_size, get_s3_client)
+    S3AccessDenied, S3CredentialsMissing,
+    S3Exception, S3NotFound,
+    S3URLException, get_s3_obj, get_s3_size, get_s3_client)
 from .utils import (decode, error_event_msg,
                     artifact_cache_id, artifact_location_from_key,
                     MAX_S3_SIZE)
@@ -144,16 +144,10 @@ class GetArtifacts(CacheAction):
                 # In case the artifact was of a type that can not be json serialized,
                 # we try casting it to a string first.
                 results[artifact_key] = json.dumps([True, str(content)])
-            except CacheS3AccessDenied as ex:
-                results[artifact_key] = json.dumps([False, 's3-access-denied', location])
-            except CacheS3NotFound:
-                results[artifact_key] = json.dumps([False, 's3-not-found', location])
-            except CacheS3URLException:
-                results[artifact_key] = json.dumps([False, 's3-bad-url', location])
-            except CacheS3CredentialsMissing:
-                results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
-            except CacheS3Exception:
-                results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
+            except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing) as ex:
+                results[artifact_key] = json.dumps([False, ex.id, location])
+            except S3Exception as ex:
+                results[artifact_key] = json.dumps([False, ex.id, get_traceback_str()])
             except Exception:
                 results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
 

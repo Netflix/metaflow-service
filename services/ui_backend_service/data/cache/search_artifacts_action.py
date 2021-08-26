@@ -4,9 +4,9 @@ import json
 from .client import CacheAction
 from services.utils import get_traceback_str
 from ..s3 import (
-    CacheS3AccessDenied, CacheS3CredentialsMissing,
-    CacheS3NotFound, CacheS3Exception,
-    CacheS3URLException, get_s3_size, get_s3_obj, get_s3_client)
+    S3AccessDenied, S3CredentialsMissing,
+    S3NotFound, S3Exception,
+    S3URLException, get_s3_size, get_s3_obj, get_s3_client)
 from .utils import (decode, error_event_msg, progress_event_msg,
                     artifact_cache_id,
                     MAX_S3_SIZE)
@@ -135,21 +135,12 @@ class SearchArtifacts(CacheAction):
                 # In case the artifact was of a type that can not be json serialized,
                 # we try casting it to a string first.
                 results[artifact_key] = json.dumps([True, str(content)])
-            except CacheS3AccessDenied as ex:
-                stream_error(str(ex), "s3-access-denied")
-                results[artifact_key] = json.dumps([False, 's3-access-denied', location])
-            except CacheS3NotFound as ex:
-                stream_error(str(ex), "s3-not-found")
-                results[artifact_key] = json.dumps([False, 's3-not-found', location])
-            except CacheS3URLException as ex:
-                stream_error(str(ex), "s3-bad-url")
-                results[artifact_key] = json.dumps([False, 's3-bad-url', location])
-            except CacheS3CredentialsMissing as ex:
-                stream_error(str(ex), "s3-missing-credentials")
-                results[artifact_key] = json.dumps([False, 's3-missing-credentials', location])
-            except CacheS3Exception as ex:
-                stream_error(str(ex), "s3-generic-error", get_traceback_str())
-                results[artifact_key] = json.dumps([False, 's3-generic-error', get_traceback_str()])
+            except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing) as ex:
+                stream_error(str(ex), ex.id)
+                results[artifact_key] = json.dumps([False, ex.id, location])
+            except S3Exception as ex:
+                stream_error(str(ex), ex.id, get_traceback_str())
+                results[artifact_key] = json.dumps([False, ex.id, get_traceback_str()])
             except Exception as ex:
                 # Exceptions might be fixable with configuration changes or other measures,
                 # therefore we do not want to write anything to the cache for these artifacts.

@@ -8,9 +8,9 @@ from services.utils import get_traceback_str
 
 from .custom_flowgraph import FlowGraph
 from ..s3 import (
-    CacheS3AccessDenied, CacheS3CredentialsMissing,
-    CacheS3Exception, CacheS3NotFound,
-    CacheS3URLException, get_s3_obj, get_s3_client)
+    S3AccessDenied, S3CredentialsMissing,
+    S3Exception, S3NotFound,
+    S3URLException, get_s3_obj, get_s3_client)
 
 
 class GenerateDag(CacheAction):
@@ -96,16 +96,8 @@ class GenerateDag(CacheAction):
         try:
             codetar = get_s3_obj(s3, location)
             results[result_key] = json.dumps(generate_dag(flow_name, codetar.name))
-        except CacheS3AccessDenied as ex:
-            stream_error(str(ex), "s3-access-denied")
-        except CacheS3NotFound as ex:
-            stream_error(str(ex), "s3-not-found")
-        except CacheS3URLException as ex:
-            stream_error(str(ex), "s3-bad-url")
-        except CacheS3CredentialsMissing as ex:
-            stream_error(str(ex), "s3-missing-credentials")
-        except CacheS3Exception as ex:
-            stream_error(str(ex), "s3-generic-error")
+        except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing, S3Exception) as ex:
+            stream_error(str(ex), ex.id)
         except UnsupportedFlowLanguage as ex:
             stream_error(str(ex), "dag-unsupported-flow-language")
         except Exception as ex:
