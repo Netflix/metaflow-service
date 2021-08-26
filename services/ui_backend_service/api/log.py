@@ -10,9 +10,10 @@ import re
 from collections import namedtuple
 from datetime import datetime
 from urllib.parse import urlparse
-from typing import List, Optional, Tuple
+from typing import List, Dict, Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
+from ..data.s3 import wrap_s3_errors
 from services.utils import handle_exceptions, web_response
 from .utils import format_response_list
 
@@ -30,8 +31,6 @@ STDERR = 'log_location_stderr'
 # then be able to use the MF client directly to get the logs
 
 LOG_SOURCES = ['runtime', 'task']
-# Get the root path for the datastore as this is no longer stored with MFLog
-DS_ROOT = os.environ.get("MF_DATASTORE_ROOT")
 
 RE = br'(\[!)?'\
      br'\[MFLOG\|'\
@@ -146,7 +145,8 @@ class LogApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/err/download",
             self.get_task_log_stderr_file,
         )
-        self._async_table = self.db.metadata_table_postgres
+        self.metadata_table = self.db.metadata_table_postgres
+        self.task_table = self.db.task_table_postgres
 
         # Shared S3 session config for LOG fetching
         self.context_stack = contextlib.AsyncExitStack()
@@ -304,38 +304,55 @@ class LogApi(object):
         """
         return await self.get_task_log_file(request, STDERR)
 
+    async def get_task_by_request(self, request):
+        flow_id, run_number, step_name, task_id, _ = \
+            _get_pathspec_from_request(request)
+
+        run_id_key, run_id_value = translate_run_key(run_number)
+        task_id_key, task_id_value = translate_task_key(task_id)
+
+        db_response, *_ = await self.task_table.find_records(
+            fetch_single=True,
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(run_id_key=run_id_key),
+                "step_name = %s",
+                "{task_id_key} = %s".format(task_id_key=task_id_key)],
+            values=[flow_id, run_id_value, step_name, task_id_value],
+            expanded=True
+        )
+        if db_response.response_code == 200:
+            return db_response.body
+        return None
+
     async def get_task_log(self, request, logtype=STDOUT):
         "fetches log and emits it as a list of rows wrapped in json"
-        flow_id = request.match_info.get("flow_id")
-        run_number = request.match_info.get("run_number")
-        step_name = request.match_info.get("step_name")
-        task_id = request.match_info.get("task_id")
-        attempt_id = request.query.get("attempt_id", None)
+        flow_id, run_number, step_name, task_id, attempt_id = \
+            _get_pathspec_from_request(request)
 
-        bucket, path, _ = \
-            await get_metadata_log_assume_path(
-                self._async_table.find_records,
-                flow_id, run_number, step_name, task_id,
-                attempt_id, logtype)
+        task = await self.get_task_by_request(request)
+        if not task:
+            return web_response(404, {'data': []})
 
-        if bucket and path:
-            try:
-                lines = await read_and_output(self.s3_client, bucket, path)
-                # paginate response
-                code, body = paginate_log_lines(request, lines)
-                return web_response(code, body)
-            except botocore.exceptions.ClientError as err:
-                raise LogException(
-                    err.response['Error']['Message'], 'log-error-s3')
-            except Exception as err:
-                raise LogException(str(err), 'log-error')
-        elif DS_ROOT:
+        if is_mflog_type(task):
+            # Check if we have logs in the MFLog format (we need to have a valid root)
             to_fetch = await get_metadata_mflog_paths(
-                self._async_table.find_records,
-                flow_id, run_number, step_name, task_id,
+                flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
                 lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                # paginate response
+                code, body = paginate_log_lines(request, lines)
+                return web_response(code, body)
+        else:
+            bucket, path, _ = \
+                await get_metadata_log_assume_path(
+                    self.metadata_table.find_records,
+                    flow_id, run_number, step_name, task_id,
+                    attempt_id, logtype)
+
+            if bucket and path:
+                lines = await read_and_output(self.s3_client, bucket, path)
                 # paginate response
                 code, body = paginate_log_lines(request, lines)
                 return web_response(code, body)
@@ -343,11 +360,12 @@ class LogApi(object):
 
     async def get_task_log_file(self, request, logtype=STDOUT):
         "fetches log and emits it as a single file download response"
-        flow_id = request.match_info.get("flow_id")
-        run_number = request.match_info.get("run_number")
-        step_name = request.match_info.get("step_name")
-        task_id = request.match_info.get("task_id")
-        attempt_id = request.query.get("attempt_id", None)
+        flow_id, run_number, step_name, task_id, attempt_id = \
+            _get_pathspec_from_request(request)
+
+        task = await self.get_task_by_request(request)
+        if not task:
+            return web_response(404, {'data': []})
 
         log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}{attempt}.txt".format(
             type="stdout" if logtype == STDOUT else "stderr",
@@ -358,72 +376,49 @@ class LogApi(object):
             attempt="_attempt{}".format(attempt_id or 0)
         )
 
-        bucket, path, _ = \
-            await get_metadata_log_assume_path(
-                self._async_table.find_records,
-                flow_id, run_number, step_name, task_id,
-                attempt_id, logtype)
-
-        if bucket and path:
-            try:
-                lines = await read_and_output(self.s3_client, bucket, path)
-                logstring = "\n".join(line['line'] for line in lines)
-                return file_download_response(log_filename, logstring)
-            except botocore.exceptions.ClientError as err:
-                raise LogException(
-                    err.response['Error']['Message'], 'log-error-s3')
-            except Exception as err:
-                raise LogException(str(err), 'log-error')
-        elif DS_ROOT:
+        if is_mflog_type(task):
+            # Check if we have logs in the MFLog format (we need to have a valid root)
             to_fetch = await get_metadata_mflog_paths(
-                self._async_table.find_records,
-                flow_id, run_number, step_name, task_id,
+                flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
                 lines = await read_and_output_mflog(self.s3_client, to_fetch)
                 logstring = "\n".join(line['line'] for line in lines)
                 return file_download_response(log_filename, logstring)
+        else:
+            bucket, path, _ = \
+                await get_metadata_log_assume_path(
+                    self.metadata_table.find_records,
+                    flow_id, run_number, step_name, task_id,
+                    attempt_id, logtype)
+
+            if bucket and path:
+                lines = await read_and_output(self.s3_client, bucket, path)
+                logstring = "\n".join(line['line'] for line in lines)
+                return file_download_response(log_filename, logstring)
         return web_response(404, {'data': []})
 
 
-async def get_metadata_mflog_paths(find_records, flow_id, run_number, step_name, task_id, attempt_id, logtype) -> Optional[List[str]]:
-    # Check if we have logs in the MFLog format (we need to have a valid root)
-    # We first need to translate run_number and task_id into run_id
-    # and task_name so that we can extract the proper path
-    run_id_key, run_id_value = translate_run_key(run_number)
-    task_id_key, task_id_value = translate_task_key(task_id)
+async def get_metadata_mflog_paths(flow_id, run_id, step_name, task_name, attempt_id, logtype) -> List[str]:
+    # Get the datastore root for mflogs
+    DS_ROOT = _get_ds_root()
 
-    db_response, *_ = await find_records(
-        fetch_single=True,
-        conditions=[
-            "flow_id = %s",
-            "{run_id_key} = %s".format(run_id_key=run_id_key),
-            "step_name = %s",
-            "{task_id_key} = %s".format(task_id_key=task_id_key)],
-        values=[flow_id, run_id_value, step_name, task_id_value],
-        expanded=True)
+    stream = 'stderr' if logtype == STDERR else 'stdout'
+    run_id_value = run_id[4:]
+    task_id_value = task_name[4:]
 
-    if db_response.response_code == 200:
-        stream = 'stderr' if logtype == STDERR else 'stdout'
-        task_row = db_response.body
-        if task_row['run_id'].startswith('mli_') and \
-                task_row['task_name'].startswith('mli_'):
-            run_id_value = task_row['run_id'][4:]
-            task_id_value = task_row['task_name'][4:]
-
-        urls = [os.path.join(
-            DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
-            '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
-            for s in LOG_SOURCES]
-        to_fetch = []
-        for u in urls:
-            url = urlparse(u, allow_fragments=False)
-            if url.scheme == 's3':
-                bucket = url.netloc
-                path = url.path.lstrip('/')
-                to_fetch.append((bucket, path))
-        return to_fetch
-    return None
+    urls = [os.path.join(
+        DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
+        '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
+        for s in LOG_SOURCES]
+    to_fetch = []
+    for u in urls:
+        url = urlparse(u, allow_fragments=False)
+        if url.scheme == 's3':
+            bucket = url.netloc
+            path = url.path.lstrip('/')
+            to_fetch.append((bucket, path))
+    return to_fetch
 
 
 async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
@@ -491,6 +486,7 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
     return None, None, None
 
 
+@wrap_s3_errors
 async def read_and_output(s3_client, bucket, path):
     obj = await s3_client.get_object(Bucket=bucket, Key=path)
 
@@ -515,6 +511,7 @@ async def read_and_output_ws(s3_client, bucket, path, ws):
             }))
 
 
+@wrap_s3_errors
 async def read_and_output_mflog(s3_client, paths):
     logs = []
     for bucket, path in paths:
@@ -585,6 +582,44 @@ def file_download_response(filename, body):
         headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
         body=body
     )
+
+
+def is_mflog_type(task: Dict) -> bool:
+    "Check if a task is expected to have logs in the mflog format"
+    try:
+        return task['run_id'].startswith('mli_') and task['task_name'].startswith('mli_')
+    except Exception:
+        return False
+
+
+def _get_ds_root() -> str:
+    "Get the root S3 bucket where MFLOG format logs reside"
+    # Get the root path for the datastore as this is no longer stored with MFLog
+    # required to be a callable so it can be changed for a test-by-test basis
+    ds_root = os.environ.get("MF_DATASTORE_ROOT")
+    if not ds_root:
+        raise LogException(
+            msg='MF_DATASTORE_ROOT environment variable is missing and is required for accessing MFLOG format logs. \
+            Configure this on the server.',
+            id='log-config-missing-dsroot'
+        )
+    return ds_root
+
+
+def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional[str]]:
+    """extract relevant resource id's from the request
+
+    Returns
+    -------
+    flow_id, run_number, step_name, task_id, attempt_id
+    """
+    flow_id = request.match_info.get("flow_id")
+    run_number = request.match_info.get("run_number")
+    step_name = request.match_info.get("step_name")
+    task_id = request.match_info.get("task_id")
+    attempt_id = request.query.get("attempt_id", None)
+
+    return flow_id, run_number, step_name, task_id, attempt_id
 
 
 class LogException(Exception):
