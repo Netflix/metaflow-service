@@ -304,7 +304,7 @@ class LogApi(object):
         return await self.get_task_log_file(request, STDERR)
 
     async def get_task_by_request(self, request):
-        flow_id, run_number, step_name, task_id, attempt_id = \
+        flow_id, run_number, step_name, task_id, _ = \
             _get_pathspec_from_request(request)
 
         run_id_key, run_id_value = translate_run_key(run_number)
@@ -312,14 +312,12 @@ class LogApi(object):
 
         db_response, *_ = await self.task_table.find_records(
             fetch_single=True,
-            enable_joins=True,
             conditions=[
                 "flow_id = %s",
                 "{run_id_key} = %s".format(run_id_key=run_id_key),
                 "step_name = %s",
-                "{task_id_key} = %s".format(task_id_key=task_id_key),
-                "attempt_id = %s"],
-            values=[flow_id, run_id_value, step_name, task_id_value, attempt_id or 0],
+                "{task_id_key} = %s".format(task_id_key=task_id_key)],
+            values=[flow_id, run_id_value, step_name, task_id_value],
             expanded=True
         )
         if db_response.response_code == 200:
