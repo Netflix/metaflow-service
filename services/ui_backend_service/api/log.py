@@ -603,7 +603,10 @@ def file_download_response(filename, body):
 
 def is_mflog_type(task: Dict) -> bool:
     "Check if a task is expected to have logs in the mflog format"
-    return task['run_id'].startswith('mli_') and task['task_name'].startswith('mli_')
+    try:
+        return task['run_id'].startswith('mli_') and task['task_name'].startswith('mli_')
+    except Exception:
+        return False
 
 
 def _get_ds_root() -> str:
