@@ -4,10 +4,11 @@ import json
 from .client import CacheAction
 from services.utils import get_traceback_str
 
-from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
-                    CacheS3Exception, CacheS3NotFound,
-                    CacheS3URLException, decode, error_event_msg,
-                    get_s3_obj, get_s3_size, get_s3_client,
+from ..s3 import (
+    CacheS3AccessDenied, CacheS3CredentialsMissing,
+    CacheS3Exception, CacheS3NotFound,
+    CacheS3URLException, get_s3_obj, get_s3_size, get_s3_client)
+from .utils import (decode, error_event_msg,
                     artifact_cache_id, artifact_location_from_key,
                     MAX_S3_SIZE)
 from ..refiner.refinery import unpack_processed_value

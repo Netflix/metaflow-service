@@ -7,9 +7,10 @@ from .client import CacheAction
 from services.utils import get_traceback_str
 
 from .custom_flowgraph import FlowGraph
-from .utils import (CacheS3AccessDenied, CacheS3CredentialsMissing,
-                    CacheS3Exception, CacheS3NotFound,
-                    CacheS3URLException, get_s3_obj, get_s3_client)
+from ..s3 import (
+    CacheS3AccessDenied, CacheS3CredentialsMissing,
+    CacheS3Exception, CacheS3NotFound,
+    CacheS3URLException, get_s3_obj, get_s3_client)
 
 
 class GenerateDag(CacheAction):
