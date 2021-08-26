@@ -425,11 +425,6 @@ async def get_metadata_mflog_paths(find_records, flow_id, run_number, step_name,
     # We first need to translate run_number and task_id into run_id
     # and task_name so that we can extract the proper path
     DS_ROOT = _get_ds_root()
-    if not DS_ROOT:
-        raise LogException(
-            msg='MF_DATASTORE_ROOT environment variable is missing and is required for accessing MFLOG format logs. \
-            Configure this on the server.'
-        )
 
     run_id_key, run_id_value = translate_run_key(run_number)
     task_id_key, task_id_value = translate_task_key(task_id)
@@ -627,16 +622,31 @@ def file_download_response(filename, body):
 
 
 def is_mflog_type(task: Dict) -> bool:
+    "Check if a task is expected to have logs in the mflog format"
     return task['run_id'].startswith('mli_') and task['task_name'].startswith('mli_')
 
 
-def _get_ds_root() -> Optional[str]:
+def _get_ds_root() -> str:
+    "Get the root S3 bucket where MFLOG format logs reside"
     # Get the root path for the datastore as this is no longer stored with MFLog
     # required to be a callable so it can be changed for a test-by-test basis
-    return os.environ.get("MF_DATASTORE_ROOT")
+    ds_root = os.environ.get("MF_DATASTORE_ROOT")
+    if not ds_root:
+        raise LogException(
+            msg='MF_DATASTORE_ROOT environment variable is missing and is required for accessing MFLOG format logs. \
+            Configure this on the server.',
+            id='log-config-missing-dsroot'
+        )
+    return ds_root
 
 
 def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional[str]]:
+    """extract relevant resource id's from the request
+
+    Returns
+    -------
+    flow_id, run_number, step_name, task_id, attempt_id
+    """
     flow_id = request.match_info.get("flow_id")
     run_number = request.match_info.get("run_number")
     step_name = request.match_info.get("step_name")

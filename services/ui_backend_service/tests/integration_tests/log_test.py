@@ -165,7 +165,7 @@ async def test_list_mflogs_assume_path_fail_with_missing_DS_ROOT(cli, db):
     body = await resp.json()
 
     assert resp.status == 500
-    assert body['id'] == 'log-error'
+    assert body['id'] == 'log-config-missing-dsroot'
     assert 'MF_DATASTORE_ROOT' in body['detail']
 
     # Check that choice of resource primary key does not affect return.
