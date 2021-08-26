@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from typing import List, Dict, Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
+from ..data.s3 import wrap_s3_errors
 from services.utils import handle_exceptions, web_response
 from .utils import format_response_list
 
@@ -339,14 +340,10 @@ class LogApi(object):
                 flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
-                try:
-                    lines = await read_and_output_mflog(self.s3_client, to_fetch)
-                    # paginate response
-                    code, body = paginate_log_lines(request, lines)
-                    return web_response(code, body)
-                except botocore.exceptions.ClientError as err:
-                    raise LogException(
-                        err.response['Error']['Message'], 'log-error-s3')
+                lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                # paginate response
+                code, body = paginate_log_lines(request, lines)
+                return web_response(code, body)
         else:
             bucket, path, _ = \
                 await get_metadata_log_assume_path(
@@ -355,16 +352,10 @@ class LogApi(object):
                     attempt_id, logtype)
 
             if bucket and path:
-                try:
-                    lines = await read_and_output(self.s3_client, bucket, path)
-                    # paginate response
-                    code, body = paginate_log_lines(request, lines)
-                    return web_response(code, body)
-                except botocore.exceptions.ClientError as err:
-                    raise LogException(
-                        err.response['Error']['Message'], 'log-error-s3')
-                except Exception as err:
-                    raise LogException(str(err), 'log-error')
+                lines = await read_and_output(self.s3_client, bucket, path)
+                # paginate response
+                code, body = paginate_log_lines(request, lines)
+                return web_response(code, body)
         return web_response(404, {'data': []})
 
     async def get_task_log_file(self, request, logtype=STDOUT):
@@ -391,13 +382,9 @@ class LogApi(object):
                 flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
-                try:
-                    lines = await read_and_output_mflog(self.s3_client, to_fetch)
-                    logstring = "\n".join(line['line'] for line in lines)
-                    return file_download_response(log_filename, logstring)
-                except botocore.exceptions.ClientError as err:
-                    raise LogException(
-                        err.response['Error']['Message'], 'log-error-s3')
+                lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                logstring = "\n".join(line['line'] for line in lines)
+                return file_download_response(log_filename, logstring)
         else:
             bucket, path, _ = \
                 await get_metadata_log_assume_path(
@@ -406,15 +393,9 @@ class LogApi(object):
                     attempt_id, logtype)
 
             if bucket and path:
-                try:
-                    lines = await read_and_output(self.s3_client, bucket, path)
-                    logstring = "\n".join(line['line'] for line in lines)
-                    return file_download_response(log_filename, logstring)
-                except botocore.exceptions.ClientError as err:
-                    raise LogException(
-                        err.response['Error']['Message'], 'log-error-s3')
-                except Exception as err:
-                    raise LogException(str(err), 'log-error')
+                lines = await read_and_output(self.s3_client, bucket, path)
+                logstring = "\n".join(line['line'] for line in lines)
+                return file_download_response(log_filename, logstring)
         return web_response(404, {'data': []})
 
 
@@ -505,6 +486,7 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
     return None, None, None
 
 
+@wrap_s3_errors
 async def read_and_output(s3_client, bucket, path):
     obj = await s3_client.get_object(Bucket=bucket, Key=path)
 
@@ -529,6 +511,7 @@ async def read_and_output_ws(s3_client, bucket, path, ws):
             }))
 
 
+@wrap_s3_errors
 async def read_and_output_mflog(s3_client, paths):
     logs = []
     for bucket, path in paths:
