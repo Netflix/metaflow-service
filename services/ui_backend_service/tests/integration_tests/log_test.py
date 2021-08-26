@@ -4,7 +4,7 @@ import os
 from .utils import (
     init_app, init_db, clean_db,
     add_flow, add_run, add_step, add_task, add_metadata,
-    _test_single_resource, _test_list_resources, set_env
+    _test_list_resources
 )
 pytestmark = [pytest.mark.integration_tests]
 
