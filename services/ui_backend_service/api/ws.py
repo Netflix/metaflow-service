@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Callable
 from .utils import resource_conditions, TTLQueue
 from services.utils import logging
 from pyee import AsyncIOEventEmitter
-from ..data.refiner import TaskRefiner
+from ..data.refiner import TaskRefiner, ArtifactRefiner
 
 from throttler import throttle_simultaneous
 
@@ -51,6 +51,7 @@ class Websocket(object):
         self.db = db
         self.queue = TTLQueue(queue_ttl)
         self.task_refiner = TaskRefiner(cache=cache.artifact_cache) if cache else None
+        self.artifact_refiner = ArtifactRefiner(cache=cache.artifact_cache) if cache else None
         self.logger = logging.getLogger("Websocket")
 
         event_emitter.on('notify', self.event_handler)
@@ -197,6 +198,8 @@ class Websocket(object):
     async def get_table_postprocessor(self, table_name):
         if table_name == self.db.task_table_postgres.table_name:
             return self.task_refiner.postprocess
+        elif table_name == self.db.artifact_table_postgres.table_name:
+            return self.artifact_refiner.postprocess
         else:
             return None
 
