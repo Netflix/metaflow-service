@@ -141,10 +141,15 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
 
     # Add artifact (Task will be done)
     _should_call_task_done = Future(loop=loop)
+    _should_call_artifact_insert = Future(loop=loop)
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
-        if not _should_call_task_done.done():
-            _should_call_task_done.set_result([operation, resources, result])
+        if operation == "UPDATE":
+            if not _should_call_task_done.done():
+                _should_call_task_done.set_result([operation, resources, result])
+        else:
+            if not _should_call_artifact_insert.done():
+                _should_call_artifact_insert.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     _artifact_step = (await add_artifact(db,
@@ -159,6 +164,10 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
 
     operation, resources, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "UPDATE"
+    assert result == assertable_artifact(_artifact_step)
+
+    operation, resources, result = await wait_for(_should_call_artifact_insert, TIMEOUT_FUTURE)
+    assert operation == "INSERT"
     assert result == assertable_artifact(_artifact_step)
 
     cli.server.app.event_emitter.remove_all_listeners()
@@ -238,10 +247,16 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     # Add artifact with attempt_id = 0 (Task will be done)
 
     _should_call_task_done = Future(loop=loop)
+    _should_call_artifact_insert = Future(loop=loop)
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
-        if not _should_call_task_done.done():
-            _should_call_task_done.set_result([operation, resources, result])
+        if operation == 'UPDATE':
+            if not _should_call_task_done.done():
+                _should_call_task_done.set_result([operation, resources, result])
+        else:
+            if not _should_call_artifact_insert.done():
+                _should_call_artifact_insert.set_result([operation, resources, result])
+
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     _artifact_step = (await add_artifact(db,
@@ -259,14 +274,23 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     assert operation == "UPDATE"
     assert result == assertable_artifact(_artifact_step)
 
+    operation, _, result = await wait_for(_should_call_artifact_insert, TIMEOUT_FUTURE)
+    assert operation == "INSERT"
+    assert result == assertable_artifact(_artifact_step)
+
     cli.server.app.event_emitter.remove_all_listeners()
 
     # Add artifact with attempt_id = 1 (Task will be done)
     _should_call_task_done = Future(loop=loop)
+    _should_call_artifact_insert = Future(loop=loop)
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
-        if not _should_call_task_done.done():
-            _should_call_task_done.set_result([operation, resources, result])
+        if operation == 'UPDATE':
+            if not _should_call_task_done.done():
+                _should_call_task_done.set_result([operation, resources, result])
+        else:
+            if not _should_call_artifact_insert.done():
+                _should_call_artifact_insert.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     _artifact_step = (await add_artifact(db,
@@ -283,6 +307,10 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
 
     operation, _, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "UPDATE"
+    assert result == assertable_artifact(_artifact_step)
+
+    operation, _, result = await wait_for(_should_call_artifact_insert, TIMEOUT_FUTURE)
+    assert operation == "INSERT"
     assert result == assertable_artifact(_artifact_step)
 
     cli.server.app.event_emitter.remove_all_listeners()
