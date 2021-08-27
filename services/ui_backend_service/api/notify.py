@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict
 from services.utils import logging
 from services.data.postgres_async_db import (
-    FLOW_TABLE_NAME, RUN_TABLE_NAME, STEP_TABLE_NAME, TASK_TABLE_NAME
+    FLOW_TABLE_NAME, RUN_TABLE_NAME, STEP_TABLE_NAME, TASK_TABLE_NAME, METADATA_TABLE_NAME
 )
 from pyee import AsyncIOEventEmitter
 
@@ -213,6 +213,10 @@ def resource_list(table_name: str, data: Dict):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts"
+        ],
+        METADATA_TABLE_NAME: [
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata",
+            "/flows/{flow_id}/runs/{run_number}/metadata"
         ]
     }
     if table_name in resource_paths:
