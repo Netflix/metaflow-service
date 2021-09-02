@@ -33,13 +33,13 @@ Optionally you can also overrider the host and port the service runs on:
 - `MF_UI_METADATA_PORT` [defaults to 8083]
 - `MF_UI_METADATA_HOST` [defaults to 0.0.0.0]
 
-
 Running the service without Docker (from project root):
 
 > ```sh
 > $ pip3 install -r services/ui_backend_service/requirements.txt
 > $ python3 -m services.ui_backend_service.ui_server
 > ```
+
 ### Hosting the Frontend UI
 
 This service provides the UI Backend. There are two options for hosting the UI Frontend assets from [Metaflow UI](https://github.com/Netflix/metaflow-ui)
@@ -50,7 +50,7 @@ For hosting the frontend assets for a production environment, refer to the docum
 
 If you require the UI for local development, refer to [metaflow-ui/docs/README.md](https://github.com/Netflix/metaflow-ui/blob/master/docs/README.md) on how to host the UI locally.
 
-#### Serve frontend assets through the backend instance 
+#### Serve frontend assets through the backend instance
 
 Enable built-in UI bundle serving (assumes assets are located inside `ui/` folder):
 
@@ -65,6 +65,20 @@ This also works as a Docker build argument to download and install latest or spe
 > ```sh
 > $ docker build --arg UI_ENABLED=1 UI_VERSION=v0.1.2 ...
 > ```
+
+Use following environment variables to inject content to Metaflow UI index.html:
+
+- `METAFLOW_HEAD` - Inject content to `head` element
+- `METAFLOW_BODY_BEFORE` - Inject content at the beginning of `body` element
+- `METAFLOW_BODY_AFTER` - Inject content at the end of `body` element
+
+Use case for these variables ranges from additional meta tags to analytics script injection.
+
+Example on how to add keyword meta tag to Metaflow UI:
+
+```
+METAFLOW_HEAD='<meta name="keywords" content="metaflow" />'
+```
 
 ## Documentation
 

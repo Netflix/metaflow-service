@@ -9,6 +9,10 @@ static_ui_path = os.path.join(dirname, "ui")
 
 METAFLOW_SERVICE = os.environ.get("METAFLOW_SERVICE", "/")
 
+METAFLOW_HEAD = os.environ.get("METAFLOW_HEAD", None)
+METAFLOW_BODY_BEFORE = os.environ.get("METAFLOW_BODY_BEFORE", None)
+METAFLOW_BODY_AFTER = os.environ.get("METAFLOW_BODY_AFTER", None)
+
 
 class Frontend(object):
     """
@@ -45,6 +49,19 @@ class Frontend(object):
                 content = f.read() \
                     .replace("</head>",
                              "<script>window.METAFLOW_SERVICE=\"{METAFLOW_SERVICE}\";</script></head>".format(METAFLOW_SERVICE=METAFLOW_SERVICE))
+
+                if METAFLOW_HEAD:
+                    content = content.replace("</head>", "{METAFLOW_HEAD}</head>"
+                                              .format(METAFLOW_HEAD=METAFLOW_HEAD))
+
+                if METAFLOW_BODY_BEFORE:
+                    content = content.replace("<body>", "<body>{METAFLOW_BODY_BEFORE}"
+                                              .format(METAFLOW_BODY_BEFORE=METAFLOW_BODY_BEFORE))
+
+                if METAFLOW_BODY_AFTER:
+                    content = content.replace("</body>", "{METAFLOW_BODY_AFTER}</body>"
+                                              .format(METAFLOW_BODY_AFTER=METAFLOW_BODY_AFTER))
+
                 return web.Response(text=content, content_type='text/html')
         except Exception as err:
             return web.Response(text=str(err), status=500, content_type='text/plain')
