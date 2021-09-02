@@ -146,7 +146,7 @@ class ListenNotify(object):
                             self.event_emitter, "UPDATE", self.db.run_table_postgres,
                             data)
                         # Also trigger preload of artifacts after a run finishes.
-                        self.event_emitter.emit("preload-artifacts", data['run_number'])
+                        self.event_emitter.emit("preload-artifacts", data['flow_id'], data['run_number'])
                         # And remove possible heartbeat watchers for completed runs
                         self.event_emitter.emit("run-heartbeat", "complete", data)
 
