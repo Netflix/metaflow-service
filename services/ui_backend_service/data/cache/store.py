@@ -124,10 +124,10 @@ class ArtifactCacheStore(object):
 
     async def preload_initial_data(self):
         "Preloads some data on cache startup"
-        recent_run_numbers = await self._run_table.get_recent_run_numbers()
-        await self.preload_data_for_runs(recent_run_numbers)
+        recent_runs = await self._run_table.get_recent_runs()
+        await self.preload_data_for_runs(recent_runs)
 
-    async def preload_data_for_runs(self, run_numbers: List[int]):
+    async def preload_data_for_runs(self, runs: List[Dict]):
         """
         Preloads artifact data for given run numbers. Can be used to prefetch artifacts for newly generated runs.
 
@@ -136,7 +136,11 @@ class ArtifactCacheStore(object):
         run_numbers : List[int]
             A list of run numbers to preload data for.
         """
-        artifact_locations = await self._artifact_table.get_artifact_locations_for_run_numbers(run_numbers)
+        artifact_locations = []
+
+        for run in runs:
+            _locs = await self._artifact_table.get_artifact_locations_for_run(run)
+            artifact_locations.extend(_locs)
 
         logger.info("preloading {} artifacts".format(len(artifact_locations)))
 
@@ -202,7 +206,7 @@ class ArtifactCacheStore(object):
         except Exception:
             logger.error("Run parameter fetching failed")
 
-    async def preload_event_handler(self, run_number: int):
+    async def preload_event_handler(self, flow_id: str, run_number: int):
         """
         Handler for event-emitter for preloading artifacts for a run id
 
@@ -211,7 +215,7 @@ class ArtifactCacheStore(object):
         run_number : int
             Run number to preload data for.
         """
-        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([run_number]), self.loop)
+        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([{"flow_id": flow_id, "run_number": run_number}]), self.loop)
 
     async def stop_cache(self):
         await self.cache.stop()

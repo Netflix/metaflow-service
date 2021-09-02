@@ -124,7 +124,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     ]
     _command = MetadataRunTable._command
 
-    async def get_recent_run_numbers(self):
+    async def get_recent_runs(self):
         _records, *_ = await self.find_records(
             conditions=["ts_epoch >= %s"],
             values=[int(round(time.time() * 1000)) - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)],
@@ -133,7 +133,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             expanded=True
         )
 
-        return [run['run_number'] for run in _records.body]
+        return _records.body
 
     async def get_expanded_run(self, run_key: str) -> DBResponse:
         """
