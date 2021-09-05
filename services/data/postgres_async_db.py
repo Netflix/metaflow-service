@@ -1,3 +1,5 @@
+from services.data.service_configs import max_connection_retires, \
+    connection_retry_wait_time_seconds
 import psycopg2
 import psycopg2.extras
 import os
@@ -7,8 +9,7 @@ import math
 import time
 import datetime
 from services.utils import logging
-from typing import List, Callable
-from asyncio import iscoroutinefunction
+from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key
@@ -17,14 +18,21 @@ from services.utils import DBConfiguration
 
 AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
+
 WAIT_TIME = 10
-# Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
-HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
-OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 14))  # default 2 weeks (in milliseconds)
 
 # Create database triggers automatically, disabled by default
 # Enable with env variable `DB_TRIGGER_CREATE=1`
 DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
+
+# Configure DB Table names. Custom names can be supplied through environment variables,
+# in case the deployment differs from the default naming scheme from the supplied migrations.
+FLOW_TABLE_NAME = os.environ.get("DB_TABLE_NAME_FLOWS", "flows_v3")
+RUN_TABLE_NAME = os.environ.get("DB_TABLE_NAME_RUNS", "runs_v3")
+STEP_TABLE_NAME = os.environ.get("DB_TABLE_NAME_STEPS", "steps_v3")
+TASK_TABLE_NAME = os.environ.get("DB_TABLE_NAME_TASKS", "tasks_v3")
+METADATA_TABLE_NAME = os.environ.get("DB_TABLE_NAME_METADATA", "metadata_v3")
+ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
 
 
 class _AsyncPostgresDB(object):
@@ -58,10 +66,10 @@ class _AsyncPostgresDB(object):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE):
+    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=True):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
-        retries = 3
+        retries = max_connection_retires
         for i in range(retries):
             try:
                 self.pool = await aiopg.create_pool(
@@ -71,13 +79,8 @@ class _AsyncPostgresDB(object):
                     timeout=db_conf.timeout,
                     echo=AIOPG_ECHO)
 
-                # Clean existing trigger functions before creating new ones
-                if create_triggers:
-                    self.logger.info("Cleanup existing notify triggers")
-                    await PostgresUtils.function_cleanup(self)
-
                 for table in self.tables:
-                    await table._init(create_triggers=create_triggers)
+                    await table._init(create_tables=create_tables, create_triggers=create_triggers)
 
                 self.logger.info(
                     "Connection established.\n"
@@ -88,11 +91,11 @@ class _AsyncPostgresDB(object):
                 break  # Break the retry loop
             except Exception as e:
                 self.logger.exception("Exception occured")
-                if retries - i < 1:
+                if retries - i <= 1:
                     raise e
-                time.sleep(1)
+                time.sleep(connection_retry_wait_time_seconds)
 
-    async def get_table_by_name(self, table_name: str):
+    def get_table_by_name(self, table_name: str):
         for table in self.tables:
             if table.table_name == table_name:
                 return table
@@ -110,45 +113,6 @@ class _AsyncPostgresDB(object):
                                                        step_name, task_name,
                                                        expanded=True)
         return task.body['task_id'], task.body['task_name']
-
-    # This function is used to verify 'data' object matches the same filters as
-    # 'AsyncPostgresTable.find_records' does. This is used with 'pg_notify' + Websocket
-    # events to make sure that specific subscriber receives filtered data correctly.
-    async def apply_filters_to_data(self, data, conditions: List[str] = None, values=[]) -> bool:
-        keys, vals, stm_vals = [], [], []
-        for k, v in data.items():
-            keys.append(k)
-            if k == "tags" or k == "system_tags":
-                # Handle JSON fields
-                vals.append(json.dumps(v))
-                stm_vals.append("%s::jsonb")
-            else:
-                vals.append(v)
-                stm_vals.append("%s")
-
-        # Prepend constructed data values before WHERE values
-        values = vals + values
-
-        select_sql = "SELECT * FROM (VALUES({values})) T({keys}) {where}".format(
-            values=", ".join(stm_vals),
-            keys=", ".join(map(lambda k: "\"{}\"".format(k), keys)),
-            where="WHERE {}".format(" AND ".join(
-                conditions)) if conditions else "",
-        )
-
-        try:
-            with (
-                await self.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql, values)
-                records = await cur.fetchall()
-                cur.close()
-                return len(records) > 0
-        except:
-            self.logger.exception("Exception occured")
-            return False
 
 
 class AsyncPostgresDB(object):
@@ -172,6 +136,7 @@ class AsyncPostgresTable(object):
     schema_version = 1
     keys: List[str] = []
     primary_keys: List[str] = None
+    trigger_keys: List[str] = None
     ordering: List[str] = None
     joins: List[str] = None
     select_columns: List[str] = keys
@@ -188,13 +153,14 @@ class AsyncPostgresTable(object):
             raise NotImplementedError(
                 "need to specify table name and create command")
 
-    async def _init(self, create_triggers: bool):
-        await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
+    async def _init(self, create_tables: bool, create_triggers: bool):
+        if create_tables:
+            await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
         if create_triggers:
             self.db.logger.info(
-                "Create notify trigger for {table_name}\n   Keys: {keys}".format(
-                    table_name=self.table_name, keys=self.primary_keys))
-            await PostgresUtils.trigger_notify(db=self.db, table_name=self.table_name, keys=self.primary_keys)
+                "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
+                    table_name=self.table_name, keys=self.trigger_keys))
+            await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
@@ -204,122 +170,44 @@ class AsyncPostgresTable(object):
             conditions.append("{} = %s".format(col_name))
             values.append(col_val)
 
-        response, *_ = await self.find_records(conditions=conditions, values=values, fetch_single=fetch_single,
-                                               order=ordering, limit=limit, expanded=expanded)
+        response, _ = await self.find_records(
+            conditions=conditions, values=values, fetch_single=fetch_single,
+            order=ordering, limit=limit, expanded=expanded
+        )
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
-                           limit: int = 0, offset: int = 0, order: List[str] = None, groups: List[str] = None,
-                           group_limit: int = 10, expanded=False, enable_joins=False,
-                           postprocess: Callable[[DBResponse], DBResponse] = None,
-                           benchmark: bool = False) -> (DBResponse, DBPagination):
-        # Grouping not enabled
-        if groups is None or len(groups) == 0:
-            sql_template = """
-            SELECT * FROM (
-                SELECT
-                    {keys}
-                FROM {table_name}
-                {joins}
-            ) T
-            {where}
-            {order_by}
-            {limit}
-            {offset}
-            """
+                           limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
+                           enable_joins=False) -> Tuple[DBResponse, DBPagination]:
+        sql_template = """
+        SELECT * FROM (
+            SELECT
+                {keys}
+            FROM {table_name}
+            {joins}
+        ) T
+        {where}
+        {order_by}
+        {limit}
+        {offset}
+        """
 
-            select_sql = sql_template.format(
-                keys=",".join(
-                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
-                joins=" ".join(
-                    self.joins) if enable_joins and self.joins else "",
-                where="WHERE {}".format(" AND ".join(
-                    conditions)) if conditions else "",
-                order_by="ORDER BY {}".format(
-                    ", ".join(order)) if order else "",
-                limit="LIMIT {}".format(limit) if limit else "",
-                offset="OFFSET {}".format(offset) if offset else ""
-            ).strip()
-        else:  # Grouping enabled
-            sql_template = """
-            SELECT * FROM (
-                SELECT
-                    *, ROW_NUMBER() OVER(PARTITION BY {group_by} {order_by})
-                FROM (
-                    SELECT
-                        {keys}
-                    FROM {table_name}
-                    {joins}
-                ) T
-                {where}
-            ) G
-            {group_limit}
-            ORDER BY {group_by} ASC NULLS LAST
-            {limit}
-            {offset}
-            """
+        select_sql = sql_template.format(
+            keys=",".join(
+                self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
+            table_name=self.table_name,
+            joins=" ".join(self.joins) if enable_joins and self.joins is not None else "",
+            where="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
+            order_by="ORDER BY {}".format(", ".join(order)) if order else "",
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset="OFFSET {}".format(offset) if offset else ""
+        ).strip()
 
-            select_sql = sql_template.format(
-                keys=",".join(
-                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])),
-                table_name=self.table_name,
-                joins=" ".join(
-                    self.joins) if enable_joins and self.joins is not None else "",
-                where="WHERE {}".format(" AND ".join(
-                    conditions)) if conditions else "",
-                group_by=", ".join(groups),
-                order_by="ORDER BY {}".format(
-                    ", ".join(order)) if order else "",
-                group_limit="WHERE row_number <= {}".format(
-                    group_limit) if group_limit else "",
-                limit="LIMIT {}".format(limit) if limit else "",
-                offset="OFFSET {}".format(offset) if offset else ""
-            ).strip()
-
-        # Run benchmarking on query if requested
-        benchmark_results = None
-        if benchmark:
-            benchmark_results = await self.benchmark_sql(
-                select_sql=select_sql, values=values, fetch_single=fetch_single,
-                expanded=expanded, limit=limit, offset=offset
-            )
-
-        result, pagination = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                                    expanded=expanded, limit=limit, offset=offset)
-        # Modify the response after the fetch has been executed
-        if postprocess is not None:
-            if iscoroutinefunction(postprocess):
-                result = await postprocess(result)
-            else:
-                result = postprocess(result)
-
-        return result, pagination, benchmark_results
-
-    async def benchmark_sql(self, select_sql: str, values=[], fetch_single=False,
-                            expanded=False, limit: int = 0, offset: int = 0):
-        "Benchmark and log a given SQL query with EXPLAIN ANALYZE"
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                # Run EXPLAIN ANALYZE on query and log the results.
-                benchmark_sql = "EXPLAIN ANALYZE {}".format(select_sql)
-                await cur.execute(benchmark_sql, values)
-
-                records = await cur.fetchall()
-                rows = []
-                for record in records:
-                    rows.append(record[0])
-                return "\n".join(rows)
-        except (Exception, psycopg2.DatabaseError):
-            self.db.logger.exception("Query Benchmarking failed")
-            return None
+        return await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
+                                      expanded=expanded, limit=limit, offset=offset)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         try:
             with (
                 await self.db.pool.cursor(
@@ -331,7 +219,7 @@ class AsyncPostgresTable(object):
                 rows = []
                 records = await cur.fetchall()
                 for record in records:
-                    row = self._row_type(**record)
+                    row = self._row_type(**record)  # pylint: disable=not-callable
                     rows.append(row.serialize(expanded))
 
                 count = len(rows)
@@ -354,28 +242,6 @@ class AsyncPostgresTable(object):
             self.db.logger.exception("Exception occured")
             return aiopg_exception_handling(error), None
 
-    async def get_tags(self):
-        sql_template = "SELECT DISTINCT tag FROM (SELECT JSONB_ARRAY_ELEMENTS(tags||system_tags) AS tag FROM {table_name}) AS t"
-        select_sql = sql_template.format(table_name=self.table_name)
-
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql)
-
-                tags = []
-                records = await cur.fetchall()
-                for record in records:
-                    tags += record
-                cur.close()
-                return DBResponse(response_code=200, body=tags)
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error)
-
     async def create_record(self, record_dict):
         # note: need to maintain order
         cols = []
@@ -389,7 +255,7 @@ class AsyncPostgresTable(object):
         values.append(get_db_ts_epoch_str())
 
         str_format = []
-        for col in cols:
+        for _ in cols:
             str_format.append("%s")
 
         seperator = ", "
@@ -416,7 +282,7 @@ class AsyncPostgresTable(object):
                 for key, value in record.items():
                     if key in self.keys:
                         filtered_record[key] = value
-                response_body = self._row_type(**filtered_record).serialize()
+                response_body = self._row_type(**filtered_record).serialize()  # pylint: disable=not-callable
                 # todo make sure connection is closed even with error
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
@@ -488,27 +354,28 @@ class PostgresUtils(object):
     # todo add method to check schema version
 
     @staticmethod
-    async def function_cleanup(db: _AsyncPostgresDB):
-        name_prefix = "notify_ui"
-        _command = """
-        DO $$DECLARE r RECORD;
-        BEGIN
-            FOR r IN SELECT routine_schema, routine_name FROM information_schema.routines
-                    WHERE routine_name LIKE '{prefix}%'
-            LOOP
-                EXECUTE 'DROP FUNCTION ' || quote_ident(r.routine_schema) || '.' || quote_ident(r.routine_name) || '() CASCADE';
-            END LOOP;
-        END$$;
-        """.format(
-            prefix=name_prefix
-        )
-
+    async def create_trigger_if_missing(db: _AsyncPostgresDB, table_name, trigger_name, commands=[]):
+        "executes the commands only if a trigger with the given name does not already exist on the table"
         with (await db.pool.cursor()) as cur:
-            await cur.execute(_command)
-            cur.close()
+            try:
+                await cur.execute(
+                    """
+                    SELECT *
+                    FROM information_schema.triggers
+                    WHERE event_object_table = %s
+                    AND trigger_name = %s
+                    """,
+                    (table_name, trigger_name),
+                )
+                trigger_exist = bool(cur.rowcount)
+                if not trigger_exist:
+                    for command in commands:
+                        await cur.execute(command)
+            finally:
+                cur.close()
 
     @staticmethod
-    async def trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
+    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
         if not keys:
             pass
 
@@ -547,11 +414,6 @@ class PostgresUtils(object):
             keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
             events=" OR ".join(operations)
         )]
-        _commands += ["DROP TRIGGER IF EXISTS {prefix}_{table} ON {schema}.{table};".format(
-            schema=schema,
-            prefix=name_prefix,
-            table=table_name
-        )]
 
         _commands += ["""
             CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
@@ -563,19 +425,30 @@ class PostgresUtils(object):
             events=" OR ".join(operations)
         )]
 
-        with (await db.pool.cursor()) as cur:
-            for _command in _commands:
-                await cur.execute(_command)
-            cur.close()
+        # This enables trigger on both replica and non-replica mode
+        _commands += ["ALTER TABLE {schema}.{table} ENABLE ALWAYS TRIGGER {prefix}_{table};".format(
+            schema=schema,
+            prefix=name_prefix,
+            table=table_name
+        )]
+
+        # NOTE: Only try to setup triggers if they do not already exist.
+        # This will require a table level lock so it should be performed during initial setup at off-peak hours.
+        await PostgresUtils.create_trigger_if_missing(
+            db=db,
+            table_name=table_name,
+            trigger_name="{}_{}".format(name_prefix, table_name),
+            commands=_commands
+        )
 
 
 class AsyncFlowTablePostgres(AsyncPostgresTable):
     flow_dict = {}
-    table_name = "flows_v3"
+    table_name = FLOW_TABLE_NAME
     keys = ["flow_id", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id"]
+    trigger_keys = primary_keys
     select_columns = keys
-    join_columns = []
     _command = """
     CREATE TABLE {0} (
         flow_id VARCHAR(255) PRIMARY KEY,
@@ -611,98 +484,12 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     run_by_flow_dict = {}
     _current_count = 0
     _row_type = RunRow
-    table_name = "runs_v3"
+    table_name = RUN_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id",
             "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number"]
-    joins = [
-        """
-        LEFT JOIN (
-            SELECT
-                artifacts.flow_id, artifacts.run_number, artifacts.step_name,
-                artifacts.task_id, artifacts.attempt_id, artifacts.ts_epoch,
-                attempt_ok.value::boolean as attempt_ok
-            FROM {artifact_table} as artifacts
-            LEFT JOIN {metadata_table} as attempt_ok ON (
-                artifacts.flow_id = attempt_ok.flow_id AND
-                artifacts.run_number = attempt_ok.run_number AND
-                artifacts.task_id = attempt_ok.task_id AND
-                artifacts.step_name = attempt_ok.step_name AND
-                attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? ('attempt_id:' || artifacts.attempt_id)
-            )
-            WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
-        ) AS artifacts ON (
-            {table_name}.flow_id = artifacts.flow_id AND
-            {table_name}.run_number = artifacts.run_number
-        )
-        """.format(
-            table_name=table_name,
-            metadata_table="metadata_v3",
-            artifact_table="artifact_v3"
-        ),
-    ]
-    # User should be considered NULL when 'user:*' tag is missing
-    # This is usually the case with AWS Step Functions
-    select_columns = ["runs_v3.{0} AS {0}".format(k) for k in keys] \
-        + ["""
-            (CASE
-                WHEN system_tags ? ('user:' || user_name)
-                THEN user_name
-                ELSE NULL
-            END) AS user"""] \
-        + ["""
-            COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
-            """.format(table_name=table_name)]
-    join_columns = [
-        """
-        (CASE
-            WHEN artifacts.ts_epoch IS NOT NULL
-            THEN artifacts.ts_epoch
-            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-            THEN {table_name}.last_heartbeat_ts*1000
-            WHEN {table_name}.last_heartbeat_ts IS NULL
-            AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
-            THEN {table_name}.ts_epoch + {cutoff}
-            ELSE NULL
-        END) AS finished_at
-        """.format(
-            table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
-        ),
-        """
-        (CASE
-            WHEN artifacts.attempt_ok IS TRUE
-            THEN 'completed'
-            WHEN artifacts.attempt_ok IS FALSE
-            THEN 'failed'
-            WHEN artifacts.ts_epoch IS NOT NULL
-            THEN 'completed'
-            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-            THEN 'failed'
-            WHEN {table_name}.last_heartbeat_ts IS NULL
-            AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
-            THEN 'failed'
-            ELSE 'running'
-        END) AS status
-        """.format(
-            table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
-        ),
-        """
-        (CASE
-            WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-            THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-            WHEN artifacts.ts_epoch IS NOT NULL
-            THEN artifacts.ts_epoch - {table_name}.ts_epoch
-            ELSE NULL
-        END) AS duration
-        """.format(table_name=table_name)
-    ]
+    trigger_keys = primary_keys + ["last_heartbeat_ts"]
+    select_columns = keys
     flow_table_name = AsyncFlowTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -761,10 +548,11 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
     run_to_step_dict = {}
     _row_type = StepRow
-    table_name = "steps_v3"
+    table_name = STEP_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name",
             "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name"]
+    trigger_keys = primary_keys
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
     _command = """
@@ -818,120 +606,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     step_to_task_dict = {}
     _current_count = 0
     _row_type = TaskRow
-    table_name = "tasks_v3"
+    table_name = TASK_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id",
             "task_name", "user_name", "ts_epoch", "last_heartbeat_ts", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number", "step_name", "task_id"]
-    # NOTE: There is a lot of unfortunate backwards compatibility support in the following join, due to
-    # the older metadata service not recording separate metadata for task attempts. This is also the
-    # reason why we must join through the artifacts table, instead of directly from metadata.
-    joins = [
-        """
-        LEFT JOIN (
-            SELECT
-                task_ok.flow_id, task_ok.run_number, task_ok.step_name,
-                task_ok.task_id, task_ok.attempt_id, task_ok.ts_epoch,
-                task_ok.location,
-                attempt.ts_epoch as started_at,
-                COALESCE(attempt_ok.ts_epoch, done.ts_epoch, task_ok.ts_epoch, attempt.ts_epoch) as finished_at,
-                attempt_ok.value::boolean as attempt_ok,
-                foreach_stack.location as foreach_stack
-            FROM {artifact_table} as task_ok
-            LEFT JOIN {metadata_table} as attempt ON (
-                task_ok.flow_id = attempt.flow_id AND
-                task_ok.run_number = attempt.run_number AND
-                task_ok.step_name = attempt.step_name AND
-                task_ok.task_id = attempt.task_id AND
-                attempt.field_name = 'attempt' AND
-                task_ok.attempt_id = attempt.value::int
-            )
-            LEFT JOIN {metadata_table} as done ON (
-                task_ok.flow_id = done.flow_id AND
-                task_ok.run_number = done.run_number AND
-                task_ok.step_name = done.step_name AND
-                task_ok.task_id = done.task_id AND
-                done.field_name = 'attempt-done' AND
-                task_ok.attempt_id = done.value::int
-            )
-            LEFT JOIN {metadata_table} as attempt_ok ON (
-                task_ok.flow_id = attempt_ok.flow_id AND
-                task_ok.run_number = attempt_ok.run_number AND
-                task_ok.step_name = attempt_ok.step_name AND
-                task_ok.task_id = attempt_ok.task_id AND
-                attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? ('attempt_id:' || task_ok.attempt_id)
-            )
-            LEFT JOIN {artifact_table} as foreach_stack ON (
-                task_ok.flow_id = foreach_stack.flow_id AND
-                task_ok.run_number = foreach_stack.run_number AND
-                task_ok.step_name = foreach_stack.step_name AND
-                task_ok.task_id = foreach_stack.task_id AND
-                foreach_stack.name = '_foreach_stack' AND
-                task_ok.attempt_id = foreach_stack.attempt_id
-            )
-            WHERE task_ok.name = '_task_ok'
-        ) AS attempt ON (
-            {table_name}.flow_id = attempt.flow_id AND
-            {table_name}.run_number = attempt.run_number AND
-            {table_name}.step_name = attempt.step_name AND
-            {table_name}.task_id = attempt.task_id
-        )
-        """.format(
-            table_name=table_name,
-            metadata_table="metadata_v3",
-            artifact_table="artifact_v3"
-        ),
-    ]
-    select_columns = ["tasks_v3.{0} AS {0}".format(k) for k in keys]
-    join_columns = [
-        "attempt.started_at as started_at",
-        "attempt.finished_at as finished_at",
-        "attempt.attempt_ok as attempt_ok",
-        # If 'attempt_ok' is present, we can leave task_ok NULL since
-        #   that is used to fetch the artifact value from remote location.
-        # This process is performed at TaskRefiner (data_refiner.py)
-        """
-        (CASE
-            WHEN attempt_ok IS NOT NULL
-            THEN NULL
-            ELSE attempt.location
-        END) as task_ok
-        """,
-        """
-        (CASE
-            WHEN attempt_ok IS TRUE
-            THEN 'completed'
-            WHEN attempt_ok IS FALSE
-            THEN 'failed'
-            WHEN finished_at IS NOT NULL
-                AND attempt_ok IS NULL
-            THEN 'unknown'
-            WHEN attempt.finished_at IS NOT NULL
-            THEN 'completed'
-            WHEN attempt.finished_at IS NULL
-                AND {table_name}.last_heartbeat_ts IS NOT NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-            THEN 'failed'
-            ELSE 'running'
-        END) AS status
-        """.format(
-            table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD
-        ),
-        """
-        (CASE
-            WHEN attempt.finished_at IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-            THEN {table_name}.last_heartbeat_ts*1000-COALESCE(attempt.started_at, {table_name}.ts_epoch)
-            WHEN attempt.finished_at IS NOT NULL
-            THEN attempt.finished_at - COALESCE(attempt.started_at, {table_name}.ts_epoch)
-            ELSE NULL
-        END) AS duration
-        """.format(
-            table_name=table_name
-        ),
-        "COALESCE(attempt.attempt_id, 0) AS attempt_id",
-        "attempt.foreach_stack as foreach_stack"
-    ]
+    trigger_keys = primary_keys
+    select_columns = keys
     step_table_name = AsyncStepTablePostgres.table_name
     _command = """
     CREATE TABLE {0} (
@@ -1014,12 +694,13 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     run_to_metadata_dict = {}
     _current_count = 0
     _row_type = MetadataRow
-    table_name = "metadata_v3"
-    task_table_name = AsyncTaskTablePostgres.table_name
+    table_name = METADATA_TABLE_NAME
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "id",
             "field_name", "value", "type", "user_name", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name"]
+    trigger_keys = ["flow_id", "run_number",
+                    "step_name", "task_id", "field_name", "value"]
     select_columns = keys
     _command = """
     CREATE TABLE {0} (
@@ -1039,9 +720,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         system_tags JSONB,
         PRIMARY KEY(id, flow_id, run_number, step_name, task_id, field_name)
     )
-    """.format(
-        table_name, task_table_name
-    )
+    """.format(table_name)
 
     async def add_metadata(
         self,
@@ -1101,13 +780,13 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     task_to_artifact_dict = {}
     current_count = 0
     _row_type = ArtifactRow
-    table_name = "artifact_v3"
-    task_table_name = AsyncTaskTablePostgres.table_name
+    table_name = ARTIFACT_TABLE_NAME
     ordering = ["attempt_id DESC"]
     keys = ["flow_id", "run_number", "run_id", "step_name", "task_id", "task_name", "name", "location",
             "ds_type", "sha", "type", "content_type", "user_name", "attempt_id", "ts_epoch", "tags", "system_tags"]
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "attempt_id", "name"]
+    trigger_keys = primary_keys
     select_columns = keys
     _command = """
     CREATE TABLE {0} (
@@ -1131,7 +810,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         PRIMARY KEY(flow_id, run_number, step_name, task_id, attempt_id, name)
     )
     """.format(
-        table_name, task_table_name
+        table_name
     )
 
     async def add_artifact(

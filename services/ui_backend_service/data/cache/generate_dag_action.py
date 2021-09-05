@@ -1,40 +1,53 @@
 import hashlib
 import json
+import os
 from tarfile import TarFile
 
-from metaflow.client.cache import CacheAction
-from metaflow import FlowSpec
-from .custom_flowgraph import FlowGraph  # TODO: change to metaflow.graph when the AST-only PR is merged.
-
-from .utils import NoRetryS3
-from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
+from .client import CacheAction
 from services.utils import get_traceback_str
+
+from .custom_flowgraph import FlowGraph
+from ..s3 import (
+    S3AccessDenied, S3CredentialsMissing,
+    S3Exception, S3NotFound,
+    S3URLException, get_s3_obj, get_s3_client)
 
 
 class GenerateDag(CacheAction):
-    '''
+    """
     Generates a DAG for a given codepackage tarball location and Flow name.
+
+    Parameters
+    ----------
+    flow_id : str
+        The flow id that this codepackage belongs to.
+        Required for finding the correct class inside the parser logic.
+    codepackage_location : str
+        the S3 location for the codepackage to be fetched.
 
     Returns
     --------
-    [
-      boolean,
-      {
-        "step_name": {
-          'type': string,
-          'box_next': boolean,
-          'box_ends': string,
-          'next': list
-        },
-        ...
-      }
-    ]
-      First field conveys whether dag generation was successful.
-      Second field contains the actual DAG.
-    '''
+    List or None
+        example:
+        [
+        boolean,
+        {
+            "step_name": {
+            'type': string,
+            'box_next': boolean,
+            'box_ends': string,
+            'next': list,
+            'doc': string
+            },
+            ...
+        }
+        ]
+        First field conveys whether dag generation was successful.
+        Second field contains the actual DAG.
+    """
 
     @classmethod
-    def format_request(cls, flow_id, codepackage_location):
+    def format_request(cls, flow_id, codepackage_location, invalidate_cache=False):
         msg = {
             'location': codepackage_location,
             'flow_id': flow_id
@@ -45,7 +58,8 @@ class GenerateDag(CacheAction):
         return msg,\
             [result_key],\
             stream_key,\
-            [stream_key]
+            [stream_key],\
+            invalidate_cache
 
     @classmethod
     def response(cls, keys_objs):
@@ -65,6 +79,7 @@ class GenerateDag(CacheAction):
                 keys=None,
                 existing_keys={},
                 stream_output=None,
+                invalidate_cache=False,
                 **kwargs):
 
         results = {}
@@ -77,24 +92,16 @@ class GenerateDag(CacheAction):
             return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
         # get codepackage from S3
-        with NoRetryS3() as s3:
-            try:
-                codetar = s3.get(location)
-                results[result_key] = json.dumps(generate_dag(flow_name, codetar.path))
-            except MetaflowS3AccessDenied as ex:
-                stream_error(str(ex), "s3-access-denied")
-            except MetaflowS3NotFound as ex:
-                stream_error(str(ex), "s3-not-found")
-            except MetaflowS3URLException as ex:
-                stream_error(str(ex), "s3-bad-url")
-            except MetaflowS3CredentialsMissing as ex:
-                stream_error(str(ex), "s3-missing-credentials")
-            except MetaflowS3Exception as ex:
-                stream_error(str(ex), "s3-generic-error")
-            except UnsupportedFlowLanguage as ex:
-                stream_error(str(ex), "dag-unsupported-flow-language")
-            except Exception as ex:
-                stream_error(str(ex), "dag-processing-error", get_traceback_str())
+        s3 = get_s3_client()
+        try:
+            codetar = get_s3_obj(s3, location)
+            results[result_key] = json.dumps(generate_dag(flow_name, codetar.name))
+        except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing, S3Exception) as ex:
+            stream_error(str(ex), ex.id)
+        except UnsupportedFlowLanguage as ex:
+            stream_error(str(ex), "dag-unsupported-flow-language")
+        except Exception as ex:
+            stream_error(str(ex), "dag-processing-error", get_traceback_str())
 
         return results
 
@@ -109,7 +116,9 @@ def generate_dag(flow_id, tarball_path):
         # Break if language is not supported.
         if "use_r" in info and info["use_r"]:
             raise UnsupportedFlowLanguage
-        script_name = info['script']
+        # script name contains the full path passed to the python executable,
+        # trim this down to the python filename
+        script_name = os.path.basename(info['script'])
         sourcecode = f.extractfile(script_name).read().decode('utf-8')
 
     # Initialize a FlowGraph object
@@ -121,7 +130,8 @@ def generate_dag(flow_id, tarball_path):
             'type': node.type,
             'box_next': node.type not in ('linear', 'join'),
             'box_ends': node.matching_join,
-            'next': node.out_funcs
+            'next': node.out_funcs,
+            'doc': node.doc
         }
     return dag
 

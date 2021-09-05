@@ -1,14 +1,12 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
-from .utils import format_response, web_response
+from .utils import format_response, web_response, query_param_enabled
 
-from aiohttp import web
 import json
 
 
 class DagApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/dag", self.get_run_dag
@@ -26,6 +24,7 @@ class DagApi(object):
         parameters:
           - $ref: '#/definitions/Params/Path/flow_id'
           - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -50,10 +49,18 @@ class DagApi(object):
         run_id_key, run_id_value = translate_run_key(
             request.match_info.get("run_number"))
         # 'code-package' value contains json with dstype, sha1 hash and location
+        # 'code-package-url' value contains only location as a string
         db_response, *_ = await self._metadata_table.find_records(
-            conditions=["flow_id = %s", "{run_id_key} = %s".format(
-                run_id_key=run_id_key), "field_name = %s"],
-            values=[flow_name, run_id_value, "code-package"],
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(
+                    run_id_key=run_id_key),
+                "(field_name = %s OR field_name = %s)"
+            ],
+            values=[
+                flow_name, run_id_value,
+                "code-package", "code-package-url"
+            ],
             fetch_single=True, expanded=True
         )
         if not db_response.response_code == 200:
@@ -61,12 +68,20 @@ class DagApi(object):
             return web_response(status, body)
 
         # parse codepackage location.
-        codepackage_loc = json.loads(db_response.body['value'])['location']
+        if db_response.body['field_name'] == "code-package-url":
+            # internal location is a simple string instead of json
+            codepackage_loc = db_response.body['value']
+        else:
+            # location in OSS is stored as json
+            codepackage_loc = json.loads(db_response.body['value'])['location']
         flow_name = db_response.body['flow_id']
 
+        invalidate_cache = query_param_enabled(request, "invalidate")
+
         # Fetch or Generate the DAG from the codepackage.
-        dag = await self._dag_store.cache.GenerateDag(flow_name, codepackage_loc)
-        if not dag.is_ready():
+        dag = await self._dag_store.cache.GenerateDag(
+            flow_name, codepackage_loc, invalidate_cache=invalidate_cache)
+        if dag.has_pending_request():
             async for event in dag.stream():
                 if event["type"] == "error":
                     # raise error, there was an exception during processing.

@@ -1,7 +1,7 @@
 import pytest
 from .utils import (
     init_app, init_db, clean_db,
-    add_flow, add_run, add_step, add_task, add_artifact,
+    add_flow, add_run, add_step, add_task, add_artifact, add_metadata,
     TIMEOUT_FUTURE
 )
 from typing import List, Dict
@@ -25,7 +25,7 @@ async def db(cli):
 
     # Init after DB is ready so that connection pool is available
     app = cli.server.app
-    ListenNotify(app, app.event_emitter)
+    ListenNotify(app, async_db, app.event_emitter)
 
     yield async_db
     await clean_db(async_db)
@@ -107,7 +107,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
                              **_task_step),
                          "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task_step),
                          "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task_step)
-                        ]
+                         ]
     assert result == assertable_task(_task_step)
 
     # Add end Step
@@ -141,10 +141,15 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
 
     # Add artifact (Task will be done)
     _should_call_task_done = Future(loop=loop)
+    _should_call_artifact_insert = Future(loop=loop)
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
-        if not _should_call_task_done.done():
-            _should_call_task_done.set_result([operation, resources, result])
+        if operation == "UPDATE":
+            if not _should_call_task_done.done():
+                _should_call_task_done.set_result([operation, resources, result])
+        else:
+            if not _should_call_artifact_insert.done():
+                _should_call_artifact_insert.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     _artifact_step = (await add_artifact(db,
@@ -157,9 +162,12 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
                                          task_name=_task_step.get("task_name"),
                                          artifact={"name": "_task_ok"})).body
 
-
     operation, resources, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
     assert operation == "UPDATE"
+    assert result == assertable_artifact(_artifact_step)
+
+    operation, resources, result = await wait_for(_should_call_artifact_insert, TIMEOUT_FUTURE)
+    assert operation == "INSERT"
     assert result == assertable_artifact(_artifact_step)
 
     cli.server.app.event_emitter.remove_all_listeners()
@@ -239,10 +247,16 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     # Add artifact with attempt_id = 0 (Task will be done)
 
     _should_call_task_done = Future(loop=loop)
+    _should_call_artifact_insert = Future(loop=loop)
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
-        if not _should_call_task_done.done():
-            _should_call_task_done.set_result([operation, resources, result])
+        if operation == 'UPDATE':
+            if not _should_call_task_done.done():
+                _should_call_task_done.set_result([operation, resources, result])
+        else:
+            if not _should_call_artifact_insert.done():
+                _should_call_artifact_insert.set_result([operation, resources, result])
+
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
 
     _artifact_step = (await add_artifact(db,
@@ -260,16 +274,25 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     assert operation == "UPDATE"
     assert result == assertable_artifact(_artifact_step)
 
+    operation, _, result = await wait_for(_should_call_artifact_insert, TIMEOUT_FUTURE)
+    assert operation == "INSERT"
+    assert result == assertable_artifact(_artifact_step)
+
     cli.server.app.event_emitter.remove_all_listeners()
 
     # Add artifact with attempt_id = 1 (Task will be done)
     _should_call_task_done = Future(loop=loop)
+    _should_call_artifact_insert = Future(loop=loop)
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
-        if not _should_call_task_done.done():
-            _should_call_task_done.set_result([operation, resources, result])
+        if operation == 'UPDATE':
+            if not _should_call_task_done.done():
+                _should_call_task_done.set_result([operation, resources, result])
+        else:
+            if not _should_call_artifact_insert.done():
+                _should_call_artifact_insert.set_result([operation, resources, result])
     cli.server.app.event_emitter.on('notify', _event_handler_task_done)
-    
+
     _artifact_step = (await add_artifact(db,
                                          flow_id=_task_step.get("flow_id"),
                                          run_number=_task_step.get(
@@ -280,33 +303,112 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
                                          task_name=_task_step.get("task_name"),
                                          artifact={"name": "_task_ok", "attempt_id": 1})).body
 
-
     # Wait for results
 
     operation, _, result = await wait_for(_should_call_task_done, TIMEOUT_FUTURE)
+    assert operation == "UPDATE"
+    assert result == assertable_artifact(_artifact_step)
+
+    operation, _, result = await wait_for(_should_call_artifact_insert, TIMEOUT_FUTURE)
     assert operation == "INSERT"
     assert result == assertable_artifact(_artifact_step)
 
     cli.server.app.event_emitter.remove_all_listeners()
 
 
+async def test_pg_notify_dag_code_package_url(cli, db, loop):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="start", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+
+    cli.server.app.event_emitter.remove_all_listeners()
+
+    _should_call_dag = Future(loop=loop)
+
+    async def _event_handler_dag(flow_name: str, codepackage_loc: str):
+        if not _should_call_dag.done():
+            _should_call_dag.set_result([flow_name, codepackage_loc])
+    cli.server.app.event_emitter.on('preload-dag', _event_handler_dag)
+
+    _metadata = (await add_metadata(db,
+                                    flow_id=_task.get("flow_id"),
+                                    run_number=_task.get("run_number"),
+                                    run_id=_task.get("run_id"),
+                                    step_name=_task.get("step_name"),
+                                    task_id=_task.get("task_id"),
+                                    task_name=_task.get("task_name"),
+                                    metadata={
+                                        "field_name": "code-package-url",
+                                        "value": "s3://foobar",
+                                        "type": "type"})).body
+
+    flow_name, codepackage_loc = await wait_for(_should_call_dag, TIMEOUT_FUTURE)
+    assert flow_name == "HelloFlow"
+    assert codepackage_loc == "s3://foobar"
+
+
+async def test_pg_notify_dag_code_package(cli, db, loop):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="start", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+
+    cli.server.app.event_emitter.remove_all_listeners()
+
+    _should_call_dag = Future(loop=loop)
+
+    async def _event_handler_dag(flow_name: str, codepackage_loc: str):
+        if not _should_call_dag.done():
+            _should_call_dag.set_result([flow_name, codepackage_loc])
+    cli.server.app.event_emitter.on('preload-dag', _event_handler_dag)
+
+    _metadata = (await add_metadata(db,
+                                    flow_id=_task.get("flow_id"),
+                                    run_number=_task.get("run_number"),
+                                    run_id=_task.get("run_id"),
+                                    step_name=_task.get("step_name"),
+                                    task_id=_task.get("task_id"),
+                                    task_name=_task.get("task_name"),
+                                    metadata={
+                                        "field_name": "code-package",
+                                        "value": '{"location": "s3://foobar"}',
+                                        "type": "type"})).body
+
+    flow_name, codepackage_loc = await wait_for(_should_call_dag, TIMEOUT_FUTURE)
+    assert flow_name == "HelloFlow"
+    assert codepackage_loc == "s3://foobar"
+
 # Helpers
 
+
 def assertable_flow(flow):
-    return { "flow_id": flow.get("flow_id") }
+    return {"flow_id": flow.get("flow_id")}
+
 
 def assertable_run(run):
     return {
         "flow_id": run.get("flow_id"),
-        "run_number": int(run.get("run_number"))
+        "run_number": int(run.get("run_number")),
+        "last_heartbeat_ts": run.get("last_heartbeat_ts")
     }
 
-def assertable_step(step, keys = ["step_name"]):
+
+def assertable_step(step, keys=["step_name"]):
     return {
         "flow_id": step.get("flow_id"),
         "run_number": int(step.get("run_number")),
         "step_name": step.get("step_name")
     }
+
 
 def assertable_task(task):
     return {
@@ -315,6 +417,7 @@ def assertable_task(task):
         "step_name": task.get("step_name"),
         "task_id": int(task.get("task_id"))
     }
+
 
 def assertable_artifact(artifact):
     return {
@@ -327,7 +430,3 @@ def assertable_artifact(artifact):
     }
 
 # Helpers end
-
-
-
-

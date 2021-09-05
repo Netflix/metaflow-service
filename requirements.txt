@@ -1,5 +1,3 @@
--r services/utils/requirements.txt
--r services/data/requirements.txt
 -r services/metadata_service/requirements.txt
 -r services/migration_service/requirements.txt
 -r services/ui_backend_service/requirements.txt

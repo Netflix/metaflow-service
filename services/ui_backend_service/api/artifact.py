@@ -1,14 +1,16 @@
 import json
 from aiohttp import web
-from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import DBResponse, _filter_artifacts_by_attempt_id_for_tasks, translate_run_key, translate_task_key
+from services.data.db_utils import DBResponse, filter_artifacts_by_attempt_id_for_tasks, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
+from ..data.refiner import ArtifactRefiner
 
 
 class ArtificatsApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db, cache=None):
         self.db = db
+        self.refiner = ArtifactRefiner(cache=cache.artifact_cache) if cache else None
+        self._async_table = self.db.artifact_table_postgres
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts",
@@ -24,7 +26,6 @@ class ArtificatsApi(object):
             "/flows/{flow_id}/runs/{run_number}/artifacts",
             self.get_artifacts_by_run,
         )
-        self._async_table = self.db.artifact_table_postgres
 
     @handle_exceptions
     async def get_artifacts_by_task(self, request):
@@ -51,6 +52,8 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/type'
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -87,7 +90,7 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=ArtificatsApi._postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -114,6 +117,8 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/type'
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -146,7 +151,7 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=ArtificatsApi._postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
     @handle_exceptions
@@ -172,6 +177,8 @@ class ArtificatsApi(object):
           - $ref: '#/definitions/Params/Custom/type'
           - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
           - $ref: '#/definitions/Params/Custom/user_name'
           - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
@@ -202,12 +209,12 @@ class ArtificatsApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  postprocess=ArtificatsApi._postprocess
+                                  postprocess=self.get_postprocessor(request)
                                   )
 
-    @staticmethod
-    def _postprocess(response: DBResponse):
-        if response.response_code != 200 or not response.body:
-            return response
-        return DBResponse(response_code=response.response_code,
-                          body=_filter_artifacts_by_attempt_id_for_tasks(response.body))
+    def get_postprocessor(self, request):
+        "pass query param &postprocess=true to enable postprocessing of S3 content. Otherwise returns None as postprocessor"
+        if request.query.get("postprocess", False) in ["true", "True", "1"]:
+            return self.refiner.postprocess
+        else:
+            return None

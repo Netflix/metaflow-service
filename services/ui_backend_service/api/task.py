@@ -1,4 +1,3 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key
 from services.utils import handle_exceptions
 from .utils import find_records
@@ -6,7 +5,7 @@ from ..data.refiner import TaskRefiner
 
 
 class TaskApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance(), cache=None):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET",
@@ -29,7 +28,7 @@ class TaskApi(object):
             self.get_task_attempts,
         )
         self._async_table = self.db.task_table_postgres
-        self.refiner = TaskRefiner(cache=cache)
+        self.refiner = TaskRefiner(cache=cache.artifact_cache) if cache else None
 
     @handle_exceptions
     async def get_run_tasks(self, request):
@@ -56,6 +55,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -81,7 +81,6 @@ class TaskApi(object):
                                           run_id_key=run_id_key)],
                                   initial_values=[
                                       flow_name, run_id_value],
-                                  initial_order=["attempt_id DESC"],
                                   allowed_order=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
@@ -114,6 +113,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -162,6 +162,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Path/step_name'
           - $ref: '#/definitions/Params/Path/task_id'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:
@@ -225,6 +226,7 @@ class TaskApi(object):
           - $ref: '#/definitions/Params/Custom/finished_at'
           - $ref: '#/definitions/Params/Custom/duration'
           - $ref: '#/definitions/Params/Custom/postprocess'
+          - $ref: '#/definitions/Params/Custom/invalidate'
         produces:
         - application/json
         responses:

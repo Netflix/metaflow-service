@@ -1,11 +1,10 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 from .utils import find_records
 
 
 class StepApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db):
         self.db = db
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/steps", self.get_steps
@@ -60,7 +59,8 @@ class StepApi(object):
                                   initial_values=[flow_name, run_id_value],
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys
+                                  allowed_filters=self._async_table.keys,
+                                  enable_joins=True
                                   )
 
     @handle_exceptions
@@ -102,4 +102,5 @@ class StepApi(object):
                                       "step_name = %s"],
                                   initial_values=[
                                       flow_name, run_id_value, step_name],
+                                  enable_joins=True
                                   )

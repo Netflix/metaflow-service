@@ -1,33 +1,27 @@
 import asyncio
 import os
 import signal
+import concurrent
 
 from aiohttp import web
 from aiohttp_swagger import *
-
-# routes
-from .api import (
-    AdminApi, FlowApi, RunApi, StepApi, TaskApi,
-    MetadataApi, ArtificatsApi, TagApi, ArtifactSearchApi,
-    LogApi, DagApi
-)
-
-# service processes
-from .api import (
-    Websocket, ListenNotify, RunHeartbeatMonitor, TaskHeartbeatMonitor
-)
-
-from .data.cache import CacheStore
-from .frontend import Frontend
-
-from services.data.postgres_async_db import _AsyncPostgresDB
+from pyee import AsyncIOEventEmitter
 from services.utils import DBConfiguration, logging
 
-from pyee import AsyncIOEventEmitter
+# service processes and routes
+from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
+                  DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
+                  MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
+                  TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi)
 
+from .data.cache import CacheStore
+from .data.db import AsyncPostgresDB
 from .doc import swagger_definitions, swagger_description
+from .features import (FEATURE_DB_LISTEN_ENABLE, FEATURE_HEARTBEAT_ENABLE,
+                       FEATURE_WS_ENABLE)
+from .frontend import Frontend
 
-from .features import FEATURE_DB_LISTEN_ENABLE, FEATURE_WS_ENABLE, FEATURE_HEARTBEAT_ENABLE
+from .plugins import init_plugins
 
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
@@ -43,42 +37,46 @@ def app(loop=None, db_conf: DBConfiguration = None):
     _app = web.Application(loop=loop)
     app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
 
-    async_db = _AsyncPostgresDB('ui')
+    async_db = AsyncPostgresDB('ui')
     loop.run_until_complete(async_db._init(db_conf=db_conf, create_triggers=DB_TRIGGER_CREATE))
 
     event_emitter = AsyncIOEventEmitter()
 
-    async_db_cache = _AsyncPostgresDB('ui:cache')
+    async_db_cache = AsyncPostgresDB('ui:cache')
     loop.run_until_complete(async_db_cache._init(db_conf))
-    cache_store = CacheStore(event_emitter=event_emitter, db=async_db_cache)
+    cache_store = CacheStore(db=async_db_cache, event_emitter=event_emitter)
     app.on_startup.append(cache_store.start_caches)
     app.on_cleanup.append(cache_store.stop_caches)
 
     if FEATURE_DB_LISTEN_ENABLE:
-        async_db_notify = _AsyncPostgresDB('ui:notify')
+        async_db_notify = AsyncPostgresDB('ui:notify')
         loop.run_until_complete(async_db_notify._init(db_conf))
-        ListenNotify(app, event_emitter, db=async_db_notify)
+        ListenNotify(app, db=async_db_notify, event_emitter=event_emitter)
 
     if FEATURE_HEARTBEAT_ENABLE:
-        async_db_heartbeat = _AsyncPostgresDB('ui:heartbeat')
+        async_db_heartbeat = AsyncPostgresDB('ui:heartbeat')
         loop.run_until_complete(async_db_heartbeat._init(db_conf))
         RunHeartbeatMonitor(event_emitter, db=async_db_heartbeat)
         TaskHeartbeatMonitor(event_emitter, db=async_db_heartbeat, cache=cache_store)
 
     if FEATURE_WS_ENABLE:
-        async_db_ws = _AsyncPostgresDB('ui:websocket')
+        async_db_ws = AsyncPostgresDB('ui:websocket')
         loop.run_until_complete(async_db_ws._init(db_conf))
-        Websocket(app, event_emitter, db=async_db_ws, cache=cache_store)
+        Websocket(app, db=async_db_ws, event_emitter=event_emitter, cache=cache_store)
 
+    AutoCompleteApi(app, async_db)
     FlowApi(app, async_db)
     RunApi(app, async_db, cache_store)
     StepApi(app, async_db)
     TaskApi(app, async_db, cache_store)
     MetadataApi(app, async_db)
-    ArtificatsApi(app, async_db)
+    ArtificatsApi(app, async_db, cache_store)
     TagApi(app, async_db)
     ArtifactSearchApi(app, async_db, cache_store)
     DagApi(app, async_db, cache_store)
+    FeaturesApi(app)
+    ConfigApi(app)
+    PluginsApi(app)
 
     LogApi(app, async_db)
     AdminApi(app)
@@ -94,6 +92,11 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     if len(PATH_PREFIX) > 0:
         _app.add_subapp(PATH_PREFIX, app)
+
+    async def _init_plugins():
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            await loop.run_in_executor(pool, init_plugins)
+    asyncio.run_coroutine_threadsafe(_init_plugins(), loop)
 
     return _app
 

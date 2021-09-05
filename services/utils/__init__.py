@@ -2,7 +2,6 @@ import json
 import sys
 import os
 import traceback
-import collections
 import pkg_resources
 from urllib.parse import urlencode
 from multidict import MultiDict
@@ -75,10 +74,13 @@ def handle_exceptions(func):
             return await func(*args, **kwargs)
         except Exception as err:
             # pass along an id for the error
-            err_id = getattr(err, 'id', 'generic-error')
+            err_id = getattr(err, 'id', None)
             # either use provided traceback from subprocess, or generate trace from current process
             err_trace = getattr(err, 'traceback_str', None) or get_traceback_str()
-            logging.error(err_trace)
+            if not err_id:
+                # Log error only in case it is not a known case.
+                err_id = 'generic-error'
+                logging.error(err_trace)
             return http_500(str(err), err_id, err_trace)
 
     return wrapper
@@ -169,7 +171,7 @@ class DBConfiguration(object):
         self._dsn = os.environ.get(prefix + "DSN", dsn)
 
         self.host = os.environ.get(prefix + "HOST", host).translate(table)
-        self.port = os.environ.get(prefix + "PORT", port)
+        self.port = int(os.environ.get(prefix + "PORT", port))
         self.user = os.environ.get(prefix + "USER", user).translate(table)
         self.password = os.environ.get(
             prefix + "PSWD", password).translate(table)

@@ -1,32 +1,43 @@
 import hashlib
-
-from metaflow.client.cache import CacheAction
-from .utils import NoRetryS3
-from .utils import MetaflowS3CredentialsMissing, MetaflowS3AccessDenied, MetaflowS3Exception, MetaflowS3NotFound, MetaflowS3URLException
-from .utils import decode, batchiter
-from services.utils import get_traceback_str
 import json
 
-MAX_SIZE = 4096
-S3_BATCH_SIZE = 512
+from .client import CacheAction
+from services.utils import get_traceback_str
+
+from ..s3 import (
+    S3AccessDenied, S3CredentialsMissing,
+    S3Exception, S3NotFound,
+    S3URLException, get_s3_obj, get_s3_size, get_s3_client)
+from .utils import (decode, error_event_msg,
+                    artifact_cache_id, artifact_location_from_key,
+                    MAX_S3_SIZE)
+from ..refiner.refinery import unpack_processed_value
 
 
 class GetArtifacts(CacheAction):
-    '''
+    """
     Fetches artifacts by locations returning their contents.
     Caches artifacts based on location, and results based on list of artifacts requested.
 
-    Returns:
+    Parameters
+    ----------
+    locations : List[str]
+        A list of S3 locations to fetch artifacts from.
+
+    Returns
+    -------
+    Dict or None
+        example:
         {
             "s3_location": "contents"
         }
-    '''
+    """
 
     @classmethod
-    def format_request(cls, locations):
+    def format_request(cls, locations, invalidate_cache=False):
         unique_locs = list(frozenset(sorted(loc for loc in locations if isinstance(loc, str))))
         msg = {
-            'artifact_locations': unique_locs,
+            'artifact_locations': unique_locs
         }
 
         artifact_keys = []
@@ -35,12 +46,12 @@ class GetArtifacts(CacheAction):
 
         request_id = lookup_id(unique_locs)
         stream_key = 'parameters:stream:%s' % request_id
-        result_key = 'parameters:result:%s' % request_id
 
         return msg,\
-            [result_key, *artifact_keys],\
+            artifact_keys,\
             stream_key,\
-            [stream_key, result_key]
+            [stream_key],\
+            invalidate_cache
 
     @classmethod
     def response(cls, keys_objs):
@@ -49,7 +60,18 @@ class GetArtifacts(CacheAction):
             location: "contents"
         }
         '''
-        return [json.loads(val) for key, val in keys_objs.items() if key.startswith('parameters:result')][0]
+
+        artifact_keys = [(key, val) for key, val in keys_objs.items() if key.startswith('search:artifactdata')]
+
+        collected = {}
+        for key, val in artifact_keys:
+            success, value, _ = unpack_processed_value(json.loads(val))
+
+            # Only include artifacts whose content could successfully be read in the cache response.
+            if success:
+                collected[artifact_location_from_key(key)] = value
+
+        return collected
 
     @classmethod
     def stream_response(cls, it):
@@ -62,81 +84,79 @@ class GetArtifacts(CacheAction):
                 keys=None,
                 existing_keys={},
                 stream_output=None,
+                invalidate_cache=False,
                 **kwargs):
+        """
+        Execute fetching of artifacts from predefined S3 locations.
+        Produces cache results that are either successful or failed.
 
-        # make a copy of already existing results, as the cache action has to produce all keys it promised
-        # in the format_request response.
-        results = {**existing_keys}
+        Success cached example:
+            results[artifact_key] = json.dumps([True, str(content)])
+        Failure cached example:
+            results[artifact_key] = json.dumps([False, 'artifact-too-large', artifact_data.size])
+
+        Alternatively errors can be streamed to cache client using `stream_error`.
+        This way failures won't be cached for individual artifacts, thus making
+        it necessary to retry fetching during next attempt. (Will add significant overhead/delay).
+
+        Streaming errors should be avoided to minimize latency for subsequent requests.
+
+        Stream error example:
+            stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
+        """
         locations = message['artifact_locations']
 
-        artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
-        result_key = [key for key in keys if key.startswith('parameters:result')][0]
+        if invalidate_cache:
+            results = {}
+            locations_to_fetch = [loc for loc in locations]
+        else:
+            # make a copy of already existing results, as the cache action has to produce all keys it promised
+            # in the format_request response.
+            results = {**existing_keys}
+            # Make a list of artifact locations that require fetching (not cached previously)
+            locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
 
-        # Helper function for streaming status updates.
-        def stream_error(err, id, traceback=None):
-            return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
-
-        # Make a list of artifact locations that require fetching (not cached previously)
-        locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
+        # Helper function for streaming status errors.
+        #
+        # Example usage with catched exception:
+        #    stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
+        def stream_error(err, id, traceback=None, key=None):
+            return stream_output(error_event_msg(err, id, traceback, key))
 
         # Fetch the S3 locations data
-        s3_locations = [loc for loc in locations_to_fetch if loc.startswith("s3://")]
-        with NoRetryS3() as s3:
-            for locations in batchiter(s3_locations, S3_BATCH_SIZE):
-                try:
-                    for artifact_data in s3.get_many(locations):
-                        artifact_key = artifact_cache_id(artifact_data.url)
-                        if artifact_data.size < MAX_SIZE:
-                            try:
-                                # TODO: Figure out a way to store the artifact content without decoding?
-                                # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                                # so we can not rely on the file existing if we only return a filepath as a cached response
-                                content = decode(artifact_data.path)
-                                results[artifact_key] = json.dumps([True, content])
-                            except TypeError:
-                                # In case the artifact was of a type that can not be json serialized,
-                                # we try casting it to a string first.
-                                results[artifact_key] = json.dumps([True, str(content)])
-                            except Exception as ex:
-                                # Exceptions might be fixable with configuration changes or other measures,
-                                # therefore we do not want to write anything to the cache for these artifacts.
-                                stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
-                        else:
-                            results[artifact_key] = json.dumps([False, 'object is too large'])
-                except MetaflowS3AccessDenied as ex:
-                    stream_error(str(ex), "s3-access-denied")
-                except MetaflowS3NotFound as ex:
-                    stream_error(str(ex), "s3-not-found")
-                except MetaflowS3URLException as ex:
-                    stream_error(str(ex), "s3-bad-url")
-                except MetaflowS3CredentialsMissing as ex:
-                    stream_error(str(ex), "s3-missing-credentials")
-                except MetaflowS3Exception as ex:
-                    stream_error(str(ex), "s3-generic-error", get_traceback_str())
+        s3_locations = [loc for loc in locations_to_fetch if loc.startswith('s3://')]
+        s3 = get_s3_client()
+        for location in s3_locations:
+            artifact_key = artifact_cache_id(location)
+            try:
+                obj_size = get_s3_size(s3, location)
+                if obj_size < MAX_S3_SIZE:
+                    temp_obj = get_s3_obj(s3, location)
+                    # TODO: Figure out a way to store the artifact content without decoding?
+                    # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
+                    # so we can not rely on the file existing if we only return a filepath as a cached response
+                    content = decode(temp_obj.name)
+                    results[artifact_key] = json.dumps([True, content])
+                else:
+                    results[artifact_key] = json.dumps([False, 'artifact-too-large', obj_size])
+
+            except TypeError:
+                # In case the artifact was of a type that can not be json serialized,
+                # we try casting it to a string first.
+                results[artifact_key] = json.dumps([True, str(content)])
+            except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing) as ex:
+                results[artifact_key] = json.dumps([False, ex.id, location])
+            except S3Exception as ex:
+                results[artifact_key] = json.dumps([False, ex.id, get_traceback_str()])
+            except Exception:
+                results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
+
         # Skip the inaccessible locations
-        other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
+        other_locations = [loc for loc in locations_to_fetch if not loc.startswith('s3://')]
         for loc in other_locations:
             artifact_key = artifact_cache_id(loc)
-            stream_error("Artifact is not accessible", "artifact-not-accessible")
-            results[artifact_key] = json.dumps([False, 'object is not accessible'])
+            results[artifact_key] = json.dumps([False, 'artifact-not-accessible', loc])
 
-        # Collect the artifact contents into the results.
-        collected = {}
-
-        def format_loc(x):
-            "extract location from the artifact cache key"
-            return x[len("search:artifactdata:"):]
-
-        for key in artifact_keys:
-            if key in results:
-                success, value = json.loads(results[key])
-            else:
-                success, value = False, None
-
-            if success:
-                collected[format_loc(key)] = value
-
-        results[result_key] = json.dumps(collected)
         return results
 
 
@@ -144,8 +164,3 @@ def lookup_id(locations):
     "construct a unique id to be used with stream_key and result_key"
     _string = "-".join(list(frozenset(sorted(locations))))
     return hashlib.sha1(_string.encode('utf-8')).hexdigest()
-
-
-def artifact_cache_id(location):
-    "construct a unique cache key for artifact location"
-    return 'search:artifactdata:%s' % location

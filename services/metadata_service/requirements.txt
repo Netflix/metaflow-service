@@ -1,3 +1,5 @@
-aiohttp==3.6.2
-aiohttp-swagger==1.0.15
-boto3==1.15.10
+aiohttp
+aiohttp-swagger
+psycopg2
+boto3
+aiopg

@@ -1,10 +1,9 @@
-from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import handle_exceptions
 from .utils import find_records
 
 
 class FlowApi(object):
-    def __init__(self, app, db=AsyncPostgresDB.get_instance()):
+    def __init__(self, app, db):
         self.db = db
         app.router.add_route("GET", "/flows", self.get_all_flows)
         app.router.add_route("GET", "/flows/{flow_id}", self.get_flow)

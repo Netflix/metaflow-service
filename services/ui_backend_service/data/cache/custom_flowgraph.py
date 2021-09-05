@@ -130,14 +130,10 @@ class StepVisitor(ast.NodeVisitor):
 
 
 class FlowGraph(object):
-
-    def __init__(self, flow=None, source=None, name=None):
-        if flow:
-            module = __import__(flow.__module__)
-            source = inspect.getsource(module)
-            self.name = flow.__name__
-        else:
-            self.name = name
+    # NOTE: This implementation relies on passing in the name of the FlowSpec class
+    # to be parsed from the sourcecode.
+    def __init__(self, source, name):
+        self.name = name
 
         self.nodes = self._create_nodes(source)
         self._traverse_graph()
@@ -146,12 +142,10 @@ class FlowGraph(object):
     def _create_nodes(self, source):
         def _flow(n):
             if isinstance(n, ast.ClassDef):
-                bases = [b.id for b in n.bases]
-                if 'FlowSpec' in bases:
-                    return self.name is None or n.name == self.name
+                return n.name == self.name
 
-        # NOTE: this will fail if a file has multiple FlowSpec classes
-        # and no name is specified
+        # NOTE: Can possibly fail if filter returns multiple results,
+        # but this would mean there are duplicate class names.
         [root] = list(filter(_flow, ast.parse(source).body))
         self.name = root.name
         doc = ast.get_docstring(root)

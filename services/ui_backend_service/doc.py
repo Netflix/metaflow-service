@@ -287,6 +287,8 @@ swagger_definitions = {
             "run_number": path_param("run_number", "Run number", "integer"),
             "step_name": path_param("step_name", "Step name", "string"),
             "task_id": path_param("task_id", "Task id", "integer"),
+            "plugin_name": path_param("plugin_name", "Plugin name (identifier)", "string"),
+            "plugin_filename": path_param("filename", "Relative path to file (e.g. dist/index.html)", "string"),
         },
         "Custom": {
             "id": custom_param("id", "integer"),
@@ -314,9 +316,23 @@ swagger_definitions = {
                 "required": False,
                 "default": False,
                 "type": "boolean",
+            },
+            "invalidate": {
+                "name": "invalidate",
+                "in": "query",
+                "description": "Invalidate cache before fetching new results from S3. Requires refining/postprocessing\
+                    to be effective, usually defined with postprocess=true query parameter.",
+                "required": False,
+                "default": False,
+                "type": "boolean",
             }
         }
     },
+    "ResponsesAutocompleteTagList": response_list("#/definitions/ModelsAutocompleteTag"),
+    "ResponsesAutocompleteFlowList": response_list("#/definitions/ModelsAutocompleteFlow"),
+    "ResponsesAutocompleteRunList": response_list("#/definitions/ModelsAutocompleteRun"),
+    "ResponsesAutocompleteStepList": response_list("#/definitions/ModelsAutocompleteStep"),
+    "ResponsesAutocompleteArtifactList": response_list("#/definitions/ModelsAutocompleteArtifact"),
     "ResponsesFlow": response_object("#/definitions/ModelsFlow"),
     "ResponsesFlowList": response_list("#/definitions/ModelsFlow"),
     "ResponsesRun": response_object("#/definitions/ModelsRun"),
@@ -346,7 +362,14 @@ swagger_definitions = {
             "$ref": "#/definitions/ModelsLink"
         }
     },
-    "ResponsesLog": response_object("#/definitions/ModelsLog"),
+    "ResponsesNotificationList": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "$ref": "#/definitions/ModelsNotification"
+        }
+    },
+    "ResponsesLog": response_list("#/definitions/ModelsLogRow"),
     "ResponsesLogError500": response_internal_error(
         {
             "log-error-s3": "Something went wrong with S3 access",
@@ -365,6 +388,17 @@ swagger_definitions = {
             "dag-unsupported-flow-language": "The Flow language is not supported by the DAG parser. DAG graph can not be generated"
         }
     ),
+    "ResponsesPlugin": {
+        "type": "object",
+        "$ref": "#/definitions/ModelsPlugin"
+    },
+    "ResponsesPluginList": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "$ref": "#/definitions/ModelsPlugin"
+        }
+    },
     "ResponsesError405": response_error(405),
     "ResponsesError404": response_error(404),
     "ResponsesError500": response_internal_error(),
@@ -375,6 +409,26 @@ swagger_definitions = {
         **modelprop("finished_at", "integer", "Finished at epoch timestamp", 1591788834035),
         **modelprop("duration", "integer", "Duration in milliseconds (null if unfinished)", 456),
     }),
+    "ModelsAutocompleteTag": {
+        "type": "string",
+        "default": "tag name"
+    },
+    "ModelsAutocompleteFlow": {
+        "type": "string",
+        "default": "Flow id"
+    },
+    "ModelsAutocompleteRun": {
+        "type": "string",
+        "default": "run number or run id"
+    },
+    "ModelsAutocompleteStep": {
+        "type": "string",
+        "default": "step name"
+    },
+    "ModelsAutocompleteArtifact": {
+        "type": "string",
+        "default": "artifact name"
+    },
     "ModelsRunParameters": {
         "type": "object",
         "properties": {
@@ -393,6 +447,7 @@ swagger_definitions = {
     "ModelsStep": basemodel({
         **modelprop("run_number", "integer", "Run number", 5),
         **modelprop("step_name", "string", "Step name", "bonus_movie"),
+        **modelprop("duration", "integer", "Current duration in milliseconds (null if no tasks exist yet)", 456),
     }),
     "ModelsTask": basemodel({
         **modelprop("run_number", "integer", "Run number", 5),
@@ -418,6 +473,7 @@ swagger_definitions = {
         **modelprop("task_id", "integer", "Task id", 32),
         **modelprop("name", "string", "Name", "bonus"),
         **modelprop("location", "string", "Name", "/local/path/.metaflow/HelloFlow/data/8d/8de2c3d91a9384069a3b014fdc3b60b4eb68567c"),
+        **modelprop("content", "string", "Artifact value", None),
         **modelprop("ds_type", "string", "Datastore type", "local"),
         **modelprop("sha", "string", "SHA hash", "8de2c3d91a9384069a3b014fdc3b60b4eb68567c"),
         **modelprop("type", "string", "Type", "metaflow.artifact"),
@@ -437,6 +493,119 @@ swagger_definitions = {
             }
         },
         "required": ["href", "label"]
+    },
+    "ModelsNotification": {
+        "type": "object",
+        "properties": {
+            "id": {
+                "type": "string",
+                "description": "Notification identifier",
+                "default": "Generated SHA1 hash"
+            },
+            "message": {
+                "type": "string",
+                "description": "Message to display (Markdown supported)"
+            },
+            "created": {
+                "type": "integer",
+                "description": "Notification created at (Epoch timestamp in milliseconds)",
+                "default": None
+            },
+            "type": {
+                "type": "string",
+                "description": "Notification type, allowed values: success|info|warning|danger|default",
+                "default": "info"
+            },
+            "contentType": {
+                "type": "string",
+                "description": "Message content-type, allowed values: text|markdown",
+                "default": "text"
+            },
+            "url": {
+                "type": "string",
+                "description": "Notification url",
+                "default": None
+            },
+            "urlText": {
+                "type": "string",
+                "description": "Human readable url title",
+                "default": None
+            },
+            "start": {
+                "type": "integer",
+                "description": "Schedule notification to be visible starting at (Epoch timestamp in milliseconds)",
+                "default": None
+            },
+            "end": {
+                "type": "integer",
+                "description": "Schedule notification to disappear after (Epoch timestamp in milliseconds)",
+                "default": None
+            }
+        },
+        "required": ["id", "message", "created", "type", "contentType", "url", "urlText", "start", "end"]
+    },
+    "ModelsPlugin": {
+        "type": "object",
+        "properties": {
+            "identifier": {
+                "type": "string",
+                "description": "Plugin identifier (repository/folder name)"
+            },
+            "name": {
+                "type": "string",
+                "description": "Plugin name (manifest.json)"
+            },
+            "repository": {
+                "type": "string",
+                "description": "Git repository",
+                "default": None
+            },
+            "ref": {
+                "type": "string",
+                "description": "Git refish to use e.g. origin/feature/extra-syrup",
+                "default": None
+            },
+            "parameters": {
+                "type": "object",
+                "description": "Custom parameters to pass to the plugin"
+            },
+            "config": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsPluginConfig",
+                "description": "Plugin manifest.json",
+                "default": {
+                    "name": "plugin-name",
+                    "version": "1.0.0",
+                    "entrypoint": "index.html"
+                }
+            },
+            "files": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "List of files available for this plugin"
+            }
+        },
+        "required": ["identifier", "name", "repository", "ref", "parameters", "config", "files"]
+    },
+    "ModelsPluginConfig": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Plugin name"
+            },
+            "version": {
+                "type": "string",
+                "description": "Semantic version of this plugin"
+            },
+            "entrypoint": {
+                "type": "string",
+                "description": "Entrypoint for the plugin, relative or absolute. Loaded inside iframe with parameters"
+            }
+        },
+        "required": ["name", "version", "entrypoint"]
     },
     "ModelsDag": {
         "type": "object",
@@ -480,16 +649,13 @@ swagger_definitions = {
                     "type": "string"
                 },
                 "description": "names of next steps that follow from this step"
+            },
+            "doc": {
+                "type": "string",
+                "description": "DAG Node Docstring"
             }
         },
         "required": ["type", "box_next", "box_ends", "next"]
-    },
-    "ModelsLog": {
-        "type": "array",
-        "items": {
-            "type": "object",
-            "$ref": "#/definitions/ModelsLogRow"
-        }
     },
     "ModelsLogRow": {
         "type": "object",
