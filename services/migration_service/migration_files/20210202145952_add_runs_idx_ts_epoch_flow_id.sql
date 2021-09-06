@@ -6,15 +6,11 @@ SELECT 'up SQL query';
 
 CREATE INDEX IF NOT EXISTS runs_v3_idx_ts_epoch ON runs_v3 (ts_epoch);
 
-CREATE INDEX IF NOT EXISTS runs_v3_idx_gin_tags ON runs_v3 USING gin (tags, system_tags);
-
 CREATE INDEX IF NOT EXISTS runs_v3_idx_gin_tags_combined ON runs_v3 USING gin ((tags || system_tags));
 
 -- flow_id + ts_epoch
 
 CREATE INDEX IF NOT EXISTS runs_v3_idx_flow_id_asc_ts_epoch_desc ON runs_v3 (flow_id ASC, ts_epoch DESC);
-
-CREATE INDEX IF NOT EXISTS runs_v3_idx_flow_id_desc_ts_epoch_desc ON runs_v3 (flow_id DESC, ts_epoch DESC);
 
 -- user && ts_epoch
 
@@ -25,13 +21,6 @@ CREATE INDEX IF NOT EXISTS runs_v3_idx_user_asc_ts_epoch_desc ON runs_v3 (
         ELSE NULL
     END) ASC, ts_epoch DESC
 );
-CREATE INDEX IF NOT EXISTS runs_v3_idx_user_desc_ts_epoch_desc ON runs_v3 (
-    (CASE
-        WHEN system_tags ? ('user:' || user_name)
-        THEN user_name
-        ELSE NULL
-    END) DESC, ts_epoch DESC
-);
 
 -- +goose StatementEnd
 
@@ -39,17 +28,11 @@ CREATE INDEX IF NOT EXISTS runs_v3_idx_user_desc_ts_epoch_desc ON runs_v3 (
 -- +goose StatementBegin
 SELECT 'down SQL query';
 
-DROP INDEX IF EXISTS runs_v3_idx_user_desc_ts_epoch_desc;
-
 DROP INDEX IF EXISTS runs_v3_idx_user_asc_ts_epoch_desc;
-
-DROP INDEX IF EXISTS runs_v3_idx_flow_id_desc_ts_epoch_desc;
 
 DROP INDEX IF EXISTS runs_v3_idx_flow_id_asc_ts_epoch_desc;
 
 DROP INDEX IF EXISTS runs_v3_idx_gin_tags_combined;
-
-DROP INDEX IF EXISTS runs_v3_idx_gin_tags;
 
 DROP INDEX IF EXISTS runs_v3_idx_ts_epoch;
 
