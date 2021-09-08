@@ -5,7 +5,7 @@ from subprocess import Popen
 from multidict import MultiDict
 from .utils import ApiUtils
 from . import goose_migration_template
-from services.migration_service.migration_config import host, port, user, password, database_name,db_conf
+from services.migration_service.migration_config import db_conf
 
 
 class AdminApi(object):

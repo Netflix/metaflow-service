@@ -2,7 +2,7 @@ from subprocess import Popen, PIPE
 from ..data.postgres_async_db import PostgresUtils
 from . import version_dict, latest, goose_template, \
     goose_migration_template
-from services.migration_service.migration_config import host, port, user, password, database_name,db_conf
+from services.migration_service.migration_config import db_conf
 
 
 class ApiUtils(object):
