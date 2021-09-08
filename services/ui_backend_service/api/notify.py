@@ -64,7 +64,7 @@ class ListenNotify(object):
         async with conn.cursor() as cur:
             while not cur.closed:
                 try:
-                    await cur.execute("NOTIFY ping")
+                    await cur.execute("NOTIFY listen")
                 except Exception:
                     self.logger.debug("Exception NOTIFY ping.")
                 finally:
