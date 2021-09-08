@@ -10,18 +10,8 @@ version_dict = {
 latest = "latest"
 
 goose_template = "goose postgres " \
-                 "\"dbname={} " \
-                 "user={} " \
-                 "password={} " \
-                 "host={} " \
-                 "port={} " \
-                 "sslmode=disable\" {}"
+                 "\"{}\" {}"
 
 path = os.path.dirname(__file__) + "/../migration_files"
-goose_migration_template = "goose -dir " + path + " postgres " \
-    "\"dbname={} " \
-    "user={} " \
-    "password={} " \
-    "host={} " \
-    "port={} " \
-    "sslmode=disable\" {}"
+goose_migration_template =  "goose -dir " + path + " postgres " \
+    "\"{}\" {}"

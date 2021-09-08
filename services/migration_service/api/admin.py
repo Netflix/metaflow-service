@@ -5,7 +5,7 @@ from subprocess import Popen
 from multidict import MultiDict
 from .utils import ApiUtils
 from . import goose_migration_template
-from services.migration_service.migration_config import host, port, user, password, database_name
+from services.migration_service.migration_config import host, port, user, password, database_name,db_conf
 
 
 class AdminApi(object):
@@ -69,7 +69,7 @@ class AdminApi(object):
                 description: could not upgrade
         """
         goose_version_cmd = goose_migration_template.format(
-            database_name, user, password, host, port,
+            db_conf.connection_string,
             "up"
         )
         p = Popen(goose_version_cmd, shell=True,

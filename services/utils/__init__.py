@@ -2,7 +2,7 @@ import json
 import sys
 import os
 import traceback
-from urllib.parse import urlencode
+from urllib.parse import urlencode,quote
 from aiohttp import web
 from typing import Dict
 import logging
@@ -129,6 +129,11 @@ class DBConfiguration(object):
         except psycopg2.ProgrammingError: 
             # This means that the DSN is unparsable. 
             return False
+    
+    @property
+    def connection_string(self):
+        # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
+        return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}?sslmode=disable'
 
     @property
     def dsn(self):
