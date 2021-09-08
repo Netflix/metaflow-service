@@ -170,10 +170,12 @@ class SearchArtifacts(CacheAction):
                 load_success, value, detail = unpack_processed_value(json.loads(results[key]))
             else:
                 load_success, value, _ = False, None, None
+            # keep the matching case-insensitive
+            matches = filter_fn(str(value).lower(), searchterm.lower())
 
             search_results[format_loc(key)] = {
                 "included": load_success,
-                "matches": filter_fn(value, searchterm),
+                "matches": matches,
                 "error": None if load_success else {
                     "id": value or "artifact-handle-failed",
                     "detail": detail or "Unknown error during artifact processing"
