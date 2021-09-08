@@ -29,7 +29,6 @@ class ArtifactSearchApi(object):
 
         invalidate_cache = query_param_enabled(request, "invalidate")
 
-        operator, artifact_name = _parse_search_term(artifact_name)
         meta_artifacts = await self.get_run_artifacts(flow_name, run_key, artifact_name)
 
         ws = web.WebSocketResponse()
