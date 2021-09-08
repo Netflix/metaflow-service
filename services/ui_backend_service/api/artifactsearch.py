@@ -1,3 +1,4 @@
+from typing import Tuple
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
 from services.ui_backend_service.data.cache.utils import (
@@ -39,10 +40,12 @@ class ArtifactSearchApi(object):
                 # Do not unnecessarily hit the cache.
                 results = [{**_result_format(art), "searchable": True} for art in meta_artifacts]
             else:
+                operator, value = _parse_search_term(value)
                 # Search through the artifact contents from S3 using the CacheClient
                 locations = [art['location'] for art in meta_artifacts]
                 res = await self._artifact_store.cache.SearchArtifacts(
-                    locations, value, invalidate_cache=invalidate_cache)
+                    locations, value, operator,
+                    invalidate_cache=invalidate_cache)
 
                 if res.has_pending_request():
                     async for event in res.stream():
@@ -141,3 +144,17 @@ def _result_format(art):
         [key, val] for key, val in art.items()
         if key in ['flow_id', 'run_number', 'step_name', 'task_id']
     )
+
+
+def _parse_search_term(term: str) -> Tuple[str, str]:
+    """
+    Return search operator, and the parsed search term.
+    """
+
+    # TODO: extend parsing to all predicates, not just eq&co
+    partial_search = not (term.startswith("\"") and term.endswith("\""))
+
+    if partial_search:
+        return "co", term
+    else:
+        return "eq", term[1:len(term) - 1]

@@ -11,6 +11,7 @@ from .utils import (decode, error_event_msg, progress_event_msg,
                     artifact_cache_id,
                     MAX_S3_SIZE)
 from ..refiner.refinery import unpack_processed_value
+from services.ui_backend_service.api.utils import operators_to_filters
 
 
 class SearchArtifacts(CacheAction):
@@ -41,18 +42,19 @@ class SearchArtifacts(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, locations, searchterm, invalidate_cache=False):
+    def format_request(cls, locations, searchterm, operator="eq", invalidate_cache=False):
         unique_locs = list(frozenset(sorted(locations)))
         msg = {
             'artifact_locations': unique_locs,
-            'searchterm': searchterm
+            'searchterm': searchterm,
+            'operator': operator
         }
 
         artifact_keys = []
         for location in unique_locs:
             artifact_keys.append(artifact_cache_id(location))
 
-        request_id = lookup_id(unique_locs, searchterm)
+        request_id = lookup_id(unique_locs, searchterm, operator)
         stream_key = 'search:stream:%s' % request_id
         result_key = 'search:result:%s' % request_id
 
@@ -156,6 +158,8 @@ class SearchArtifacts(CacheAction):
         # Perform search on loaded artifacts.
         search_results = {}
         searchterm = message['searchterm']
+        operator = message['operator']
+        filter_fn = operators_to_filters[operator] if operator in operators_to_filters else operators_to_filters["eq"]
 
         def format_loc(x):
             "extract location from the artifact cache key"
@@ -166,10 +170,12 @@ class SearchArtifacts(CacheAction):
                 load_success, value, detail = unpack_processed_value(json.loads(results[key]))
             else:
                 load_success, value, _ = False, None, None
+            # keep the matching case-insensitive
+            matches = filter_fn(str(value).lower(), searchterm.lower())
 
             search_results[format_loc(key)] = {
                 "included": load_success,
-                "matches": str(value) == searchterm,
+                "matches": matches,
                 "error": None if load_success else {
                     "id": value or "artifact-handle-failed",
                     "detail": detail or "Unknown error during artifact processing"
@@ -181,7 +187,7 @@ class SearchArtifacts(CacheAction):
         return results
 
 
-def lookup_id(locations, searchterm):
+def lookup_id(locations, searchterm, operator):
     "construct a unique id to be used with stream_key and result_key"
-    _string = "-".join(list(frozenset(sorted(locations)))) + searchterm
+    _string = "-".join(list(frozenset(sorted(locations)))) + searchterm + operator
     return hashlib.sha1(_string.encode('utf-8')).hexdigest()
