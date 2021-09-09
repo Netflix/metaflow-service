@@ -14,7 +14,7 @@ def make_goose_template(conn_str,command):
     return ' '.join(shlex.quote(arg) for arg in [
         "goose",\
         "postgres",\
-        f"\"{conn_str}\"",\
+        f"{conn_str}",\
         f"{command}"
     ])
 
@@ -26,6 +26,6 @@ def make_goose_migration_template(conn_str,command):
         "-dir",\
         path,\
         "postgres",\
-        f"\"{conn_str}\"",\
+        f"{conn_str}",\
         f"{command}"
     ])
