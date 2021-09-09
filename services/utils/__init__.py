@@ -18,6 +18,12 @@ SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
 log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
+class InvalidDSNException(Exception):
+    headline = 'Invalid DSN String'
+    def __init__(self, lineno=None):
+        self.message = f"The DSN String Provided is Invalid"
+        self.line_no = lineno
+        super(InvalidDSNException, self).__init__()
 
 async def read_body(request_content):
     byte_array = bytearray()
@@ -106,8 +112,7 @@ class DBConfiguration(object):
         self._dsn = os.environ.get(prefix + "DSN", dsn)
         # We explicitly check the validity of the DSN string 
         # to avoid issues caused by bad DSN strings. 
-        if not self._is_valid_dsn(self._dsn):
-            self._dsn = None
+        self._is_valid_dsn(self._dsn)
         self._host = os.environ.get(prefix + "HOST", host)
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
@@ -128,10 +133,11 @@ class DBConfiguration(object):
             return True
         except psycopg2.ProgrammingError: 
             # This means that the DSN is unparsable. 
-            return False
+            raise InvalidDSNException()
+        
     
     @property
-    def connection_string(self):
+    def connection_string_url(self):
         # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
         return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}?sslmode=disable'
 

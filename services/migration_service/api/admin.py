@@ -4,7 +4,7 @@ from aiohttp import web
 from subprocess import Popen
 from multidict import MultiDict
 from .utils import ApiUtils
-from . import goose_migration_template
+from . import make_goose_migration_template
 from services.migration_service.migration_config import db_conf
 
 
@@ -68,8 +68,8 @@ class AdminApi(object):
             "500":
                 description: could not upgrade
         """
-        goose_version_cmd = goose_migration_template.format(
-            db_conf.connection_string,
+        goose_version_cmd = make_goose_migration_template(
+            db_conf.connection_string_url,
             "up"
         )
         p = Popen(goose_version_cmd, shell=True,
