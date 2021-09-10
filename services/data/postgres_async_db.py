@@ -762,7 +762,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         new_hb = int(datetime.datetime.utcnow().timestamp())
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value),
-                       "last_heartbeat_ts:<=": new_hb - WAIT_TIME * 1000}
+                       "last_heartbeat_ts:<=": new_hb - WAIT_TIME}
         set_dict = {
             "last_heartbeat_ts": new_hb
         }
@@ -1017,7 +1017,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                        run_key: str(run_value),
                        "step_name": step_name,
                        task_key: str(task_value),
-                       "last_heartbeat_ts:<=": new_hb - WAIT_TIME * 1000}
+                       "last_heartbeat_ts:<=": new_hb - WAIT_TIME}
         set_dict = {
             "last_heartbeat_ts": new_hb
         }
