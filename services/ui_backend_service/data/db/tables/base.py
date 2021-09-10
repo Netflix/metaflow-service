@@ -1,7 +1,7 @@
 import math
 import os
 from asyncio import iscoroutinefunction
-from typing import Callable, List
+from typing import Callable, List, Tuple
 
 import psycopg2
 import psycopg2.extras
@@ -61,7 +61,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                            postprocess: Callable[[DBResponse], DBResponse] = None,
                            invalidate_cache=False, benchmark: bool = False,
                            overwrite_select_from: str = None
-                           ) -> (DBResponse, DBPagination):
+                           ) -> Tuple[DBResponse, DBPagination]:
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -213,7 +213,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             return None
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0, serialize: bool = True) -> (DBResponse, DBPagination):
+                          expanded=False, limit: int = 0, offset: int = 0, serialize: bool = True) -> Tuple[DBResponse, DBPagination]:
         try:
             with (
                 await self.db.pool.cursor(
