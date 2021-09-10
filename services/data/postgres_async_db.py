@@ -4,6 +4,7 @@ import os
 import aiopg
 import json
 import math
+import re
 import time
 import datetime
 from services.utils import logging
@@ -25,7 +26,7 @@ OLD_RUN_FAILURE_CUTOFF_TIME = 60 * 60 * 24 * 1000 * 14  # 2 weeks (in millisecon
 # Enable with env variable `DB_TRIGGER_CREATE=1`
 DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", 0) == "1"
 
-
+operator_match = re.compile('([^:]*):([=><]+)$')
 class _AsyncPostgresDB(object):
     connection = None
     flow_table_postgres = None
@@ -435,10 +436,15 @@ class AsyncPostgresTable(object):
         # generate where clause
         filters = []
         for col_name, col_val in filter_dict.items():
+            operator = '='
+            find_operator = operator_match.match(col_name)
+            if find_operator:
+                col_name = find_operator.group(1)
+                operator = find_operator.group(2)
             v = str(col_val).strip("'")
             if not v.isnumeric():
                 v = "'" + v + "'"
-            filters.append(col_name + "=" + str(v))
+            filters.append(col_name + operator + str(v))
 
         seperator = " and "
         where_clause = ""
@@ -750,10 +756,12 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
         run_key, run_value = translate_run_key(run_id)
+        new_hb = int(datetime.datetime.utcnow().timestamp())
         filter_dict = {"flow_id": flow_id,
-                       run_key: str(run_value)}
+                       run_key: str(run_value),
+                       "last_heartbeat_ts:<=": new_hb - WAIT_TIME * 1000}
         set_dict = {
-            "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
+            "last_heartbeat_ts": new_hb
         }
         result = await self.update_row(filter_dict=filter_dict,
                                        update_dict=set_dict)
@@ -1001,12 +1009,14 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                                task_id: str):
         run_key, run_value = translate_run_key(run_id)
         task_key, task_value = translate_task_key(task_id)
+        new_hb = int(datetime.datetime.utcnow().timestamp())
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value),
                        "step_name": step_name,
-                       task_key: str(task_value)}
+                       task_key: str(task_value),
+                       "last_heartbeat_ts:<=": new_hb - WAIT_TIME * 1000}
         set_dict = {
-            "last_heartbeat_ts": int(datetime.datetime.utcnow().timestamp())
+            "last_heartbeat_ts": new_hb
         }
         result = await self.update_row(filter_dict=filter_dict,
                                        update_dict=set_dict)
