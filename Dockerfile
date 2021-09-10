@@ -1,4 +1,4 @@
-FROM golang:latest
+FROM golang:1.16.3
 
 RUN go get -u github.com/pressly/goose/cmd/goose
 
