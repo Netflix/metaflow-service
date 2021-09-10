@@ -437,14 +437,17 @@ class AsyncPostgresTable(object):
         filters = []
         for col_name, col_val in filter_dict.items():
             operator = '='
+            v = str(col_val).strip("'")
+            if not v.isnumeric():
+                v = "'" + v + "'"
             find_operator = operator_match.match(col_name)
             if find_operator:
                 col_name = find_operator.group(1)
                 operator = find_operator.group(2)
-            v = str(col_val).strip("'")
-            if not v.isnumeric():
-                v = "'" + v + "'"
-            filters.append(col_name + operator + str(v))
+                filters.append('(%s IS NULL or %s %s %s)' %
+                    (col_name, col_name, operator, str(v)))
+            else:
+                filters.append(col_name + operator + str(v))
 
         seperator = " and "
         where_clause = ""
