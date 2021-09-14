@@ -87,7 +87,10 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     join_columns = [
         """
         (CASE
-            WHEN end_attempt_ok.ts_epoch IS NOT NULL
+            WHEN end_attempt IS NOT NULL
+            AND end_attempt_ok.ts_epoch < end_attempt.ts_epoch
+            THEN NULL
+            WHEN end_attempt_ok IS NOT NULL
             THEN end_attempt_ok.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
@@ -123,10 +126,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
-            WHEN end_attempt_ok.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
-            THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-            WHEN end_attempt_ok.ts_epoch IS NOT NULL
+            WHEN end_attempt_ok.value IS TRUE
             THEN end_attempt_ok.ts_epoch - {table_name}.ts_epoch
+            WHEN end_attempt IS NOT NULL
+            AND end_attempt.ts_epoch > end_attempt_ok.ts_epoch
+            AND {table_name}.last_heartbeat_ts IS NOT NULL
+            THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
+            WHEN end_attempt IS NOT NULL
+            THEN end_attempt_ok.ts_epoch - {table_name}.ts_epoch
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+            THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NULL
                 AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
             THEN NULL
