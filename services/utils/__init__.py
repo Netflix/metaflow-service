@@ -18,13 +18,6 @@ SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
 log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
-class InvalidDSNException(Exception):
-    headline = 'Invalid DSN String'
-    def __init__(self, lineno=None):
-        self.message = f"The DSN String Provided is Invalid"
-        self.line_no = lineno
-        super(InvalidDSNException, self).__init__()
-
 async def read_body(request_content):
     byte_array = bytearray()
     while not request_content.at_eof():
@@ -127,13 +120,12 @@ class DBConfiguration(object):
     @staticmethod
     def _is_valid_dsn(dsn):
         if dsn is None:
-            return False
+            raise Exception("Invalid DSN String")
         try:
             psycopg2.extensions.parse_dsn(dsn)
-            return True
         except psycopg2.ProgrammingError: 
             # This means that the DSN is unparsable. 
-            raise InvalidDSNException()
+            raise Exception("Invalid DSN String")
         
     
     @property
