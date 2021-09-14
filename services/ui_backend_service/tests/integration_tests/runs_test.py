@@ -341,6 +341,18 @@ async def test_single_run_attempt_ok_failed(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
+    (await add_metadata(db,
+                        flow_id=_task.get("flow_id"),
+                        run_number=_task.get("run_number"),
+                        run_id=_task.get("run_id"),
+                        step_name=_task.get("step_name"),
+                        task_id=_task.get("task_id"),
+                        task_name=_task.get("task_name"),
+                        metadata={
+                            "field_name": "attempt",
+                            "value": "0",  # run status = 'running'
+                            "type": "attempt"})).body
+
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
@@ -378,9 +390,9 @@ async def test_single_run_attempt_ok_failed(cli, db):
     # run should count as running again, as a newer 'end' attempt is still going on.
     _run["status"] = "running"
     _run["finished_at"] = None
-    _run["duration"] = None
+    _run["duration"] = get_heartbeat_ts() * 1000 - _run["ts_epoch"]
 
-    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run, approx_keys=["duration"])
 
     _second_metadata = (await add_metadata(db,
                                            flow_id=_task.get("flow_id"),
@@ -398,6 +410,6 @@ async def test_single_run_attempt_ok_failed(cli, db):
     # run should count as running again, as a newer 'end' attempt is still going on.
     _run["status"] = "completed"
     _run["finished_at"] = _second_metadata["ts_epoch"]
-    _run["duration"] = _second_metadata["finished_at"] - _run["ts_epoch"]
+    _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
