@@ -43,6 +43,7 @@ async def test_run_status_completed(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
+    # Should not affect the status at all anymore
     _artifact = (await add_artifact(
         db,
         flow_id=_task.get("flow_id"),
@@ -61,9 +62,9 @@ async def test_run_status_completed(cli, db):
 
     _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None)
 
-    assert data["status"] == "completed"
+    assert data["status"] == "running"
     assert data["ts_epoch"] == _run["ts_epoch"]
-    assert data["finished_at"] == _artifact["ts_epoch"]
+    assert data["finished_at"] == None
 
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
@@ -82,7 +83,8 @@ async def test_run_status_completed(cli, db):
 
     assert data["status"] == "completed"
     assert data["ts_epoch"] == _run["ts_epoch"]
-    assert data["finished_at"] == _artifact["ts_epoch"]
+    assert data["finished_at"] == _metadata["ts_epoch"]
+    assert data["duration"] == _metadata["ts_epoch"] - _run["ts_epoch"]
 
 
 # Run should have "Running" status when all of the following apply:
@@ -179,7 +181,8 @@ async def test_run_status_running_with_heartbeat(cli, db):
 # Sart time: created_at(ts_epoch) column value in the run table
 # End time: Latest end time for all tasks
 
-async def test_run_status_failed_failed_task(cli, db):
+async def Xtest_run_status_failed_failed_task(cli, db):
+    # Test does not make sense with recent changes, as a run will always have a heartbeat now.
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="end", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body

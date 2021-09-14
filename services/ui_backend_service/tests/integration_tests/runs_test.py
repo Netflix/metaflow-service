@@ -185,36 +185,55 @@ async def test_run_status_with_heartbeat(cli, db):
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_running), 200, _run_running)
 
-    # A run with an end task _task_ok artifact should count as completed.
+    # A run with an end task attempt_ok metadata should count as completed.
     _beat = get_heartbeat_ts()
     _run_complete = (await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=_beat)).body
-
-    _artifact = (await add_artifact(
-        db,
-        flow_id=_run_complete.get("flow_id"),
-        run_number=_run_complete.get("run_number"),
-        step_name="end",
-        task_id=1,
-        artifact={
-            "name": "_task_ok",
-            "location": "location",
-            "ds_type": "ds_type",
-            "sha": "sha",
-            "type": "type",
-            "content_type": "content_type",
-            "attempt_id": 0
-        })).body
+    _step = (await add_step(db, flow_id=_run_complete.get("flow_id"), step_name="end", run_number=_run_complete.get("run_number"), run_id=_run_complete.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"))).body
+    # _artifact = (await add_artifact(
+    #     db,
+    #     flow_id=_run_complete.get("flow_id"),
+    #     run_number=_run_complete.get("run_number"),
+    #     step_name="end",
+    #     task_id=1,
+    #     artifact={
+    #         "name": "_task_ok",
+    #         "location": "location",
+    #         "ds_type": "ds_type",
+    #         "sha": "sha",
+    #         "type": "type",
+    #         "content_type": "content_type",
+    #         "attempt_id": 0
+    #     })).body
+    _metadata = (await add_metadata(db,
+                                    flow_id=_task.get("flow_id"),
+                                    run_number=_task.get("run_number"),
+                                    run_id=_task.get("run_id"),
+                                    step_name=_task.get("step_name"),
+                                    task_id=_task.get("task_id"),
+                                    task_name=_task.get("task_name"),
+                                    tags=["attempt_id:0"],
+                                    metadata={
+                                        "field_name": "attempt_ok",
+                                        "value": "True",  # run status = 'completed'
+                                        "type": "internal_attempt_status"})).body
 
     _run_complete["status"] = "completed"
     _run_complete["user"] = None
     _run_complete["run"] = _run_complete["run_number"]
-    _run_complete["finished_at"] = _artifact["ts_epoch"]
+    _run_complete["finished_at"] = _metadata["ts_epoch"]
     _run_complete["duration"] = _run_complete["finished_at"] - _run_complete["ts_epoch"]
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run_complete), 200, _run_complete)
 
 
-async def test_old_run_status_without_heartbeat(cli, db):
+async def Xtest_old_run_status_without_heartbeat(cli, db):
+    # Test does not make sense with current changes.
+    # Run is only complete if it records attempt_ok True metadata. _task_ok artifact is not part of the check anymore.
     await _test_single_resource(cli, db, "/flows/HelloFlow/runs/hello", 404, {})
 
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
@@ -289,22 +308,6 @@ async def test_single_run_attempt_ok_completed(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
-    _artifact = (await add_artifact(
-        db,
-        flow_id=_task.get("flow_id"),
-        run_number=_task.get("run_number"),
-        step_name="end",
-        task_id=_task.get("task_id"),
-        artifact={
-            "name": "_task_ok",
-            "location": "location",
-            "ds_type": "ds_type",
-            "sha": "sha",
-            "type": "type",
-            "content_type": "content_type",
-                            "attempt_id": 0
-        })).body
-
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
                                     run_number=_task.get("run_number"),
@@ -322,7 +325,7 @@ async def test_single_run_attempt_ok_completed(cli, db):
     _run["status"] = "completed"
     _run["user"] = None
     _run["run"] = _run["run_number"]
-    _run["finished_at"] = _artifact["ts_epoch"]
+    _run["finished_at"] = _metadata["ts_epoch"]
     _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
@@ -337,22 +340,6 @@ async def test_single_run_attempt_ok_failed(cli, db):
                             step_name=_step.get("step_name"),
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
-
-    _artifact = (await add_artifact(
-        db,
-        flow_id=_task.get("flow_id"),
-        run_number=_task.get("run_number"),
-        step_name="end",
-        task_id=_task.get("task_id"),
-        artifact={
-            "name": "_task_ok",
-            "location": "location",
-            "ds_type": "ds_type",
-            "sha": "sha",
-            "type": "type",
-            "content_type": "content_type",
-                            "attempt_id": 0
-        })).body
 
     _metadata = (await add_metadata(db,
                                     flow_id=_task.get("flow_id"),
@@ -371,7 +358,7 @@ async def test_single_run_attempt_ok_failed(cli, db):
     _run["status"] = "failed"
     _run["user"] = None
     _run["run"] = _run["run_number"]
-    _run["finished_at"] = _artifact["ts_epoch"]
+    _run["finished_at"] = _metadata["ts_epoch"]
     _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
