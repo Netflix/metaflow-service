@@ -82,23 +82,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             table_name=table_name,
             task_table=task_table
         ),
-        """
-        LEFT JOIN LATERAL (
-            SELECT ts_epoch
-            FROM {artifact_table} as art
-            WHERE
-                art.flow_id={table_name}.flow_id
-                AND art.run_number={table_name}.run_number
-                AND art.step_name='end'
-                AND art.name='_task_ok'
-                AND end_attempt IS NULL
-            ORDER BY ts_epoch DESC
-            LIMIT 1
-        ) as end_artifact ON true
-        """.format(
-            table_name=table_name,
-            artifact_table=artifact_table
-        ),
     ]
 
     @property
@@ -120,8 +103,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     join_columns = [
         """
         (CASE
-            WHEN end_artifact.ts_epoch IS NOT NULL
-            THEN end_artifact.ts_epoch
+            WHEN end_attempt_ok.ts_epoch IS NOT NULL
+            THEN end_attempt_ok.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND pending_task IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
@@ -137,20 +120,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         (CASE
             WHEN end_attempt_ok.value IS TRUE
             THEN 'completed'
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+            THEN 'failed'
             WHEN end_attempt_ok.value IS FALSE
             AND end_attempt.ts_epoch > end_attempt_ok.ts_epoch
             THEN 'running'
             WHEN end_attempt_ok.value IS FALSE
-            THEN 'failed'
-            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND pending_task IS NOT NULL
-            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<{heartbeat_threshold}*6
-            THEN 'running'
-            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND pending_task IS NOT NULL
-            THEN 'failed'
-            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN 'failed'
             WHEN {table_name}.last_heartbeat_ts IS NULL
             AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
@@ -164,10 +140,10 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
-            WHEN end_artifact.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+            WHEN end_attempt_ok.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-            WHEN end_artifact.ts_epoch IS NOT NULL
-            THEN end_artifact.ts_epoch - {table_name}.ts_epoch
+            WHEN end_attempt_ok.ts_epoch IS NOT NULL
+            THEN end_attempt_ok.ts_epoch - {table_name}.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NULL
                 AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
             THEN NULL
