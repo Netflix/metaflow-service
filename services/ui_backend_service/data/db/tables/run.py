@@ -66,22 +66,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             table_name=table_name,
             metadata_table=metadata_table
         ),
-        """
-        LEFT JOIN LATERAL (
-            SELECT ts_epoch
-            FROM {task_table} as task
-            WHERE
-                task.flow_id={table_name}.flow_id
-                AND task.run_number={table_name}.run_number
-                AND task.last_heartbeat_ts IS NULL
-                AND end_attempt IS NULL
-            ORDER BY ts_epoch DESC
-            LIMIT 1
-        ) as pending_task ON true
-        """.format(
-            table_name=table_name,
-            task_table=task_table
-        ),
     ]
 
     @property
@@ -106,7 +90,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN end_attempt_ok.ts_epoch IS NOT NULL
             THEN end_attempt_ok.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND pending_task IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN {table_name}.last_heartbeat_ts*1000
             ELSE NULL
