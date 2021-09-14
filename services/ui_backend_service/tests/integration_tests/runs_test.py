@@ -362,3 +362,42 @@ async def test_single_run_attempt_ok_failed(cli, db):
     _run["duration"] = _run["finished_at"] - _run["ts_epoch"]
 
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
+
+    _second_attempt = (await add_metadata(db,
+                                          flow_id=_task.get("flow_id"),
+                                          run_number=_task.get("run_number"),
+                                          run_id=_task.get("run_id"),
+                                          step_name=_task.get("step_name"),
+                                          task_id=_task.get("task_id"),
+                                          task_name=_task.get("task_name"),
+                                          metadata={
+                                              "field_name": "attempt",
+                                              "value": "1",  # run status = 'running'
+                                              "type": "attempt"})).body
+
+    # run should count as running again, as a newer 'end' attempt is still going on.
+    _run["status"] = "running"
+    _run["finished_at"] = None
+    _run["duration"] = None
+
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
+
+    _second_metadata = (await add_metadata(db,
+                                           flow_id=_task.get("flow_id"),
+                                           run_number=_task.get("run_number"),
+                                           run_id=_task.get("run_id"),
+                                           step_name=_task.get("step_name"),
+                                           task_id=_task.get("task_id"),
+                                           task_name=_task.get("task_name"),
+                                           tags=["attempt_id:1"],
+                                           metadata={
+                                               "field_name": "attempt_ok",
+                                               "value": "True",  # run status = 'failed'
+                                               "type": "internal_attempt_status"})).body
+
+    # run should count as running again, as a newer 'end' attempt is still going on.
+    _run["status"] = "completed"
+    _run["finished_at"] = _second_metadata["ts_epoch"]
+    _run["duration"] = _second_metadata["finished_at"] - _run["ts_epoch"]
+
+    await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, _run)
