@@ -1,6 +1,6 @@
 import os
 import time
-from typing import List
+from typing import List, Tuple
 from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
@@ -66,6 +66,41 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             table_name=table_name,
             metadata_table=metadata_table
         ),
+        """
+        LEFT JOIN LATERAL (
+            SELECT 1
+            FROM
+            {task_table} as task
+            LEFT JOIN LATERAL (
+                SELECT value::boolean as is_ok, ts_epoch
+                FROM {metadata_table} as attempt_ok
+                WHERE
+                    task.flow_id=attempt_ok.flow_id AND
+                    task.run_number=attempt_ok.run_number AND
+                    task.step_name=attempt_ok.step_name AND
+                    task.task_id=attempt_ok.task_id AND
+                    attempt_ok.field_name='attempt_ok'
+                LIMIT 1
+            ) AS attempt_ok ON true
+            WHERE
+                {table_name}.flow_id = task.flow_id
+                AND {table_name}.run_number = task.run_number
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                AND end_attempt_ok IS NULL
+                AND (
+                    (attempt_ok.is_ok IS FALSE) OR /* failed attempt_ok */
+                    (attempt_ok.is_ok IS NOT TRUE AND @(extract(epoch from now())-task.last_heartbeat_ts)>{heartbeat_threshold}) /* failed heartbeat */
+                )
+            GROUP BY task.flow_id, task.run_number, task.step_name, task.task_id, attempt_ok.ts_epoch
+            ORDER BY attempt_ok.ts_epoch DESC
+            LIMIT 1
+        ) as latest_failed_task ON true
+        """.format(
+            table_name=table_name,
+            task_table=task_table,
+            metadata_table=metadata_table,
+            heartbeat_threshold=HEARTBEAT_THRESHOLD
+        ),
     ]
 
     @property
@@ -107,6 +142,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN end_attempt_ok.value IS TRUE
             THEN 'completed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+            AND latest_failed_task IS NOT NULL
             AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN 'failed'
             WHEN end_attempt_ok.value IS FALSE
@@ -185,7 +221,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return result
 
     async def get_run_keys(self, conditions: List[str] = [],
-                           values: List[str] = [], limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                           values: List[str] = [], limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         """
         Get a paginated set of run keys.
 

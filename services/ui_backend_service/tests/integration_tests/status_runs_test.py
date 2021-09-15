@@ -234,6 +234,22 @@ async def test_run_status_failed_with_heartbeat_expired(cli, db):
     _heartbeat = get_heartbeat_ts()
 
     _run = (await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=1)).body
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
+
+    # Should count as running if no tasks have failed, as tasks might be stuck in scheduler.
+    assert data["status"] == "running"
+    assert data["ts_epoch"] == _run["ts_epoch"]
+    assert data["last_heartbeat_ts"] == 1
+    assert data["finished_at"] == None
+
+    # even when a run has a heartbeat, it still requires a task that has failed via attempt_ok=false OR by an expired heartbeat.
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="end", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"),
+                            last_heartbeat_ts=1)).body
 
     _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
 

@@ -163,6 +163,14 @@ async def test_run_status_with_heartbeat(cli, db):
 
     # A run with no end task and an expired heartbeat should count as failed.
     _run_failed = (await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=1)).body
+    # even when a run has a heartbeat, it still requires a task that has failed via attempt_ok=false OR by an expired heartbeat.
+    _step = (await add_step(db, flow_id=_run_failed.get("flow_id"), step_name="end", run_number=_run_failed.get("run_number"), run_id=_run_failed.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"),
+                            last_heartbeat_ts=1)).body
     _run_failed["status"] = "failed"
     _run_failed["user"] = None
     _run_failed["run"] = _run_failed["run_number"]
