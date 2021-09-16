@@ -5,13 +5,13 @@ import json
 import uuid
 import time
 import fcntl
-import hashlib
 import multiprocessing
 from datetime import datetime
 from collections import deque
 from itertools import chain
 
 from .cache_worker import execute_action
+from .cache_async_client import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
 import click
 
@@ -24,9 +24,6 @@ from .cache_store import CacheStore,\
     key_filename,\
     is_safely_readable
 
-OP_WORKER_CREATE = 'worker_create'
-OP_WORKER_TERMINATE = 'worker_terminate'
-
 
 def send_message(op: str, data: dict):
     print(json.dumps({
@@ -37,41 +34,6 @@ def send_message(op: str, data: dict):
 
 class CacheServerException(Exception):
     pass
-
-
-def server_request(op,
-                   action=None,
-                   prio=None,
-                   keys=None,
-                   stream_key=None,
-                   message=None,
-                   disposable_keys=None,
-                   idempotency_token=None,
-                   invalidate_cache=False):
-
-    if idempotency_token is None:
-        fields = [op]
-        if action:
-            fields.append(action)
-        if keys:
-            fields.extend(sorted(keys))
-        if stream_key:
-            fields.append(stream_key)
-        token = hashlib.sha1('|'.join(fields).encode('utf-8')).hexdigest()
-    else:
-        token = idempotency_token
-
-    return {
-        'op': op,
-        'action': action,
-        'priority': prio,
-        'keys': keys,
-        'stream_key': stream_key,
-        'message': message,
-        'idempotency_token': token,
-        'disposable_keys': disposable_keys,
-        'invalidate_cache': invalidate_cache
-    }
 
 
 def echo(msg):
