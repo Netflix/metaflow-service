@@ -1,18 +1,7 @@
 import os
 import json
 
-import click
-
 from .cache_action import import_action_class_spec
-
-
-def execute_action(tempdir, action_spec, request_file):
-    action_cls = import_action_class_spec(action_spec)
-    with open(os.path.join(tempdir, request_file)) as f:
-        request = json.load(f)
-
-    execute(tempdir, action_cls, request)
-    return True
 
 
 def best_effort_read(key_paths):
@@ -22,6 +11,15 @@ def best_effort_read(key_paths):
                 yield key, f.read()
         except:
             pass
+
+
+def execute_action(tempdir, action_spec, request_file):
+    action_cls = import_action_class_spec(action_spec)
+    with open(os.path.join(tempdir, request_file)) as f:
+        request = json.load(f)
+
+    execute(tempdir, action_cls, request)
+    return True
 
 
 def execute(tempdir, action_cls, req):
@@ -63,23 +61,3 @@ def execute(tempdir, action_cls, req):
         if stream:
             stream.write('\n\n')
             stream.close()
-
-
-@click.command()
-@click.option("--request-file",
-              default='request.json',
-              help="Read request from this file.")
-@click.argument('action_spec')
-def cli(action_spec, request_file=None):
-    """
-    Execute an action specified by action_spec.
-    """
-    action_cls = import_action_class_spec(action_spec)
-    with open(request_file) as f:
-        req = json.load(f)
-
-    execute("./", action_cls, req)
-
-
-if __name__ == '__main__':
-    cli(auto_envvar_prefix='MFCACHE_WORKER')
