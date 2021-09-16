@@ -574,9 +574,11 @@ def paginate_log_lines(request, lines):
 
     lines = order_log_lines(request, lines)
 
+    page_count = max(len(lines) // limit, 1)
+
     response = DBResponse(200, lines[offset:][:limit])
     pagination = DBPagination(limit, offset, len(response.body), page)
-    return format_response_list(request, response, pagination, page)
+    return format_response_list(request, response, pagination, page, page_count)
 
 
 def order_log_lines(request, lines):
@@ -587,6 +589,7 @@ def order_log_lines(request, lines):
         return lines[::-1]
     else:
         return lines
+
 
 def file_download_response(filename, body):
     return web.Response(

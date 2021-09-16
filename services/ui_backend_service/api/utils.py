@@ -37,7 +37,7 @@ def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[
     return db_response.response_code, response_object
 
 
-def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagination: DBPagination, page: int) -> (int, Dict):
+def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagination: DBPagination, page: int, page_count: int = None) -> Tuple[int, Dict]:
     query = {}
     for key in request.query:
         query[key] = request.query.get(key)
@@ -56,13 +56,15 @@ def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagi
             "self": "{}{}".format(baseurl, format_qs(query)),
             "first": "{}{}".format(baseurl, format_qs(query, {"_page": 1})),
             "prev": "{}{}".format(baseurl, format_qs(query, {"_page": prevPage})),
-            "next": "{}{}".format(baseurl, format_qs(query, {"_page": nextPage})) if nextPage else None
+            "next": "{}{}".format(baseurl, format_qs(query, {"_page": nextPage})) if nextPage else None,
+            "last": "{}{}".format(baseurl, format_qs(query, {"_page": page_count})) if page_count else None
         },
         "pages": {
             "self": page,
             "first": 1,
             "prev": prevPage,
-            "next": nextPage
+            "next": nextPage,
+            "last": page_count
         },
         "query": query,
     }
