@@ -27,10 +27,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = MetadataRunTable.keys
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
-    # check-heartbeat;
-    # if not, check end artifact;
-    # if not check any failed task;
-    # if not consider running
 
     joins = [
         """
