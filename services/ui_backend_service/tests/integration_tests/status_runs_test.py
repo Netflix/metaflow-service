@@ -258,3 +258,96 @@ async def test_run_status_failed_with_heartbeat_expired(cli, db):
     assert data["last_heartbeat_ts"] == 1
     assert data["duration"] == _run["last_heartbeat_ts"] * 1000 - _run["ts_epoch"]
     assert data["finished_at"] == _run["last_heartbeat_ts"] * 1000
+
+
+async def test_run_status_failed_with_retrying_task(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+
+    _expired_heartbeat = get_heartbeat_ts() - 610
+
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=_expired_heartbeat)).body
+    # even when a run has a heartbeat, it still requires a task that has failed via attempt_ok=false OR by an expired heartbeat.
+    _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="any_step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
+    _task = (await add_task(db,
+                            flow_id=_step.get("flow_id"),
+                            step_name=_step.get("step_name"),
+                            run_number=_step.get("run_number"),
+                            run_id=_step.get("run_id"),
+                            last_heartbeat_ts=get_heartbeat_ts())).body
+
+    # task does not count as failed yet, so expired run heartbeat should not fail the run either.
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
+
+    assert data["status"] == "running"
+    # assert data["last_heartbeat_ts"] == _heartbeat
+    # assert data["duration"] == _run["last_heartbeat_ts"] * 1000 - _run["ts_epoch"]
+    # assert data["finished_at"] == _run["last_heartbeat_ts"] * 1000
+
+    await db.task_table_postgres.update_row(
+        filter_dict={
+            "flow_id": _task.get("flow_id"),
+            "run_number": _task.get("run_number"),
+            "step_name": _task.get("step_name"),
+            "task_id": _task.get("task_id")
+        },
+        update_dict={
+            "last_heartbeat_ts": _expired_heartbeat
+        }
+    )
+
+    # Task counts as failed now, run should also be failed
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
+
+    assert data["status"] == "failed"
+
+    await db.task_table_postgres.update_row(
+        filter_dict={
+            "flow_id": _task.get("flow_id"),
+            "run_number": _task.get("run_number"),
+            "step_name": _task.get("step_name"),
+            "task_id": _task.get("task_id")
+        },
+        update_dict={
+            "last_heartbeat_ts": get_heartbeat_ts()
+        }
+    )
+
+    # Task counts as running again, run should also count as running.
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
+
+    assert data["status"] == "running"
+
+    _metadata = (await add_metadata(db,
+                                    flow_id=_task.get("flow_id"),
+                                    run_number=_task.get("run_number"),
+                                    run_id=_task.get("run_id"),
+                                    step_name=_task.get("step_name"),
+                                    task_id=_task.get("task_id"),
+                                    task_name=_task.get("task_name"),
+                                    tags=["attempt_id:0"],
+                                    metadata={
+                                        "field_name": "attempt_ok",
+                                        "value": "False",
+                                        "type": "internal_attempt_status"})).body
+
+    # Task counts as failed again, run should count as failed once task heartbeat expires
+    # (no successive attempt of the task is updating the heartbeat).
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
+
+    assert data["status"] == "running"
+
+    await db.task_table_postgres.update_row(
+        filter_dict={
+            "flow_id": _task.get("flow_id"),
+            "run_number": _task.get("run_number"),
+            "step_name": _task.get("step_name"),
+            "task_id": _task.get("task_id")
+        },
+        update_dict={
+            "last_heartbeat_ts": _expired_heartbeat
+        }
+    )
+
+    _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
+
+    assert data["status"] == "failed"

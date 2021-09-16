@@ -87,10 +87,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 AND {table_name}.run_number = task.run_number
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
                 AND end_attempt_ok IS NULL
-                AND (
-                    (attempt_ok.is_ok IS FALSE) OR
-                    (attempt_ok.is_ok IS NULL AND @(extract(epoch from now())-task.last_heartbeat_ts)>{heartbeat_threshold})
-                )
+                AND attempt_ok.is_ok IS NOT TRUE
+                AND @(extract(epoch from now())-task.last_heartbeat_ts)>{heartbeat_threshold}
             GROUP BY task.flow_id, task.run_number, task.step_name, task.task_id, attempt_ok.ts_epoch
             ORDER BY attempt_ok.ts_epoch DESC
             LIMIT 1
