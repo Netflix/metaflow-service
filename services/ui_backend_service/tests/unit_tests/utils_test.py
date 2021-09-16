@@ -51,13 +51,15 @@ def test_format_response_list():
             "self": "http://test/runs?_limit=1&_page=1",
             "first": "http://test/runs?_limit=1&_page=1",
             "prev": "http://test/runs?_limit=1&_page=1",
-            "next": "http://test/runs?_limit=1&_page=2"
+            "next": "http://test/runs?_limit=1&_page=2",
+            "last": None
         },
         "pages": {
             "self": 1,
             "first": 1,
             "prev": 1,
-            "next": 2
+            "next": 2,
+            "last": None
         },
         "query": {
             "_limit": "1",
@@ -84,13 +86,15 @@ def test_format_response_list_next_page_null():
             "self": "http://test/runs?_limit=10&_page=2",
             "first": "http://test/runs?_limit=10&_page=1",
             "prev": "http://test/runs?_limit=10&_page=1",
-            "next": None
+            "next": None,
+            "last": None
         },
         "pages": {
             "self": 2,
             "first": 1,
             "prev": 1,
-            "next": None
+            "next": None,
+            "last": None
         },
         "query": {
             "_limit": "10",
