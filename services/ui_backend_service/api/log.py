@@ -572,10 +572,21 @@ def paginate_log_lines(request, lines):
     # Offset
     offset = limit * (page - 1)
 
-    response = DBResponse(200, lines[::-1][offset:][:limit])  # Read loglines in reverse order as latest ones are most important.
+    lines = order_log_lines(request, lines)
+
+    response = DBResponse(200, lines[offset:][:limit])
     pagination = DBPagination(limit, offset, len(response.body), page)
     return format_response_list(request, response, pagination, page)
 
+
+def order_log_lines(request, lines):
+    "orders log lines based on request parameters"
+
+    order = request.query.get("_order")
+    if order is not None and order.startswith("-row"):
+        return lines[::-1]
+    else:
+        return lines
 
 def file_download_response(filename, body):
     return web.Response(
