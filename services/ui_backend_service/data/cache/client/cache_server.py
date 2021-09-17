@@ -170,7 +170,7 @@ class Worker(object):
         send_message(OP_WORKER_CREATE, self._worker_details())
 
         self.pool.apply_async(
-            func=execute_action, args=(self.tempdir, self.request['action'], 'request.json',),
+            func=execute_action, args=(self.tempdir, self.request['action'], 'request.json'),
             callback=self._callback, error_callback=self._error_callback)
 
     def _callback(self, res):
