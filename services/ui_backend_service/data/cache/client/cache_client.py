@@ -98,6 +98,9 @@ class CacheFuture(object):
 
             tail = ''
             while True:
+                if not self.has_pending_request():
+                    break
+
                 buf = stream.readline()
                 if buf == '':
                     yield None
