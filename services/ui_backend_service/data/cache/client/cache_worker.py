@@ -1,6 +1,8 @@
 import os
 import json
 
+import signal
+
 from .cache_action import import_action_class_spec
 
 
@@ -13,13 +15,20 @@ def best_effort_read(key_paths):
             pass
 
 
-def execute_action(tempdir, action_spec, request_file):
+def execute_action(tempdir, action_spec, request_file, timeout=0):
+    def timeout_handler(signum, frame):
+        raise WorkerTimeoutException()
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout)  # Activate timeout, 0 = no timeout
+
     action_cls = import_action_class_spec(action_spec)
     with open(os.path.join(tempdir, request_file)) as f:
         request = json.load(f)
 
     execute(tempdir, action_cls, request)
-    return True
+
+    signal.alarm(0)  # Disable timeout
 
 
 def execute(tempdir, action_cls, req):
@@ -61,3 +70,7 @@ def execute(tempdir, action_cls, req):
         if stream:
             stream.write('\n\n')
             stream.close()
+
+
+class WorkerTimeoutException(Exception):
+    pass
