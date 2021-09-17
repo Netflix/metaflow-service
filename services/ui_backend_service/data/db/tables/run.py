@@ -1,6 +1,6 @@
 import os
 import time
-from typing import List
+from typing import List, Tuple
 from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
 from .flow import AsyncFlowTablePostgres
 from ..models import RunRow
@@ -9,7 +9,8 @@ from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
     AsyncMetadataTablePostgres as MetaMetadataTable,
-    AsyncArtifactTablePostgres as MetadataArtifactTable
+    AsyncArtifactTablePostgres as MetadataArtifactTable,
+    AsyncTaskTablePostgres as MetadataTaskTable
 )
 
 # Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
@@ -22,34 +23,78 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     table_name = MetadataRunTable.table_name
     metadata_table = MetaMetadataTable.table_name
     artifact_table = MetadataArtifactTable.table_name
+    task_table = MetadataTaskTable.table_name
     keys = MetadataRunTable.keys
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
+
     joins = [
         """
-        LEFT JOIN (
-            SELECT
-                artifacts.flow_id, artifacts.run_number, artifacts.step_name,
-                artifacts.task_id, artifacts.attempt_id, artifacts.ts_epoch,
-                attempt_ok.value::boolean as attempt_ok
-            FROM {artifact_table} as artifacts
-            LEFT JOIN {metadata_table} as attempt_ok ON (
-                artifacts.flow_id = attempt_ok.flow_id AND
-                artifacts.run_number = attempt_ok.run_number AND
-                artifacts.task_id = attempt_ok.task_id AND
-                artifacts.step_name = attempt_ok.step_name AND
-                attempt_ok.field_name = 'attempt_ok' AND
-                attempt_ok.tags ? ('attempt_id:' || artifacts.attempt_id)
-            )
-            WHERE artifacts.name = '_task_ok' AND artifacts.step_name = 'end'
-        ) AS artifacts ON (
-            {table_name}.flow_id = artifacts.flow_id AND
-            {table_name}.run_number = artifacts.run_number
-        )
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch, value::boolean
+            FROM {metadata_table} as attempt_ok
+            WHERE
+                {table_name}.flow_id = attempt_ok.flow_id AND
+                {table_name}.run_number = attempt_ok.run_number AND
+                attempt_ok.step_name = 'end' AND
+                attempt_ok.field_name = 'attempt_ok'
+            ORDER BY ts_epoch DESC
+            LIMIT 1
+        ) as end_attempt_ok ON true
         """.format(
             table_name=table_name,
+            metadata_table=metadata_table
+        ),
+        """
+        LEFT JOIN LATERAL (
+            SELECT ts_epoch
+            FROM {metadata_table} as attempt
+            WHERE
+                {table_name}.flow_id = attempt.flow_id AND
+                {table_name}.run_number = attempt.run_number AND
+                attempt.step_name = 'end' AND
+                attempt.field_name = 'attempt' AND
+                end_attempt_ok.value IS FALSE
+            ORDER BY ts_epoch DESC
+            LIMIT 1
+        ) as end_attempt ON true
+        """.format(
+            table_name=table_name,
+            metadata_table=metadata_table
+        ),
+        """
+        LEFT JOIN LATERAL (
+            SELECT 1
+            FROM
+            {task_table} as task
+            LEFT JOIN LATERAL (
+                SELECT value::boolean as is_ok, ts_epoch
+                FROM {metadata_table} as attempt_ok
+                WHERE
+                    task.flow_id=attempt_ok.flow_id AND
+                    task.run_number=attempt_ok.run_number AND
+                    task.step_name=attempt_ok.step_name AND
+                    task.task_id=attempt_ok.task_id AND
+                    attempt_ok.field_name='attempt_ok'
+                LIMIT 1
+            ) AS attempt_ok ON true
+            WHERE
+                {table_name}.flow_id = task.flow_id
+                AND {table_name}.run_number = task.run_number
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                AND end_attempt_ok IS NULL
+                AND end_attempt is NULL
+                AND attempt_ok.is_ok IS NOT TRUE
+                AND @(extract(epoch from now())-task.last_heartbeat_ts)>{heartbeat_threshold}
+            GROUP BY task.flow_id, task.run_number, task.step_name, task.task_id, attempt_ok.ts_epoch
+            ORDER BY attempt_ok.ts_epoch DESC
+            LIMIT 1
+        ) as latest_failed_task ON true
+        """.format(
+            table_name=table_name,
+            task_table=task_table,
             metadata_table=metadata_table,
-            artifact_table=artifact_table
+            heartbeat_threshold=HEARTBEAT_THRESHOLD
         ),
     ]
 
@@ -72,9 +117,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     join_columns = [
         """
         (CASE
-            WHEN artifacts.ts_epoch IS NOT NULL
-            THEN artifacts.ts_epoch
+            WHEN end_attempt IS NOT NULL
+                AND end_attempt_ok.ts_epoch < end_attempt.ts_epoch
+            THEN NULL
+            WHEN end_attempt_ok IS NOT NULL
+            THEN end_attempt_ok.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                AND latest_failed_task IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN {table_name}.last_heartbeat_ts*1000
             ELSE NULL
@@ -86,17 +135,19 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
-            WHEN artifacts.attempt_ok IS TRUE
-            THEN 'completed'
-            WHEN artifacts.attempt_ok IS FALSE
-            THEN 'failed'
-            WHEN artifacts.ts_epoch IS NOT NULL
+            WHEN end_attempt_ok.value IS TRUE
             THEN 'completed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-            AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                AND latest_failed_task IS NOT NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+            THEN 'failed'
+            WHEN end_attempt_ok.value IS FALSE
+                AND end_attempt.ts_epoch > end_attempt_ok.ts_epoch
+            THEN 'running'
+            WHEN end_attempt_ok.value IS FALSE
             THEN 'failed'
             WHEN {table_name}.last_heartbeat_ts IS NULL
-            AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
+                AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
             THEN 'failed'
             ELSE 'running'
         END) AS status
@@ -107,10 +158,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         (CASE
-            WHEN artifacts.ts_epoch IS NULL AND {table_name}.last_heartbeat_ts IS NOT NULL
+            WHEN end_attempt_ok.value IS TRUE
+            THEN end_attempt_ok.ts_epoch - {table_name}.ts_epoch
+            WHEN end_attempt IS NOT NULL
+                AND end_attempt.ts_epoch > end_attempt_ok.ts_epoch
+                AND {table_name}.last_heartbeat_ts IS NOT NULL
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-            WHEN artifacts.ts_epoch IS NOT NULL
-            THEN artifacts.ts_epoch - {table_name}.ts_epoch
+            WHEN end_attempt IS NOT NULL
+            THEN end_attempt_ok.ts_epoch - {table_name}.ts_epoch
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+            THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NULL
                 AND @(extract(epoch from now())::bigint*1000-{table_name}.ts_epoch)>{cutoff}
             THEN NULL
@@ -160,7 +217,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return result
 
     async def get_run_keys(self, conditions: List[str] = [],
-                           values: List[str] = [], limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                           values: List[str] = [], limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         """
         Get a paginated set of run keys.
 
