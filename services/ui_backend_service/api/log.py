@@ -493,6 +493,9 @@ async def read_and_output_mflog(cache_client, paths):
         if res.has_pending_request():
             async for event in res.stream():
                 if event["type"] == "error":
+                    if event["id"] == "s3-not-found":
+                        # some of the mflog objects are not present at all times, this is expected
+                        continue
                     # raise error, there was an exception during fetching.
                     raise LogException(event["message"], event["id"], event["traceback"])
             await res.wait()  # wait until results are ready
