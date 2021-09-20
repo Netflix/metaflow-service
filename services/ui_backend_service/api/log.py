@@ -27,13 +27,13 @@ STDERR = 'log_location_stderr'
 
 LOG_SOURCES = ['runtime', 'task']
 
-RE = br'(\[!)?'\
-     br'\[MFLOG\|'\
-     br'(0)\|'\
-     br'(.+?)Z\|'\
-     br'(.+?)\|'\
-     br'(.+?)\]'\
-     br'(.*)'
+RE = r'(\[!)?'\
+     r'\[MFLOG\|'\
+     r'(0)\|'\
+     r'(.+?)Z\|'\
+     r'(.+?)\|'\
+     r'(.+?)\]'\
+     r'(.*)'
 
 # the RE groups defined above must match the MFLogline fields below
 MFLogline = namedtuple('MFLogline', ['should_persist',
@@ -62,23 +62,8 @@ def to_unicode(x):
         return str(x)
 
 
-def to_bytes(x):
-    """
-    Convert any object to a byte string
-    """
-    if isinstance(x, str):
-        return x.encode('utf-8')
-    elif isinstance(x, bytes):
-        return x
-    elif isinstance(x, float):
-        return repr(x).encode('utf-8')
-    else:
-        return str(x).encode('utf-8')
-
-
 def mflog_parse(line):
-    line = to_bytes(line)
-    m = LINE_PARSER.match(to_bytes(line))
+    m = LINE_PARSER.match(line)
     if m:
         try:
             fields = list(m.groups())
@@ -89,12 +74,12 @@ def mflog_parse(line):
 
 
 def mflog_merge_logs(logs):
-    def line_iter(logblob):
+    def line_iter(loglines):
         # all valid timestamps are guaranteed to be smaller than
         # MISSING_TIMESTAMP, hence this iterator maintains the
         # ascending order even when corrupt loglines are present
         missing = []
-        for line in io.BytesIO(logblob):
+        for line in loglines.split("\n"):
             res = mflog_parse(line)
             if res:
                 yield res.utc_tstamp_str, res
@@ -500,10 +485,12 @@ async def read_and_output_mflog(cache_client, paths):
                     raise LogException(event["message"], event["id"], event["traceback"])
             await res.wait()  # wait until results are ready
 
-        logs.append(res.get())
+        chunk = res.get()
+        if chunk:
+            logs.append(chunk)
 
     lines = []
-    for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
+    for row, line in enumerate(mflog_merge_logs([logchunk for logchunk in logs])):
         lines.append({
             'row': row,
             'line': to_unicode(line.msg)})
