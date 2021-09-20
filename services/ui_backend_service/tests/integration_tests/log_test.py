@@ -56,23 +56,21 @@ async def test_list_logs_without_assume(db):
                                               "value": '{"ds_type": "s3", "location": "s3://bucket/Flow/1/end/2/0.stdout.log", "attempt": 0}',
                                               "type": "log_path"})).body
 
-    bucket, path, attempt_id = \
+    path, attempt_id = \
         await get_metadata_log(
             db.metadata_table_postgres.find_records,
             _task.get("flow_id"), _task.get("run_number"), _task.get("step_name"), _task.get("task_id"),
             0, "log_location_stdout")
 
-    assert bucket == "bucket"
-    assert path == "Flow/1/end/2/0.stdout.log"
+    assert path == "s3://bucket/Flow/1/end/2/0.stdout.log"
     assert attempt_id == 0
 
-    bucket, path, attempt_id = \
+    path, attempt_id = \
         await get_metadata_log(
             db.metadata_table_postgres.find_records,
             _task.get("flow_id"), _task.get("run_number"), _task.get("step_name"), _task.get("task_id"),
             1, "log_location_stdout")
 
-    assert bucket == None
     assert path == None
     assert attempt_id == None
 
@@ -100,24 +98,22 @@ async def test_list_logs_assume_path(db):
                                               "value": '{"ds_type": "s3", "location": "s3://bucket/Flow/1/end/2/0.stdout.log", "attempt": 0}',
                                               "type": "log_path"})).body
 
-    bucket, path, attempt_id = \
+    path, attempt_id = \
         await get_metadata_log_assume_path(
             db.metadata_table_postgres.find_records,
             _task.get("flow_id"), _task.get("run_number"), _task.get("step_name"), _task.get("task_id"),
             0, "log_location_stdout")
 
-    assert bucket == "bucket"
-    assert path == "Flow/1/end/2/0.stdout.log"
+    assert path == "s3://bucket/Flow/1/end/2/0.stdout.log"
     assert attempt_id == 0
 
-    bucket, path, attempt_id = \
+    path, attempt_id = \
         await get_metadata_log_assume_path(
             db.metadata_table_postgres.find_records,
             _task.get("flow_id"), _task.get("run_number"), _task.get("step_name"), _task.get("task_id"),
             1, "log_location_stdout")
 
-    assert bucket == "bucket"
-    assert path == "Flow/1/end/2/1.stdout.log"
+    assert path == "s3://bucket/Flow/1/end/2/1.stdout.log"
     assert attempt_id == 1
 
 
@@ -226,7 +222,7 @@ async def test_log_paginated_response_with_regular_logs(cli, db):
         {"row": 5, "line": "log line 5"},
     ]
 
-    async def read_and_output(s3_client, bucket, path):
+    async def read_and_output(cache_client, path):
         return test_log
 
     with mock.patch("services.ui_backend_service.api.log.read_and_output", new=read_and_output):

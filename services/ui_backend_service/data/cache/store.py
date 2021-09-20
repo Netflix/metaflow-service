@@ -15,7 +15,7 @@ from .generate_dag_action import GenerateDag
 from .get_artifacts_action import GetArtifacts
 from .get_artifacts_with_status_action import GetArtifactsWithStatus
 from .search_artifacts_action import SearchArtifacts
-
+from .get_log_file_action import GetLogFile
 # Tagged logger
 logger = logging.getLogger("CacheStore")
 
@@ -25,6 +25,8 @@ CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16
 CACHE_ARTIFACT_STORAGE_LIMIT = int(os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", DISK_SIZE // 2))
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
 CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", DISK_SIZE // 4))
+CACHE_LOG_MAX_ACTIONS = int(os.environ.get("CACHE_LOG_MAX_ACTIONS", 8))
+CACHE_LOG_STORAGE_LIMIT = int(os.environ.get("CACHE_LOG_STORAGE_LIMIT", DISK_SIZE // 5))
 
 
 class CacheStore(object):
@@ -43,11 +45,13 @@ class CacheStore(object):
     def __init__(self, db, event_emitter=None):
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
         self.dag_cache = DAGCacheStore(event_emitter, db)
+        self.log_cache = LogCacheStore(event_emitter)
 
     async def start_caches(self, app):
         "Starts all caches as part of app startup"
         await self.artifact_cache.start_cache()
         await self.dag_cache.start_cache()
+        await self.log_cache.start_cache()
 
         asyncio.gather(
             self._monitor_restart_requests()
@@ -70,6 +74,7 @@ class CacheStore(object):
         "Stops all caches as part of app teardown"
         await self.artifact_cache.stop_cache()
         await self.dag_cache.stop_cache()
+        await self.log_cache.stop_cache()
 
 
 class ArtifactCacheStore(object):
@@ -293,3 +298,35 @@ class DAGCacheStore(object):
                 logger.error(event)
             else:
                 logger.info(event)
+
+
+class LogCacheStore(object):
+    """
+    Cache class responsible for storing logs fetched from S3.
+
+    Cache Actions
+    -------------
+    GetLogFile
+        Fetches log content from an S3 location.
+    """
+
+    def __init__(self, event_emitter):
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
+        self.cache = None
+        self.loop = asyncio.get_event_loop()
+
+    async def restart_requested(self):
+        return self.cache._restart_requested if self.cache else False
+
+    async def start_cache(self):
+        "Initialize the CacheAsyncClient for Log caching"
+        actions = [GetLogFile]
+        self.cache = CacheAsyncClient('cache_data/log',
+                                      actions,
+                                      max_size=CACHE_LOG_STORAGE_LIMIT,
+                                      max_actions=CACHE_LOG_MAX_ACTIONS)
+        if FEATURE_CACHE_ENABLE:
+            await self.cache.start()
+
+    async def stop_cache(self):
+        await self.cache.stop()

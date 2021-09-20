@@ -1,19 +1,14 @@
 
 import os
 import json
-import aiobotocore
-import contextlib
-import botocore
 import heapq
 import io
 import re
 from collections import namedtuple
 from datetime import datetime
-from urllib.parse import urlparse
 from typing import List, Dict, Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
-from ..data.s3 import wrap_s3_errors
 from services.utils import handle_exceptions, web_response
 from .utils import format_response_list
 
@@ -123,7 +118,7 @@ def mflog_merge_logs(logs):
 
 
 class LogApi(object):
-    def __init__(self, app, db):
+    def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
             "GET",
@@ -148,25 +143,8 @@ class LogApi(object):
         self.metadata_table = self.db.metadata_table_postgres
         self.task_table = self.db.task_table_postgres
 
-        # Shared S3 session config for LOG fetching
-        self.context_stack = contextlib.AsyncExitStack()
-        self.s3_client = None
-        app.on_startup.append(self.init_s3_client)
-        app.on_cleanup.append(self.teardown_s3_client)
-
-    async def init_s3_client(self, app):
-        "Initializes an S3 client for this API handler"
-        session = aiobotocore.get_session()
-        conf = botocore.config.Config(max_pool_connections=S3_MAX_POOL_CONNECTIONS)
-        self.s3_client = await self.context_stack.enter_async_context(
-            session.create_client(
-                's3', config=conf,
-                endpoint_url=os.environ.get("METAFLOW_S3_ENDPOINT_URL", None),
-                verify=os.environ.get("METAFLOW_S3_VERIFY_CERTIFICATE", None)))
-
-    async def teardown_s3_client(self, app):
-        "closes the async context for the S3 client"
-        await self.context_stack.aclose()
+        # Cache to hold already fetched logs
+        self.cache = getattr(cache, "log_cache", None)
 
     @handle_exceptions
     async def get_task_log_stdout(self, request):
@@ -340,19 +318,19 @@ class LogApi(object):
                 flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
-                lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                lines = await read_and_output_mflog(self.cache, to_fetch)
                 # paginate response
                 code, body = paginate_log_lines(request, lines)
                 return web_response(code, body)
         else:
-            bucket, path, _ = \
+            path, _ = \
                 await get_metadata_log_assume_path(
                     self.metadata_table.find_records,
                     flow_id, run_number, step_name, task_id,
                     attempt_id, logtype)
 
-            if bucket and path:
-                lines = await read_and_output(self.s3_client, bucket, path)
+            if path:
+                lines = await read_and_output(self.cache, path)
                 # paginate response
                 code, body = paginate_log_lines(request, lines)
                 return web_response(code, body)
@@ -382,18 +360,18 @@ class LogApi(object):
                 flow_id, task['run_id'], step_name, task['task_name'],
                 attempt_id, logtype)
             if to_fetch:
-                lines = await read_and_output_mflog(self.s3_client, to_fetch)
+                lines = await read_and_output_mflog(self.cache, to_fetch)
                 logstring = "\n".join(line['line'] for line in lines)
                 return file_download_response(log_filename, logstring)
         else:
-            bucket, path, _ = \
+            path, _ = \
                 await get_metadata_log_assume_path(
                     self.metadata_table.find_records,
                     flow_id, run_number, step_name, task_id,
                     attempt_id, logtype)
 
-            if bucket and path:
-                lines = await read_and_output(self.s3_client, bucket, path)
+            if path:
+                lines = await read_and_output(self.cache, path)
                 logstring = "\n".join(line['line'] for line in lines)
                 return file_download_response(log_filename, logstring)
         return web_response(404, {'data': []})
@@ -413,16 +391,13 @@ async def get_metadata_mflog_paths(flow_id, run_id, step_name, task_name, attemp
         for s in LOG_SOURCES]
     to_fetch = []
     for u in urls:
-        url = urlparse(u, allow_fragments=False)
-        if url.scheme == 's3':
-            bucket = url.netloc
-            path = url.path.lstrip('/')
-            to_fetch.append((bucket, path))
+        if u.startswith("s3://"):
+            to_fetch.append(u)
     return to_fetch
 
 
 async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
-    bucket, path, _ = \
+    path, _ = \
         await get_metadata_log(
             find_records,
             flow_name, run_number, step_name, task_id,
@@ -432,7 +407,7 @@ async def get_metadata_log_assume_path(find_records, flow_name, run_number, step
     # Manually construct assumed logfile S3 path based on first attempt
     if not path:
         if attempt_id and attempt_id is not 0 and attempt_id is not "0":
-            bucket, path, _ = \
+            path, _ = \
                 await get_metadata_log(
                     find_records,
                     flow_name, run_number, step_name, task_id,
@@ -442,7 +417,7 @@ async def get_metadata_log_assume_path(find_records, flow_name, run_number, step
                 suffix = "{}.log".format("stdout" if field_name == STDOUT else "stderr")
                 path = path.replace("0.{}".format(suffix), "{}.{}".format(attempt_id, suffix))
 
-    return bucket, path, attempt_id
+    return path, attempt_id
 
 
 async def get_metadata_log(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
@@ -476,58 +451,55 @@ async def get_metadata_log(find_records, flow_name, run_number, step_name, task_
             if result:
                 value = json.loads(result['value'])
                 if value['ds_type'] == 's3':
-                    url = urlparse(value['location'], allow_fragments=False)
-                    bucket = url.netloc
-                    path = url.path.lstrip('/')
+                    path = value['location']
                     attempt_id = value['attempt']
-                    return bucket, path, attempt_id
+                    return path, attempt_id
     except Exception:
         pass
-    return None, None, None
+    return None, None
 
 
-@wrap_s3_errors
-async def read_and_output(s3_client, bucket, path):
-    obj = await s3_client.get_object(Bucket=bucket, Key=path)
+async def read_and_output(cache_client, path):
+    res = await cache_client.cache.GetLogFile(path, invalidate_cache=True)
+
+    if res.has_pending_request():
+        async for event in res.stream():
+            if event["type"] == "error":
+                # raise error, there was an exception during fetching.
+                raise LogException(event["message"], event["id"], event["traceback"])
+        await res.wait()  # wait until results are ready
 
     lines = []
-    async with obj['Body'] as stream:
-        async for row, line in aenumerate(stream, start=1):
-            lines.append({
-                'row': row,
-                'line': line.strip(),
-            })
+    for row, line in enumerate(res.get().split("\n"), start=1):
+        lines.append({
+            'row': row,
+            'line': line.strip(),
+        })
     return lines
 
 
-async def read_and_output_ws(s3_client, bucket, path, ws):
-    obj = await s3_client.get_object(Bucket=bucket, Key=path)
+async def read_and_output_ws(cache_client, path, ws):
+    lines = await read_and_output(cache_client, path)
 
-    async with obj['Body'] as stream:
-        async for row, line in aenumerate(stream, start=1):
-            await ws.send_str(json.dumps({
-                'row': row,
-                'line': line.strip(),
-            }))
+    for line in lines:
+        await ws.send_str(json.dumps(line))
 
 
-@wrap_s3_errors
-async def read_and_output_mflog(s3_client, paths):
+async def read_and_output_mflog(cache_client, paths):
     logs = []
-    for bucket, path in paths:
-        try:
-            obj = await s3_client.get_object(Bucket=bucket, Key=path)
+    for path in paths:
+        res = await cache_client.cache.GetLogFile(path, invalidate_cache=True)
 
-            async with obj['Body'] as stream:
-                data = await stream.read()
-                logs.append(data)
-        except botocore.exceptions.ClientError as err:
-            if err.response['Error']['Code'] == 'NoSuchKey':
-                pass
-            else:
-                raise
+        if res.has_pending_request():
+            async for event in res.stream():
+                if event["type"] == "error":
+                    # raise error, there was an exception during fetching.
+                    raise LogException(event["message"], event["id"], event["traceback"])
+            await res.wait()  # wait until results are ready
+
+        logs.append(res.get())
+
     lines = []
-    # TODO: This could be an async iterator instead?
     for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
         lines.append({
             'row': row,
@@ -535,18 +507,10 @@ async def read_and_output_mflog(s3_client, paths):
     return lines
 
 
-async def read_and_output_mflog_ws(s3_client, paths, ws):
-    logs = []
-    for bucket, path in paths:
-        obj = await s3_client.get_object(Bucket=bucket, Key=path)
-
-        async with obj['Body'] as stream:
-            data = await stream.read()
-            logs.append(data)
-    for row, line in enumerate(mflog_merge_logs([blob for blob in logs])):
-        await ws.send_str(json.dumps({
-            'row': row,
-            'line': to_unicode(line.msg)}))
+async def read_and_output_mflog_ws(cache_client, paths, ws):
+    lines = await read_and_output_mflog(cache_client, paths)
+    for line in lines:
+        await ws.send_str(json.dumps(line))
 
 
 async def aenumerate(stream, start=0):
@@ -637,9 +601,10 @@ def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, 
 
 
 class LogException(Exception):
-    def __init__(self, msg='Failed to read log', id='log-error'):
+    def __init__(self, msg='Failed to read log', id='log-error', traceback_str=None):
         self.message = msg
         self.id = id
+        self.traceback_str = traceback_str
 
     def __str__(self):
         return self.message
