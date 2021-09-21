@@ -2,7 +2,6 @@
 import os
 import json
 import heapq
-import io
 import re
 from collections import namedtuple
 from datetime import datetime
@@ -15,8 +14,6 @@ from .utils import format_response_list
 from aiohttp import web
 from multidict import MultiDict
 
-# Configure the global connection pool size for S3 log fetches
-S3_MAX_POOL_CONNECTIONS = int(os.environ.get('LOG_S3_MAX_CONNECTIONS', 100))
 
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
@@ -463,13 +460,6 @@ async def read_and_output(cache_client, path):
     return lines
 
 
-async def read_and_output_ws(cache_client, path, ws):
-    lines = await read_and_output(cache_client, path)
-
-    for line in lines:
-        await ws.send_str(json.dumps(line))
-
-
 async def read_and_output_mflog(cache_client, paths):
     logs = []
     for path in paths:
@@ -490,27 +480,11 @@ async def read_and_output_mflog(cache_client, paths):
             logs.append(chunk)
 
     lines = []
-    for row, line in enumerate(mflog_merge_logs([logchunk for logchunk in logs])):
+    for row, line in enumerate(mflog_merge_logs([logchunk for logchunk in logs]), start=1):
         lines.append({
             'row': row,
             'line': to_unicode(line.msg)})
     return lines
-
-
-async def read_and_output_mflog_ws(cache_client, paths, ws):
-    lines = await read_and_output_mflog(cache_client, paths)
-    for line in lines:
-        await ws.send_str(json.dumps(line))
-
-
-async def aenumerate(stream, start=0):
-    i = start
-    while True:
-        line = await stream.readline()
-        if not line:
-            break
-        yield i, line.decode('utf-8')
-        i += 1
 
 
 def paginate_log_lines(request, lines):
