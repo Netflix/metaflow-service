@@ -452,7 +452,7 @@ async def read_and_output(cache_client, path):
         await res.wait()  # wait until results are ready
 
     lines = []
-    for row, line in enumerate(res.get().split("\n"), start=1):
+    for row, line in enumerate(res.get().split("\n")):
         lines.append({
             'row': row,
             'line': line.strip(),
@@ -480,7 +480,7 @@ async def read_and_output_mflog(cache_client, paths):
             logs.append(chunk)
 
     lines = []
-    for row, line in enumerate(mflog_merge_logs([logchunk for logchunk in logs]), start=1):
+    for row, line in enumerate(mflog_merge_logs([logchunk for logchunk in logs])):
         lines.append({
             'row': row,
             'line': to_unicode(line.msg)})
