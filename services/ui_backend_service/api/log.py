@@ -1,11 +1,6 @@
 
 import os
-import json
-import heapq
-import re
-from collections import namedtuple
-from datetime import datetime
-from typing import List, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
@@ -17,86 +12,6 @@ from multidict import MultiDict
 
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
-
-
-# Support for MFLog; this will go away when core convergence happens; we would
-# then be able to use the MF client directly to get the logs
-
-LOG_SOURCES = ['runtime', 'task']
-
-RE = r'(\[!)?'\
-     r'\[MFLOG\|'\
-     r'(0)\|'\
-     r'(.+?)Z\|'\
-     r'(.+?)\|'\
-     r'(.+?)\]'\
-     r'(.*)'
-
-# the RE groups defined above must match the MFLogline fields below
-MFLogline = namedtuple('MFLogline', ['should_persist',
-                                     'version',
-                                     'utc_tstamp_str',
-                                     'logsource',
-                                     'id',
-                                     'msg',
-                                     'utc_tstamp'])
-
-LINE_PARSER = re.compile(RE)
-
-ISOFORMAT = "%Y-%m-%dT%H:%M:%S.%f"
-
-MISSING_TIMESTAMP = datetime(3000, 1, 1)
-MISSING_TIMESTAMP_STR = MISSING_TIMESTAMP.strftime(ISOFORMAT)
-
-
-def to_unicode(x):
-    """
-    Convert any object to a unicode object
-    """
-    if isinstance(x, bytes):
-        return x.decode('utf-8')
-    else:
-        return str(x)
-
-
-def mflog_parse(line):
-    m = LINE_PARSER.match(line)
-    if m:
-        try:
-            fields = list(m.groups())
-            fields.append(datetime.strptime(to_unicode(fields[2]), ISOFORMAT))
-            return MFLogline(*fields)
-        except:
-            pass
-
-
-def mflog_merge_logs(logs):
-    def line_iter(loglines):
-        # all valid timestamps are guaranteed to be smaller than
-        # MISSING_TIMESTAMP, hence this iterator maintains the
-        # ascending order even when corrupt loglines are present
-        missing = []
-        for line in loglines.split("\n"):
-            res = mflog_parse(line)
-            if res:
-                yield res.utc_tstamp_str, res
-            else:
-                missing.append(line)
-        for line in missing:
-            res = MFLogline(False,
-                            None,
-                            MISSING_TIMESTAMP_STR,
-                            None,
-                            None,
-                            line,
-                            MISSING_TIMESTAMP)
-            yield res.utc_tstamp_str, res
-
-    # note that sorted() below should be a very cheap, often a O(n) operation
-    # because Python's Timsort is very fast for already sorted data.
-    for _, line in heapq.merge(*[sorted(line_iter(blob)) for blob in logs]):
-        yield line
-# End support for MFLog
 
 
 class LogApi(object):
@@ -287,36 +202,14 @@ class LogApi(object):
 
     async def get_task_log(self, request, logtype=STDOUT):
         "fetches log and emits it as a list of rows wrapped in json"
-        flow_id, run_number, step_name, task_id, attempt_id = \
-            _get_pathspec_from_request(request)
-
         task = await self.get_task_by_request(request)
         if not task:
             return web_response(404, {'data': []})
 
-        if is_mflog_type(task):
-            # Check if we have logs in the MFLog format (we need to have a valid root)
-            to_fetch = await get_metadata_mflog_paths(
-                flow_id, task['run_id'], step_name, task['task_name'],
-                attempt_id, logtype)
-            if to_fetch:
-                lines = await read_and_output_mflog(self.cache, to_fetch)
-                # paginate response
-                code, body = paginate_log_lines(request, lines)
-                return web_response(code, body)
-        else:
-            path, _ = \
-                await get_metadata_log_assume_path(
-                    self.metadata_table.find_records,
-                    flow_id, run_number, step_name, task_id,
-                    attempt_id, logtype)
-
-            if path:
-                lines = await read_and_output(self.cache, path)
-                # paginate response
-                code, body = paginate_log_lines(request, lines)
-                return web_response(code, body)
-        return web_response(404, {'data': []})
+        lines = await read_and_output(self.cache, task, logtype)
+        # paginate response
+        code, body = paginate_log_lines(request, lines)
+        return web_response(code, body)
 
     async def get_task_log_file(self, request, logtype=STDOUT):
         "fetches log and emits it as a single file download response"
@@ -336,113 +229,13 @@ class LogApi(object):
             attempt="_attempt{}".format(attempt_id or 0)
         )
 
-        if is_mflog_type(task):
-            # Check if we have logs in the MFLog format (we need to have a valid root)
-            to_fetch = await get_metadata_mflog_paths(
-                flow_id, task['run_id'], step_name, task['task_name'],
-                attempt_id, logtype)
-            if to_fetch:
-                lines = await read_and_output_mflog(self.cache, to_fetch)
-                logstring = "\n".join(line['line'] for line in lines)
-                return file_download_response(log_filename, logstring)
-        else:
-            path, _ = \
-                await get_metadata_log_assume_path(
-                    self.metadata_table.find_records,
-                    flow_id, run_number, step_name, task_id,
-                    attempt_id, logtype)
-
-            if path:
-                lines = await read_and_output(self.cache, path)
-                logstring = "\n".join(line['line'] for line in lines)
-                return file_download_response(log_filename, logstring)
-        return web_response(404, {'data': []})
+        lines = await read_and_output(self.cache, task, logtype)
+        logstring = "\n".join(line['line'] for line in lines)
+        return file_download_response(log_filename, logstring)
 
 
-async def get_metadata_mflog_paths(flow_id, run_id, step_name, task_name, attempt_id, logtype) -> List[str]:
-    # Get the datastore root for mflogs
-    DS_ROOT = _get_ds_root()
-
-    stream = 'stderr' if logtype == STDERR else 'stdout'
-    run_id_value = run_id[4:]
-    task_id_value = task_name[4:]
-
-    urls = [os.path.join(
-        DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
-        '%s.%s_%s.log' % (attempt_id if attempt_id else '0', s, stream))
-        for s in LOG_SOURCES]
-    to_fetch = []
-    for u in urls:
-        if u.startswith("s3://"):
-            to_fetch.append(u)
-    return to_fetch
-
-
-async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
-    path, _ = \
-        await get_metadata_log(
-            find_records,
-            flow_name, run_number, step_name, task_id,
-            attempt_id, field_name)
-
-    # Backward compatibility for runs before https://github.com/Netflix/metaflow-service/pull/30
-    # Manually construct assumed logfile S3 path based on first attempt
-    if not path:
-        if attempt_id and attempt_id is not 0 and attempt_id is not "0":
-            path, _ = \
-                await get_metadata_log(
-                    find_records,
-                    flow_name, run_number, step_name, task_id,
-                    0, field_name)
-
-            if path:
-                suffix = "{}.log".format("stdout" if field_name == STDOUT else "stderr")
-                path = path.replace("0.{}".format(suffix), "{}.{}".format(attempt_id, suffix))
-
-    return path, attempt_id
-
-
-async def get_metadata_log(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
-    run_id_key, run_id_value = translate_run_key(run_number)
-    task_id_key, task_id_value = translate_task_key(task_id)
-
-    try:
-        results, *_ = await find_records(
-            conditions=["flow_id = %s",
-                        "{run_id_key} = %s".format(run_id_key=run_id_key),
-                        "step_name = %s",
-                        "{task_id_key} = %s".format(task_id_key=task_id_key),
-                        "field_name = %s"],
-            values=[flow_name, run_id_value, step_name, task_id_value, field_name], limit=0, offset=0,
-            order=["ts_epoch DESC"], groups=None, fetch_single=False, enable_joins=True,
-            expanded=True
-        )
-        if results.response_code == 200:
-            if attempt_id is None and len(results.body) > 0:
-                result = results.body[0]
-            else:
-                for r in results.body:
-                    try:
-                        value = json.loads(r['value'])
-                        if value['attempt'] == int(attempt_id):
-                            result = r
-                            break
-                    except Exception:
-                        pass
-
-            if result:
-                value = json.loads(result['value'])
-                if value['ds_type'] == 's3':
-                    path = value['location']
-                    attempt_id = value['attempt']
-                    return path, attempt_id
-    except Exception:
-        pass
-    return None, None
-
-
-async def read_and_output(cache_client, path):
-    res = await cache_client.cache.GetLogFile(path, invalidate_cache=True)
+async def read_and_output(cache_client, task, logtype):
+    res = await cache_client.cache.GetLogFile(task, logtype, invalidate_cache=True)
 
     if res.has_pending_request():
         async for event in res.stream():
@@ -457,33 +250,6 @@ async def read_and_output(cache_client, path):
             'row': row,
             'line': line.strip(),
         })
-    return lines
-
-
-async def read_and_output_mflog(cache_client, paths):
-    logs = []
-    for path in paths:
-        res = await cache_client.cache.GetLogFile(path, invalidate_cache=True)
-
-        if res.has_pending_request():
-            async for event in res.stream():
-                if event["type"] == "error":
-                    if event["id"] == "s3-not-found":
-                        # some of the mflog objects are not present at all times, this is expected
-                        continue
-                    # raise error, there was an exception during fetching.
-                    raise LogException(event["message"], event["id"], event["traceback"])
-            await res.wait()  # wait until results are ready
-
-        chunk = res.get()
-        if chunk:
-            logs.append(chunk)
-
-    lines = []
-    for row, line in enumerate(mflog_merge_logs([logchunk for logchunk in logs])):
-        lines.append({
-            'row': row,
-            'line': to_unicode(line.msg)})
     return lines
 
 
@@ -524,28 +290,6 @@ def file_download_response(filename, body):
         headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
         body=body
     )
-
-
-def is_mflog_type(task: Dict) -> bool:
-    "Check if a task is expected to have logs in the mflog format"
-    try:
-        return task['run_id'].startswith('mli_') and task['task_name'].startswith('mli_')
-    except Exception:
-        return False
-
-
-def _get_ds_root() -> str:
-    "Get the root S3 bucket where MFLOG format logs reside"
-    # Get the root path for the datastore as this is no longer stored with MFLog
-    # required to be a callable so it can be changed for a test-by-test basis
-    ds_root = os.environ.get("MF_DATASTORE_ROOT")
-    if not ds_root:
-        raise LogException(
-            msg='MF_DATASTORE_ROOT environment variable is missing and is required for accessing MFLOG format logs. \
-            Configure this on the server.',
-            id='log-config-missing-dsroot'
-        )
-    return ds_root
 
 
 def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional[str]]:

@@ -15,6 +15,9 @@ services:
     cap_add:
       - SYS_PTRACE
     environment:
+      - METAFLOW_DEFAULT_DATASTORE=s3
+      - METAFLOW_DEFAULT_METADATA=service
+      - METAFLOW_SERVICE_URL=http://metadata:8080
       - MF_METADATA_DB_HOST=db
       - MF_METADATA_DB_PORT=5432
       - MF_METADATA_DB_USER=postgres
