@@ -78,7 +78,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     ConfigApi(app)
     PluginsApi(app)
 
-    LogApi(app, async_db)
+    LogApi(app, async_db, cache_store)
     AdminApi(app)
 
     setup_swagger(app,

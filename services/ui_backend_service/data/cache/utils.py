@@ -22,6 +22,12 @@ def decode(path):
         obj = pickle.load(f)
         return obj
 
+
+def read_as_string(path):
+    "reads file contents as a string"
+    with open(path, "r") as f:
+        return f.read()
+
 # Cache Action helpers
 
 

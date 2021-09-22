@@ -53,6 +53,10 @@ def cli(action_spec, request_file=None):
 
         # write outputs to keys
         for key, val in res.items():
+            if key in ex_keys and ex_keys[key] == val:
+                # Reduce disk churn by not unnecessarily writing existing keys
+                # that have identical values to the newly produced ones.
+                continue
             blob = val if isinstance(val, bytes) else val.encode('utf-8')
             with open(req['keys'][key], 'wb') as f:
                 f.write(blob)

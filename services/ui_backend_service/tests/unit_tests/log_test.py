@@ -1,7 +1,7 @@
 import pytest
 import collections
 
-from services.ui_backend_service.api.log import paginate_log_lines
+from services.ui_backend_service.api.log import paginate_log_lines, order_log_lines
 
 pytestmark = [pytest.mark.unit_tests]
 
@@ -22,8 +22,8 @@ async def test_log_lines_pagination(req):
 
     # 1000 lines should fit in default pagination
     assert len(body['data']) == 1000
-    # order should be reverse
-    assert body['data'][0] == "log line 1000"
+    # order should be oldest to newest
+    assert body['data'][0] == "log line 1"
 
 
 async def test_log_lines_pagination_oob_page(req):
@@ -42,4 +42,17 @@ async def test_log_lines_pagination_with_limit(req):
     _, body = paginate_log_lines(req, TEST_LOG)
 
     assert len(body['data']) == 5
-    assert body['data'] == list("log line {}".format(i) for i in range(991, 996))[::-1]
+    assert body['data'] == list("log line {}".format(i) for i in range(6, 11))
+
+async def test_log_lines_ordering(req):
+    req.query = {
+    }
+
+    lines = order_log_lines(req, TEST_LOG)
+    assert lines == TEST_LOG
+
+
+    req.query = {"_order": "-row"}
+
+    lines = order_log_lines(req, TEST_LOG)
+    assert lines == TEST_LOG[::-1]
