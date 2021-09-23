@@ -23,8 +23,30 @@ class GetLogFile(CacheAction):
 
     Parameters
     ----------
-    s3_location : str
-        The S3 location of the log file
+    task : Dict
+        Task dictionary, example:
+        {
+            "flow_id": "TestFlow",
+            "run_number": 1234,
+            "step_name": "regular_step",
+            "task_id": 456,
+            "attempt_id": 0
+        }
+
+    logtype : str
+        Type of log to fetch, possible values "stdout" and "stderr"
+
+    limit : int
+        how many rows to return from the logs.
+
+    page : int
+        which one of the limited log row sets to return.
+
+    reverse_order : bool
+        Reverse the log row order.
+
+    raw_log : bool
+        Control whether to return a list of dictionaries, or the raw log string contents.
 
     invalidate_cache: Boolean
         Whether to invalidate the cache or not,
@@ -39,8 +61,7 @@ class GetLogFile(CacheAction):
                 {"row": 1, "line": "first log line},
                 {"row": 2, "line": "second log line},
             ],
-            "pages": 5,
-            "limit": 2
+            "pages": 5
         }
     """
 
