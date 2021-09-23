@@ -13,8 +13,9 @@ from ..s3 import (
 # New imports
 
 from metaflow import namespace, Task
-STDOUT = 'stdout'
-STDERR = 'stderr'
+STDOUT = 'log_location_stdout'
+STDERR = 'log_location_stderr'
+
 
 class GetLogFile(CacheAction):
     """
@@ -45,8 +46,8 @@ class GetLogFile(CacheAction):
 
     @classmethod
     def format_request(cls, task: Dict, logtype: str = STDOUT,
-                        limit: int = 0, page: int = 1,
-                        reverse_order: bool = False, raw_log: bool = False, invalidate_cache=False
+                       limit: int = 0, page: int = 1,
+                       reverse_order: bool = False, raw_log: bool = False, invalidate_cache=False
                        ):
         msg = {
             'task': task,
@@ -110,55 +111,72 @@ class GetLogFile(CacheAction):
         def stream_error(err, id, traceback=None):
             return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
+        log_size_changed = False  # keep track if we loaded new content
         try:
             # check if log has grown since last time.
             current_size = get_log_size(logtype, pathspec, attempt_id)
-            if previous_log_size and previous_log_size == current_size:
-                # if filesizes match, return existing results.
-                return existing_keys # TODO: check if result_key also exists, if not, paginate from existing keys.
-            
-            # current size has increased since last check, update size and fetch new content
-            content = get_log_content(logtype, pathspec, attempt_id)
-            results[log_key] = json.dumps({"log_size": current_size, "content": content})
+            log_size_changed = previous_log_size is None or previous_log_size != current_size
+
+            if log_size_changed:
+                content = get_log_content(logtype, pathspec, attempt_id)
+                results[log_key] = json.dumps({"log_size": current_size, "content": content})
+            else:
+                results = {**existing_keys}
         except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing) as ex:
             stream_error(str(ex), ex.id)
+            raise ex from None
         except S3Exception as ex:
             stream_error(get_traceback_str(), ex.id)
-        except Exception:
+            raise ex from None
+        except Exception as ex:
             stream_error(get_traceback_str(), 'log-handle-failed')
-        
-        if not output_raw:
-            loglines, total_pages = format_loglines(content, page, limit)
-        else:
-            loglines = content
-            total_pages = 1
+            raise ex from None
 
-        results[result_key] = json.dumps(
-            {
-                "content": loglines,
-                "pages": total_pages
-            }
-        )
-
+        if log_size_changed or result_key not in existing_keys:
+            results[result_key] = json.dumps(
+                paginated_result(
+                    json.loads(results[log_key])["content"],
+                    page,
+                    limit,
+                    reverse,
+                    output_raw
+                )
+            )
 
         return results
 
 # Utilities
 
+
 def get_log_size(logtype: str, pathspec: str, attempt_id: int = 0):
     # TODO: How to get logsize with metaflow cli?
     return None
 
+
 def get_log_content(logtype: str, pathspec: str, attempt_id: int = 0):
     namespace(None)
-    task = Task(pathspec) # TODO: How to fetch logs for a _specific_ task attempt only???
+    task = Task(pathspec)  # TODO: How to fetch logs for a _specific_ task attempt only???
     return task.stderr if logtype == STDERR else task.stdout
+
+
+def paginated_result(content: str, page: int = 1, limit: int = 0, reverse_order: bool = False, output_raw=False):
+    if not output_raw:
+        loglines, total_pages = format_loglines(content, page, limit, reverse_order)
+    else:
+        loglines = content
+        total_pages = 1
+
+    return {
+        "content": loglines,
+        "pages": total_pages
+    }
+
 
 def format_loglines(content: str, page: int = 1, limit: int = 0, reverse: bool = False) -> Tuple[List, int]:
     "format, order and limit the log content. Return a list of log lines with row numbers"
     lines = [{"row": row, "line": line} for row, line in enumerate(content.split("\n"))]
-    _offset = limit * (page - 1)
 
+    _offset = limit * (page - 1)
     pages = max(len(lines) // limit, 1)
 
     return lines[::-1][_offset:][:limit] if reverse else lines[_offset:][:limit], \
@@ -172,6 +190,7 @@ def log_cache_id(task: Dict, logtype: str):
         attempt=task.get("attempt_id", 0),
         logtype=logtype
     )
+
 
 def log_result_id(task: Dict, logtype: str, limit: int = 0, page: int = 1, reverse_order: bool = False, raw_log: bool = False):
     "construct a unique cache key for a paginated log response"
