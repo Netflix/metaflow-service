@@ -1,5 +1,6 @@
 
 import os
+from services.ui_backend_service.data.cache.get_log_file_action import log_result_id
 from typing import Dict, Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
@@ -205,11 +206,16 @@ class LogApi(object):
         task = await self.get_task_by_request(request)
         if not task:
             return web_response(404, {'data': []})
+        limit, page, reverse_order = get_pagination_params(request)
 
-        lines = await read_and_output(self.cache, task, logtype)
-        # paginate response
-        code, body = paginate_log_lines(request, lines)
-        return web_response(code, body)
+        lines, page_count = await read_and_output(self.cache, task, logtype, limit, page, reverse_order)
+
+        # paginated response
+        response = DBResponse(200, lines)
+        pagination = DBPagination(limit, limit * (page - 1), len(response.body), page)
+        status, body = format_response_list(request, response, pagination, page, page_count)
+        return web_response(status, body)
+
 
     async def get_task_log_file(self, request, logtype=STDOUT):
         "fetches log and emits it as a single file download response"
@@ -229,13 +235,12 @@ class LogApi(object):
             attempt="_attempt{}".format(attempt_id or 0)
         )
 
-        lines = await read_and_output(self.cache, task, logtype)
-        logstring = "\n".join(line['line'] for line in lines)
-        return file_download_response(log_filename, logstring)
+        lines, _ = await read_and_output(self.cache, task, logtype, output_raw=True)
+        return file_download_response(log_filename, lines)
 
 
-async def read_and_output(cache_client, task, logtype):
-    res = await cache_client.cache.GetLogFile(task, logtype, invalidate_cache=True)
+async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
+    res = await cache_client.cache.GetLogFile(task, logtype, limit, page, reverse_order, output_raw, invalidate_cache=True)
 
     if res.has_pending_request():
         async for event in res.stream():
@@ -244,17 +249,13 @@ async def read_and_output(cache_client, task, logtype):
                 raise LogException(event["message"], event["id"], event["traceback"])
         await res.wait()  # wait until results are ready
 
-    lines = []
-    for row, line in enumerate(res.get().split("\n")):
-        lines.append({
-            'row': row,
-            'line': line.strip(),
-        })
-    return lines
+    log_response = res.get()
+
+    return log_response["content"], log_response["pages"]
 
 
-def paginate_log_lines(request, lines):
-    """Paginates the log lines based on url parameters
+def get_pagination_params(request):
+    """extract pagination params from request
     """
     # Page
     page = max(int(request.query.get("_page", 1)), 1)
@@ -263,27 +264,11 @@ def paginate_log_lines(request, lines):
     # Default limit is 1000, maximum is 10_000
     limit = min(int(request.query.get("_limit", 1000)), 10000)
 
-    # Offset
-    offset = limit * (page - 1)
-
-    lines = order_log_lines(request, lines)
-
-    page_count = max(len(lines) // limit, 1)
-
-    response = DBResponse(200, lines[offset:][:limit])
-    pagination = DBPagination(limit, offset, len(response.body), page)
-    return format_response_list(request, response, pagination, page, page_count)
-
-
-def order_log_lines(request, lines):
-    "orders log lines based on request parameters"
-
+    # Order
     order = request.query.get("_order")
-    if order is not None and order.startswith("-row"):
-        return lines[::-1]
-    else:
-        return lines
+    reverse_order = order is not None and order.startswith("-row")
 
+    return limit, page, reverse_order
 
 def file_download_response(filename, body):
     return web.Response(

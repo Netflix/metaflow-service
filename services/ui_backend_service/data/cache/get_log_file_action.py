@@ -1,15 +1,14 @@
 import hashlib
 import json
 
-from typing import Dict
+from typing import Dict, List, Tuple
 from .client import CacheAction
 from services.utils import get_traceback_str
 
 from ..s3 import (
     S3AccessDenied, S3CredentialsMissing,
     S3Exception, S3NotFound,
-    S3URLException, get_s3_obj, get_s3_client, get_s3_size)
-from .utils import (error_event_msg, read_as_string)
+    S3URLException)
 
 # New imports
 
@@ -19,9 +18,7 @@ STDERR = 'stderr'
 
 class GetLogFile(CacheAction):
     """
-    Gets raw log file content from S3 url, caches both the content and the current file size,
-    when processing, compares file size from HEAD response of s3 file to the cached file size, and
-    performs re-fetch only if the sizes differ.
+    Gets logs for a task, returning a paginated subset of the loglines.
 
     Parameters
     ----------
@@ -34,24 +31,39 @@ class GetLogFile(CacheAction):
 
     Returns
     --------
-    str
+    Dict
         example:
-        "log line 1\nlog line2\nlog line 3"
+        {
+            "content": [
+                {"row": 1, "line": "first log line},
+                {"row": 2, "line": "second log line},
+            ],
+            "pages": 5,
+            "limit": 2
+        }
     """
 
     @classmethod
-    def format_request(cls, task: Dict, logtype: str = STDOUT, invalidate_cache=False):
+    def format_request(cls, task: Dict, logtype: str = STDOUT,
+                        limit: int = 0, page: int = 1,
+                        reverse_order: bool = False, raw_log: bool = False, invalidate_cache=False
+                       ):
         msg = {
             'task': task,
-            'logtype': logtype
+            'logtype': logtype,
+            'limit': limit,
+            'page': page,
+            'reverse_order': reverse_order,
+            'raw_log': raw_log
         }
         log_key = log_cache_id(task, logtype)
-        stream_key = 'log:stream:%s' % lookup_id(task, logtype)
+        result_key = log_result_id(task, logtype, limit, page, reverse_order, raw_log)
+        stream_key = 'log:stream:%s' % lookup_id(task, logtype, limit, page, reverse_order, raw_log)
 
         return msg,\
-            [log_key],\
+            [log_key, result_key],\
             stream_key,\
-            [stream_key],\
+            [stream_key, result_key],\
             invalidate_cache
 
     @classmethod
@@ -60,8 +72,8 @@ class GetLogFile(CacheAction):
         Return the cached log content
         '''
         return [
-            json.loads(val)["content"] for key, val in keys_objs.items()
-            if key.startswith('log:content')][0]
+            json.loads(val) for key, val in keys_objs.items()
+            if key.startswith('log:result')][0]
 
     @classmethod
     def stream_response(cls, it):
@@ -78,30 +90,35 @@ class GetLogFile(CacheAction):
                 **kwargs):
 
         results = {}
+        # params
         task = message['task']
+        limit = message['limit']
+        page = message['page']
         logtype = message['logtype']
-        log_key = log_cache_id(task, logtype)
+        reverse = message['reverse_order']
+        output_raw = message['raw_log']
         pathspec = pathspec_for_task(task)
         attempt_id = task.get("attempt_id", 0)
 
-        previous_result = existing_keys.get(log_key, None)
-        previous_log_size = json.loads(previous_result).get("log_size", None) if previous_result else None
+        # keys
+        log_key = log_cache_id(task, logtype)
+        result_key = log_result_id(task, logtype, limit, page, reverse, output_raw)
+
+        previous_log_file = existing_keys.get(log_key, None)
+        previous_log_size = json.loads(previous_log_file).get("log_size", None) if previous_log_file else None
 
         def stream_error(err, id, traceback=None):
             return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
         try:
-            # fetch HEAD of logfile and compare
-            # current_size = get_s3_size(s3, location)
-            current_size = None # TODO: How to get logsize with metaflow cli?
+            # check if log has grown since last time.
+            current_size = get_log_size(logtype, pathspec, attempt_id)
             if previous_log_size and previous_log_size == current_size:
                 # if filesizes match, return existing results.
-                return existing_keys
-
+                return existing_keys # TODO: check if result_key also exists, if not, paginate from existing keys.
+            
             # current size has increased since last check, update size and fetch new content
-            namespace(None)
-            task = Task(pathspec) # TODO: How to fetch logs for a _specific_ task attempt only???
-            content = task.stderr if logtype == STDERR else task.stdout
+            content = get_log_content(logtype, pathspec, attempt_id)
             results[log_key] = json.dumps({"log_size": current_size, "content": content})
         except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing) as ex:
             stream_error(str(ex), ex.id)
@@ -109,24 +126,68 @@ class GetLogFile(CacheAction):
             stream_error(get_traceback_str(), ex.id)
         except Exception:
             stream_error(get_traceback_str(), 'log-handle-failed')
+        
+        if not output_raw:
+            loglines, total_pages = format_loglines(content, page, limit)
+        else:
+            loglines = content
+            total_pages = 1
+
+        results[result_key] = json.dumps(
+            {
+                "content": loglines,
+                "pages": total_pages
+            }
+        )
+
 
         return results
 
 # Utilities
 
+def get_log_size(logtype: str, pathspec: str, attempt_id: int = 0):
+    # TODO: How to get logsize with metaflow cli?
+    return None
+
+def get_log_content(logtype: str, pathspec: str, attempt_id: int = 0):
+    namespace(None)
+    task = Task(pathspec) # TODO: How to fetch logs for a _specific_ task attempt only???
+    return task.stderr if logtype == STDERR else task.stdout
+
+def format_loglines(content: str, page: int = 1, limit: int = 0, reverse: bool = False) -> Tuple[List, int]:
+    "format, order and limit the log content. Return a list of log lines with row numbers"
+    lines = [{"row": row, "line": line} for row, line in enumerate(content.split("\n"))]
+    _offset = limit * (page - 1)
+
+    pages = max(len(lines) // limit, 1)
+
+    return lines[::-1][_offset:][:limit] if reverse else lines[_offset:][:limit], \
+        pages
+
 
 def log_cache_id(task: Dict, logtype: str):
     "construct a unique cache key for log file location"
-    return "log:content:{pathspec}-{attempt}.{logtype}".format(
+    return "log:file:{pathspec}-{attempt}.{logtype}".format(
         pathspec=pathspec_for_task(task),
         attempt=task.get("attempt_id", 0),
         logtype=logtype
     )
 
+def log_result_id(task: Dict, logtype: str, limit: int = 0, page: int = 1, reverse_order: bool = False, raw_log: bool = False):
+    "construct a unique cache key for a paginated log response"
+    return "log:result:%s" % lookup_id(task, logtype, limit, page, reverse_order, raw_log)
 
-def lookup_id(task: Dict, logtype: str):
+
+def lookup_id(task: Dict, logtype: str, limit: int = 0, page: int = 1, reverse_order: bool = False, raw_log: bool = False):
     "construct a unique id to be used with stream_key and result_key"
-    return hashlib.sha1(log_cache_id(task, logtype).encode('utf-8')).hexdigest()
+    _string = "{file}_{limit}_{page}_{reverse}_{raw}".format(
+        file=log_cache_id(task, logtype),
+        limit=limit,
+        page=page,
+        reverse=reverse_order,
+        raw=raw_log
+    )
+    return hashlib.sha1(_string.encode('utf-8')).hexdigest()
 
 
 def pathspec_for_task(task: Dict):
