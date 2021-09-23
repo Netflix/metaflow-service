@@ -177,10 +177,18 @@ def format_loglines(content: str, page: int = 1, limit: int = 0, reverse: bool =
     lines = [{"row": row, "line": line} for row, line in enumerate(content.split("\n"))]
 
     _offset = limit * (page - 1)
-    pages = max(len(lines) // limit, 1)
+    pages = max(len(lines) // limit, 1) if limit else 1
+    if pages < page:
+        # guard against OOB page requests
+        return [], pages
 
-    return lines[::-1][_offset:][:limit] if reverse else lines[_offset:][:limit], \
-        pages
+    if reverse:
+        lines = lines[::-1]
+
+    if limit:
+        lines = lines[_offset:][:limit]
+
+    return lines, pages
 
 
 def log_cache_id(task: Dict, logtype: str):

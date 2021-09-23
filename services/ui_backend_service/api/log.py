@@ -216,7 +216,6 @@ class LogApi(object):
         status, body = format_response_list(request, response, pagination, page, page_count)
         return web_response(status, body)
 
-
     async def get_task_log_file(self, request, logtype=STDOUT):
         "fetches log and emits it as a single file download response"
         flow_id, run_number, step_name, task_id, attempt_id = \
@@ -269,6 +268,7 @@ def get_pagination_params(request):
     reverse_order = order is not None and order.startswith("-row")
 
     return limit, page, reverse_order
+
 
 def file_download_response(filename, body):
     return web.Response(
