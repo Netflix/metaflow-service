@@ -31,7 +31,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     joins = [
         """
         LEFT JOIN LATERAL (
-            SELECT ts_epoch, value::boolean
+            SELECT ts_epoch, (value->>0)::boolean as value
             FROM {metadata_table} as attempt_ok
             WHERE
                 {table_name}.flow_id = attempt_ok.flow_id AND
@@ -68,7 +68,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             FROM
             {task_table} as task
             LEFT JOIN LATERAL (
-                SELECT value::boolean as is_ok, ts_epoch
+                SELECT (value->>0)::boolean as is_ok, ts_epoch
                 FROM {metadata_table} as attempt_ok
                 WHERE
                     task.flow_id=attempt_ok.flow_id AND
