@@ -1,7 +1,7 @@
 from services.data import StepRow
-from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
+from services.data.db_utils import DBResponse
 from services.data.postgres_async_db import AsyncPostgresDB
 
 
@@ -25,12 +25,12 @@ class StepApi(object):
         self._run_table = AsyncPostgresDB.get_instance().run_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_steps(self, request):
         """
         ---
-        description: get all steps associated with the specified run.
+        description: Get all steps associated with the specified run.
         tags:
         - Steps
         parameters:
@@ -45,7 +45,7 @@ class StepApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. returned all steps
@@ -56,12 +56,12 @@ class StepApi(object):
         run_number = request.match_info.get("run_number")
         return await self._async_table.get_steps(flow_name, run_number)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_step(self, request):
         """
         ---
-        description: get specified step.
+        description: Get specified step.
         tags:
         - Steps
         parameters:
@@ -81,7 +81,7 @@ class StepApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Returned specified step
@@ -95,8 +95,8 @@ class StepApi(object):
         step_name = request.match_info.get("step_name")
         return await self._async_table.get_step(flow_name, run_number, step_name)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_step(self, request):
         """
         ---
@@ -133,7 +133,7 @@ class StepApi(object):
                 system_tags:
                     type: object
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Registered step
@@ -144,12 +144,16 @@ class StepApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
 
-        body = await read_body(request.content)
+        body = await request.json()
         user = body.get("user_name", "")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
 
-        run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
+        run = await self._db.get_run_ids(flow_name, run_number)
+        if run.response_code != 200:
+            return DBResponse(400, {"message": "need to register run_id first"})
+        run_id = run.body['run_id']
+        run_number = run.body['run_number']
 
         step_row = StepRow(
             flow_name, run_number, run_id, user, step_name, tags=tags,

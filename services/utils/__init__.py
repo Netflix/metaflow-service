@@ -18,15 +18,6 @@ log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
 
-async def read_body(request_content):
-    byte_array = bytearray()
-    while not request_content.at_eof():
-        data = await request_content.read(4)
-        byte_array.extend(data)
-
-    return json.loads(byte_array.decode("utf-8"))
-
-
 def get_traceback_str():
     """Get the traceback as a string."""
 
@@ -85,8 +76,8 @@ class DBConfiguration(object):
     # https://aiopg.readthedocs.io/en/stable/_modules/aiopg/pool.html#create_pool
     pool_min: int = None  # aiopg default: 1
     pool_max: int = None  # aiopg default: 10
-
-    timeout: int = None  # aiopg default: 60 (seconds)
+    pool_timeout: int = None  # aiopg default: 60 (seconds)
+    pool_recycle : int = -1
 
     _dsn: str = None
 
@@ -100,7 +91,8 @@ class DBConfiguration(object):
                  prefix="MF_METADATA_DB_",
                  pool_min: int = 1,
                  pool_max: int = 10,
-                 timeout: int = 60):
+                 timeout: int = 60,
+                 pool_recycle: int = -1):
         table = str.maketrans({"'": "\'", "`": r"\`"})
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
@@ -116,7 +108,8 @@ class DBConfiguration(object):
         self.pool_min = int(os.environ.get(prefix + "POOL_MIN", pool_min))
         self.pool_max = int(os.environ.get(prefix + "POOL_MAX", pool_max))
 
-        self.timeout = int(os.environ.get(prefix + "TIMEOUT", timeout))
+        self.pool_timeout = int(os.environ.get(prefix + "TIMEOUT", timeout))
+        self.pool_recycle = int(os.environ.get(prefix + "POOL_RECYCLE", pool_recycle))
 
     @property
     def dsn(self):

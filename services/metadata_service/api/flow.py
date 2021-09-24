@@ -1,6 +1,5 @@
 from services.data import FlowRow
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import asyncio
@@ -16,12 +15,12 @@ class FlowApi(object):
         app.router.add_route("POST", "/flows/{flow_id}", self.create_flow)
         self._async_table = AsyncPostgresDB.get_instance().flow_table_postgres
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_flow(self, request):
         """
         ---
-        description: create/register a flow
+        description: Create/register a flow
         tags:
         - Flow
         parameters:
@@ -45,7 +44,7 @@ class FlowApi(object):
                     type: object
 
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "200":
                 description: successfully created flow row
@@ -54,7 +53,7 @@ class FlowApi(object):
         """
         flow_name = request.match_info.get("flow_id")
 
-        body = await read_body(request.content)
+        body = await request.json()
         user = body.get("user_name")
         tags = body.get("tags")
         system_tags = body.get("system_tags")
@@ -63,8 +62,8 @@ class FlowApi(object):
         )
         return await self._async_table.add_flow(flow)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_flow(self, request):
         """
         ---
@@ -78,7 +77,7 @@ class FlowApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Return flow
@@ -91,8 +90,8 @@ class FlowApi(object):
         flow_name = request.match_info.get("flow_id")
         return await self._async_table.get_flow(flow_name)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_all_flows(self, request):
         """
         ---
@@ -100,7 +99,7 @@ class FlowApi(object):
         tags:
         - Flow
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Returned all registered flows

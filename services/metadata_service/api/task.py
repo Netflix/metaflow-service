@@ -1,6 +1,6 @@
 from services.data import TaskRow
+from services.data.db_utils import DBResponse
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
@@ -35,12 +35,12 @@ class TaskApi(object):
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_tasks(self, request):
         """
         ---
-        description: get all tasks associated with the specified step.
+        description: Get all tasks associated with the specified step.
         tags:
         - Tasks
         parameters:
@@ -60,7 +60,7 @@ class TaskApi(object):
           required: true
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Return tasks
@@ -73,12 +73,12 @@ class TaskApi(object):
 
         return await self._async_table.get_tasks(flow_name, run_number, step_name)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def get_task(self, request):
         """
         ---
-        description: get all artifacts associated with the specified task.
+        description: Get specified task
         tags:
         - Tasks
         parameters:
@@ -118,12 +118,12 @@ class TaskApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def create_task(self, request):
         """
         ---
-        description: This end-point allow to test that service is up.
+        description: Creates a task
         tags:
         - Tasks
         parameters:
@@ -158,7 +158,7 @@ class TaskApi(object):
                 task_id:
                     type: string
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "202":
                 description: successful operation. Return newly registered task
@@ -170,7 +170,7 @@ class TaskApi(object):
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
-        body = await read_body(request.content)
+        body = await request.json()
 
         user = body.get("user_name")
         tags = body.get("tags")
@@ -181,7 +181,11 @@ class TaskApi(object):
             return web.Response(status=400, body=json.dumps(
                 {"message": "provided task_name may not be a numeric"}))
 
-        run_number, run_id = await self._db.get_run_ids(flow_id, run_number)
+        run = await self._db.get_run_ids(flow_id, run_number)
+        if run.response_code != 200:
+            return DBResponse(400, {"message": "need to register run_id and task_id first"})
+        run_id = run.body['run_id']
+        run_number = run.body['run_number']
 
         task = TaskRow(
             flow_id=flow_id,
@@ -195,12 +199,12 @@ class TaskApi(object):
         )
         return await self._async_table.add_task(task)
 
-    @format_response
     @handle_exceptions
+    @format_response
     async def tasks_heartbeat(self, request):
         """
         ---
-        description: update hb
+        description: Heartbeats the task
         tags:
         - Tasks
         parameters:
@@ -231,7 +235,7 @@ class TaskApi(object):
           schema:
             type: object
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "200":
                 description: successful operation. Return newly registered run

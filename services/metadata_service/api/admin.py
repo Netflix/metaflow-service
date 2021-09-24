@@ -30,7 +30,7 @@ class AuthApi(object):
         tags:
         - Admin
         produces:
-        - 'text/plain'
+        - text/plain
         responses:
             "200":
                 description: successful operation. Return the version number
@@ -46,7 +46,7 @@ class AuthApi(object):
         tags:
         - Admin
         produces:
-        - 'text/plain'
+        - text/plain
         responses:
             "202":
                 description: successful operation. Return "pong" text
@@ -64,7 +64,7 @@ class AuthApi(object):
         tags:
         - Admin
         produces:
-        - 'application/json'
+        - application/json
         responses:
             "202":
                 description: successful operation.
@@ -96,11 +96,11 @@ class AuthApi(object):
     async def get_authorization_token(self, request):
         """
         ---
-        description: this is used exclusively for sandbox auth
+        description: This endpoint is used exclusively for sandbox auth
         tags:
         - Auth
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successfully returned certs
@@ -139,5 +139,5 @@ class AuthApi(object):
 
             return web.Response(status=200, body=json.dumps(credentials))
         except Exception as ex:
-            body = {"err_msg": str(ex), "traceback": get_traceback_str()}
+            body = {"message": str(ex), "traceback": get_traceback_str()}
             return web.Response(status=500, body=json.dumps(body))
