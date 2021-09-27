@@ -30,9 +30,11 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         LEFT JOIN LATERAL (
             SELECT last_heartbeat_ts as heartbeat_ts
             FROM {task_table}
-            WHERE {table_name}.flow_id={task_table}.flow_id
-            AND {table_name}.run_number={task_table}.run_number
-            AND {table_name}.step_name={task_table}.step_name
+            WHERE
+                {table_name}.model_suite_id='_no_model_suite_' AND
+                {table_name}.flow_id={task_table}.flow_id AND
+                {table_name}.run_number={task_table}.run_number AND
+                {table_name}.step_name={task_table}.step_name
             ORDER BY last_heartbeat_ts DESC
             LIMIT 1
         ) AS latest_task_hb ON true
@@ -44,10 +46,12 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         LEFT JOIN LATERAL (
             SELECT ts_epoch as ts_epoch
             FROM {artifact_table}
-            WHERE {table_name}.flow_id={artifact_table}.flow_id
-            AND {table_name}.run_number={artifact_table}.run_number
-            AND {table_name}.step_name={artifact_table}.step_name
-            AND {artifact_table}.name = '_task_ok'
+            WHERE 
+                {table_name}.model_suite_id='_no_model_suite_' AND
+                {table_name}.flow_id={artifact_table}.flow_id AND
+                {table_name}.run_number={artifact_table}.run_number AND
+                {table_name}.step_name={artifact_table}.step_name AND
+                {artifact_table}.name = '_task_ok'
             ORDER BY
                 ts_epoch DESC
             LIMIT 1
@@ -60,10 +64,12 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         LEFT JOIN LATERAL (
             SELECT ts_epoch as ts_epoch
             FROM {metadata_table}
-            WHERE {table_name}.flow_id={metadata_table}.flow_id
-            AND {table_name}.run_number={metadata_table}.run_number
-            AND {table_name}.step_name={metadata_table}.step_name
-            AND (
+            WHERE
+            {table_name}.model_suite_id='_no_model_suite_' AND
+            {table_name}.flow_id={metadata_table}.flow_id AND
+            {table_name}.run_number={metadata_table}.run_number AND
+            {table_name}.step_name={metadata_table}.step_name AND
+            (
                 {metadata_table}.field_name = 'attempt_ok' OR
                 {metadata_table}.field_name = 'attempt-done'
             )

@@ -62,6 +62,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                            invalidate_cache=False, benchmark: bool = False,
                            overwrite_select_from: str = None
                            ) -> Tuple[DBResponse, DBPagination]:
+        # temporarily add _no_model_suite_ to all queries in order to hit indexes
+        # TODO: get rid of this for release.
+
         # Grouping not enabled
         if groups is None or len(groups) == 0:
             sql_template = """
@@ -70,6 +73,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                     {keys}
                 FROM {table_name}
                 {joins}
+                WHERE {table_name}.model_suite_id='_no_model_suite_'
             ) T
             {where}
             {order_by}
@@ -85,7 +89,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                     self.joins) if enable_joins and self.joins else "",
                 where="WHERE {}".format(" AND ".join(
                     conditions)) if conditions else "",
-                order_by="ORDER BY {}".format(
+                order_by="ORDER BY {} NULLS LAST".format(
                     ", ".join(order)) if order else "",
                 limit="LIMIT {}".format(limit) if limit else "",
                 offset="OFFSET {}".format(offset) if offset else ""
@@ -161,7 +165,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                 where="WHERE {}".format(" AND ".join(
                     conditions)) if conditions else "",
                 group_by=", ".join(groups),
-                order_by="ORDER BY {}".format(
+                order_by="ORDER BY {} NULLS LAST".format(
                     ", ".join(order)) if order else "",
                 group_where="""
                     WHERE {group_limit} {group_selects}

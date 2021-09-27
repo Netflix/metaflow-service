@@ -45,6 +45,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     (value->>0)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
                     {table_name}.flow_id = meta.flow_id AND
                     {table_name}.run_number = meta.run_number AND
                     {table_name}.step_name = meta.step_name AND
@@ -61,6 +62,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     (value->>0)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
                     {table_name}.flow_id = meta.flow_id AND
                     {table_name}.run_number = meta.run_number AND
                     {table_name}.step_name = meta.step_name AND
@@ -77,6 +79,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     (regexp_matches(tags::text, 'attempt_id:(\\d+)'))[1]::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
                     {table_name}.flow_id = meta.flow_id AND
                     {table_name}.run_number = meta.run_number AND
                     {table_name}.step_name = meta.step_name AND
@@ -93,6 +96,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     attempt_id as attempt_id
                 FROM {artifact_table} as task_ok
                 WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
                     {table_name}.flow_id = task_ok.flow_id AND
                     {table_name}.run_number = task_ok.run_number AND
                     {table_name}.step_name = task_ok.step_name AND
@@ -106,6 +110,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             SELECT ts_epoch
             FROM {metadata_table} as next_attempt_start
             WHERE
+                {table_name}.model_suite_id='_no_model_suite_' AND
                 {table_name}.flow_id = next_attempt_start.flow_id AND
                 {table_name}.run_number = next_attempt_start.run_number AND
                 {table_name}.step_name = next_attempt_start.step_name AND
@@ -118,6 +123,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             SELECT location
             FROM {artifact_table} as foreach_stack
             WHERE
+                {table_name}.model_suite_id='_no_model_suite_' AND
                 {table_name}.flow_id = foreach_stack.flow_id AND
                 {table_name}.run_number = foreach_stack.run_number AND
                 {table_name}.step_name = foreach_stack.step_name AND
