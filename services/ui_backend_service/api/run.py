@@ -112,7 +112,8 @@ class RunApi(object):
 
             # Allow optimized order only when sorting by real columns only
             if optimized_order and not unoptimized_order:
-                overwrite_select_from = "(SELECT * FROM runs_v3 {order_by}) AS runs_v3".format(
+                overwrite_select_from = "(SELECT * FROM {table_name} {order_by}) AS {table_name}".format(
+                    table_name=self._async_table.table_name,
                     order_by="ORDER BY {}".format(", ".join(optimized_order))
                 )
 
