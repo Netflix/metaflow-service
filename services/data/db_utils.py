@@ -61,10 +61,14 @@ def get_latest_attempt_id_for_tasks(artifacts):
     return attempt_ids
 
 
-def filter_artifacts_by_attempt_id_for_tasks(artifacts):
+def filter_artifacts_for_latest_attempt(artifacts):
     attempt_ids = get_latest_attempt_id_for_tasks(artifacts)
+    return filter_artifacts_by_attempt_id_for_tasks(artifacts, attempt_ids)
+
+
+def filter_artifacts_by_attempt_id_for_tasks(artifacts, attempt_for_tasks):
     result = []
     for artifact in artifacts:
-        if artifact['attempt_id'] == attempt_ids[artifact['task_id']]:
+        if artifact['attempt_id'] == attempt_for_tasks[artifact['task_id']]:
             result.append(artifact)
     return result

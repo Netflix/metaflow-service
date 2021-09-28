@@ -3,7 +3,7 @@ import os
 if __name__ == "__main__":
     try:
         my_env = os.environ
-        migration_server_process = Popen("PYTHONPATH=/ python3 -m services.migration_service.migration_server", shell=True,
+        migration_server_process = Popen("PYTHONPATH=/root python3 -m services.migration_service.migration_server", shell=True,
                           close_fds=True, env=my_env)
 
         get_env_version = Popen(

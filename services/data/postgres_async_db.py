@@ -95,7 +95,7 @@ class _AsyncPostgresDB(object):
 
                 break  # Break the retry loop
             except Exception as e:
-                self.logger.exception("Exception occured")
+                self.logger.exception("Exception occurred")
                 if retries - i <= 1:
                     raise e
                 time.sleep(connection_retry_wait_time_seconds)
@@ -892,6 +892,29 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     async def get_artifact(
         self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str
     ):
+
+        # To get the "latest" artifact, we check an artifact that always
+        # exists ('name') and get that attempt_id and then use that to fetch
+        # the artifact for that attempt.
+        run_id_key, run_id_value = translate_run_key(run_id)
+        task_id_key, task_id_value = translate_task_key(task_id)
+        filter_dict = {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+            task_id_key: task_id_value,
+            '"name"': 'name'
+        }
+        name_record = await self.get_records(filter_dict=filter_dict,
+                                             fetch_single=True, ordering=self.ordering)
+
+        return await self.get_artifact_by_attempt(
+            flow_id, run_id, step_name, task_id, name, name_record.body['attempt_id'])
+
+    async def get_artifact_by_attempt(
+        self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str,
+        attempt : int):
+
         run_id_key, run_id_value = translate_run_key(run_id)
         task_id_key, task_id_value = translate_task_key(task_id)
         filter_dict = {
@@ -900,6 +923,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "step_name": step_name,
             task_id_key: task_id_value,
             '"name"': name,
+            '"attempt_id"': attempt
         }
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, ordering=self.ordering)
