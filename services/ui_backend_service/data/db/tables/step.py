@@ -31,7 +31,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             SELECT last_heartbeat_ts as heartbeat_ts
             FROM {task_table}
             WHERE
-                {table_name}.model_suite_id='_no_model_suite_' AND
+                {task_table}.model_suite_id='_no_model_suite_' AND
                 {table_name}.flow_id={task_table}.flow_id AND
                 {table_name}.run_number={task_table}.run_number AND
                 {table_name}.step_name={task_table}.step_name
@@ -47,7 +47,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             SELECT ts_epoch as ts_epoch
             FROM {artifact_table}
             WHERE 
-                {table_name}.model_suite_id='_no_model_suite_' AND
+                {artifact_table}.model_suite_id='_no_model_suite_' AND
                 {table_name}.flow_id={artifact_table}.flow_id AND
                 {table_name}.run_number={artifact_table}.run_number AND
                 {table_name}.step_name={artifact_table}.step_name AND
@@ -65,7 +65,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             SELECT ts_epoch as ts_epoch
             FROM {metadata_table}
             WHERE
-            {table_name}.model_suite_id='_no_model_suite_' AND
+            {metadata_table}.model_suite_id='_no_model_suite_' AND
             {table_name}.flow_id={metadata_table}.flow_id AND
             {table_name}.run_number={metadata_table}.run_number AND
             {table_name}.step_name={metadata_table}.step_name AND
@@ -131,6 +131,9 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             SELECT step_name FROM (
                 SELECT DISTINCT step_name, flow_id, run_number, run_id
                 FROM {table_name}
+                WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
+                    {table_name}.ts_epoch IS NOT NULL
             ) T
             {conditions}
             {limit}

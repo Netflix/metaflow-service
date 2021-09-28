@@ -266,6 +266,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         FROM (
             SELECT JSONB_ARRAY_ELEMENTS_TEXT(tags||system_tags) AS tag
             FROM {table_name}
+            WHERE
+                {table_name}.model_suite_id='_no_model_suite_' AND
+                {table_name}.ts_epoch IS NOT NULL
         ) AS t
         {conditions}
         {limit}

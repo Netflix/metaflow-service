@@ -34,7 +34,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             SELECT ts_epoch, (value->>0)::boolean as value
             FROM {metadata_table} as attempt_ok
             WHERE
-                {table_name}.model_suite_id='_no_model_suite_' AND
+                attempt_ok.model_suite_id='_no_model_suite_' AND
                 {table_name}.flow_id = attempt_ok.flow_id AND
                 {table_name}.run_number = attempt_ok.run_number AND
                 attempt_ok.step_name = 'end' AND
@@ -51,7 +51,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             SELECT ts_epoch
             FROM {metadata_table} as attempt
             WHERE
-                {table_name}.model_suite_id='_no_model_suite_' AND
+                attempt.model_suite_id='_no_model_suite_' AND
                 {table_name}.flow_id = attempt.flow_id AND
                 {table_name}.run_number = attempt.run_number AND
                 attempt.step_name = 'end' AND
@@ -244,6 +244,9 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             SELECT run FROM (
                 SELECT DISTINCT COALESCE(run_id, run_number::text) as run, flow_id
                 FROM {table_name}
+                WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
+                    {table_name}.ts_epoch IS NOT NULL
             ) T
             {conditions}
             {limit}

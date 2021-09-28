@@ -89,6 +89,9 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             SELECT name FROM (
                 SELECT DISTINCT name, flow_id, run_number, run_id
                 FROM {table_name}
+                WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
+                    {table_name}.ts_epoch IS NOT NULL
             ) T
             {conditions}
             {limit}
