@@ -36,8 +36,13 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
         (DBResponse, DBPagination)
         """
         sql_template = """
-            SELECT DISTINCT flow_id
-            FROM {table_name}
+            SELECT flow_id FROM (
+                SELECT DISTINCT flow_id
+                FROM {table_name}
+                WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
+                    {table_name}.ts_epoch IS NOT NULL
+            ) T
             {conditions}
             {limit}
             {offset}
