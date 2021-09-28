@@ -73,7 +73,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                     {keys}
                 FROM {table_name}
                 {joins}
-                WHERE {table_name}.model_suite_id='_no_model_suite_'
+                WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
+                    {table_name}.ts_epoch IS NOT NULL
             ) T
             {where}
             {order_by}
@@ -105,6 +107,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                     {keys}
                 FROM {table_name}
                 {joins}
+                WHERE
+                    {table_name}.model_suite_id='_no_model_suite_' AND
+                    {table_name}.ts_epoch IS NOT NULL
             ) T
             {where}
             ORDER BY {group_by} ASC NULLS LAST
