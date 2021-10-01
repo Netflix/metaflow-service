@@ -8,7 +8,7 @@ from services.utils import get_traceback_str
 from ..s3 import (
     S3AccessDenied, S3CredentialsMissing,
     S3Exception, S3NotFound,
-    S3URLException)
+    S3URLException, wrap_metaflow_s3_errors)
 
 # New imports
 
@@ -120,7 +120,6 @@ class GetLogFile(CacheAction):
         reverse = message['reverse_order']
         output_raw = message['raw_log']
         pathspec = pathspec_for_task(task)
-        attempt_id = task.get("attempt_id", 0)
 
         # keys
         log_key = log_cache_id(task, logtype)
@@ -135,11 +134,11 @@ class GetLogFile(CacheAction):
         log_size_changed = False  # keep track if we loaded new content
         try:
             # check if log has grown since last time.
-            current_size = get_log_size(logtype, pathspec, attempt_id)
+            current_size = get_log_size(logtype, pathspec)
             log_size_changed = previous_log_size is None or previous_log_size != current_size
 
             if log_size_changed:
-                content = get_log_content(logtype, pathspec, attempt_id)
+                content = get_log_content(logtype, pathspec)
                 results[log_key] = json.dumps({"log_size": current_size, "content": content})
             else:
                 results = {**existing_keys}
@@ -169,14 +168,16 @@ class GetLogFile(CacheAction):
 # Utilities
 
 
-def get_log_size(logtype: str, pathspec: str, attempt_id: int = 0):
+@wrap_metaflow_s3_errors
+def get_log_size(logtype: str, pathspec: str):
     # TODO: How to get logsize with metaflow cli?
     return None
 
 
-def get_log_content(logtype: str, pathspec: str, attempt_id: int = 0):
+@wrap_metaflow_s3_errors
+def get_log_content(logtype: str, pathspec: str):
     namespace(None)
-    task = Task(pathspec)  # TODO: How to fetch logs for a _specific_ task attempt only???
+    task = Task(pathspec)
     return task.stderr if logtype == STDERR else task.stdout
 
 
@@ -214,9 +215,8 @@ def format_loglines(content: str, page: int = 1, limit: int = 0, reverse: bool =
 
 def log_cache_id(task: Dict, logtype: str):
     "construct a unique cache key for log file location"
-    return "log:file:{pathspec}-{attempt}.{logtype}".format(
+    return "log:file:{pathspec}.{logtype}".format(
         pathspec=pathspec_for_task(task),
-        attempt=task.get("attempt_id", 0),
         logtype=logtype
     )
 
@@ -239,5 +239,11 @@ def lookup_id(task: Dict, logtype: str, limit: int = 0, page: int = 1, reverse_o
 
 
 def pathspec_for_task(task: Dict):
-    "pathspec for a task, without the attempt id included"
-    return "{flow_id}/{run_number}/{step_name}/{task_id}".format(**task)
+    "pathspec for a task, with the attempt id included"
+    return "{flow_id}/{run_number}/{step_name}/{task_id}/{attempt_id}".format(
+        flow_id=task["flow_id"],
+        run_number=task["run_number"],
+        step_name=task["step_name"],
+        task_id=task["task_id"],
+        attempt_id=task.get("attempt_id", 0),
+    )

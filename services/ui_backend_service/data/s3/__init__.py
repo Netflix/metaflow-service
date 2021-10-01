@@ -1,4 +1,3 @@
-import asyncio
 import os
 from functools import wraps
 from tempfile import NamedTemporaryFile
@@ -6,34 +5,51 @@ from urllib.parse import urlparse
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+from metaflow.exception import MetaflowException, MetaflowNotFound
 from services.ui_backend_service.features import FEATURE_S3_DISABLE
-
+from metaflow.datatools.s3 import (
+    MetaflowS3Exception, MetaflowS3URLException, MetaflowS3NotFound,
+    MetaflowS3AccessDenied, MetaflowS3InvalidObject
+)
 # S3 helpers
 
 
 def wrap_s3_errors(func):
-    """wrap s3 errors into custom error classes, support both sync and async functions"""
+    """wrap s3 errors into custom error classes"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            res = func(*args, **kwargs)
+            return res
+        except ClientError as ex:
+            wrap_boto_client_error(ex)
+        except NoCredentialsError:
+            raise S3CredentialsMissing
 
-    if asyncio.iscoroutinefunction(func):
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            try:
-                res = await func(*args, **kwargs)
-                return res
-            except ClientError as ex:
-                wrap_boto_client_error(ex)
-            except NoCredentialsError:
+    return wrapper
+
+
+def wrap_metaflow_s3_errors(func):
+    """wrap s3 errors into custom error classes"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            res = func(*args, **kwargs)
+            return res
+        except MetaflowS3AccessDenied:
+            raise S3AccessDenied
+        except MetaflowS3URLException:
+            raise S3URLException
+        except MetaflowNotFound:
+            raise S3NotFound
+        except MetaflowException as ex:
+            err = str(ex)
+            if "Unable to locate credentials" in err:
+                # TODO: metaflow client should raise the credentials missing error separately,
+                # instead of hiding it under MetaflowException. Would make this wrapper more robust as well.
                 raise S3CredentialsMissing
-    else:
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            try:
-                res = func(*args, **kwargs)
-                return res
-            except ClientError as ex:
-                wrap_boto_client_error(ex)
-            except NoCredentialsError:
-                raise S3CredentialsMissing
+            else:
+                raise S3Exception(msg=err)
 
     return wrapper
 
