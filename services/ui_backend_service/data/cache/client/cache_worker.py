@@ -5,6 +5,10 @@ import signal
 
 from .cache_action import import_action_class_spec
 
+os.environ['METAFLOW_S3_RETRY_COUNT'] = '0'
+os.environ['USERNAME'] = 'none'
+os.environ['METAFLOW_DEFAULT_METADATA'] = 'service'
+
 
 def best_effort_read(key_paths):
     for key, path in key_paths:

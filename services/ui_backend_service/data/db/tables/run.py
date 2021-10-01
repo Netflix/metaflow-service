@@ -1,8 +1,7 @@
 import os
 import time
 from typing import List, Tuple
-from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
-from .flow import AsyncFlowTablePostgres
+from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME
 from ..models import RunRow
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 # use schema constants from the .data module to keep things consistent
@@ -205,6 +204,33 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         )
 
         return _records.body
+
+    async def get_run(self, flow_id: str, run_key: str):
+        """
+        Fetch run with a given flow_id and run id or number from the DB.
+
+        Parameters
+        ----------
+        flow_id : str
+            flow_id
+        run_key : str
+            run number or run id
+
+        Returns
+        -------
+        DBResponse
+            Containing a single run record, if one was found.
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        result, *_ = await self.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(run_id_key=run_id_key),
+            ],
+            values=[flow_id, run_id_value],
+            fetch_single=True,
+            enable_joins=True)
+        return result
 
     async def get_expanded_run(self, run_key: str) -> DBResponse:
         """
