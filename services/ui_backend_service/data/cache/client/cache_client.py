@@ -163,7 +163,8 @@ class CacheClient(object):
             'actions': [[c.__module__, c.__name__] for c in self._action_classes]
         }
         return self.request_and_return([self.start_server(cmdline, env),
-                                        self._send('init', message=msg), ],
+                                        self._send('init', message=msg),
+                                        self.check()],
                                        None)
 
     def stop(self):
