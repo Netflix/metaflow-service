@@ -6,16 +6,18 @@ from typing import Dict, List, Optional
 from .client import CacheAsyncClient
 from pyee import AsyncIOEventEmitter
 from services.ui_backend_service.features import (FEATURE_CACHE_ENABLE,
-                                                  FEATURE_PREFETCH_ENABLE,
-                                                  FEATURE_REFINE_ENABLE)
+                                                  FEATURE_PREFETCH_ENABLE)
 from services.utils import logging
 
-from ..refiner import ParameterRefiner
+from ..refiner import ParameterRefiner, TaskRefiner
 from .generate_dag_action import GenerateDag
 from .get_artifacts_action import GetArtifacts
-from .get_artifacts_with_status_action import GetArtifactsWithStatus
 from .search_artifacts_action import SearchArtifacts
 from .get_log_file_action import GetLogFile
+from .get_data_action import GetData
+from .get_parameters_action import GetParameters
+from .get_task_action import GetTask
+
 # Tagged logger
 logger = logging.getLogger("CacheStore")
 
@@ -43,6 +45,7 @@ class CacheStore(object):
     """
 
     def __init__(self, db, event_emitter=None):
+        self.db = db
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
         self.dag_cache = DAGCacheStore(event_emitter, db)
         self.log_cache = LogCacheStore(event_emitter)
@@ -57,6 +60,10 @@ class CacheStore(object):
             self._monitor_restart_requests()
         )
 
+        if FEATURE_PREFETCH_ENABLE:
+            asyncio.run_coroutine_threadsafe(
+                self.preload_initial_data(), asyncio.get_event_loop())
+
     async def _monitor_restart_requests(self):
         while True:
             for _cache in [self.artifact_cache, self.dag_cache]:
@@ -69,6 +76,15 @@ class CacheStore(object):
 
             # Wait 5 seconds until checking requested restarts again
             await asyncio.sleep(5)
+
+    async def preload_initial_data(self):
+        "Preloads some data on cache startup"
+        recent_runs = await self.db.run_table_postgres.get_recent_runs()
+        logger.info("Preloading {} runs".format(len(recent_runs)))
+        await asyncio.gather(
+            self.artifact_cache.preload_data_for_runs(recent_runs),
+            self.dag_cache.preload_dags(recent_runs)
+        )
 
     async def stop_caches(self, app):
         "Stops all caches as part of app teardown"
@@ -100,23 +116,25 @@ class ArtifactCacheStore(object):
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self._artifact_table = db.artifact_table_postgres
         self._run_table = db.run_table_postgres
+        self._task_table = db.task_table_postgres
         self.cache = None
         self.loop = asyncio.get_event_loop()
 
         self.parameter_refiner = ParameterRefiner(cache=self)
+        self.task_refiner = TaskRefiner(cache=self)
 
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
         if FEATURE_PREFETCH_ENABLE:
-            self.event_emitter.on("preload-artifacts", self.preload_event_handler)
-        self.event_emitter.on("run-parameters", self.run_parameters_event_handler)
+            self.event_emitter.on("preload-task-statuses", self.preload_task_statuses_event_handler)
+            self.event_emitter.on("preload-run-parameters", self.preload_run_parameters_event_handler)
 
     async def restart_requested(self):
         return self.cache._restart_requested if self.cache else False
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for artifact caching"
-        actions = [SearchArtifacts, GetArtifacts, GetArtifactsWithStatus]
+        actions = [GetData, SearchArtifacts, GetTask, GetArtifacts, GetParameters]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
                                       max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
@@ -124,39 +142,27 @@ class ArtifactCacheStore(object):
         if FEATURE_CACHE_ENABLE:
             await self.cache.start()
 
-        if FEATURE_PREFETCH_ENABLE:
-            asyncio.run_coroutine_threadsafe(self.preload_initial_data(), self.loop)
-
-    async def preload_initial_data(self):
-        "Preloads some data on cache startup"
-        recent_runs = await self._run_table.get_recent_runs()
-        await self.preload_data_for_runs(recent_runs)
-
     async def preload_data_for_runs(self, runs: List[Dict]):
         """
-        Preloads artifact data for given run numbers. Can be used to prefetch artifacts for newly generated runs.
+        Preloads task statuses for given run numbers.
+        Can be used to prefetch task statuses for newly generated runs.
 
         Parameters
         ----------
-        run_numbers : List[int]
+        runs : List[RunRow]
             A list of run numbers to preload data for.
         """
-        artifact_locations = []
-
         for run in runs:
-            _locs = await self._artifact_table.get_artifact_locations_for_run(run)
-            artifact_locations.extend(_locs)
+            logger.debug("  - Preload parameters and task statuses for {flow_id}/{run_number}".format(**run))
+            asyncio.gather(
+                # Preload run parameters
+                await self.get_run_parameters(run['flow_id'], run['run_number']),
+                # Preload task statuses
+                await self._task_table.get_tasks_for_run(
+                    run['flow_id'], run['run_number'], postprocess=self.task_refiner.postprocess)
+            )
 
-        logger.info("preloading {} artifacts".format(len(artifact_locations)))
-
-        res = await self.cache.GetArtifacts(artifact_locations)
-        async for event in res.stream():
-            if event["type"] == "error":
-                logger.error(event)
-            else:
-                logger.info(event)
-
-    async def get_run_parameters(self, flow_id: str, run_number: int, invalidate_cache=False) -> Optional[Dict]:
+    async def get_run_parameters(self, flow_id: str, run_key: str, invalidate_cache=False) -> Optional[Dict]:
         """
         Fetches run parameter artifact locations, fetches the artifact content from S3, parses it, and returns
         a formatted dict of names&values
@@ -178,18 +184,17 @@ class ArtifactCacheStore(object):
                 }
             }
         """
-        db_response, *_ = await self._artifact_table.get_run_parameter_artifacts(
-            flow_id, run_number,
-            postprocess=self.parameter_refiner.postprocess,
-            invalidate_cache=invalidate_cache)
+        db_response = await self._run_table.get_run(flow_id, run_key)
 
         # Return nothing if params artifacts were not found.
         if not db_response.response_code == 200:
             return None
 
-        return db_response.body
+        response = await self.parameter_refiner.postprocess(db_response, invalidate_cache=invalidate_cache)
 
-    async def run_parameters_event_handler(self, flow_id: str, run_number: int):
+        return response.body
+
+    async def preload_run_parameters_event_handler(self, flow_id: str, run_number: int):
         """
         Handler for event-emitter for fetching and broadcasting run parameters when they are available.
 
@@ -211,12 +216,14 @@ class ArtifactCacheStore(object):
         except Exception:
             logger.error("Run parameter fetching failed")
 
-    async def preload_event_handler(self, flow_id: str, run_number: int):
+    async def preload_task_statuses_event_handler(self, flow_id: str, run_number: int):
         """
-        Handler for event-emitter for preloading artifacts for a run id
+        Handler for event-emitter for preloading task statuses for a run
 
         Parameters
         ----------
+        flow_id : str
+            Flow id
         run_number : int
             Run number to preload data for.
         """
@@ -228,12 +235,12 @@ class ArtifactCacheStore(object):
 
 class DAGCacheStore(object):
     """
-    Cache class responsible for parsing and caching a DAG from a codepackage in S3.
+    Cache class responsible for parsing and caching a DAG.
 
     Cache Actions
     -------------
     GenerateDag
-        Fetches a codepackage from an S3 location, decodes it, and parses a DAG from the contents.
+        Uses Metaflow Client API to fetch codepackage, decode it and parses a DAG from the contents.
 
     Parameters
     ----------
@@ -248,7 +255,7 @@ class DAGCacheStore(object):
         self.loop = asyncio.get_event_loop()
 
         if FEATURE_PREFETCH_ENABLE:
-            self.event_emitter.on("preload-dag", self.preload_event_handler)
+            self.event_emitter.on("preload-dag", self.preload_dag_event_handler)
 
     async def restart_requested(self):
         return self.cache._restart_requested if self.cache else False
@@ -266,7 +273,7 @@ class DAGCacheStore(object):
     async def stop_cache(self):
         await self.cache.stop()
 
-    async def preload_event_handler(self, flow_name: str, codepackage_loc: str):
+    async def preload_dag_event_handler(self, flow_name: str, run_number: str):
         """
         Handler for event-emitter for preloading dag
 
@@ -274,25 +281,29 @@ class DAGCacheStore(object):
         ----------
         flow_name : str
             Flow name
-        codepackage_loc : str
-            Codepackage location (S3 string)
+        run_number : str
+            Run number
         """
-        asyncio.run_coroutine_threadsafe(self.preload_dag(flow_name, codepackage_loc), self.loop)
+        asyncio.run_coroutine_threadsafe(self.preload_dag(flow_name, run_number), self.loop)
 
-    async def preload_dag(self, flow_name: str, codepackage_loc: str):
+    async def preload_dags(self, runs: List[Dict]):
+        for run in runs:
+            await self.preload_dag(run['flow_id'], run['run_number'])
+
+    async def preload_dag(self, flow_name: str, run_number: str):
         """
-        Preloads dag for given flow_name and codepackage location
+        Preloads dag for given flow_name and run_number
 
         Parameters
         ----------
         flow_name : str
             Flow name
-        codepackage_loc : str
-            Codepackage location (S3 string)
+        run_number : str
+            Run number
         """
-        logger.info("Preload DAG {} from {}".format(flow_name, codepackage_loc))
+        logger.debug("  - Preload DAG for {}/{}".format(flow_name, run_number))
 
-        res = await self.cache.GenerateDag(flow_name, codepackage_loc)
+        res = await self.cache.GenerateDag(flow_name, run_number)
         async for event in res.stream():
             if event["type"] == "error":
                 logger.error(event)

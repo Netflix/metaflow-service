@@ -2,8 +2,6 @@ from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import format_response, web_response, query_param_enabled
 
-import json
-
 
 class DagApi(object):
     def __init__(self, app, db, cache=None):
@@ -67,20 +65,12 @@ class DagApi(object):
             status, body = format_response(request, db_response)
             return web_response(status, body)
 
-        # parse codepackage location.
-        if db_response.body['field_name'] == "code-package-url":
-            # internal location is a simple string instead of json
-            codepackage_loc = db_response.body['value']
-        else:
-            # location in OSS is stored as json
-            codepackage_loc = json.loads(db_response.body['value'])['location']
         flow_name = db_response.body['flow_id']
-
         invalidate_cache = query_param_enabled(request, "invalidate")
 
-        # Fetch or Generate the DAG from the codepackage.
         dag = await self._dag_store.cache.GenerateDag(
-            flow_name, codepackage_loc, invalidate_cache=invalidate_cache)
+            flow_name, run_id_value, invalidate_cache=invalidate_cache)
+
         if dag.has_pending_request():
             async for event in dag.stream():
                 if event["type"] == "error":
