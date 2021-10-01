@@ -27,6 +27,6 @@ WORKDIR /root
 RUN services/ui_backend_service/download_ui.sh
 
 RUN pip install --editable .
-RUN pip install git+https://github.com/Netflix/metaflow.git@convergence
+RUN pip install git+https://github.com/Netflix/metaflow.git
 
 CMD ui_backend_service
