@@ -330,9 +330,9 @@ async def test_pg_notify_dag_code_package_url(cli, db, loop):
 
     _should_call_dag = Future(loop=loop)
 
-    async def _event_handler_dag(flow_name: str, codepackage_loc: str):
+    async def _event_handler_dag(flow_name: str, run_number: str):
         if not _should_call_dag.done():
-            _should_call_dag.set_result([flow_name, codepackage_loc])
+            _should_call_dag.set_result([flow_name, run_number])
     cli.server.app.event_emitter.on('preload-dag', _event_handler_dag)
 
     _metadata = (await add_metadata(db,
@@ -347,9 +347,9 @@ async def test_pg_notify_dag_code_package_url(cli, db, loop):
                                         "value": "s3://foobar",
                                         "type": "type"})).body
 
-    flow_name, codepackage_loc = await wait_for(_should_call_dag, TIMEOUT_FUTURE)
+    flow_name, run_number = await wait_for(_should_call_dag, TIMEOUT_FUTURE)
     assert flow_name == "HelloFlow"
-    assert codepackage_loc == "s3://foobar"
+    assert str(run_number) == str(_task.get("run_number"))
 
 
 async def test_pg_notify_dag_code_package(cli, db, loop):
@@ -366,9 +366,9 @@ async def test_pg_notify_dag_code_package(cli, db, loop):
 
     _should_call_dag = Future(loop=loop)
 
-    async def _event_handler_dag(flow_name: str, codepackage_loc: str):
+    async def _event_handler_dag(flow_name: str, run_number: str):
         if not _should_call_dag.done():
-            _should_call_dag.set_result([flow_name, codepackage_loc])
+            _should_call_dag.set_result([flow_name, run_number])
     cli.server.app.event_emitter.on('preload-dag', _event_handler_dag)
 
     _metadata = (await add_metadata(db,
@@ -383,9 +383,9 @@ async def test_pg_notify_dag_code_package(cli, db, loop):
                                         "value": '{"location": "s3://foobar"}',
                                         "type": "type"})).body
 
-    flow_name, codepackage_loc = await wait_for(_should_call_dag, TIMEOUT_FUTURE)
+    flow_name, run_number = await wait_for(_should_call_dag, TIMEOUT_FUTURE)
     assert flow_name == "HelloFlow"
-    assert codepackage_loc == "s3://foobar"
+    assert str(run_number) == str(_task.get("run_number"))
 
 # Helpers
 
