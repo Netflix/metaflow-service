@@ -1,6 +1,6 @@
 import pytest
 
-from services.ui_backend_service.data.cache.get_artifacts_action import lookup_id
+from services.ui_backend_service.data.cache.get_data_action import lookup_id
 
 pytestmark = [pytest.mark.unit_tests]
 
