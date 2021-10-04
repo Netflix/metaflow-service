@@ -89,13 +89,19 @@ class Refinery(object):
                     errors[target].get("traceback")
                 )
 
-            success, value, detail = unpack_processed_value(data[target])
-            if success:
-                record = await self.refine_record(record, value)
+            if target in data:
+                success, value, detail = unpack_processed_value(data[target])
+                if success:
+                    record = await self.refine_record(record, value)
+                else:
+                    record['postprocess_error'] = format_error_body(
+                        value if value else "artifact-handle-failed",
+                        detail if detail else "Unknown error during postprocessing"
+                    )
             else:
                 record['postprocess_error'] = format_error_body(
-                    value if value else "artifact-handle-failed",
-                    detail if detail else "Unknown error during postprocessing"
+                    "artifact-handle-failed",
+                    "Unknown error during postprocessing"
                 )
 
             return record
