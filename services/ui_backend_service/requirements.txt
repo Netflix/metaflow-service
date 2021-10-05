@@ -12,5 +12,5 @@ aiopg==1.2.1
 idna==2.10
 wrapt==1.11.2
 pylint==2.4.4
-metaflow==2.0.5
+metaflow==2.4.0
 pygit2==1.6.1
