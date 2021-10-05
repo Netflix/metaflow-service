@@ -3,6 +3,7 @@ import hashlib
 
 from .client import CacheAction
 from services.utils import get_traceback_str
+from .utils import error_event_msg
 
 from metaflow import namespace
 
@@ -110,10 +111,13 @@ class GetData(CacheAction):
             # Make a list of artifact locations that require fetching (not cached previously)
             targets_to_fetch = [loc for loc in targets if not cache_key_from_target(loc, "data:{}:".format(cls.__name__)) in existing_keys]
 
+        def stream_error(err: str, id: str, traceback: str = None):
+            return stream_output(error_event_msg(err, id, traceback))
+
         for target in targets_to_fetch:
             target_key = cache_key_from_target(target, "data:{}:".format(cls.__name__))
             try:
-                results[target_key] = json.dumps(cls.fetch_data(target))
+                results[target_key] = json.dumps(cls.fetch_data(target, stream_error))
             except Exception as ex:
                 results[target_key] = json.dumps([False, 'data-not-accessible', get_traceback_str()])
 
@@ -122,12 +126,27 @@ class GetData(CacheAction):
     @classmethod
     def fetch_data(cls, *args, **kwargs):
         """
-        Decodes and refines `execute` output before it is returned
-        to the client. The argument `keys_objs` is the return value
-        of `execute`. This method is called by `cache_client` to
-        convert serialized, cached results to a client-facing object.
+        Fetches data using Metaflow Client.
 
-        The function may return anything.
+        Parameters
+        ----------
+        pathspec : str
+            Task pathspec: "FlowId/RunNumber/StepName/TaskId"
+        stream_error : Callable[[str, str, str], None]
+            Stream error (Exception name, error id, traceback/details)
+
+        Errors can be streamed to cache client using `stream_error`.
+        This way failures won't be cached for individual artifacts, thus making
+        it necessary to retry fetching during next attempt. (Will add significant overhead/delay).
+
+        Stream error example:
+            stream_error(str(ex), "s3-not-found", get_traceback_str())
+
+        Success return:
+            [True, "value"]
+
+        Error return:
+            [False, 'data-not-accessible', get_traceback_str()]
         """
         raise NotImplementedError
 
