@@ -294,25 +294,24 @@ class LogApi(object):
         if not task:
             return web_response(404, {'data': []})
 
-        if is_mflog_type(task):
-            # Check if we have logs in the MFLog format (we need to have a valid root)
+        path, _ = \
+            await get_metadata_log_assume_path(
+                self.metadata_table.find_records,
+                flow_id, run_number, step_name, task_id,
+                attempt_id, logtype)
+
+        if path:
+            lines = await read_and_output(self.cache, path)
+            # paginate response
+            code, body = paginate_log_lines(request, lines)
+            return web_response(code, body)
+        else:
+            # Fallback to assuming logs are in the MFLog format (we need to have a valid root)
             to_fetch = await get_metadata_mflog_paths(
-                flow_id, task['run_id'], step_name, task['task_name'],
+                flow_id, run_number, step_name, task_id,
                 attempt_id, logtype)
             if to_fetch:
                 lines = await read_and_output_mflog(self.cache, to_fetch)
-                # paginate response
-                code, body = paginate_log_lines(request, lines)
-                return web_response(code, body)
-        else:
-            path, _ = \
-                await get_metadata_log_assume_path(
-                    self.metadata_table.find_records,
-                    flow_id, run_number, step_name, task_id,
-                    attempt_id, logtype)
-
-            if path:
-                lines = await read_and_output(self.cache, path)
                 # paginate response
                 code, body = paginate_log_lines(request, lines)
                 return web_response(code, body)
@@ -336,24 +335,23 @@ class LogApi(object):
             attempt="_attempt{}".format(attempt_id or 0)
         )
 
-        if is_mflog_type(task):
-            # Check if we have logs in the MFLog format (we need to have a valid root)
+        path, _ = \
+            await get_metadata_log_assume_path(
+                self.metadata_table.find_records,
+                flow_id, run_number, step_name, task_id,
+                attempt_id, logtype)
+
+        if path:
+            lines = await read_and_output(self.cache, path)
+            logstring = "\n".join(line['line'] for line in lines)
+            return file_download_response(log_filename, logstring)
+        else:
+            # Fallback to assuming logs are in the MFLog format (we need to have a valid root)
             to_fetch = await get_metadata_mflog_paths(
-                flow_id, task['run_id'], step_name, task['task_name'],
+                flow_id, run_number, step_name, task_id,
                 attempt_id, logtype)
             if to_fetch:
                 lines = await read_and_output_mflog(self.cache, to_fetch)
-                logstring = "\n".join(line['line'] for line in lines)
-                return file_download_response(log_filename, logstring)
-        else:
-            path, _ = \
-                await get_metadata_log_assume_path(
-                    self.metadata_table.find_records,
-                    flow_id, run_number, step_name, task_id,
-                    attempt_id, logtype)
-
-            if path:
-                lines = await read_and_output(self.cache, path)
                 logstring = "\n".join(line['line'] for line in lines)
                 return file_download_response(log_filename, logstring)
         return web_response(404, {'data': []})
@@ -364,8 +362,10 @@ async def get_metadata_mflog_paths(flow_id, run_id, step_name, task_name, attemp
     DS_ROOT = _get_ds_root()
 
     stream = 'stderr' if logtype == STDERR else 'stdout'
-    run_id_value = run_id[4:]
-    task_id_value = task_name[4:]
+    # clean up run_id and task_name of possible known prefixes
+    # TODO: remove cleanup as unnecessary if possible.
+    run_id_value = run_id[4:] if run_id.startswith("mli_") else run_id
+    task_id_value = task_name[4:] if task_name.startswith("mli_") else task_name
 
     urls = [os.path.join(
         DS_ROOT, flow_id, run_id_value, step_name, task_id_value,
@@ -378,7 +378,7 @@ async def get_metadata_mflog_paths(flow_id, run_id, step_name, task_name, attemp
     return to_fetch
 
 
-async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
+async def get_metadata_log_assume_path(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, int]:
     path, _ = \
         await get_metadata_log(
             find_records,
@@ -402,7 +402,7 @@ async def get_metadata_log_assume_path(find_records, flow_name, run_number, step
     return path, attempt_id
 
 
-async def get_metadata_log(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, str, int]:
+async def get_metadata_log(find_records, flow_name, run_number, step_name, task_id, attempt_id, field_name) -> Tuple[str, int]:
     run_id_key, run_id_value = translate_run_key(run_number)
     task_id_key, task_id_value = translate_task_key(task_id)
 
@@ -524,14 +524,6 @@ def file_download_response(filename, body):
         headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
         body=body
     )
-
-
-def is_mflog_type(task: Dict) -> bool:
-    "Check if a task is expected to have logs in the mflog format"
-    try:
-        return task['run_id'].startswith('mli_') and task['task_name'].startswith('mli_')
-    except Exception:
-        return False
 
 
 def _get_ds_root() -> str:
