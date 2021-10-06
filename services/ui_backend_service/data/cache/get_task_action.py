@@ -3,6 +3,7 @@ from typing import List, Callable
 from .get_data_action import GetData
 
 from metaflow import Task
+from metaflow.exception import MetaflowNotFound
 
 
 class GetTask(GetData):
@@ -39,10 +40,13 @@ class GetTask(GetData):
         Stream error example:
             stream_error(str(ex), "s3-not-found", get_traceback_str())
         """
-        task = Task(pathspec)
+        try:
+            task = Task(pathspec)
+        except MetaflowNotFound:
+            return False  # Skip cache persist if Task cannot be found
 
         if '_task_ok' not in task:
-            # Skip cache if _task_ok artifact cannot be found
+            # Skip cache persist if _task_ok artifact cannot be found
             return False
 
         values = {}
