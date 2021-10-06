@@ -23,6 +23,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     trigger_keys = MetadataTaskTable.trigger_keys
     # NOTE: There is a lot of unfortunate backwards compatibility logic for cases where task metadata,
     # or artifacts have not been stored correctly.
+    # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
+    # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
     joins = [
         """
         LEFT JOIN LATERAL (
@@ -42,7 +44,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL::bigint as task_ok_finished_at,
                     NULL::text as task_ok_location,
                     NULL::text as attempt_ok,
-                    value::int as attempt_id
+                    (value->>0)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
                     {table_name}.flow_id = meta.flow_id AND
@@ -58,7 +60,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL as task_ok_finished_at,
                     NULL as task_ok_location,
                     NULL as attempt_ok,
-                    value::int as attempt_id
+                    (value->>0)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
                     {table_name}.flow_id = meta.flow_id AND
@@ -73,7 +75,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     ts_epoch as attempt_finished_at,
                     NULL as task_ok_finished_at,
                     NULL as task_ok_location,
-                    value as attempt_ok,
+                    (CASE
+                        WHEN value::text = '"1"' OR value = '1'
+                        THEN '1'
+                        WHEN value::text = '"0"' OR value = '0'
+                        THEN '0'
+                        ELSE NULL
+                    END) as attempt_ok,
                     (regexp_matches(tags::text, 'attempt_id:(\\d+)'))[1]::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
@@ -111,7 +119,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 {table_name}.step_name = next_attempt_start.step_name AND
                 {table_name}.task_id = next_attempt_start.task_id AND
                 next_attempt_start.field_name = 'attempt' AND
-                (attempt.attempt_id + 1) = next_attempt_start.value::int
+                (attempt.attempt_id + 1) = (next_attempt_start.value->>0)::int
             LIMIT 1
         ) as next_attempt_start ON true
         LEFT JOIN LATERAL (
