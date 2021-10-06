@@ -44,7 +44,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL::bigint as task_ok_finished_at,
                     NULL::text as task_ok_location,
                     NULL::text as attempt_ok,
-                    (value->>0)::int as attempt_id
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
+                    END)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
                     {table_name}.flow_id = meta.flow_id AND
@@ -60,7 +64,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL as task_ok_finished_at,
                     NULL as task_ok_location,
                     NULL as attempt_ok,
-                    (value->>0)::int as attempt_id
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::json->>0
+                        ELSE value::text
+                    END)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
                     {table_name}.flow_id = meta.flow_id AND
@@ -76,11 +84,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL as task_ok_finished_at,
                     NULL as task_ok_location,
                     (CASE
-                        WHEN value::text = '"1"' OR value = '1'
-                        THEN '1'
-                        WHEN value::text = '"0"' OR value = '0'
-                        THEN '0'
-                        ELSE NULL
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
                     END) as attempt_ok,
                     (regexp_matches(tags::text, 'attempt_id:(\\d+)'))[1]::int as attempt_id
                 FROM {metadata_table} as meta
@@ -119,7 +125,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 {table_name}.step_name = next_attempt_start.step_name AND
                 {table_name}.task_id = next_attempt_start.task_id AND
                 next_attempt_start.field_name = 'attempt' AND
-                (attempt.attempt_id + 1) = (next_attempt_start.value->>0)::int
+                (attempt.attempt_id + 1) = (next_attempt_start.value::jsonb->>0)::int
             LIMIT 1
         ) as next_attempt_start ON true
         LEFT JOIN LATERAL (

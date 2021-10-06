@@ -34,12 +34,10 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             SELECT
                 ts_epoch,
                 (CASE
-                    WHEN value::text = '"1"' OR value = '1'
-                    THEN TRUE
-                    WHEN value::text = '"0"' OR value = '0'
-                    THEN FALSE
-                    ELSE NULL
-                END) as value
+                    WHEN pg_typeof(value)='jsonb'::regtype
+                    THEN value::jsonb->>0
+                    ELSE value::text
+                END)::boolean as value
             FROM {metadata_table} as attempt_ok
             WHERE
                 {table_name}.flow_id = attempt_ok.flow_id AND
@@ -78,12 +76,10 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             LEFT JOIN LATERAL (
                 SELECT
                     (CASE
-                        WHEN value::text = '"1"' OR value = '1'
-                        THEN TRUE
-                        WHEN value::text = '"0"' OR value = '0'
-                        THEN FALSE
-                        ELSE NULL
-                    END) as is_ok,
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
+                    END)::boolean as is_ok,
                     ts_epoch
                 FROM {metadata_table} as attempt_ok
                 WHERE
