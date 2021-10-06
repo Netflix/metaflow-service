@@ -1,8 +1,10 @@
 from typing import List, Callable
 
 from .get_data_action import GetData
+from services.utils import get_traceback_str
 
 from metaflow import Step
+from metaflow.exception import MetaflowNotFound
 
 
 class GetParameters(GetData):
@@ -39,7 +41,11 @@ class GetParameters(GetData):
         Stream error example:
             stream_error(str(ex), "s3-not-found", get_traceback_str())
         """
-        step = Step("{}/_parameters".format(pathspec))
+        try:
+            step = Step("{}/_parameters".format(pathspec))
+        except MetaflowNotFound as ex:
+            stream_error('Failed to Get Parameters', 'failed-to-get-parameters', get_traceback_str())
+            return False
 
         values = {}
         for artifact_name, artifact in step.task.artifacts._asdict().items():
