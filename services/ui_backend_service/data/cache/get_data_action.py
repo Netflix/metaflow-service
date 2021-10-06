@@ -117,7 +117,11 @@ class GetData(CacheAction):
         for target in targets_to_fetch:
             target_key = cache_key_from_target(target, "data:{}:".format(cls.__name__))
             try:
-                results[target_key] = json.dumps(cls.fetch_data(target, stream_error))
+                result = cls.fetch_data(target, stream_error)
+                if result is None or result is False:
+                    # Do not persist None or False return values
+                    continue
+                results[target_key] = json.dumps(result)
             except Exception as ex:
                 results[target_key] = json.dumps([False, 'data-not-accessible', get_traceback_str()])
 
@@ -147,6 +151,8 @@ class GetData(CacheAction):
 
         Error return:
             [False, 'data-not-accessible', get_traceback_str()]
+
+        Result will not be cached if return value equals None or False.
         """
         raise NotImplementedError
 

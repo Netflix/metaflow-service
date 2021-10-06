@@ -41,8 +41,13 @@ class GetTask(GetData):
         """
         task = Task(pathspec)
 
+        if '_task_ok' not in task:
+            # Skip cache if _task_ok artifact cannot be found
+            return False
+
         values = {}
         for artifact_name in ['_task_ok', '_foreach_stack']:
-            values[artifact_name] = task[artifact_name].data
+            if artifact_name in task:
+                values[artifact_name] = task[artifact_name].data
 
         return [True, values]
