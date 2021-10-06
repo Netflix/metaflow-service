@@ -28,6 +28,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
 
+    # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
+    # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
     joins = [
         """
         LEFT JOIN LATERAL (
