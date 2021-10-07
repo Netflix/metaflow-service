@@ -307,8 +307,10 @@ class LogApi(object):
             return web_response(code, body)
         else:
             # Fallback to assuming logs are in the MFLog format (we need to have a valid root)
+            run_id = task['run_id'] or run_number
+            task_name = task['task_name'] or task_id
             to_fetch = await get_metadata_mflog_paths(
-                flow_id, run_number, step_name, task_id,
+                flow_id, run_id, step_name, task_name,
                 attempt_id, logtype)
             if to_fetch:
                 lines = await read_and_output_mflog(self.cache, to_fetch)
@@ -347,8 +349,10 @@ class LogApi(object):
             return file_download_response(log_filename, logstring)
         else:
             # Fallback to assuming logs are in the MFLog format (we need to have a valid root)
+            run_id = task['run_id'] or run_number
+            task_name = task['task_name'] or task_id
             to_fetch = await get_metadata_mflog_paths(
-                flow_id, run_number, step_name, task_id,
+                flow_id, run_id, step_name, task_name,
                 attempt_id, logtype)
             if to_fetch:
                 lines = await read_and_output_mflog(self.cache, to_fetch)
