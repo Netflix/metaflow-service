@@ -42,7 +42,7 @@ class ArtifactSearchApi(object):
             else:
                 operator, value = _parse_search_term(value)
                 # Search through the artifact contents using the CacheClient
-                pathspecs = ["{flow_id}/{run_number}/{step_name}/{task_id}/{name}".format(**art) for art in meta_artifacts]
+                pathspecs = ["{flow_id}/{run_number}/{step_name}/{task_id}/{name}/{attempt_id}".format(**art) for art in meta_artifacts]
                 res = await self._artifact_store.cache.SearchArtifacts(
                     pathspecs, value, operator,
                     invalidate_cache=invalidate_cache)
@@ -125,7 +125,7 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
 
     results = []
     for artifact in artifacts:
-        pathspec = "{flow_id}/{run_number}/{step_name}/{task_id}/{name}".format(**artifact)
+        pathspec = "{flow_id}/{run_number}/{step_name}/{task_id}/{name}/{attempt_id}".format(**artifact)
         if pathspec in artifact_match_dict:
             match_data = artifact_match_dict[pathspec]
             if match_data['matches'] or not match_data['included']:

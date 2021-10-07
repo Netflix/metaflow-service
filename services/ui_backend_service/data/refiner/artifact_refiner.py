@@ -20,7 +20,7 @@ class ArtifactRefiner(Refinery):
         return self.cache_store.cache.GetArtifacts
 
     def _record_to_action_input(self, record):
-        return "{flow_id}/{run_number}/{step_name}/{task_id}/{name}".format(**record)
+        return "{flow_id}/{run_number}/{step_name}/{task_id}/{name}/{attempt_id}".format(**record)
 
     async def refine_record(self, record, values):
         record['content'] = str(values)

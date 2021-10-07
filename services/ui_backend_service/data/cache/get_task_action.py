@@ -1,6 +1,7 @@
 from typing import List, Callable
 
 from .get_data_action import GetData
+from .utils import unpack_pathspec_with_attempt_id
 
 from metaflow import Task
 from metaflow.exception import MetaflowNotFound
@@ -15,7 +16,8 @@ class GetTask(GetData):
         Parameters
         ----------
         pathspecs : List[str]
-            List of Task pathspecs: ["FlowId/RunNumber/StepName/TaskId"]
+            List of Task pathspecs with attempt id as last component:
+                ["FlowId/RunNumber/StepName/TaskId/0"]
         invalidate_cache : bool
             Force cache invalidation, defaults to False
         """
@@ -29,7 +31,8 @@ class GetTask(GetData):
         Parameters
         ----------
         pathspec : str
-            Task pathspec: "FlowId/RunNumber/StepName/TaskId"
+            Task pathspec with attempt id as last component:
+                "FlowId/RunNumber/StepName/TaskId/0"
         stream_error : Callable[[str, str, str], None]
             Stream error (Exception name, error id, traceback/details)
 
@@ -41,7 +44,8 @@ class GetTask(GetData):
             stream_error(str(ex), "s3-not-found", get_traceback_str())
         """
         try:
-            task = Task(pathspec)
+            pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
+            task = Task(pathspec_without_attempt, attempt=attempt_id)
         except MetaflowNotFound:
             return False  # Skip cache persist if Task cannot be found
 

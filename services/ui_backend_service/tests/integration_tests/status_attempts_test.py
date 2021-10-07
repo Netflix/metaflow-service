@@ -293,7 +293,7 @@ async def test_attempt_status_failed_attempt_ok_s3(cli, db):
 
     async def _fetch_data(self, targets, event_stream=None, invalidate_cache=False):
         return {
-            "{flow_id}/{run_number}/{step_name}/{task_id}".format(**_task): [True, {'_task_ok': False}]
+            "{flow_id}/{run_number}/{step_name}/{task_id}/0".format(**_task): [True, {'_task_ok': False}]
         }
 
     with mock.patch(

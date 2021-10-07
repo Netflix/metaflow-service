@@ -1,6 +1,7 @@
 from typing import List, Callable
 
 from .get_data_action import GetData
+from .utils import unpack_pathspec_with_attempt_id
 
 from metaflow import DataArtifact
 
@@ -14,7 +15,8 @@ class GetArtifacts(GetData):
         Parameters
         ----------
         pathspecs : List[str]
-            List of Artifact pathspecs: ["FlowId/RunNumber/StepName/TaskId/ArtifactName"]
+            List of Artifact pathspecs with attempt id as last component:
+                ["FlowId/RunNumber/StepName/TaskId/ArtifactName/0"]
         invalidate_cache : bool
             Force cache invalidation, defaults to False
         """
@@ -28,7 +30,8 @@ class GetArtifacts(GetData):
         Parameters
         ----------
         pathspec : str
-            Artifact pathspec: "FlowId/RunNumber/StepName/TaskId/ArtifactName"
+            Artifact pathspec with attempt id as last component:
+                "FlowId/RunNumber/StepName/TaskId/ArtifactName/0"
         stream_error : Callable[[str, str, str], None]
             Stream error (Exception name, error id, traceback/details)
 
@@ -39,4 +42,5 @@ class GetArtifacts(GetData):
         Stream error example:
             stream_error(str(ex), "s3-not-found", get_traceback_str())
         """
-        return [True, DataArtifact(pathspec).data]
+        pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
+        return [True, DataArtifact(pathspec_without_attempt, attempt=attempt_id).data]
