@@ -77,7 +77,7 @@ class MetadataApi(object):
                                       flow_name, run_id_value, step_name, task_id_value],
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys
+                                  allowed_filters=self._async_table.keys + ["attempt_id"]
                                   )
 
     @handle_exceptions
@@ -132,5 +132,5 @@ class MetadataApi(object):
                                       flow_name, run_id_value],
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys
+                                  allowed_filters=self._async_table.keys + ["attempt_id"]
                                   )
