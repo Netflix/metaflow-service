@@ -28,10 +28,18 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
 
+    # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
+    # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
     joins = [
         """
         LEFT JOIN LATERAL (
-            SELECT ts_epoch, value::boolean
+            SELECT
+                ts_epoch,
+                (CASE
+                    WHEN pg_typeof(value)='jsonb'::regtype
+                    THEN value::jsonb->>0
+                    ELSE value::text
+                END)::boolean as value
             FROM {metadata_table} as attempt_ok
             WHERE
                 {table_name}.flow_id = attempt_ok.flow_id AND
@@ -68,7 +76,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             FROM
             {task_table} as task
             LEFT JOIN LATERAL (
-                SELECT value::boolean as is_ok, ts_epoch
+                SELECT
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
+                    END)::boolean as is_ok,
+                    ts_epoch
                 FROM {metadata_table} as attempt_ok
                 WHERE
                     task.flow_id=attempt_ok.flow_id AND
