@@ -55,7 +55,7 @@ class ApiUtils(object):
             version = await ApiUtils.get_goose_version()
             return version_dict[version]
         else:
-            goose_version_cmd = make_goose_migration_template(db_conf.connection_string_url,'up')
+            goose_version_cmd = make_goose_migration_template(db_conf.connection_string_url, 'up')
             p = Popen(goose_version_cmd, shell=True,
                       close_fds=True)
             p.wait()
@@ -64,7 +64,7 @@ class ApiUtils(object):
     @staticmethod
     async def is_migration_in_progress():
         goose_version_cmd = make_goose_template(
-            db_conf.connection_string_url,"status"
+            db_conf.connection_string_url, "status"
         )
 
         p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,

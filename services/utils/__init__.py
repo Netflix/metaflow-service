@@ -2,7 +2,7 @@ import json
 import sys
 import os
 import traceback
-from urllib.parse import urlencode,quote
+from urllib.parse import urlencode, quote
 from aiohttp import web
 from typing import Dict
 import logging
@@ -103,9 +103,11 @@ class DBConfiguration(object):
                  timeout: int = 60):
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
-        # We explicitly check the validity of the DSN string 
-        # to avoid issues caused by bad DSN strings. 
-        self._is_valid_dsn(self._dsn)
+        # Check if it is a BAD DSN String. 
+        # if bad dsn string set self._dsn as None. 
+        if self._dsn is not None: 
+            if not self._is_valid_dsn(self._dsn):
+                self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
@@ -119,13 +121,12 @@ class DBConfiguration(object):
     
     @staticmethod
     def _is_valid_dsn(dsn):
-        if dsn is None:
-            raise Exception("Invalid DSN String")
         try:
             psycopg2.extensions.parse_dsn(dsn)
+            return True
         except psycopg2.ProgrammingError: 
             # This means that the DSN is unparsable. 
-            raise Exception("Invalid DSN String")
+            return None
         
     
     @property
