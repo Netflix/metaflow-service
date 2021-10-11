@@ -74,6 +74,8 @@ def format_baseurl(request: web.BaseRequest):
 #   3. Env connection arguments (MF_METADATA_DB_HOST="..." MF_METADATA_DB...)
 #   4. Default connection arguments (DBConfiguration(host="..."))
 #
+
+
  
 class DBConfiguration(object):
     host: str = None
@@ -113,6 +115,26 @@ class DBConfiguration(object):
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
         self._database_name = os.environ.get(prefix + "NAME", database_name)
+        conn_str_required_values = [
+            self._host,
+            self._port,
+            self._user,
+            self._password,
+            self._database_name
+        ]
+        required_values_are_none = not all(v is not None for v in conn_str_required_values)
+        if self._dsn is None and required_values_are_none:
+            env_values =', '.join([
+                prefix + "HOST",
+                prefix + "PORT",
+                prefix + "USER",
+                prefix + "PSWD",
+                prefix + "NAME",
+            ])
+            raise Exception(
+                f"DSN is None and Along with some environment variables such as {env_values}. "
+                f"Please enter either a valid DSN string or valid environment variables for {env_values}"
+            )
 
         self.pool_min = int(os.environ.get(prefix + "POOL_MIN", pool_min))
         self.pool_max = int(os.environ.get(prefix + "POOL_MAX", pool_max))
