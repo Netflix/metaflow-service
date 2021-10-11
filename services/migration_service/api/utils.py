@@ -26,7 +26,7 @@ class ApiUtils(object):
     @staticmethod
     async def get_goose_version():
         # if tables exist but goose doesn't find version table then
-        goose_version_cmd = make_goose_template(db_conf.connection_string_url,'version')
+        goose_version_cmd = make_goose_template(db_conf.connection_string_url, 'version')
 
         p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,
                   close_fds=True)
