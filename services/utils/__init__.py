@@ -133,8 +133,8 @@ class DBConfiguration(object):
             ])
             dsn_var = prefix + "DSN"
             raise Exception(
-                f"The environment variables named '{env_values}' are not set. " 
-                f"Please either set '{env_values}' environment variables or The environment variable for the DSN string named {dsn_var}.  "
+                f"The environment variables '{env_values}' are not set. " 
+                f"Please either set '{env_values}' or {dsn_var}.  "
             )
 
         self.pool_min = int(os.environ.get(prefix + "POOL_MIN", pool_min))
