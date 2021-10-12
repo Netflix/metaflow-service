@@ -122,8 +122,8 @@ class DBConfiguration(object):
             self._password,
             self._database_name
         ]
-        required_values_are_none = not all(v is not None for v in conn_str_required_values)
-        if self._dsn is None and required_values_are_none:
+        some_conn_str_values_missing = any(v is None for v in conn_str_required_values)
+        if self._dsn is None and some_conn_str_values_missing:
             env_values =', '.join([
                 prefix + "HOST",
                 prefix + "PORT",
@@ -133,7 +133,7 @@ class DBConfiguration(object):
             ])
             dsn_var = prefix + "DSN"
             raise Exception(
-                f"The environment variables '{env_values}' are not set. " 
+                f"Some of the environment variables '{env_values}' are not set. "
                 f"Please either set '{env_values}' or {dsn_var}.  "
             )
 
