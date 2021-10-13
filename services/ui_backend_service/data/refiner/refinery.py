@@ -100,8 +100,8 @@ class Refinery(object):
                     )
             else:
                 record['postprocess_error'] = format_error_body(
-                    "artifact-handle-failed",
-                    "Unknown error during postprocessing"
+                    "artifact-value-not-found",
+                    "Artifact value not found"
                 )
 
             return record
