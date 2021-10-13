@@ -43,8 +43,11 @@ class GetParameters(GetData):
         """
         try:
             step = Step("{}/_parameters".format(pathspec))
-        except MetaflowNotFound as ex:
+        except MetaflowNotFound:
             stream_error('Failed to Get Parameters', 'failed-to-get-parameters', get_traceback_str())
+            return False  # Do not cache this since parameters might be available later
+        except Exception as ex:
+            stream_error("Failed to Get Parameters: {}".format(ex), 'failed-to-get-parameters', get_traceback_str())
             return False
 
         values = {}
@@ -54,6 +57,9 @@ class GetParameters(GetData):
             #   - Artifacts with 'name' or 'script_name'
             if artifact_name.startswith('_') or artifact_name in ['name', 'script_name']:
                 continue
-            values[artifact_name] = artifact.data
+            try:
+                values[artifact_name] = artifact.data
+            except Exception as ex:
+                values[artifact_name] = str(ex)
 
         return [True, values]
