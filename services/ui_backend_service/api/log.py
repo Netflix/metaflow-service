@@ -181,20 +181,25 @@ class LogApi(object):
         return await self.get_task_log_file(request, STDERR)
 
     async def get_task_by_request(self, request):
-        flow_id, run_number, step_name, task_id, _ = \
+        flow_id, run_number, step_name, task_id, attempt_id = \
             _get_pathspec_from_request(request)
 
         run_id_key, run_id_value = translate_run_key(run_number)
         task_id_key, task_id_value = translate_task_key(task_id)
 
+        # NOTE: Must enable joins so task has attempt_id present for filtering.
+        # Log cache action requires a task with an attempt_id,
+        # otherwise it defaults to attempt 0
         db_response, *_ = await self.task_table.find_records(
             fetch_single=True,
             conditions=[
                 "flow_id = %s",
                 "{run_id_key} = %s".format(run_id_key=run_id_key),
                 "step_name = %s",
-                "{task_id_key} = %s".format(task_id_key=task_id_key)],
-            values=[flow_id, run_id_value, step_name, task_id_value],
+                "{task_id_key} = %s".format(task_id_key=task_id_key),
+                "attempt_id = %s"],
+            values=[flow_id, run_id_value, step_name, task_id_value, attempt_id],
+            enable_joins=True,
             expanded=True
         )
         if db_response.response_code == 200:

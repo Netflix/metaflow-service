@@ -114,6 +114,7 @@ class GetLogFile(CacheAction):
         results = {}
         # params
         task = message['task']
+        attempt = int(task.get('attempt_id', 0))
         limit = message['limit']
         page = message['page']
         logtype = message['logtype']
@@ -134,11 +135,11 @@ class GetLogFile(CacheAction):
         log_size_changed = False  # keep track if we loaded new content
         try:
             # check if log has grown since last time.
-            current_size = get_log_size(logtype, pathspec)
+            current_size = get_log_size(logtype, pathspec, attempt)
             log_size_changed = previous_log_size is None or previous_log_size != current_size
 
             if log_size_changed:
-                content = get_log_content(logtype, pathspec)
+                content = get_log_content(logtype, pathspec, attempt)
                 results[log_key] = json.dumps({"log_size": current_size, "content": content})
             else:
                 results = {**existing_keys}
@@ -169,15 +170,15 @@ class GetLogFile(CacheAction):
 
 
 @wrap_metaflow_s3_errors
-def get_log_size(logtype: str, pathspec: str):
+def get_log_size(logtype: str, pathspec: str, attempt: int):
     # TODO: How to get logsize with metaflow cli?
     return None
 
 
 @wrap_metaflow_s3_errors
-def get_log_content(logtype: str, pathspec: str):
+def get_log_content(logtype: str, pathspec: str, attempt: int):
     namespace(None)
-    task = Task(pathspec)
+    task = Task(pathspec, attempt=attempt)
     return task.stderr if logtype == STDERR else task.stdout
 
 
@@ -215,8 +216,9 @@ def format_loglines(content: str, page: int = 1, limit: int = 0, reverse: bool =
 
 def log_cache_id(task: Dict, logtype: str):
     "construct a unique cache key for log file location"
-    return "log:file:{pathspec}.{logtype}".format(
+    return "log:file:{pathspec}.{attempt_id}.{logtype}".format(
         pathspec=pathspec_for_task(task),
+        attempt_id=task.get("attempt_id", 0),
         logtype=logtype
     )
 
@@ -239,11 +241,10 @@ def lookup_id(task: Dict, logtype: str, limit: int = 0, page: int = 1, reverse_o
 
 
 def pathspec_for_task(task: Dict):
-    "pathspec for a task, with the attempt id included"
-    return "{flow_id}/{run_number}/{step_name}/{task_id}/{attempt_id}".format(
+    "pathspec for a task"
+    return "{flow_id}/{run_number}/{step_name}/{task_id}".format(
         flow_id=task["flow_id"],
         run_number=task["run_number"],
         step_name=task["step_name"],
-        task_id=task["task_id"],
-        attempt_id=task.get("attempt_id", 0),
+        task_id=task["task_id"]
     )
