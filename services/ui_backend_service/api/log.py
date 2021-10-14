@@ -187,18 +187,24 @@ class LogApi(object):
         run_id_key, run_id_value = translate_run_key(run_number)
         task_id_key, task_id_value = translate_task_key(task_id)
 
+        conditions = [
+            "flow_id = %s",
+            "{run_id_key} = %s".format(run_id_key=run_id_key),
+            "step_name = %s",
+            "{task_id_key} = %s".format(task_id_key=task_id_key)
+        ]
+        values = [flow_id, run_id_value, step_name, task_id_value]
+        if attempt_id:
+            conditions.append("attempt_id = %s")
+            values.append(attempt_id)
         # NOTE: Must enable joins so task has attempt_id present for filtering.
         # Log cache action requires a task with an attempt_id,
         # otherwise it defaults to attempt 0
         db_response, *_ = await self.task_table.find_records(
             fetch_single=True,
-            conditions=[
-                "flow_id = %s",
-                "{run_id_key} = %s".format(run_id_key=run_id_key),
-                "step_name = %s",
-                "{task_id_key} = %s".format(task_id_key=task_id_key),
-                "attempt_id = %s"],
-            values=[flow_id, run_id_value, step_name, task_id_value, attempt_id],
+            conditions=conditions,
+            values=values,
+            order=["attempt_id DESC"],
             enable_joins=True,
             expanded=True
         )
@@ -223,20 +229,17 @@ class LogApi(object):
 
     async def get_task_log_file(self, request, logtype=STDOUT):
         "fetches log and emits it as a single file download response"
-        flow_id, run_number, step_name, task_id, attempt_id = \
-            _get_pathspec_from_request(request)
-
         task = await self.get_task_by_request(request)
         if not task:
             return web_response(404, {'data': []})
 
         log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}{attempt}.txt".format(
             type="stdout" if logtype == STDOUT else "stderr",
-            flow_id=flow_id,
-            run_number=run_number,
-            step_name=step_name,
-            task_id=task_id,
-            attempt="_attempt{}".format(attempt_id or 0)
+            flow_id=task['flow_id'],
+            run_number=task['run_number'],
+            step_name=task['step_name'],
+            task_id=task['task_id'],
+            attempt=task['attempt_id']
         )
 
         lines, _ = await read_and_output(self.cache, task, logtype, output_raw=True)

@@ -113,18 +113,18 @@ class GetLogFile(CacheAction):
 
         results = {}
         # params
-        task = message['task']
-        attempt = int(task.get('attempt_id', 0))
+        task_dict = message['task']
+        attempt = int(task_dict.get('attempt_id', 0))
         limit = message['limit']
         page = message['page']
         logtype = message['logtype']
         reverse = message['reverse_order']
         output_raw = message['raw_log']
-        pathspec = pathspec_for_task(task)
+        pathspec = pathspec_for_task(task_dict)
 
         # keys
-        log_key = log_cache_id(task, logtype)
-        result_key = log_result_id(task, logtype, limit, page, reverse, output_raw)
+        log_key = log_cache_id(task_dict, logtype)
+        result_key = log_result_id(task_dict, logtype, limit, page, reverse, output_raw)
 
         previous_log_file = existing_keys.get(log_key, None)
         previous_log_size = json.loads(previous_log_file).get("log_size", None) if previous_log_file else None
@@ -134,12 +134,14 @@ class GetLogFile(CacheAction):
 
         log_size_changed = False  # keep track if we loaded new content
         try:
+            namespace(None)
+            task = Task(pathspec, attempt=attempt)
             # check if log has grown since last time.
-            current_size = get_log_size(logtype, pathspec, attempt)
+            current_size = get_log_size(task, logtype)
             log_size_changed = previous_log_size is None or previous_log_size != current_size
 
             if log_size_changed:
-                content = get_log_content(logtype, pathspec, attempt)
+                content = get_log_content(task, logtype)
                 results[log_key] = json.dumps({"log_size": current_size, "content": content})
             else:
                 results = {**existing_keys}
@@ -170,15 +172,12 @@ class GetLogFile(CacheAction):
 
 
 @wrap_metaflow_s3_errors
-def get_log_size(logtype: str, pathspec: str, attempt: int):
-    # TODO: How to get logsize with metaflow cli?
-    return None
+def get_log_size(task: Task, logtype: str):
+    return task.stderr_size if logtype == STDERR else task.stdout_size
 
 
 @wrap_metaflow_s3_errors
-def get_log_content(logtype: str, pathspec: str, attempt: int):
-    namespace(None)
-    task = Task(pathspec, attempt=attempt)
+def get_log_content(task: Task, logtype: str):
     return task.stderr if logtype == STDERR else task.stdout
 
 

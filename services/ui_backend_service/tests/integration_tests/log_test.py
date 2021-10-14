@@ -35,10 +35,9 @@ async def test_log_paginated_response(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
-
     async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
         assert limit == 3
-        assert page==1
+        assert page == 1
         assert reverse_order is False
         assert output_raw is False
         return [], 1
@@ -50,7 +49,7 @@ async def test_log_paginated_response(cli, db):
 
     async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
         assert limit == 3
-        assert page==4
+        assert page == 4
         assert reverse_order is True
         assert output_raw is False
         return [], 1
@@ -59,6 +58,7 @@ async def test_log_paginated_response(cli, db):
         # ordering by row should be possible in reverse. should obey limit.
         _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out?_order=-row&_limit=3&_page=4".format(**_task), 200, None)
         assert data == []
+
 
 async def test_log_download_response(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
@@ -69,7 +69,6 @@ async def test_log_download_response(cli, db):
                             step_name=_step.get("step_name"),
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
-
 
     async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
         assert output_raw is True
