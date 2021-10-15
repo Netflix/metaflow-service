@@ -79,8 +79,8 @@ See Examples -section for reference.
 
 ## Plugin development
 
-- Plugin development documentation can be found from [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui) repository.
-- See [example plugin](https://github.com/Netflix/metaflow-ui-plugin-example) as a reference implementation.
+- Plugin development documentation can be found from [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui/blob/master/docs/plugin-system.md) repository.
+- See [example plugins](https://github.com/Netflix/metaflow-ui/tree/master/plugin-api/Examples) for reference implementation.
 
 ## Examples
 
