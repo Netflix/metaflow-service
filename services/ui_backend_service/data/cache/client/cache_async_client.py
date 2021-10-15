@@ -5,9 +5,11 @@ import json
 from asyncio.subprocess import PIPE, STDOUT
 
 from .cache_client import CacheClient, CacheServerUnreachable, CacheClientTimeout
-from .cache_server import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
 from services.utils import logging
+
+OP_WORKER_CREATE = 'worker_create'
+OP_WORKER_TERMINATE = 'worker_terminate'
 
 WAIT_FREQUENCY = 0.2
 HEARTBEAT_FREQUENCY = 1
