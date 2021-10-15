@@ -144,6 +144,12 @@ class Websocket(object):
                 self.loop.create_task(
                     await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
                 )
+        # subscribed successfully, send ACK
+        payload = {
+            'type': 'ACK', 'uuid': uuid,
+            'resource': resource, 'data': None
+        }
+        await ws.send_str(json.dumps(payload))
 
     async def unsubscribe_from(self, ws, uuid: str = None):
         if uuid:
