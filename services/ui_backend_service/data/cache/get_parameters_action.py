@@ -2,6 +2,7 @@ from typing import List, Callable
 
 from .get_data_action import GetData
 from services.utils import get_traceback_str
+from .utils import MAX_S3_SIZE
 
 from metaflow import Step
 from metaflow.exception import MetaflowNotFound
@@ -58,7 +59,10 @@ class GetParameters(GetData):
             if artifact_name.startswith('_') or artifact_name in ['name', 'script_name']:
                 continue
             try:
-                values[artifact_name] = artifact.data
+                if artifact.size < MAX_S3_SIZE:
+                    values[artifact_name] = artifact.data
+                else:
+                    values[artifact_name] = "Artifact too large: {} bytes".format(artifact.size)
             except Exception as ex:
                 values[artifact_name] = str(ex)
 

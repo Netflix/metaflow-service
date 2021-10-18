@@ -1,7 +1,7 @@
 from typing import List, Callable
 
 from .get_data_action import GetData
-from .utils import unpack_pathspec_with_attempt_id
+from .utils import unpack_pathspec_with_attempt_id, MAX_S3_SIZE
 
 from metaflow import DataArtifact
 
@@ -43,4 +43,9 @@ class GetArtifacts(GetData):
             stream_error(str(ex), "s3-not-found", get_traceback_str())
         """
         pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
-        return [True, DataArtifact(pathspec_without_attempt, attempt=attempt_id).data]
+
+        artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
+        if artifact.size < MAX_S3_SIZE:
+            return [True, DataArtifact(pathspec_without_attempt, attempt=attempt_id).data]
+        else:
+            return [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)]

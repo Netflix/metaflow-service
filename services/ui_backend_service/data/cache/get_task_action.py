@@ -1,7 +1,7 @@
 from typing import List, Callable
 
 from .get_data_action import GetData
-from .utils import unpack_pathspec_with_attempt_id
+from .utils import unpack_pathspec_with_attempt_id, MAX_S3_SIZE
 
 from metaflow import Task
 from metaflow.exception import MetaflowNotFound
@@ -56,6 +56,10 @@ class GetTask(GetData):
         values = {}
         for artifact_name in ['_task_ok', '_foreach_stack']:
             if artifact_name in task:
-                values[artifact_name] = task[artifact_name].data
+                artifact = task[artifact_name]
+                if artifact.size < MAX_S3_SIZE:
+                    values[artifact_name] = artifact.data
+                else:
+                    return [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)]
 
         return [True, values]
