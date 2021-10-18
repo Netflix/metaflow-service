@@ -46,7 +46,8 @@ async def _subscribe(ws, resource, uuid="123", since: int = None):
         "resource": resource}
     if since is not None:
         subscription['since'] = since
-    return await ws.send_json(subscription)
+    await ws.send_json(subscription)
+    return await ws.receive_json(timeout=TIMEOUT_FUTURE)
 
 
 async def _unsubscribe(ws, uuid="123"):
@@ -54,6 +55,18 @@ async def _unsubscribe(ws, uuid="123"):
         "type": "UNSUBSCRIBE",
         "uuid": uuid})
 
+
+async def test_ack_responses(cli, db, loop):
+    ws = await cli.ws_connect("/ws")
+
+    msg = await _subscribe(ws, "/flows/TestFlow", 123)
+
+    assert msg["type"] == "ACK"
+    assert msg["resource"] == "/flows/TestFlow"
+    assert msg["uuid"] == 123
+    assert msg["data"] == None
+
+    await ws.close()
 
 async def test_subscription(cli, db, loop):
     ws = await cli.ws_connect("/ws")
