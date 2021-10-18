@@ -54,7 +54,7 @@ Subscribable resource endpoints include. All subscriptions also adhere to the co
 ```
 
 ### Received messages
-The web socket client can receive three types of messages for its subscription:
+The web socket client can receive four types of messages for its subscription:
 
 ```json
   {
@@ -66,6 +66,8 @@ The web socket client can receive three types of messages for its subscription:
 ```
 The type can be one of `INSERT`, `UPDATE` or `DELETE`, corresponding to similar database actions.
 The `data` property contains the complete object of the subscribed resource, as it would be received from a basic GET request.
+
+The type can also be `ACK`, which conveys that the subscription was successfully accepted and is considered active. The client can be certain to receive events related to the resource only after receiving a corresponding ACK-response. For ACK-responses, the `data` will be null, but `uuid` and `resource` will be the ones originally used for the web socket subscription. 
 
 # SEARCH API
 
