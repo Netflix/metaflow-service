@@ -234,7 +234,7 @@ class Scheduler(object):
         self.pool = multiprocessing.Pool(
             processes=max_workers,
             initializer=self.init_process,
-            maxtasksperchild=None,  # Keep workers running at all times
+            maxtasksperchild=512,  # Recycle each worker once 512 tasks have been completed
         )
 
     def init_process(self):
