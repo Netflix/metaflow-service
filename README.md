@@ -84,6 +84,14 @@ Above command will make sure there's PostgreSQL database available.
 
 Usage without Docker:
 
+The test suite requires a PostgreSQL database, along with the following environment variables for connecting the tested services to the DB.
+
+  - MF_METADATA_DB_HOST=db_test
+  - MF_METADATA_DB_PORT=5432
+  - MF_METADATA_DB_USER=test
+  - MF_METADATA_DB_PSWD=test
+  - MF_METADATA_DB_NAME=test
+
 > ```sh
 > # Run all tests
 > tox
@@ -143,7 +151,6 @@ the latest version of the metadata service compatible with every version of the 
 
 When the container spins up, the migration service is launched first and determines what virtualenv to activate
 depending on the schema version of the DB. This will determine which version of the metadata service will run.  
-
 
 ## Get in Touch
 There are several ways to get in touch with us:
