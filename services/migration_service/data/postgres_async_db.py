@@ -4,6 +4,7 @@ import aiopg
 
 from services.utils import DBConfiguration
 
+
 class PostgresUtils(object):
     @staticmethod
     async def is_present(table_name):
