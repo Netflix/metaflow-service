@@ -1,4 +1,4 @@
-# Metaflow Metadata Service
+# Metaflow Service
 
 Metadata service implementation for [Metaflow](https://github.com/Netflix/metaflow).
 
