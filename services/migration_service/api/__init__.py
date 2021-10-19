@@ -10,6 +10,7 @@ version_dict = {
 
 latest = "latest"
 
+
 def make_goose_template(conn_str, command):
     return ' '.join(shlex.quote(arg) for arg in [
         "goose",
@@ -18,7 +19,9 @@ def make_goose_template(conn_str, command):
         f"{command}"
     ])
 
+
 path = os.path.dirname(__file__) + "/../migration_files"
+
 
 def make_goose_migration_template(conn_str, command):
     return ' '.join(shlex.quote(arg) for arg in [

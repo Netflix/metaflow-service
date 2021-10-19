@@ -14,6 +14,7 @@ METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
 
 ServiceResponse = collections.namedtuple("ServiceResponse", "response_code body")
 
+
 def format_response(func):
     """handle formatting"""
 

@@ -92,7 +92,6 @@ class AuthApi(object):
             cur.close()
         return web_response(status=status_code, body=json.dumps(status))
 
-
     async def get_authorization_token(self, request):
         """
         ---

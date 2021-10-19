@@ -14,10 +14,10 @@ from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
-AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
-
 from services.data.service_configs import max_connection_retires, \
     connection_retry_wait_time_seconds
+
+AIOPG_ECHO = os.environ.get("AIOPG_ECHO", 0) == "1"
 
 WAIT_TIME = 10
 

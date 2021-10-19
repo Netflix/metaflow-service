@@ -18,6 +18,7 @@ SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
 log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
+
 async def read_body(request_content):
     byte_array = bytearray()
     while not request_content.at_eof():
@@ -76,7 +77,6 @@ def format_baseurl(request: web.BaseRequest):
 #
 
 
- 
 class DBConfiguration(object):
     host: str = None
     port: int = None
@@ -92,6 +92,7 @@ class DBConfiguration(object):
     timeout: int = None  # aiopg default: 60 (seconds)
 
     _dsn: str = None
+
     def __init__(self,
                  dsn: str = None,
                  host: str = "localhost",
@@ -105,9 +106,9 @@ class DBConfiguration(object):
                  timeout: int = 60):
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
-        # Check if it is a BAD DSN String. 
-        # if bad dsn string set self._dsn as None. 
-        if self._dsn is not None: 
+        # Check if it is a BAD DSN String.
+        # if bad dsn string set self._dsn as None.
+        if self._dsn is not None:
             if not self._is_valid_dsn(self._dsn):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
@@ -124,7 +125,7 @@ class DBConfiguration(object):
         ]
         some_conn_str_values_missing = any(v is None for v in conn_str_required_values)
         if self._dsn is None and some_conn_str_values_missing:
-            env_values =', '.join([
+            env_values = ', '.join([
                 prefix + "HOST",
                 prefix + "PORT",
                 prefix + "USER",
@@ -141,17 +142,16 @@ class DBConfiguration(object):
         self.pool_max = int(os.environ.get(prefix + "POOL_MAX", pool_max))
 
         self.timeout = int(os.environ.get(prefix + "TIMEOUT", timeout))
-    
+
     @staticmethod
     def _is_valid_dsn(dsn):
         try:
             psycopg2.extensions.parse_dsn(dsn)
             return True
-        except psycopg2.ProgrammingError: 
-            # This means that the DSN is unparsable. 
+        except psycopg2.ProgrammingError:
+            # This means that the DSN is unparsable.
             return None
-        
-    
+
     @property
     def connection_string_url(self):
         # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
@@ -161,9 +161,9 @@ class DBConfiguration(object):
     def dsn(self):
         if self._dsn is None:
             return psycopg2.extensions.make_dsn(
-                dbname=self._database_name ,
+                dbname=self._database_name,
                 user=self._user,
-                host=self._host, 
+                host=self._host,
                 port=self._port,
                 password=self._password
             )
@@ -177,15 +177,15 @@ class DBConfiguration(object):
     @property
     def password(self):
         return self._password
-    
+
     @property
     def user(self):
         return self._user
-    
+
     @property
     def database_name(self):
         return self._database_name
-    
+
     @property
     def host(self):
         return self._host
