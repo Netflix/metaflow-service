@@ -19,6 +19,7 @@ ENV CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
 ADD services/__init__.py /root/services/__init__.py
 ADD services/data /root/services/data
 ADD services/utils /root/services/utils
+ADD services/metadata_service /root/services/metadata_service
 ADD services/ui_backend_service /root/services/ui_backend_service
 ADD setup.py setup.cfg /root/
 
