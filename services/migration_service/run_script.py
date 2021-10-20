@@ -3,13 +3,18 @@ import os
 if __name__ == "__main__":
     try:
         my_env = os.environ
-        migration_server_process = Popen("PYTHONPATH=/ python3 -m services.migration_service.migration_server", shell=True,
-                                         close_fds=True, env=my_env)
+        migration_server_process = Popen(
+            "PYTHONPATH=/ python3 -m services.migration_service.migration_server",
+            shell=True,
+            close_fds=True,
+            env=my_env
+        )
 
         get_env_version = Popen(
             "python3 -m services.migration_service.get_virtual_env",
             shell=True,
-            close_fds=True)
+            close_fds=True
+        )
 
         get_env_version.wait()
 
@@ -23,8 +28,11 @@ if __name__ == "__main__":
         path = my_env['PATH']
         my_env['PATH'] = virtual_env_path + "/bin:" + path
         metadata_server_process = Popen(
-            "metadata_service", shell=True,
-            close_fds=True, env=my_env)
+            "metadata_service",
+            shell=True,
+            close_fds=True,
+            env=my_env
+        )
 
         metadata_server_process.wait()
         migration_server_process.wait()

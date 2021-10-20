@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      postgres: # This will be the hostname
+      db_test: # This will be the hostname
         image: postgres:11
         env:
           POSTGRES_USER: test
@@ -67,7 +67,7 @@ jobs:
         golang-version: ["^1.14.5"]
 
     env:
-      MF_METADATA_DB_HOST: 127.0.0.1 # localhost won't work here
+      MF_METADATA_DB_HOST: db_test
       MF_METADATA_DB_PORT: 5432
       MF_METADATA_DB_USER: test
       MF_METADATA_DB_PSWD: test
@@ -88,5 +88,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install tox
+      - name: Add required test DB alias name for localhost
+        run: echo "127.0.0.1 db_test" | sudo tee -a /etc/hosts
       - name: Run Tox
         run: tox -v -e integration
