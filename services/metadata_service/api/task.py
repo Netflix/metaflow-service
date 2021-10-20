@@ -16,23 +16,24 @@ class TaskApi(object):
     def __init__(self, app):
         app.router.add_route(
             "GET",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "tasks",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks",
             self.get_tasks,
         )
         app.router.add_route(
             "GET",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "tasks/{task_id}",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}",
             self.get_task,
         )
         app.router.add_route(
             "POST",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "task",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task",
             self.create_task,
         )
         app.router.add_route("POST",
                              "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat",
                              self.tasks_heartbeat)
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
+        self._async_run_table = AsyncPostgresDB.get_instance().run_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
     @format_response
@@ -244,6 +245,7 @@ class TaskApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
+        await self._async_run_table.update_heartbeat(flow_name, run_number)
         return await self._async_table.update_heartbeat(flow_name,
                                                         run_number, step_name,
                                                         task_id)

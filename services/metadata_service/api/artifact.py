@@ -1,6 +1,7 @@
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import filter_artifacts_by_attempt_id_for_tasks
+from services.data.db_utils import filter_artifacts_for_latest_attempt, \
+    filter_artifacts_by_attempt_id_for_tasks
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
@@ -21,12 +22,24 @@ class ArtificatsApi(object):
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/"
+            "tasks/{task_id}/artifacts/{artifact_name}/attempt/{attempt_id}",
+            self.get_artifact_with_attempt,
+        )
+        app.router.add_route(
+            "GET",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/"
             "tasks/{task_id}/artifacts",
             self.get_artifacts_by_task,
         )
         app.router.add_route(
             "GET",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "artifacts",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/"
+            "tasks/{task_id}/attempt/{attempt_id}/artifacts",
+            self.get_artifacts_by_task_attempt,
+        )
+        app.router.add_route(
+            "GET",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts",
             self.get_artifacts_by_step,
         )
         app.router.add_route(
@@ -95,6 +108,64 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id, artifact_name
         )
 
+    @format_response
+    @handle_exceptions
+    async def get_artifact_with_attempt(self, request):
+        """
+        ---
+        description: get all artifacts associated with the specified task.
+        tags:
+        - Artifacts
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "step_name"
+          in: "path"
+          description: "step_name"
+          required: true
+          type: "string"
+        - name: "task_id"
+          in: "path"
+          description: "task_id"
+          required: true
+          type: "string"
+        - name: "artifact_name"
+          in: "path"
+          description: "artifact_name"
+          required: true
+          type: "string"
+        - name: "attempt_id"
+          in: "path"
+          description: "attempt_id"
+          required: true
+          type: "integer"
+        produces:
+        - text/plain
+        responses:
+            "200":
+                description: successful operation
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_name = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        step_name = request.match_info.get("step_name")
+        task_id = request.match_info.get("task_id")
+        artifact_name = request.match_info.get("artifact_name")
+        attempt_id = request.match_info.get("attempt_id")
+
+        return await self._async_table.get_artifact_by_attempt(
+            flow_name, run_number, step_name, task_id, artifact_name, attempt_id
+        )
+
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -139,8 +210,69 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id
         )
 
-        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
+        filtered_body = filter_artifacts_for_latest_attempt(
             artifacts.body)
+        return web.Response(
+            status=artifacts.response_code, body=json.dumps(filtered_body)
+        )
+
+    async def get_artifacts_by_task_attempt(self, request):
+        """
+        ---
+        description: get all artifacts associated with the specified task.
+        tags:
+        - Artifacts
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "step_name"
+          in: "path"
+          description: "step_name"
+          required: true
+          type: "string"
+        - name: "task_id"
+          in: "path"
+          description: "task_id"
+          required: true
+          type: "string"
+        - name: "attempt_id"
+          in: "path"
+          description: "attempt_id"
+          required: true
+          type: "integer"
+        produces:
+        - text/plain
+        responses:
+            "200":
+                description: successful operation
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_name = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        step_name = request.match_info.get("step_name")
+        task_id = request.match_info.get("task_id")
+        attempt_id = request.match_info.get("attempt_id")
+
+        artifacts = await self._async_table.get_artifact_in_task(
+            flow_name, run_number, step_name, task_id
+        )
+
+        if artifacts.body:
+            attempt_for_task = {artifacts.body[0]['task_id']: int(attempt_id)}
+        else:
+            # Doesn't matter
+            attempt_for_task = {}
+        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
+            artifacts.body, attempt_for_task)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
         )
@@ -183,7 +315,7 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name
         )
 
-        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
+        filtered_body = filter_artifacts_for_latest_attempt(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)
@@ -218,7 +350,7 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
+        filtered_body = filter_artifacts_for_latest_attempt(
             artifacts.body)
         return web.Response(
             status=artifacts.response_code, body=json.dumps(filtered_body)

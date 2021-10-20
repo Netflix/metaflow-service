@@ -49,7 +49,7 @@ def set_env(environ={}):
 def test_db_conf():
     with set_env():
         db_conf = DBConfiguration()
-        assert db_conf.dsn == 'dbname=postgres user=postgres password=postgres host=localhost port=5432'
+        assert db_conf.dsn == 'dbname=postgres user=postgres host=localhost port=5432 password=postgres'
         assert db_conf.pool_min == 1
         assert db_conf.pool_max == 10
         assert db_conf.timeout == 60
@@ -57,13 +57,13 @@ def test_db_conf():
 
 def test_db_conf_dsn():
     with set_env():
-        assert DBConfiguration(dsn='foo').dsn == 'foo'
+        assert DBConfiguration(dsn='user=foo').dsn == 'user=foo'
 
 
 def test_db_conf_arguments():
     with set_env():
         db_conf = DBConfiguration(host='foo', port=1234, user='user', password='password', database_name='bar')
-        assert db_conf.dsn == 'dbname=bar user=user password=password host=foo port=1234'
+        assert db_conf.dsn == 'dbname=bar user=user host=foo port=1234 password=password'
         assert db_conf.host == 'foo'
         assert db_conf.port == 1234
         assert db_conf.user == 'user'
@@ -83,7 +83,7 @@ def test_db_conf_env_default_prefix():
         'MF_METADATA_DB_TIMEOUT': '5'
     }):
         db_conf = DBConfiguration()
-        assert db_conf.dsn == 'dbname=bar user=user password=password host=foo port=1234'
+        assert db_conf.dsn == 'dbname=bar user=user host=foo port=1234 password=password'
         assert db_conf.host == 'foo'
         assert db_conf.port == 1234
         assert db_conf.user == 'user'
@@ -106,7 +106,7 @@ def test_db_conf_env_custom_prefix():
         'FOO_TIMEOUT': '5'
     }):
         db_conf = DBConfiguration(prefix='FOO_')
-        assert db_conf.dsn == 'dbname=bar user=user password=password host=foo port=1234'
+        assert db_conf.dsn == 'dbname=bar user=user host=foo port=1234 password=password'
         assert db_conf.host == 'foo'
         assert db_conf.port == 1234
         assert db_conf.user == 'user'
@@ -119,7 +119,12 @@ def test_db_conf_env_custom_prefix():
 
 def test_db_conf_env_dsn():
     with set_env({'MF_METADATA_DB_DSN': 'foo'}):
-        assert DBConfiguration().dsn == 'foo'
+        # Should use default dsn with invalid dsn in environment
+        assert DBConfiguration().dsn == 'dbname=postgres user=postgres host=localhost port=5432 password=postgres'
+
+    with set_env({'MF_METADATA_DB_DSN': 'dbname=testgres user=test_user host=test_host port=1234 password=test_pwd'}):
+        # valid DSN in env should set correctly.
+        assert DBConfiguration().dsn == 'dbname=testgres user=test_user host=test_host port=1234 password=test_pwd'
 
 
 def test_db_conf_pool_size():
