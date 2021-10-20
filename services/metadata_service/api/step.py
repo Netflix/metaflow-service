@@ -18,7 +18,7 @@ class StepApi(object):
         )
         app.router.add_route(
             "POST",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "step",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/step",
             self.create_step,
         )
         self._async_table = AsyncPostgresDB.get_instance().step_table_postgres

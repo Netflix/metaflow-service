@@ -16,17 +16,17 @@ class TaskApi(object):
     def __init__(self, app):
         app.router.add_route(
             "GET",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "tasks",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks",
             self.get_tasks,
         )
         app.router.add_route(
             "GET",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "tasks/{task_id}",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}",
             self.get_task,
         )
         app.router.add_route(
             "POST",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/" "task",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task",
             self.create_task,
         )
         app.router.add_route("POST",
