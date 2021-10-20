@@ -91,7 +91,7 @@ class GenerateDag(CacheAction):
             run = Run("{}/{}".format(flow_id, run_number))
             results[result_key] = json.dumps(generate_dag(flow_id, run.code.flowspec))
         except Exception as ex:
-            stream_error(str(ex), "dag-processing-error", get_traceback_str())
+            stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
 
         return results
 

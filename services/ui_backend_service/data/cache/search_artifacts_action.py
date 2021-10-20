@@ -129,8 +129,8 @@ class SearchArtifacts(CacheAction):
                     results[artifact_key] = json.dumps(
                         [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
             except Exception as ex:
-                stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
-                results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
+                stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
+                results[artifact_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
 
         # Perform search on loaded artifacts.
         search_results = {}
