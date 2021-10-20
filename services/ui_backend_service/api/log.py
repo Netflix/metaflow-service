@@ -233,7 +233,7 @@ class LogApi(object):
         if not task:
             return web_response(404, {'data': []})
 
-        log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}{attempt}.txt".format(
+        log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}-{attempt}.txt".format(
             type="stdout" if logtype == STDOUT else "stderr",
             flow_id=task['flow_id'],
             run_number=task['run_number'],
