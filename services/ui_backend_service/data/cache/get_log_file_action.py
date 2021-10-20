@@ -149,10 +149,10 @@ class GetLogFile(CacheAction):
             stream_error(str(ex), ex.id)
             raise ex from None
         except S3Exception as ex:
-            stream_error(get_traceback_str(), ex.id)
+            stream_error(str(ex), ex.id, get_traceback_str())
             raise ex from None
         except Exception as ex:
-            stream_error(get_traceback_str(), 'log-handle-failed')
+            stream_error(str(ex), 'log-handle-failed', get_traceback_str())
             raise ex from None
 
         if log_size_changed or result_key not in existing_keys:
