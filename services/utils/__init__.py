@@ -3,7 +3,6 @@ import sys
 import os
 import traceback
 import pkg_resources
-from urllib.parse import urlencode
 from multidict import MultiDict
 from urllib.parse import urlencode, quote
 from aiohttp import web

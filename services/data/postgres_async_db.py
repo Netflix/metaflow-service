@@ -1,5 +1,3 @@
-from services.data.service_configs import max_connection_retires, \
-    connection_retry_wait_time_seconds
 import psycopg2
 import psycopg2.extras
 import os
