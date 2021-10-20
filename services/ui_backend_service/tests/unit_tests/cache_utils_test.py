@@ -2,7 +2,7 @@ import pytest
 
 from services.ui_backend_service.data.cache.utils import (
     error_event_msg, progress_event_msg, search_result_event_msg,
-    artifact_location_from_key, artifact_cache_id
+    artifact_location_from_key, artifact_cache_id, unpack_pathspec_with_attempt_id
 )
 
 pytestmark = [pytest.mark.unit_tests]
@@ -40,3 +40,9 @@ def test_artifact_cache_key_and_location_from_key():
 
     assert _extracted_loc == _loc
 
+
+def test_unpack_pathspec_with_attempt_id():
+    pathspec = "FlowName/RunNumber/StepName/TaskId/4"
+    pathspec_without_attempt_id, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
+    assert pathspec_without_attempt_id == "FlowName/RunNumber/StepName/TaskId"
+    assert attempt_id == 4

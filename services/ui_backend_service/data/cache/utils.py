@@ -79,3 +79,26 @@ def search_result_event_msg(results):
         "type": "result",
         "matches": results
     }
+
+
+def unpack_pathspec_with_attempt_id(pathspec: str):
+    """
+    Extracts Metaflow Client compatible pathspec and attempt id.
+
+    Parameters
+    ----------
+    pathspec : str
+        Task or DataArtifact pathspec that includes attempt id as last component.
+            - "FlowId/RunNumber/StepName/TaskId/0"
+            - "FlowId/RunNumber/StepName/TaskId/ArtifactName/0"
+
+    Returns
+    -------
+    Tuple with Metaflow Client compatible pathspec and attempt id.
+
+    Example:
+        "FlowId/RunNumber/StepName/TaskId/4" -> ("FlowId/RunNumber/StepName/TaskId", 4)
+    """
+    pathspec_without_attempt = '/'.join(pathspec.split('/')[:-1])
+    attempt_id = int(pathspec.split('/')[-1])
+    return (pathspec_without_attempt, attempt_id)

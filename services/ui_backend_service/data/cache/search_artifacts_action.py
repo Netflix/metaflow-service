@@ -3,12 +3,8 @@ import json
 
 from .client import CacheAction
 from services.utils import get_traceback_str
-from ..s3 import (
-    S3AccessDenied, S3CredentialsMissing,
-    S3NotFound, S3Exception,
-    S3URLException, get_s3_size, get_s3_obj, get_s3_client)
-from .utils import (decode, error_event_msg, progress_event_msg,
-                    artifact_cache_id,
+from .utils import (error_event_msg, progress_event_msg,
+                    artifact_cache_id, unpack_pathspec_with_attempt_id,
                     MAX_S3_SIZE)
 from ..refiner.refinery import unpack_processed_value
 from services.ui_backend_service.api.utils import operators_to_filters
@@ -25,7 +21,8 @@ class SearchArtifacts(CacheAction):
     Parameters
     ----------
     pathspecs : List[str]
-        A list of artifact pathspecs to fetch and match the search term against.
+        A list of artifact pathspecs (with attempt id as last component)
+            to fetch and match the search term against: ["FlowId/RunNumber/StepName/TaskId/ArtifactName/0"]
     searchterm : str
         A searchterm to match against the fetched S3 artifacts contents.
 
@@ -123,8 +120,14 @@ class SearchArtifacts(CacheAction):
             stream_progress((idx + 1) / len(pathspecs_to_fetch))
 
             try:
+                pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
                 artifact_key = "search:artifactdata:{}".format(pathspec)
-                results[artifact_key] = json.dumps([True, DataArtifact(pathspec).data])
+                artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
+                if artifact.size < MAX_S3_SIZE:
+                    results[artifact_key] = json.dumps([True, artifact.data])
+                else:
+                    results[artifact_key] = json.dumps(
+                        [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
             except Exception as ex:
                 stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
                 results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])

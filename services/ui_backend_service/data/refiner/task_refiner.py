@@ -20,7 +20,7 @@ class TaskRefiner(Refinery):
         return self.cache_store.cache.GetTask
 
     def _record_to_action_input(self, record):
-        return "{flow_id}/{run_number}/{step_name}/{task_id}".format(**record)
+        return "{flow_id}/{run_number}/{step_name}/{task_id}/{attempt_id}".format(**record)
 
     async def refine_record(self, record, values):
         if record['status'] == 'unknown' and values.get('_task_ok') is not None:
