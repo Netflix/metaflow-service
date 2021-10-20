@@ -1,7 +1,5 @@
 
-import os
-from services.ui_backend_service.data.cache.get_log_file_action import log_result_id
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
