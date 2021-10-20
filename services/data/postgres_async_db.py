@@ -37,6 +37,7 @@ ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
 
 operator_match = re.compile('([^:]*):([=><]+)$')
 
+
 class _AsyncPostgresDB(object):
     connection = None
     flow_table_postgres = None
@@ -310,7 +311,7 @@ class AsyncPostgresTable(object):
                 col_name = find_operator.group(1)
                 operator = find_operator.group(2)
                 filters.append('(%s IS NULL or %s %s %s)' %
-                    (col_name, col_name, operator, str(v)))
+                               (col_name, col_name, operator, str(v)))
             else:
                 filters.append(col_name + operator + str(v))
 
@@ -917,17 +918,17 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             run_id_key: run_id_value,
             "step_name": step_name,
             task_id_key: task_id_value,
-            '"name"': 'name'
+            "name": name
         }
         name_record = await self.get_records(filter_dict=filter_dict,
                                              fetch_single=True, ordering=self.ordering)
 
         return await self.get_artifact_by_attempt(
-            flow_id, run_id, step_name, task_id, name, name_record.body['attempt_id'])
+            flow_id, run_id, step_name, task_id, name, name_record.body.get('attempt_id', 0))
 
     async def get_artifact_by_attempt(
-        self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str,
-        attempt : int):
+            self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str,
+            attempt: int):
 
         run_id_key, run_id_value = translate_run_key(run_id)
         task_id_key, task_id_value = translate_task_key(task_id)
