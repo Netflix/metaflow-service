@@ -139,7 +139,6 @@ def test_db_conf_timeout():
         db_conf = DBConfiguration(timeout=5)
         assert db_conf.timeout == 5
 
-
 async def test_handle_exceptions():
     class FakeException(Exception):
         def __init__(self, id, trace):
