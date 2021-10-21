@@ -41,10 +41,10 @@ class ArtifactSearchApi(object):
                 results = [{**_result_format(art), "searchable": True} for art in meta_artifacts]
             else:
                 operator, value = _parse_search_term(value)
-                # Search through the artifact contents from S3 using the CacheClient
-                locations = [art['location'] for art in meta_artifacts]
+                # Search through the artifact contents using the CacheClient
+                pathspecs = ["{flow_id}/{run_number}/{step_name}/{task_id}/{name}/{attempt_id}".format(**art) for art in meta_artifacts]
                 res = await self._artifact_store.cache.SearchArtifacts(
-                    locations, value, operator,
+                    pathspecs, value, operator,
                     invalidate_cache=invalidate_cache)
 
                 if res.has_pending_request():
@@ -87,13 +87,12 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
     Parameters
     ----------
     artifacts: List
-        list of artifacts that have a location key.
-        [{..., 'location': 'a_location'}]
+        list of artifacts used to construct pathspecs
 
     artifact_match_dict: Dict
-        dictionary of location-based match data.
+        dictionary of pathspec -based match data.
         example:
-        {'a_location': {'matches': boolean, 'included': boolean}}
+        {'FlowId/RunNumber/StepName/TaskId/ArtifactName': {'matches': boolean, 'included': boolean}}
         Matches: whether the search term matched the artifact content or not
         Included: Whether the artifact content was included in the search or not (was the content accessible at all)
 
@@ -126,9 +125,9 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
 
     results = []
     for artifact in artifacts:
-        loc = artifact['location']
-        if loc in artifact_match_dict:
-            match_data = artifact_match_dict[loc]
+        pathspec = "{flow_id}/{run_number}/{step_name}/{task_id}/{name}/{attempt_id}".format(**artifact)
+        if pathspec in artifact_match_dict:
+            match_data = artifact_match_dict[pathspec]
             if match_data['matches'] or not match_data['included']:
                 results.append({
                     **_result_format(artifact),

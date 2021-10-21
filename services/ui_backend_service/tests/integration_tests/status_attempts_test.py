@@ -291,12 +291,14 @@ async def test_attempt_status_failed_attempt_ok_s3(cli, db):
                                                 "value": "0",
                                                 "type": "attempt"})).body
 
-    async def _refine_record(self, record, invalidate_cache=False):
-        return {**record, "task_ok": [True, False]}  # Success=True, Value=False
+    async def _fetch_data(self, targets, event_stream=None, invalidate_cache=False):
+        return {
+            "{flow_id}/{run_number}/{step_name}/{task_id}/0".format(**_task): [True, {'_task_ok': False}]
+        }
 
     with mock.patch(
-        "services.ui_backend_service.data.refiner.task_refiner.Refinery.refine_record",
-        new=_refine_record
+        "services.ui_backend_service.data.refiner.task_refiner.Refinery.fetch_data",
+        new=_fetch_data
     ):
         _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}?postprocess=true".format(**_task), 200)
 

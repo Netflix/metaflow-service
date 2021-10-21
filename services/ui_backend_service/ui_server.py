@@ -8,6 +8,8 @@ from aiohttp_swagger import *
 from pyee import AsyncIOEventEmitter
 from services.utils import DBConfiguration, logging
 
+from services.metadata_service.server import app as metadata_service_app
+
 # service processes and routes
 from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
@@ -25,6 +27,15 @@ from .plugins import init_plugins
 
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
+DEFAULT_SERVICE_HOST = str(os.environ.get('MF_UI_METADATA_HOST', '0.0.0.0'))
+DEFAULT_SERVICE_PORT = os.environ.get('MF_UI_METADATA_PORT', 8083)
+DEFAULT_METADATA_SERVICE_URL = "http://{}:{}/metadata".format(DEFAULT_SERVICE_HOST, DEFAULT_SERVICE_PORT)
+
+# Provide defaults for Metaflow Client
+os.environ['METAFLOW_SERVICE_URL'] = os.environ.get('METAFLOW_SERVICE_URL', DEFAULT_METADATA_SERVICE_URL)
+os.environ['USERNAME'] = os.environ.get('USERNAME', 'none')
+os.environ['METAFLOW_S3_RETRY_COUNT'] = os.environ.get('METAFLOW_S3_RETRY_COUNT', '0')
+os.environ['METAFLOW_DEFAULT_METADATA'] = os.environ.get('METAFLOW_DEFAULT_METADATA', 'service')
 
 # Create database triggers automatically, enabled by default
 # Disable with env variable `DB_TRIGGER_CREATE=0`
@@ -81,6 +92,10 @@ def app(loop=None, db_conf: DBConfiguration = None):
     LogApi(app, async_db, cache_store)
     AdminApi(app)
 
+    # Add Metadata Service as a sub application so that Metaflow Client
+    # can use it as a service backend in case none provided via METAFLOW_SERVICE_URL
+    app.add_subapp("/metadata", metadata_service_app(loop=loop, db_conf=db_conf))
+
     setup_swagger(app,
                   description=swagger_description,
                   definitions=swagger_definitions)
@@ -111,9 +126,7 @@ def main():
     the_app = app(loop, DBConfiguration())
     handler = web.AppRunner(the_app)
     loop.run_until_complete(handler.setup())
-    port = os.environ.get("MF_UI_METADATA_PORT", 8083)
-    host = str(os.environ.get("MF_UI_METADATA_HOST", "0.0.0.0"))
-    f = loop.create_server(handler.server, host, port)
+    f = loop.create_server(handler.server, DEFAULT_SERVICE_HOST, DEFAULT_SERVICE_PORT)
 
     srv = loop.run_until_complete(f)
     print("serving on", srv.sockets[0].getsockname())

@@ -3,26 +3,26 @@ import json
 
 from .client import CacheAction
 from services.utils import get_traceback_str
-from ..s3 import (
-    S3AccessDenied, S3CredentialsMissing,
-    S3NotFound, S3Exception,
-    S3URLException, get_s3_size, get_s3_obj, get_s3_client)
-from .utils import (decode, error_event_msg, progress_event_msg,
-                    artifact_cache_id,
+from .utils import (error_event_msg, progress_event_msg,
+                    artifact_cache_id, unpack_pathspec_with_attempt_id,
                     MAX_S3_SIZE)
 from ..refiner.refinery import unpack_processed_value
 from services.ui_backend_service.api.utils import operators_to_filters
 
 
+from metaflow import DataArtifact
+
+
 class SearchArtifacts(CacheAction):
     """
-    Fetches artifacts by locations and performs a search against the object contents.
-    Caches artifacts based on location, and search results based on a combination of query&artifacts searched
+    Fetches artifacts by pathspecs and performs a search against the object contents.
+    Caches artifacts based on pathspec, and search results based on a combination of query&artifacts searched
 
     Parameters
     ----------
-    locations : List[str]
-        A list of artifact S3 locations to fetch and match the search term against.
+    pathspecs : List[str]
+        A list of artifact pathspecs (with attempt id as last component)
+            to fetch and match the search term against: ["FlowId/RunNumber/StepName/TaskId/ArtifactName/0"]
     searchterm : str
         A searchterm to match against the fetched S3 artifacts contents.
 
@@ -31,7 +31,7 @@ class SearchArtifacts(CacheAction):
     Dict or None
         example:
         {
-            "s3_location": {
+            "pathspec": {
                 "included": boolean,
                 "matches": boolean
             }
@@ -42,19 +42,18 @@ class SearchArtifacts(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, locations, searchterm, operator="eq", invalidate_cache=False):
-        unique_locs = list(frozenset(sorted(locations)))
+    def format_request(cls, pathspecs, searchterm, operator="eq", invalidate_cache=False):
         msg = {
-            'artifact_locations': unique_locs,
+            'pathspecs': list(frozenset(sorted(pathspecs))),
             'searchterm': searchterm,
             'operator': operator
         }
 
         artifact_keys = []
-        for location in unique_locs:
-            artifact_keys.append(artifact_cache_id(location))
+        for pathspec in pathspecs:
+            artifact_keys.append(artifact_cache_id(pathspec))
 
-        request_id = lookup_id(unique_locs, searchterm, operator)
+        request_id = lookup_id(pathspecs, searchterm, operator)
         stream_key = 'search:stream:%s' % request_id
         result_key = 'search:result:%s' % request_id
 
@@ -69,12 +68,12 @@ class SearchArtifacts(CacheAction):
         """
         Action should respond with a dictionary of
         {
-            location: {
+            "pathspec": {
                 "matches": boolean,
                 "included": boolean
             }
         }
-        that tells the client whether the search term matches in the given location, or if performing search was impossible
+        that tells the client whether the search term matches in the given pathspec, or if performing search was impossible
         """
         return [json.loads(val) for key, val in keys_objs.items() if key.startswith('search:result')][0]
 
@@ -94,17 +93,17 @@ class SearchArtifacts(CacheAction):
                 stream_output=None,
                 invalidate_cache=False,
                 **kwargs):
-        locations = message['artifact_locations']
+        pathspecs = message['pathspecs']
 
         if invalidate_cache:
             results = {}
-            locations_to_fetch = [loc for loc in locations]
+            pathspecs_to_fetch = [loc for loc in pathspecs]
         else:
             # make a copy of already existing results, as the cache action has to produce all keys it promised
             # in the format_request response.
             results = {**existing_keys}
-            # Make a list of artifact locations that require fetching (not cached previously)
-            locations_to_fetch = [loc for loc in locations if not artifact_cache_id(loc) in existing_keys]
+            # Make a list of artifact pathspecs that require fetching (not cached previously)
+            pathspecs_to_fetch = [loc for loc in pathspecs if not artifact_cache_id(loc) in existing_keys]
 
         artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
         result_key = [key for key in keys if key.startswith('search:result')][0]
@@ -116,44 +115,22 @@ class SearchArtifacts(CacheAction):
         def stream_error(err, id, traceback=None):
             return stream_output(error_event_msg(err, id, traceback))
 
-        # Fetch the S3 locations data
-        s3_locations = [loc for loc in locations_to_fetch if loc.startswith("s3://")]
-        s3 = get_s3_client()
-        for idx, location in enumerate(s3_locations):
-            artifact_key = artifact_cache_id(location)
-            stream_progress((idx + 1) / len(s3_locations))
+        # Fetch artifacts that are not cached already
+        for idx, pathspec in enumerate(pathspecs_to_fetch):
+            stream_progress((idx + 1) / len(pathspecs_to_fetch))
+
             try:
-                obj_size = get_s3_size(s3, location)
-                if obj_size < MAX_S3_SIZE:
-                    temp_obj = get_s3_obj(s3, location)
-                    # TODO: Figure out a way to store the artifact content without decoding?
-                    # presumed that cache_data/tmp/ does not persist as long as the cached items themselves,
-                    # so we can not rely on the file existing if we only return a filepath as a cached response
-                    content = decode(temp_obj.name)
-                    results[artifact_key] = json.dumps([True, content])
+                pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
+                artifact_key = "search:artifactdata:{}".format(pathspec)
+                artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
+                if artifact.size < MAX_S3_SIZE:
+                    results[artifact_key] = json.dumps([True, artifact.data])
                 else:
-                    results[artifact_key] = json.dumps([False, 'artifact-too-large', obj_size])
-            except TypeError:
-                # In case the artifact was of a type that can not be json serialized,
-                # we try casting it to a string first.
-                results[artifact_key] = json.dumps([True, str(content)])
-            except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing) as ex:
-                stream_error(str(ex), ex.id)
-                results[artifact_key] = json.dumps([False, ex.id, location])
-            except S3Exception as ex:
-                stream_error(str(ex), ex.id, get_traceback_str())
-                results[artifact_key] = json.dumps([False, ex.id, get_traceback_str()])
+                    results[artifact_key] = json.dumps(
+                        [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
             except Exception as ex:
-                # Exceptions might be fixable with configuration changes or other measures,
-                # therefore we do not want to write anything to the cache for these artifacts.
-                stream_error(str(ex), "artifact-handle-failed", get_traceback_str())
-                results[artifact_key] = json.dumps([False, 'artifact-handle-failed', get_traceback_str()])
-        # Skip the inaccessible locations
-        other_locations = [loc for loc in locations_to_fetch if not loc.startswith("s3://")]
-        for loc in other_locations:
-            artifact_key = artifact_cache_id(loc)
-            stream_error("Artifact is not accessible", "artifact-not-accessible")
-            results[artifact_key] = json.dumps([False, 'object is not accessible', loc])
+                stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
+                results[artifact_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
 
         # Perform search on loaded artifacts.
         search_results = {}
@@ -162,7 +139,7 @@ class SearchArtifacts(CacheAction):
         filter_fn = operators_to_filters[operator] if operator in operators_to_filters else operators_to_filters["eq"]
 
         def format_loc(x):
-            "extract location from the artifact cache key"
+            "extract pathspec from the artifact cache key"
             return x[len("search:artifactdata:"):]
 
         for key in artifact_keys:

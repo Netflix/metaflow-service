@@ -288,3 +288,38 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             postprocess=postprocess
         )
         return result
+
+    async def get_tasks_for_run(self, flow_id: str, run_key: str, postprocess: Callable = None) -> DBResponse:
+        """
+        Fetches run tasks from DB.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow id of the task
+        run_key : str
+            Run number or run id of the task
+        postprocess : Callable
+            A callback function for refining results.
+            Receives DBResponse as an argument, and should return a DBResponse
+
+        Returns
+        -------
+        DBResponse
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        conditions = [
+            "flow_id = %s",
+            "{run_id_column} = %s".format(run_id_column=run_id_key)
+        ]
+        values = [flow_id, run_id_value]
+
+        result, *_ = await self.find_records(
+            conditions=conditions,
+            values=values,
+            fetch_single=False,
+            enable_joins=True,
+            expanded=False,
+            postprocess=postprocess
+        )
+        return result
