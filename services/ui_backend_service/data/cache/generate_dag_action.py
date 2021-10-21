@@ -91,7 +91,12 @@ class GenerateDag(CacheAction):
             run = Run("{}/{}".format(flow_id, run_number))
             results[result_key] = json.dumps(generate_dag(flow_id, run.code.flowspec))
         except Exception as ex:
-            stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
+            if ex.__class__.__name__ == 'KeyError' and "filename 'python3' not found" in str(ex):
+                stream_error(
+                    'Parsing DAG graph is not supported for the language used in this Flow.',
+                    'dag-unsupported-flow-language')
+            else:
+                stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
 
         return results
 
