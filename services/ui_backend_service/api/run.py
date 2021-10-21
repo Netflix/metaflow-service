@@ -1,9 +1,8 @@
+from ..data.refiner.parameter_refiner import GetParametersFailed
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import find_records, web_response, format_response,\
     builtin_conditions_query, pagination_query, query_param_enabled
-
-import json
 
 
 class RunApi(object):
@@ -212,7 +211,13 @@ class RunApi(object):
         combined_results = await self._artifact_store.get_run_parameters(
             flow_name, run_number, invalidate_cache=invalidate_cache)
 
-        response = DBResponse(200, combined_results)
+        postprocess_error = combined_results.get("postprocess_error", None)
+        if postprocess_error:
+            raise GetParametersFailed(
+                postprocess_error["detail"], postprocess_error["id"], postprocess_error["traceback"])
+        else:
+            response = DBResponse(200, combined_results)
+
         status, body = format_response(request, response)
 
         return web_response(status, body)

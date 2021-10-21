@@ -18,25 +18,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     select_columns = keys
     _command = MetadataArtifactTable._command
 
-    async def get_artifact_locations_for_run(self, run):
-        try:
-            flow_id = run['flow_id']
-            run_number = run['run_number']
-        except KeyError:
-            self.logger.warn("failed to get artifact locations for run: {}".format(run))
-            return []  # should not lookup without flow_id or run_number
-
-        artifact_loc_cond = "ds_type = %s"
-        artifact_loc = "s3"
-        _records, *_ = await self.find_records(
-            conditions=["flow_id = %s", "run_number = %s", artifact_loc_cond],
-            values=[flow_id, run_number, artifact_loc],
-            expanded=True
-        )
-
-        # be sure to return a list of unique locations
-        return list(frozenset(artifact['location'] for artifact in _records.body if 'location' in artifact))
-
     async def get_run_parameter_artifacts(self, flow_name, run_number, postprocess=None, invalidate_cache=False):
         run_id_key, run_id_value = translate_run_key(run_number)
 

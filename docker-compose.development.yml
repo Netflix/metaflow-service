@@ -24,16 +24,17 @@ services:
       - MF_UI_METADATA_HOST=${MF_UI_METADATA_HOST:-0.0.0.0}
       - MF_METADATA_DB_POOL_MIN=1
       - MF_METADATA_DB_POOL_MAX=10
+      - METAFLOW_SERVICE_URL=http://metadata:8080
       - LOGLEVEL=INFO
       - AIOPG_ECHO=0
       - UI_ENABLED=1
-      - PREFETCH_RUNS_SINCE=3600 # 1 hour in seconds
+      - PREFETCH_RUNS_SINCE=2592000 # 30 days in seconds
       - PREFETCH_RUNS_LIMIT=1 # Prefetch only one run
       - S3_NUM_WORKERS=2
-      - CACHE_ARTIFACT_MAX_ACTIONS=16
-      - CACHE_DAG_MAX_ACTIONS=16
-      - CACHE_ARTIFACT_STORAGE_LIMIT=600000
-      - CACHE_DAG_STORAGE_LIMIT=100000
+      - CACHE_ARTIFACT_MAX_ACTIONS=4
+      - CACHE_DAG_MAX_ACTIONS=4
+      - CACHE_ARTIFACT_STORAGE_LIMIT=16000000
+      - CACHE_DAG_STORAGE_LIMIT=16000000
       - WS_POSTPROCESS_CONCURRENCY_LIMIT=8
       - FEATURE_PREFETCH_DISABLE=0
       - FEATURE_CACHE_DISABLE=0
@@ -91,7 +92,7 @@ services:
       - db
   db:
     image: "postgres:11"
-    command: ["postgres", "-c", "log_statement=mod", "-c", "wal_level=logical"]
+    command: ["postgres", "-c", "log_statement=none", "-c", "wal_level=logical"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

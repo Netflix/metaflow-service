@@ -100,7 +100,7 @@ class ListenNotify(object):
                 if operation == "INSERT" and \
                         table.table_name == self.db.step_table_postgres.table_name and \
                         data["step_name"] == "start":
-                    self.event_emitter.emit("run-parameters", data['flow_id'], data['run_number'])
+                    self.event_emitter.emit("preload-run-parameters", data['flow_id'], data['run_number'])
 
                 # Notify task resources of a new attempt if 'attempt' metadata is inserted.
                 if operation == "INSERT" and \
@@ -146,7 +146,7 @@ class ListenNotify(object):
                             self.event_emitter, "UPDATE", self.db.run_table_postgres,
                             data)
                         # Also trigger preload of artifacts after a run finishes.
-                        self.event_emitter.emit("preload-artifacts", data['flow_id'], data['run_number'])
+                        self.event_emitter.emit("preload-task-statuses", data['flow_id'], data['run_number'])
                         # And remove possible heartbeat watchers for completed runs
                         self.event_emitter.emit("run-heartbeat", "complete", data)
 
@@ -155,19 +155,7 @@ class ListenNotify(object):
                         table.table_name == self.db.metadata_table_postgres.table_name and \
                         data["step_name"] == "start" and \
                         data["field_name"] in ["code-package-url", "code-package"]:
-                    flow_name = data.get("flow_id", None)
-                    codepackage_loc = None
-                    value = data.get("value", None)
-                    if data["field_name"] == "code-package-url":
-                        codepackage_loc = value
-                    elif data["field_name"] == "code-package":
-                        try:
-                            codepackage_loc = json.loads(value)['location']
-                        except:
-                            self.logger.warn("Invalid code-package value {}".format(value))
-
-                    if flow_name and codepackage_loc:
-                        self.event_emitter.emit("preload-dag", flow_name, codepackage_loc)
+                    self.event_emitter.emit("preload-dag", data['flow_id'], data['run_number'])
 
         except Exception:
             self.logger.exception("Exception occurred")

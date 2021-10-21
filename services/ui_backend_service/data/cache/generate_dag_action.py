@@ -1,29 +1,25 @@
 import hashlib
 import json
-import os
-from tarfile import TarFile
 
 from .client import CacheAction
 from services.utils import get_traceback_str
 
 from .custom_flowgraph import FlowGraph
-from ..s3 import (
-    S3AccessDenied, S3CredentialsMissing,
-    S3Exception, S3NotFound,
-    S3URLException, get_s3_obj, get_s3_client)
+
+from metaflow import Run
 
 
 class GenerateDag(CacheAction):
     """
-    Generates a DAG for a given codepackage tarball location and Flow name.
+    Generates a DAG for a given Run.
 
     Parameters
     ----------
     flow_id : str
         The flow id that this codepackage belongs to.
         Required for finding the correct class inside the parser logic.
-    codepackage_location : str
-        the S3 location for the codepackage to be fetched.
+    run_number : str
+        Run number to construct rest of the pathspec
 
     Returns
     --------
@@ -47,13 +43,14 @@ class GenerateDag(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, flow_id, codepackage_location, invalidate_cache=False):
+    def format_request(cls, flow_id, run_number, invalidate_cache=False):
         msg = {
-            'location': codepackage_location,
-            'flow_id': flow_id
+            'flow_id': flow_id,
+            'run_number': run_number
         }
-        result_key = 'dag:result:%s' % hashlib.sha1((flow_id + codepackage_location).encode('utf-8')).hexdigest()
-        stream_key = 'dag:stream:%s' % hashlib.sha1((flow_id + codepackage_location).encode('utf-8')).hexdigest()
+        key_identifier = "{}/{}".format(flow_id, run_number)
+        result_key = 'dag:result:%s' % hashlib.sha1((key_identifier).encode('utf-8')).hexdigest()
+        stream_key = 'dag:stream:%s' % hashlib.sha1((key_identifier).encode('utf-8')).hexdigest()
 
         return msg,\
             [result_key],\
@@ -81,48 +78,34 @@ class GenerateDag(CacheAction):
                 stream_output=None,
                 invalidate_cache=False,
                 **kwargs):
-
         results = {}
-        location = message['location']
-        flow_name = message['flow_id']
+        flow_id = message['flow_id']
+        run_number = message['run_number']
 
         result_key = [key for key in keys if key.startswith('dag:result')][0]
 
         def stream_error(err, id, traceback=None):
             return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
 
-        # get codepackage from S3
-        s3 = get_s3_client()
         try:
-            codetar = get_s3_obj(s3, location)
-            results[result_key] = json.dumps(generate_dag(flow_name, codetar.name))
-        except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing, S3Exception) as ex:
-            stream_error(str(ex), ex.id)
-        except UnsupportedFlowLanguage as ex:
-            stream_error(str(ex), "dag-unsupported-flow-language")
+            run = Run("{}/{}".format(flow_id, run_number))
+            results[result_key] = json.dumps(generate_dag(flow_id, run.code.flowspec))
         except Exception as ex:
-            stream_error(str(ex), "dag-processing-error", get_traceback_str())
+            if ex.__class__.__name__ == 'KeyError' and "filename 'python3' not found" in str(ex):
+                stream_error(
+                    'Parsing DAG graph is not supported for the language used in this Flow.',
+                    'dag-unsupported-flow-language')
+            else:
+                stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
 
         return results
 
 # Utilities
 
 
-def generate_dag(flow_id, tarball_path):
-    # extract the sourcecode from the tarball
-    with TarFile.open(tarball_path) as f:
-        info_json = f.extractfile('INFO').read().decode('utf-8')
-        info = json.loads(info_json)
-        # Break if language is not supported.
-        if "use_r" in info and info["use_r"]:
-            raise UnsupportedFlowLanguage
-        # script name contains the full path passed to the python executable,
-        # trim this down to the python filename
-        script_name = os.path.basename(info['script'])
-        sourcecode = f.extractfile(script_name).read().decode('utf-8')
-
+def generate_dag(flow_id, source):
     # Initialize a FlowGraph object
-    graph = FlowGraph(source=sourcecode, name=flow_id)
+    graph = FlowGraph(source=source, name=flow_id)
     # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
     dag = {}
     for node in graph:
@@ -134,8 +117,3 @@ def generate_dag(flow_id, tarball_path):
             'doc': node.doc
         }
     return dag
-
-
-class UnsupportedFlowLanguage(Exception):
-    def __str__(self):
-        return "Parsing DAG graph is not supported for the language used in this Flow."

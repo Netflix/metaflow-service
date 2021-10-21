@@ -1,11 +1,8 @@
-aiohttp==3.6.2
-aiohttp-swagger==1.0.15
-botocore==1.19.52
-boto3==1.16.52
+aiohttp
+aiohttp-swagger
 pyee==8.0.1
-yarl==1.5.1
 throttler==1.2.0
-psycopg2==2.8.6
-aiopg==1.2.1
-metaflow==2.4.1
+psycopg2
+aiopg
+metaflow==2.4.0
 pygit2==1.6.1
