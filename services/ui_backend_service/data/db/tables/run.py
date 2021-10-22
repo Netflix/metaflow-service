@@ -1,7 +1,7 @@
 import os
 import time
 from typing import List, Tuple
-from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME
+from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, RUN_INACTIVE_CUTOFF_TIME
 from ..models import RunRow
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 # use schema constants from the .data module to keep things consistent
@@ -138,12 +138,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 AND latest_failed_task IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN {table_name}.last_heartbeat_ts*1000
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                AND latest_failed_task IS NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_cutoff}
+            THEN {table_name}.last_heartbeat_ts*1000
             ELSE NULL
         END) AS finished_at
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME
         ),
         """
         (CASE
@@ -161,12 +165,17 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN {table_name}.last_heartbeat_ts IS NULL
                 AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
             THEN 'failed'
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                AND latest_failed_task IS NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_cutoff}
+            THEN 'failed'
             ELSE 'running'
         END) AS status
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
+            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME
         ),
         """
         (CASE
