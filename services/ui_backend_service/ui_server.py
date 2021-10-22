@@ -35,6 +35,7 @@ DEFAULT_METADATA_SERVICE_URL = "http://{}:{}/metadata".format(DEFAULT_SERVICE_HO
 os.environ['METAFLOW_SERVICE_URL'] = os.environ.get('METAFLOW_SERVICE_URL', DEFAULT_METADATA_SERVICE_URL)
 os.environ['USERNAME'] = os.environ.get('USERNAME', 'none')
 os.environ['METAFLOW_S3_RETRY_COUNT'] = os.environ.get('METAFLOW_S3_RETRY_COUNT', '0')
+os.environ['METAFLOW_CLIENT_CACHE_MAX_SIZE'] = os.environ.get('METAFLOW_CLIENT_CACHE_MAX_SIZE', '0')
 os.environ['METAFLOW_DEFAULT_METADATA'] = os.environ.get('METAFLOW_DEFAULT_METADATA', 'service')
 
 # Create database triggers automatically, enabled by default
