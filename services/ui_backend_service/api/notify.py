@@ -120,6 +120,13 @@ class ListenNotify(object):
                         filter_dict={"attempt_id": _attempt_id}
                     )
 
+                # Notify updated Run status once attempt_ok metadata for end step has been received
+                if operation == "INSERT" and \
+                        table.table_name == self.db.metadata_table_postgres.table_name and \
+                        data["step_name"] == "end" and \
+                        data["field_name"] == "attempt_ok":
+                    await _broadcast(self.event_emitter, "UPDATE", self.db.run_table_postgres, data)
+
                 # Notify related resources once new `_task_ok` artifact has been created
                 if operation == "INSERT" and \
                         table.table_name == self.db.artifact_table_postgres.table_name and \
