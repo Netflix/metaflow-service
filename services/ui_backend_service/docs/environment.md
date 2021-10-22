@@ -69,7 +69,9 @@ The threshold parameters for heartbeat checks can also be configured when necess
 
 `HEARTBEAT_THRESHOLD` [controls at what point a heartbeat is considered expired. Default is `WAIT_TIME * 6`]
 
-`OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 2 weeks]
+`OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 6 days (in milliseconds)]
+
+`RUN_INACTIVE_CUTOFF_TIME` [ for runs that have a heartbeat, controls how long a run with a failed heartbeat should wait for possibly queued tasks to start and resume heartbeat updates. Default is 6 days (in seconds)]
 
 ## Baseurl configuration
 
