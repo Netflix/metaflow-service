@@ -29,7 +29,10 @@ PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
 DEFAULT_SERVICE_HOST = str(os.environ.get('MF_UI_METADATA_HOST', '0.0.0.0'))
 DEFAULT_SERVICE_PORT = os.environ.get('MF_UI_METADATA_PORT', 8083)
-DEFAULT_METADATA_SERVICE_URL = "http://{}:{}/metadata".format(DEFAULT_SERVICE_HOST, DEFAULT_SERVICE_PORT)
+DEFAULT_METADATA_SERVICE_URL = "http://{}:{}{}/metadata".format(
+    DEFAULT_SERVICE_HOST,
+    DEFAULT_SERVICE_PORT,
+    PATH_PREFIX)
 
 # Provide defaults for Metaflow Client
 os.environ['METAFLOW_SERVICE_URL'] = os.environ.get('METAFLOW_SERVICE_URL', DEFAULT_METADATA_SERVICE_URL)
@@ -108,6 +111,8 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     if len(PATH_PREFIX) > 0:
         _app.add_subapp(PATH_PREFIX, app)
+
+    logging.info("Metadata service available at {}".format(DEFAULT_METADATA_SERVICE_URL))
 
     async def _init_plugins():
         with concurrent.futures.ThreadPoolExecutor() as pool:
