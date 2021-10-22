@@ -89,7 +89,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                     task.step_name=attempt_ok.step_name AND
                     task.task_id=attempt_ok.task_id AND
                     attempt_ok.field_name='attempt_ok'
-                LIMIT 1
             ) AS attempt_ok ON true
             WHERE
                 {table_name}.flow_id = task.flow_id
