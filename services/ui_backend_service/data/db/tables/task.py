@@ -128,18 +128,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 (attempt.attempt_id + 1) = (next_attempt_start.value::jsonb->>0)::int
             LIMIT 1
         ) as next_attempt_start ON true
-        LEFT JOIN LATERAL (
-            SELECT location
-            FROM {artifact_table} as foreach_stack
-            WHERE
-                {table_name}.flow_id = foreach_stack.flow_id AND
-                {table_name}.run_number = foreach_stack.run_number AND
-                {table_name}.step_name = foreach_stack.step_name AND
-                {table_name}.task_id = foreach_stack.task_id AND
-                attempt.attempt_id = foreach_stack.attempt_id AND
-                foreach_stack.name = '_foreach_stack'
-            LIMIT 1
-        ) as foreach_stack ON true
         """.format(
             table_name=table_name,
             metadata_table=metadata_table,
@@ -232,8 +220,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             table_name=table_name,
             finished_at_column="COALESCE(attempt.attempt_finished_at, attempt.task_ok_finished_at)",
             cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
-        ),
-        "foreach_stack.location as foreach_stack"
+        )
     ]
     step_table_name = AsyncStepTablePostgres.table_name
     _command = MetadataTaskTable._command
