@@ -63,7 +63,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
     Websocket(app, db, app.event_emitter, queue_ttl)
 
-    AdminApi(app)
+    AdminApi(app, cache_store)
 
     return loop.run_until_complete(aiohttp_client(app))
 
