@@ -1,5 +1,6 @@
 import psycopg2
 import collections
+import datetime
 import time
 import json
 
@@ -29,6 +30,10 @@ def aiopg_exception_handling(exception):
 
 def get_db_ts_epoch_str():
     return str(int(round(time.time() * 1000)))
+
+
+def new_heartbeat_ts():
+    return int(datetime.datetime.utcnow().timestamp())
 
 
 def translate_run_key(v: str):
