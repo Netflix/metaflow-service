@@ -27,7 +27,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             SELECT
                 max(started_at) as started_at,
                 max(attempt_finished_at) as attempt_finished_at,
-                max(task_ok_location) as task_ok_location,
                 attempt_id :: int as attempt_id,
                 max(attempt_ok) :: boolean as attempt_ok,
                 task_id
@@ -36,7 +35,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     task_id,
                     ts_epoch as started_at,
                     NULL::bigint as attempt_finished_at,
-                    NULL::text as task_ok_location,
                     NULL::text as attempt_ok,
                     (CASE
                         WHEN pg_typeof(value)='jsonb'::regtype
@@ -55,7 +53,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     task_id,
                     NULL as started_at,
                     ts_epoch as attempt_finished_at,
-                    NULL as task_ok_location,
                     NULL as attempt_ok,
                     (CASE
                         WHEN pg_typeof(value)='jsonb'::regtype
@@ -74,7 +71,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     task_id,
                     NULL as started_at,
                     ts_epoch as attempt_finished_at,
-                    NULL as task_ok_location,
                     (CASE
                         WHEN pg_typeof(value)='jsonb'::regtype
                         THEN value::jsonb->>0
