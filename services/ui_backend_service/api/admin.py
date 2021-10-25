@@ -1,6 +1,5 @@
 import hashlib
-import json
-import time
+import asyncio
 
 from aiohttp import web
 from multidict import MultiDict
@@ -23,11 +22,14 @@ class AdminApi(object):
     such as health checks, version info and custom navigation links.
     """
 
-    def __init__(self, app):
+    def __init__(self, app, cache_store):
+        self.cache_store = cache_store
+
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/version", self.version)
         app.router.add_route("GET", "/links", self.links)
         app.router.add_route("GET", "/notifications", self.get_notifications)
+        app.router.add_route("GET", "/status", self.status)
 
         defaults = [
             {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
@@ -169,6 +171,81 @@ class AdminApi(object):
 
         return web_response(status=200, body=list(
             filter(filter_notifications, processed_notifications)))
+
+    async def status(self, request):
+        """
+        ---
+        description: Display system status information, such as cache
+        tags:
+        - Admin
+        produces:
+        - 'application/json'
+        responses:
+            "200":
+                description: Return system status information, such as cache
+            "405":
+                description: invalid HTTP Method
+        """
+
+        cache_status = {}
+        for store in [self.cache_store.artifact_cache, self.cache_store.dag_cache, self.cache_store.log_cache]:
+            try:
+                # Use client ping to verify communcation, True = ok
+                await store.cache.ping()
+                ping = True
+            except Exception as ex:
+                ping = str(ex)
+
+            try:
+                # Use Check -action to verify Cache communication, True = ok
+                await store.cache.request_and_return([store.cache.check()], None)
+                check = True
+            except Exception as ex:
+                check = str(ex)
+
+            # Extract list of worker subprocesses
+            worker_list = []
+            cache_server_pid = store.cache._proc.pid if store.cache._proc else None
+            if cache_server_pid:
+                try:
+                    proc = await asyncio.create_subprocess_shell(
+                        "pgrep -P {}".format(cache_server_pid),
+                        stdout=asyncio.subprocess.PIPE)
+                    stdout, _ = await proc.communicate()
+                    if stdout:
+                        pids = stdout.decode().splitlines()
+                        proc = await asyncio.create_subprocess_shell(
+                            "ps -p {} -o pid,%cpu,%mem,stime,time,command".format(",".join(pids)),
+                            stdout=asyncio.subprocess.PIPE)
+                        stdout, _ = await proc.communicate()
+
+                        worker_list = stdout.decode().splitlines()
+                except Exception as ex:
+                    worker_list = str(ex)
+            else:
+                worker_list = "Unable to get cache server pid"
+
+            cache_status[store.__class__.__name__] = {
+                "restart_requested": store.cache._restart_requested,
+                "is_alive": store.cache._is_alive,
+                "pending_requests": list(store.cache.pending_requests),
+                "root": store.cache._root,
+                "prev_is_alive": store.cache._prev_is_alive,
+                "action_classes": list(map(lambda cls: cls.__name__, store.cache._action_classes)),
+                "max_actions": store.cache._max_actions,
+                "max_size": store.cache._max_size,
+                "ping": ping,
+                "check_action": check,
+                "proc": {
+                    "pid": store.cache._proc.pid,
+                    "returncode": store.cache._proc.returncode,
+                } if store.cache._proc else None,
+                "workers": worker_list
+            }
+
+        return web_response(status=200, body={
+            "cache": cache_status
+        })
 
 
 def _get_links_from_env():

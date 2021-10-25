@@ -94,7 +94,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     PluginsApi(app)
 
     LogApi(app, async_db, cache_store)
-    AdminApi(app)
+    AdminApi(app, cache_store)
 
     # Add Metadata Service as a sub application so that Metaflow Client
     # can use it as a service backend in case none provided via METAFLOW_SERVICE_URL
