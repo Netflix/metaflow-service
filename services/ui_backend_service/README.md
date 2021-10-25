@@ -7,6 +7,32 @@ For more information, see [Metaflow's website](http://docs.metaflow.org)
 
 Refer to the project root for running the project [README.md](../../README.md)
 
+### Running UI Service using the official Docker image
+
+UI service provides backend instance that serves static frontend assets from [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui) repository.
+
+UI service is _not_ started by default next to Metadata & Migration services and needs to be started separately.
+The UI service module is `services.ui_backend_service.ui_server`:
+
+> ```sh
+> $ /opt/latest/bin/python3 -m services.ui_backend_service.ui_server
+> ```
+
+Below is an Docker run command for running UI Service exposed at port 8083:
+
+> ```sh
+> $ docker run \
+>       -e MF_METADATA_DB_HOST='<instance_name>.us-east-1.rds.amazonaws.com' \
+>       -e MF_METADATA_DB_PORT=5432 \
+>       -e MF_METADATA_DB_USER='postgres' \
+>       -e MF_METADATA_DB_PSWD='postgres' \
+>       -e MF_METADATA_DB_NAME='metaflow' \
+>       -p 8083:8083 netflixoss/metaflow_metadata_service \
+>       /opt/latest/bin/python3 -m services.ui_backend_service.ui_server
+> ```
+
+Latest release of the image is available on [dockerhub](https://hub.docker.com/repository/docker/netflixoss/metaflow_metadata_service)
+
 ### Hosting the backend
 
 Easiest way to get started is to use `docker-compose`.
