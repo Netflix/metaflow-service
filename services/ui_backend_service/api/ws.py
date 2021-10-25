@@ -89,6 +89,12 @@ class Websocket(object):
                 _data = await load_data_from_db(table, data, filter_dict, postprocess=_postprocess)
             else:
                 _data = data
+
+            if not _data:
+                # Skip sending this event to subscriptions in case data is None or empty.
+                # This could be caused by insufficient/broken data and can break the UI.
+                return
+
             # Append event to the queue so that we can later dispatch them in case of disconnections
             #
             # NOTE: server instance specific ws queue will not work when scaling across multiple instances.

@@ -1,4 +1,4 @@
-FROM golang:latest
+FROM golang:1.16.3
 
 ARG BUILD_TIMESTAMP
 ARG BUILD_COMMIT_HASH

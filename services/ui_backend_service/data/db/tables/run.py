@@ -1,8 +1,7 @@
 import os
 import time
 from typing import List, Tuple
-from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, WAIT_TIME
-from .flow import AsyncFlowTablePostgres
+from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, RUN_INACTIVE_CUTOFF_TIME
 from ..models import RunRow
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
 # use schema constants from the .data module to keep things consistent
@@ -28,10 +27,18 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
 
+    # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
+    # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
     joins = [
         """
         LEFT JOIN LATERAL (
-            SELECT ts_epoch, value::boolean
+            SELECT
+                ts_epoch,
+                (CASE
+                    WHEN pg_typeof(value)='jsonb'::regtype
+                    THEN value::jsonb->>0
+                    ELSE value::text
+                END)::boolean as value
             FROM {metadata_table} as attempt_ok
             WHERE
                 {table_name}.flow_id = attempt_ok.flow_id AND
@@ -68,7 +75,13 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             FROM
             {task_table} as task
             LEFT JOIN LATERAL (
-                SELECT value::boolean as is_ok, ts_epoch
+                SELECT
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
+                    END)::boolean as is_ok,
+                    ts_epoch
                 FROM {metadata_table} as attempt_ok
                 WHERE
                     task.flow_id=attempt_ok.flow_id AND
@@ -76,7 +89,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                     task.step_name=attempt_ok.step_name AND
                     task.task_id=attempt_ok.task_id AND
                     attempt_ok.field_name='attempt_ok'
-                LIMIT 1
             ) AS attempt_ok ON true
             WHERE
                 {table_name}.flow_id = task.flow_id
@@ -126,12 +138,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 AND latest_failed_task IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
             THEN {table_name}.last_heartbeat_ts*1000
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                AND latest_failed_task IS NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_cutoff}
+            THEN {table_name}.last_heartbeat_ts*1000
             ELSE NULL
         END) AS finished_at
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME
         ),
         """
         (CASE
@@ -149,12 +165,17 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN {table_name}.last_heartbeat_ts IS NULL
                 AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
             THEN 'failed'
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                AND latest_failed_task IS NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_cutoff}
+            THEN 'failed'
             ELSE 'running'
         END) AS status
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
+            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME
         ),
         """
         (CASE
@@ -191,6 +212,33 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         )
 
         return _records.body
+
+    async def get_run(self, flow_id: str, run_key: str):
+        """
+        Fetch run with a given flow_id and run id or number from the DB.
+
+        Parameters
+        ----------
+        flow_id : str
+            flow_id
+        run_key : str
+            run number or run id
+
+        Returns
+        -------
+        DBResponse
+            Containing a single run record, if one was found.
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        result, *_ = await self.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(run_id_key=run_id_key),
+            ],
+            values=[flow_id, run_id_value],
+            fetch_single=True,
+            enable_joins=True)
+        return result
 
     async def get_expanded_run(self, run_key: str) -> DBResponse:
         """

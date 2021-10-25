@@ -19,7 +19,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = MetadataTaskTable.keys
     primary_keys = MetadataTaskTable.primary_keys
     trigger_keys = MetadataTaskTable.trigger_keys
-
+    # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
+    # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
     joins = [
         """
         LEFT JOIN LATERAL (
@@ -37,7 +38,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL::bigint as attempt_finished_at,
                     NULL::text as task_ok_location,
                     NULL::text as attempt_ok,
-                    value::int as attempt_id
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
+                    END)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
                     {table_name}.flow_id = meta.flow_id AND
@@ -52,7 +57,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     ts_epoch as attempt_finished_at,
                     NULL as task_ok_location,
                     NULL as attempt_ok,
-                    value::int as attempt_id
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::json->>0
+                        ELSE value::text
+                    END)::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
                     {table_name}.flow_id = meta.flow_id AND
@@ -66,7 +75,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                     NULL as started_at,
                     ts_epoch as attempt_finished_at,
                     NULL as task_ok_location,
-                    value as attempt_ok,
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
+                    END) as attempt_ok,
                     (regexp_matches(tags::text, 'attempt_id:(\\d+)'))[1]::int as attempt_id
                 FROM {metadata_table} as meta
                 WHERE
@@ -88,7 +101,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 {table_name}.step_name = next_attempt_start.step_name AND
                 {table_name}.task_id = next_attempt_start.task_id AND
                 next_attempt_start.field_name = 'attempt' AND
-                (attempt.attempt_id + 1) = next_attempt_start.value::int
+                (attempt.attempt_id + 1) = (next_attempt_start.value::jsonb->>0)::int
             LIMIT 1
         ) as next_attempt_start ON true
         """.format(
@@ -223,6 +236,41 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             fetch_single=True,
             enable_joins=True,
             expanded=True,
+            postprocess=postprocess
+        )
+        return result
+
+    async def get_tasks_for_run(self, flow_id: str, run_key: str, postprocess: Callable = None) -> DBResponse:
+        """
+        Fetches run tasks from DB.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow id of the task
+        run_key : str
+            Run number or run id of the task
+        postprocess : Callable
+            A callback function for refining results.
+            Receives DBResponse as an argument, and should return a DBResponse
+
+        Returns
+        -------
+        DBResponse
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        conditions = [
+            "flow_id = %s",
+            "{run_id_column} = %s".format(run_id_column=run_id_key)
+        ]
+        values = [flow_id, run_id_value]
+
+        result, *_ = await self.find_records(
+            conditions=conditions,
+            values=values,
+            fetch_single=False,
+            enable_joins=True,
+            expanded=False,
             postprocess=postprocess
         )
         return result

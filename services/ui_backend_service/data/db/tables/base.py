@@ -13,7 +13,12 @@ from services.data.postgres_async_db import \
 
 # Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
 HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
-OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 6))  # default 6 days (in milliseconds)
+# Time before a run without heartbeat will be marked as failed, if it is decisively not running, or completed.
+# Default 6 days (in milliseconds)
+OLD_RUN_FAILURE_CUTOFF_TIME = int(os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 6))
+# Time before a run with a heartbeat will be considered inactive (and thus failed).
+# Default to 6 days (in seconds)
+RUN_INACTIVE_CUTOFF_TIME = int(os.environ.get("RUN_INACTIVE_CUTOFF_TIME", 60 * 60 * 24 * 6))
 
 
 class AsyncPostgresTable(MetadataAsyncPostgresTable):

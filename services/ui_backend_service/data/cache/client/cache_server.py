@@ -2,15 +2,18 @@ import os
 import io
 import sys
 import json
+import uuid
+import time
 import fcntl
-import hashlib
-from itertools import chain
+import multiprocessing
 from datetime import datetime
-from subprocess import Popen, PIPE
-from collections import deque, OrderedDict
+from collections import deque
+from itertools import chain
+
+from .cache_worker import execute_action
+from .cache_async_client import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
 import click
-from metaflow.procpoll import make_poll
 
 from .cache_action import CacheAction,\
     LO_PRIO,\
@@ -20,9 +23,6 @@ from .cache_action import CacheAction,\
 from .cache_store import CacheStore,\
     key_filename,\
     is_safely_readable
-
-OP_WORKER_CREATE = 'worker_create'
-OP_WORKER_TERMINATE = 'worker_terminate'
 
 
 def send_message(op: str, data: dict):
@@ -34,41 +34,6 @@ def send_message(op: str, data: dict):
 
 class CacheServerException(Exception):
     pass
-
-
-def server_request(op,
-                   action=None,
-                   prio=None,
-                   keys=None,
-                   stream_key=None,
-                   message=None,
-                   disposable_keys=None,
-                   idempotency_token=None,
-                   invalidate_cache=False):
-
-    if idempotency_token is None:
-        fields = [op]
-        if action:
-            fields.append(action)
-        if keys:
-            fields.extend(sorted(keys))
-        if stream_key:
-            fields.append(stream_key)
-        token = hashlib.sha1('|'.join(fields).encode('utf-8')).hexdigest()
-    else:
-        token = idempotency_token
-
-    return {
-        'op': op,
-        'action': action,
-        'priority': prio,
-        'keys': keys,
-        'stream_key': stream_key,
-        'message': message,
-        'idempotency_token': token,
-        'disposable_keys': disposable_keys,
-        'invalidate_cache': invalidate_cache
-    }
 
 
 def echo(msg):
@@ -128,11 +93,14 @@ def subprocess_cmd_and_env(mod):
 
 class Worker(object):
 
-    def __init__(self, request, filestore):
+    def __init__(self, request, filestore, pool, callback=None, error_callback=None):
+        self.uuid = uuid.uuid4()
         self.request = request
         self.prio = request['priority']
         self.filestore = filestore
-        self.proc = None
+        self.pool = pool
+        self.callback = callback
+        self.error_callback = error_callback
 
         try:
             self.tempdir = self.filestore.open_tempdir(
@@ -161,51 +129,45 @@ class Worker(object):
             }
             json.dump(request, f)
 
-        cmd, _ = subprocess_cmd_and_env('cache_worker')
-        cmdline = cmd + [
-            '--request-file', 'request.json',
-            self.request['action']
-        ]
-
-        self.proc = Popen(cmdline, cwd=self.tempdir,
-                          stdin=PIPE, stdout=PIPE, stderr=PIPE)
-
-        self.fd = self.proc.stdin.fileno()
-
         send_message(OP_WORKER_CREATE, self._worker_details())
+
+        self.pool.apply_async(
+            func=execute_action, args=(self.tempdir, self.request['action'], 'request.json'),
+            callback=self._callback, error_callback=self._error_callback)
+
+    def _callback(self, res):
+        if self.callback:
+            try:
+                self.callback(self, res)
+            except:
+                pass
+
+        self.terminate()
+
+    def _error_callback(self, res):
+        if self.error_callback:
+            try:
+                self.error_callback(self, res)
+            except:
+                pass
+
+        self.terminate()
 
     def echo(self, msg):
         token = self.request['idempotency_token']
-        pid_prefix = '[pid %d]' % self.proc.pid if self.proc else ''
-        echo("Worker%s[token %s] %s" % (pid_prefix, token, msg))
+        uuid_prefix = '[uuid %s]' % self.uuid
+        echo("Worker%s[token %s] %s" % (uuid_prefix, token, msg))
 
     def terminate(self):
-        stdout_output = self.proc.stdout.read().rstrip().decode("utf-8")
-        stderr_output = self.proc.stderr.read().rstrip().decode("utf-8")
-
-        if stdout_output:
-            self.echo("stdout: {}".format(stdout_output))
-        if stderr_output:
-            self.echo("stderr: {}".format(stderr_output))
-
-        ret = self.proc.wait()
-        if ret:
-            self.echo("crashed with error code %d" % ret)
-        else:
-            missing = self.filestore.commit(self.tempdir,
-                                            self.request['keys'],
-                                            self.request['stream_key'],
-                                            self.request['disposable_keys'])
-            if missing:
-                self.echo("failed to produce the following keys: %s"
-                          % ','.join(missing))
+        missing = self.filestore.commit(self.tempdir,
+                                        self.request['keys'],
+                                        self.request['stream_key'],
+                                        self.request['disposable_keys'])
+        if missing:
+            self.echo("failed to produce the following keys: %s"
+                      % ','.join(missing))
 
         self.filestore.close_tempdir(self.tempdir)
-
-        send_message(OP_WORKER_TERMINATE, self._worker_details())
-
-    def kill(self):
-        self.proc.kill()
 
         send_message(OP_WORKER_TERMINATE, self._worker_details())
 
@@ -218,7 +180,6 @@ class Worker(object):
 
 
 class Scheduler(object):
-
     def __init__(self, filestore, max_workers):
 
         self.filestore = filestore
@@ -230,6 +191,16 @@ class Scheduler(object):
         self.lo_prio_requests = deque()
         self.hi_prio_requests = deque()
         self.actions = []
+        self.workers = []
+
+        self.pool = multiprocessing.Pool(
+            processes=max_workers,
+            initializer=self.init_process,
+            maxtasksperchild=512,  # Recycle each worker once 512 tasks have been completed
+        )
+
+    def init_process(self):
+        echo("Init process %s pid: %s" % (multiprocessing.current_process().name, os.getpid()))
 
     def process_incoming_request(self):
         for msg in self.stdin_reader.messages():
@@ -275,8 +246,7 @@ class Scheduler(object):
 
         for request in chain(queued_request(self.hi_prio_requests),
                              queued_request(self.lo_prio_requests)):
-
-            worker = Worker(request, self.filestore)
+            worker = Worker(request, self.filestore, self.pool, self._callback, self._error_callback)
             try:
                 if worker.tempdir:
                     worker.start()
@@ -288,52 +258,27 @@ class Scheduler(object):
             return None
 
     def loop(self):
-        workers = {HI_PRIO: {}, LO_PRIO: OrderedDict()}
-        poller = make_poll()
-        poller.add(self.stdin_fileno)
-
-        def new_worker():
+        def new_worker_from_request():
             worker = self.schedule()
             if worker:
-                poller.add(worker.fd)
-                workers[worker.prio][worker.fd] = worker
+                self.workers.append(worker)
                 return worker
 
         while True:
-            for event in poller.poll(10000):
+            self.process_incoming_request()
+            new_worker_from_request()
+            time.sleep(0.1)
 
-                if event.fd == self.stdin_fileno:
-                    if event.is_terminated:
-                        self.stdin_reader.close()
-                        echo("Parent closed the connection. Terminating.")
-                        return
-                    else:
-                        self.process_incoming_request()
+    def _callback(self, worker, res):
+        token = worker.request['idempotency_token']
+        self.pending_requests.remove(token)
+        self.workers.remove(worker)
 
-                        num_workers = sum(map(len, workers.values()))
-                        while num_workers < self.max_workers:
-                            if new_worker():
-                                num_workers += 1
-                            else:
-                                break
-
-                        if self.hi_prio_requests and workers[LO_PRIO]:
-                            _, worker = workers[LO_PRIO].popitem()
-                            worker.kill()
-
-                else:
-                    if event.fd in workers[HI_PRIO]:
-                        worker = workers[HI_PRIO][event.fd]
-                    else:
-                        worker = workers[LO_PRIO][event.fd]
-
-                    if event.is_terminated:
-                        worker.terminate()
-                        token = worker.request['idempotency_token']
-                        self.pending_requests.remove(token)
-                        workers[worker.prio].pop(event.fd)
-                        poller.remove(event.fd)
-                        new_worker()
+    def _error_callback(self, worker, res):
+        echo("Error from worker %s" % worker.uuid)
+        token = worker.request['idempotency_token']
+        self.pending_requests.remove(token)
+        self.workers.remove(worker)
 
 
 @click.command()

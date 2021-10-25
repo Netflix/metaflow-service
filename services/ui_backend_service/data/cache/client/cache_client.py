@@ -1,9 +1,11 @@
 import os
 import json
+import sys
+import hashlib
 
-from .cache_server import server_request, subprocess_cmd_and_env
 from .cache_store import object_path, stream_path, is_safely_readable
 from .cache_action import Check
+
 
 FOREVER = 60 * 60 * 24 * 3650
 
@@ -98,6 +100,9 @@ class CacheFuture(object):
 
             tail = ''
             while True:
+                if not self.has_pending_request():
+                    break
+
                 buf = stream.readline()
                 if buf == '':
                     yield None
@@ -160,7 +165,8 @@ class CacheClient(object):
             'actions': [[c.__module__, c.__name__] for c in self._action_classes]
         }
         return self.request_and_return([self.start_server(cmdline, env),
-                                        self._send('init', message=msg), ],
+                                        self._send('init', message=msg),
+                                        self.check()],
                                        None)
 
     def stop(self):
@@ -257,3 +263,45 @@ class CacheClient(object):
         Handle requests in `reqs` and then return `ret`.
         """
         raise NotImplementedError
+
+
+def subprocess_cmd_and_env(mod):
+    pypath = os.environ.get('PYTHONPATH', '')
+    env = os.environ.copy()
+    env['PYTHONPATH'] = ':'.join((os.getcwd(), pypath))
+    return [sys.executable, '-m', 'services.ui_backend_service.data.cache.client.%s' % mod], env
+
+
+def server_request(op,
+                   action=None,
+                   prio=None,
+                   keys=None,
+                   stream_key=None,
+                   message=None,
+                   disposable_keys=None,
+                   idempotency_token=None,
+                   invalidate_cache=False):
+
+    if idempotency_token is None:
+        fields = [op]
+        if action:
+            fields.append(action)
+        if keys:
+            fields.extend(sorted(keys))
+        if stream_key:
+            fields.append(stream_key)
+        token = hashlib.sha1('|'.join(fields).encode('utf-8')).hexdigest()
+    else:
+        token = idempotency_token
+
+    return {
+        'op': op,
+        'action': action,
+        'priority': prio,
+        'keys': keys,
+        'stream_key': stream_key,
+        'message': message,
+        'idempotency_token': token,
+        'disposable_keys': disposable_keys,
+        'invalidate_cache': invalidate_cache
+    }

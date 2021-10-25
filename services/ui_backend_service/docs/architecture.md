@@ -31,6 +31,8 @@ In case of a cache miss, the CacheFuture will send a cache request through the C
 
 The cache server is responsible for receiving cache requests from the subprocess stdin, queueing the requests, and starting cache workers to process the queue, up to a limit. Note that the cache workers run their cache action as a *subprocesses* of the cache server.
 
+Each cache server is responsible for maintaining a non-ephemeral cache worker pool. UI Service has multiple cache worker pools for different types of resources, such as DAG and artifacts. The size of each pool can be controller via environment variables [via environment variables](./environment.md).
+
 For starting a cache worker, the server writes the request payload to disk as a `request.json` tempfile, which the worker process then reads at start.
 
 ### Cache Worker

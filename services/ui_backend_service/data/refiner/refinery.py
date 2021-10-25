@@ -6,57 +6,25 @@ from services.utils import logging
 
 class Refinery(object):
     """
-    Used to refine objects with data only available from S3.
+    Refiner class for postprocessing database rows.
+
+    Uses predefined cache actions to refine database responses with Metaflow Datastore artifacts.
 
     Parameters
     -----------
-    field_names : List[str]
-        list of field names that contain S3 locations to be replaced with content.
-    cache : CacheAsyncClient
-        An instance of a cache client that implements the GetArtifacts action.
+    cache : AsyncCacheClient
+        An instance of a cache that implements the GetArtifacts action.
     """
 
-    def __init__(self, field_names, cache=None):
-        self.artifact_store = cache if cache else None
-        self.field_names = field_names
-        self.logger = logging.getLogger("DataRefiner")
+    def __init__(self, cache):
+        self.cache_store = cache
+        self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def refine_record(self, record, invalidate_cache=False):
-        _recs = await self.refine_records([record], invalidate_cache=invalidate_cache)
-        return _recs[0] if len(_recs) > 0 else record
+    def _action(self):
+        return self.cache_store.cache.GetData
 
-    async def refine_records(self, records, invalidate_cache=False):
-        locations = [record[field] for field in self.field_names for record in records if field in record]
-        errors = {}
-
-        def _event_stream(event):
-            if event.get("type") == "error" and event.get("key"):
-                loc = artifact_location_from_key(event["key"])
-                errors[loc] = event
-
-        responses = await self.fetch_data(
-            locations, event_stream=_event_stream, invalidate_cache=invalidate_cache)
-
-        _recs = []
-        for rec in records:
-            _rec = rec.copy()
-            for k, v in rec.items():
-                if k in self.field_names:
-                    if v in errors:
-                        _rec["postprocess_error"] = format_error_body(
-                            errors[v].get("id"),
-                            errors[v].get("message"),
-                            errors[v].get("traceback")
-                        )
-                    else:
-                        _rec[k] = responses[v] if v in responses else None
-            _recs.append(_rec)
-        return _recs
-
-    async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
-        _locs = [loc for loc in locations if isinstance(loc, str) and loc.startswith("s3://")]
-        _res = await self.artifact_store.cache.GetArtifacts(
-            _locs, invalidate_cache=invalidate_cache)
+    async def fetch_data(self, targets, event_stream=None, invalidate_cache=False):
+        _res = await self._action()(targets, invalidate_cache=invalidate_cache)
         if _res.has_pending_request():
             async for event in _res.stream():
                 if event["type"] == "error":
@@ -65,20 +33,27 @@ class Refinery(object):
             await _res.wait()  # wait for results to be ready
         return _res.get() or {}  # cache get() might return None if no keys are produced.
 
-    async def _postprocess(self, response: DBResponse, invalidate_cache=False):
-        """
-        Async post processing callback that can be used as the find_records helpers
-        postprocessing parameter.
+    async def refine_record(self, record, values):
+        """No refinement necessary here"""
+        return record
 
-        Passed in DBResponse will be refined on the configured field_names, replacing the S3 locations
-        with their contents.
+    def _response_to_action_input(self, response: DBResponse):
+        if isinstance(response.body, list):
+            return [self._record_to_action_input(task) for task in response.body]
+        else:
+            return [self._record_to_action_input(response.body)]
+
+    def _record_to_action_input(self, record):
+        return "{flow_id}/{run_number}/{step_name}/{task_id}".format(**record)
+
+    async def postprocess(self, response: DBResponse, invalidate_cache=False):
+        """
+        Calls the refiner postprocessing to fetch Metaflow artifacts.
 
         Parameters
         ----------
         response : DBResponse
             The DBResponse to be refined
-        invalidate_cache : Bool
-            Invalidate cache before postprocessing
 
         Returns
         -------
@@ -89,16 +64,54 @@ class Refinery(object):
 
         if response.response_code != 200 or not response.body:
             return response
+
+        input = self._response_to_action_input(response)
+
+        errors = {}
+
+        def _event_stream(event):
+            if event.get("type") == "error" and event.get("key"):
+                # Get last element from cache key which usually translates to "target"
+                target = event["key"].split(':')[-1:][0]
+                errors[target] = event
+
+        data = await self.fetch_data(
+            input, event_stream=_event_stream, invalidate_cache=invalidate_cache)
+
+        async def _process(record):
+            target = self._record_to_action_input(record)
+
+            if target in errors:
+                # Add streamed postprocess errors if any
+                record["postprocess_error"] = format_error_body(
+                    errors[target].get("id"),
+                    errors[target].get("message"),
+                    errors[target].get("traceback")
+                )
+
+            if target in data:
+                success, value, detail = unpack_processed_value(data[target])
+                if success:
+                    record = await self.refine_record(record, value)
+                else:
+                    record['postprocess_error'] = format_error_body(
+                        value if value else "artifact-handle-failed",
+                        detail if detail else "Unknown error during postprocessing"
+                    )
+            else:
+                record['postprocess_error'] = format_error_body(
+                    "artifact-value-not-found",
+                    "Artifact value not found"
+                )
+
+            return record
+
         if isinstance(response.body, list):
-            body = await self.refine_records(response.body, invalidate_cache=invalidate_cache)
+            body = [await _process(task) for task in response.body]
         else:
-            body = await self.refine_record(response.body, invalidate_cache=invalidate_cache)
+            body = await _process(response.body)
 
-        return DBResponse(response_code=response.response_code,
-                          body=body)
-
-    async def postprocess(self, response: DBResponse, invalidate_cache=False):
-        raise NotImplementedError
+        return DBResponse(response_code=response.response_code, body=body)
 
 
 def unpack_processed_value(value) -> Tuple[bool, Optional[Any], Optional[Any]]:
@@ -127,18 +140,3 @@ def format_error_body(id=None, detail=None, traceback=None):
         "detail": detail,
         "traceback": traceback
     }
-
-
-def artifact_location_from_key(x):
-    "extract location from the artifact cache key"
-    return x[len("search:artifactdata:"):]
-
-
-class GetArtifactsFailed(Exception):
-    def __init__(self, msg="Failed to Get Artifacts", id="get-artifacts-failed", traceback_str=None):
-        self.message = msg
-        self.id = id
-        self.traceback_str = traceback_str
-
-    def __str__(self):
-        return self.message

@@ -10,6 +10,7 @@ class MetadataRow(BaseRow):
     step_name: str = None
     task_id: int = None
     task_name: str = None
+    attempt_id: int = None
     id: int = None  # autoincrement
     field_name: str = None
     value: dict = None
@@ -32,6 +33,7 @@ class MetadataRow(BaseRow):
         value,
         type,
         user_name,
+        attempt_id=None,
         ts_epoch=None,
         tags=None,
         system_tags=None,
@@ -43,6 +45,7 @@ class MetadataRow(BaseRow):
         self.step_name = step_name
         self.task_id = task_id
         self.task_name = task_name
+        self.attempt_id = attempt_id
         self.field_name = field_name
         self.value = value
         self.type = type
@@ -65,6 +68,7 @@ class MetadataRow(BaseRow):
                 "step_name": self.step_name,
                 "task_id": self.task_id,
                 "task_name": self.task_name,
+                "attempt_id": self.attempt_id,
                 "field_name": self.field_name,
                 "value": self.value,
                 "type": self.type,
@@ -80,6 +84,7 @@ class MetadataRow(BaseRow):
                 "run_number": str(get_exposed_run_id(self.run_number, self.run_id)),
                 "step_name": self.step_name,
                 "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
+                "attempt_id": self.attempt_id,
                 "field_name": self.field_name,
                 "value": self.value,
                 "type": self.type,

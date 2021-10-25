@@ -1,9 +1,8 @@
+from ..data.refiner.parameter_refiner import GetParametersFailed
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import find_records, web_response, format_response,\
     builtin_conditions_query, pagination_query, query_param_enabled
-
-import json
 
 
 class RunApi(object):
@@ -112,8 +111,9 @@ class RunApi(object):
 
             # Allow optimized order only when sorting by real columns only
             if optimized_order and not unoptimized_order:
-                overwrite_select_from = "(SELECT * FROM runs_v3 {order_by}) AS runs_v3".format(
-                    order_by="ORDER BY {}".format(", ".join(optimized_order))
+                overwrite_select_from = "(SELECT * FROM {table_name} {order_by}) AS {table_name}".format(
+                    order_by="ORDER BY {}".format(", ".join(optimized_order)),
+                    table_name=self._async_table.table_name
                 )
 
                 return await find_records(request, self._async_table,
@@ -211,7 +211,13 @@ class RunApi(object):
         combined_results = await self._artifact_store.get_run_parameters(
             flow_name, run_number, invalidate_cache=invalidate_cache)
 
-        response = DBResponse(200, combined_results)
+        postprocess_error = combined_results.get("postprocess_error", None)
+        if postprocess_error:
+            raise GetParametersFailed(
+                postprocess_error["detail"], postprocess_error["id"], postprocess_error["traceback"])
+        else:
+            response = DBResponse(200, combined_results)
+
         status, body = format_response(request, response)
 
         return web_response(status, body)

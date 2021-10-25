@@ -1,8 +1,9 @@
 from subprocess import Popen, PIPE
+import shlex
 from ..data.postgres_async_db import PostgresUtils
-from . import version_dict, latest, goose_template, \
-    goose_migration_template
-from services.migration_service.migration_config import host, port, user, password, database_name
+from . import version_dict, latest, \
+    make_goose_migration_template, make_goose_template
+from services.migration_service.migration_config import db_conf
 
 
 class ApiUtils(object):
@@ -25,10 +26,7 @@ class ApiUtils(object):
     @staticmethod
     async def get_goose_version():
         # if tables exist but goose doesn't find version table then
-        goose_version_cmd = goose_template.format(
-            database_name, user, password, host,
-            port, "version"
-        )
+        goose_version_cmd = make_goose_template(db_conf.connection_string_url, 'version')
 
         p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,
                   close_fds=True)
@@ -57,10 +55,7 @@ class ApiUtils(object):
             version = await ApiUtils.get_goose_version()
             return version_dict[version]
         else:
-            goose_version_cmd = goose_migration_template.format(
-                database_name, user, password, host, port,
-                "up"
-            )
+            goose_version_cmd = make_goose_migration_template(db_conf.connection_string_url, 'up')
             p = Popen(goose_version_cmd, shell=True,
                       close_fds=True)
             p.wait()
@@ -68,9 +63,8 @@ class ApiUtils(object):
 
     @staticmethod
     async def is_migration_in_progress():
-        goose_version_cmd = goose_template.format(
-            database_name, user, password, host,
-            port, "status"
+        goose_version_cmd = make_goose_template(
+            db_conf.connection_string_url, "status"
         )
 
         p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,

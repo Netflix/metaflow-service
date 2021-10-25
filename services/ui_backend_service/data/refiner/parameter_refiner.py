@@ -1,13 +1,11 @@
-from services.data.db_utils import DBResponse
-
 from .refinery import Refinery
 
 
 class ParameterRefiner(Refinery):
     """
-    Refiner class for postprocessing artifact rows and extracting parameters.
+    Refiner class for postprocessing Run parameters.
 
-    Fetches specified content from S3 and cleans up unnecessary fields from response.
+    Uses Metaflow Client API to refine Run parameters from Metaflow Datastore.
 
     Parameters
     -----------
@@ -16,40 +14,26 @@ class ParameterRefiner(Refinery):
     """
 
     def __init__(self, cache):
-        super().__init__(field_names=['location'], cache=cache)
+        super().__init__(cache=cache)
 
-    async def fetch_data(self, locations, event_stream=None, invalidate_cache=False):
-        try:
-            _res = await self.artifact_store.cache.GetArtifacts(locations, invalidate_cache=invalidate_cache)
-            if _res.has_pending_request():
-                async for event in _res.stream():
-                    if event["type"] == "error":
-                        # raise error, there was an exception during processing.
-                        raise GetParametersFailed(event["message"], event["id"], event["traceback"])
-                await _res.wait()  # wait for results to be ready
-            return _res.get() or {}  # cache get() might return None if no keys are produced.
-        except Exception:
-            self.logger.exception("Exception when fetching artifact data from cache")
-            return {}
+    def _action(self):
+        return self.cache_store.cache.GetParameters
 
-    async def postprocess(self, response: DBResponse, invalidate_cache=False):
-        """Calls the refiner postprocessing to fetch S3 values for content."""
-        refined_response = await self._postprocess(response, invalidate_cache=invalidate_cache)
-        if response.response_code != 200 or not response.body:
-            return DBResponse(response_code=response.response_code, body={})
+    async def fetch_data(self, targets, event_stream=None, invalidate_cache=False):
+        _res = await self._action()(targets, invalidate_cache=invalidate_cache)
+        if _res.has_pending_request():
+            async for event in _res.stream():
+                if event["type"] == "error":
+                    # raise error, there was an exception during processing.
+                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
+            await _res.wait()  # wait for results to be ready
+        return _res.get() or {}  # cache get() might return None if no keys are produced.
 
-        if not isinstance(refined_response.body, list):
-            refined_response.body = [refined_response.body]
+    def _record_to_action_input(self, record):
+        return "{flow_id}/{run_number}".format(**record)
 
-        parameters = dict(
-            (artifact.get('name', None), {'value': artifact.get('location', None)})
-            for artifact in refined_response.body
-        )
-
-        return DBResponse(
-            response_code=refined_response.response_code,
-            body=parameters if parameters else {}
-        )
+    async def refine_record(self, record, values):
+        return {k: {'value': v} for k, v in values.items()}
 
 
 class GetParametersFailed(Exception):
