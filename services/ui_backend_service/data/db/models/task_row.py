@@ -12,8 +12,6 @@ class TaskRow(BaseRow):
     task_name: str = None
     user_name: str = None
     status: str = None
-    task_ok: str = None
-    foreach_stack: int = None
     ts_epoch: int = 0
     started_at: int = None
     finished_at: int = None
@@ -32,8 +30,6 @@ class TaskRow(BaseRow):
         task_id=None,
         task_name=None,
         status=None,
-        task_ok=None,
-        foreach_stack=None,
         ts_epoch=None,
         started_at=None,
         finished_at=None,
@@ -56,8 +52,6 @@ class TaskRow(BaseRow):
             ts_epoch = int(round(time.time() * 1000))
 
         self.status = status
-        self.task_ok = task_ok
-        self.foreach_stack = foreach_stack
         self.ts_epoch = ts_epoch
         self.started_at = started_at
         self.finished_at = finished_at
@@ -78,8 +72,6 @@ class TaskRow(BaseRow):
                 "task_name": self.task_name,
                 "user_name": self.user_name,
                 "status": self.status,
-                "task_ok": self.task_ok,
-                "foreach_stack": self.foreach_stack,
                 "ts_epoch": self.ts_epoch,
                 "started_at": self.started_at,
                 "finished_at": self.finished_at,
@@ -97,8 +89,6 @@ class TaskRow(BaseRow):
                 "task_id": str(get_exposed_task_id(self.task_id, self.task_name)),
                 "user_name": self.user_name,
                 "status": self.status,
-                "task_ok": self.task_ok,
-                "foreach_stack": self.foreach_stack,
                 "ts_epoch": self.ts_epoch,
                 "started_at": self.started_at,
                 "finished_at": self.finished_at,
