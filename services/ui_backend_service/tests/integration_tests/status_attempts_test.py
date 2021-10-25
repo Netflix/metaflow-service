@@ -253,7 +253,7 @@ async def test_attempt_status_failed_attempt_ok(cli, db):
     assert data["finished_at"] == _metadata_attempt_ok["ts_epoch"]
 
 
-async def SKIP_test_attempt_status_failed_attempt_ok_s3(cli, db):
+async def test_attempt_status_failed_attempt_ok_s3(cli, db):
     # TODO: re-enable once reworked task refiner has been merged.
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
@@ -292,6 +292,19 @@ async def SKIP_test_attempt_status_failed_attempt_ok_s3(cli, db):
                                                 "value": "0",
                                                 "type": "attempt"})).body
 
+    # 'unknown' status now at least requires an attempt-done metadata to be present
+    _meta_done = (await add_metadata(db,
+                                     flow_id=_task.get("flow_id"),
+                                     run_number=_task.get("run_number"),
+                                     run_id=_task.get("run_id"),
+                                     step_name=_task.get("step_name"),
+                                     task_id=_task.get("task_id"),
+                                     task_name=_task.get("task_name"),
+                                     metadata={
+                                         "field_name": "attempt-done",
+                                         "value": "0",
+                                         "type": "attempt-done"})).body
+
     async def _fetch_data(self, targets, event_stream=None, invalidate_cache=False):
         return {
             "{flow_id}/{run_number}/{step_name}/{task_id}/0".format(**_task): [True, {'_task_ok': False}]
@@ -306,7 +319,7 @@ async def SKIP_test_attempt_status_failed_attempt_ok_s3(cli, db):
         assert data["status"] == "failed"
         assert data["ts_epoch"] == _task["ts_epoch"]
         assert data["started_at"] == _metadata_attempt["ts_epoch"]  # metadata.attempt is present
-        assert data["finished_at"] == _artifact["ts_epoch"]
+        assert data["finished_at"] == _meta_done["ts_epoch"]
 
 
 async def test_attempt_status_failed_heartbeat(cli, db):
