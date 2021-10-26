@@ -519,7 +519,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         table_name, flow_table_name
     )
 
-    async def add_run(self, run: RunRow, fill_heartbeat : bool = False):
+    async def add_run(self, run: RunRow, fill_heartbeat: bool = False):
         dict = {
             "flow_id": run.flow_id,
             "user_name": run.user_name,

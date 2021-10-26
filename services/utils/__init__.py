@@ -62,6 +62,7 @@ def format_baseurl(request: web.BaseRequest):
         "MF_BASEURL", "{scheme}://{host}".format(scheme=scheme, host=host))
     return "{baseurl}{path}".format(baseurl=baseurl, path=request.path)
 
+
 def has_heartbeat_capable_version_tag(system_tags):
     """Check client version tag whether it is known to support heartbeats or not"""
     try:
