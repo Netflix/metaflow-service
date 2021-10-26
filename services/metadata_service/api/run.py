@@ -1,6 +1,6 @@
 import asyncio
 from services.data.models import RunRow
-from services.utils import read_body
+from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -124,6 +124,7 @@ class RunApi(object):
         tags = body.get("tags")
         system_tags = body.get("system_tags")
 
+        client_supports_heartbeats = has_heartbeat_capable_version_tag(system_tags)
         run_id = body.get("run_number")
         if run_id and run_id.isnumeric():
             raise Exception("provided run_id may not be a numeric")
@@ -133,7 +134,7 @@ class RunApi(object):
             system_tags=system_tags, run_id=run_id
         )
 
-        return await self._async_table.add_run(run_row)
+        return await self._async_table.add_run(run_row, fill_heartbeat=client_supports_heartbeats)
 
     @format_response
     @handle_exceptions

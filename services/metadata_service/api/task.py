@@ -1,6 +1,6 @@
 from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.utils import read_body
+from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
@@ -178,7 +178,7 @@ class TaskApi(object):
         system_tags = body.get("system_tags")
         task_name = body.get("task_id")
 
-        client_supports_heartbeats = _has_heartbeat_capable_version_tag(system_tags)
+        client_supports_heartbeats = has_heartbeat_capable_version_tag(system_tags)
 
         if task_name and task_name.isnumeric():
             return web.Response(status=400, body=json.dumps(
@@ -196,7 +196,10 @@ class TaskApi(object):
             tags=tags,
             system_tags=system_tags,
         )
-        return await self._async_table.add_task(task, fill_heartbeat=client_supports_heartbeats)
+        result = await self._async_table.add_task(task, fill_heartbeat=client_supports_heartbeats)
+        if client_supports_heartbeats and result.response_code == 200:
+            await self._async_run_table.update_heartbeat(flow_id, run_number)
+        return result
 
     @format_response
     @handle_exceptions
@@ -251,20 +254,3 @@ class TaskApi(object):
         return await self._async_table.update_heartbeat(flow_name,
                                                         run_number, step_name,
                                                         task_id)
-
-
-def _has_heartbeat_capable_version_tag(system_tags):
-    """Check client version tag whether it is known to support heartbeats or not"""
-    try:
-        version_tags = [tag for tag in system_tags if tag.startswith('metaflow_version:')]
-        version = LooseVersion(version_tags[0][17:])
-
-        if version >= LooseVersion("1") and version < LooseVersion("2"):
-            return True
-
-        if version < LooseVersion("2.2.12"):
-            return False
-
-        return True
-    except Exception:
-        return False

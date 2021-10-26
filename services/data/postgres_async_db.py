@@ -519,13 +519,14 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         table_name, flow_table_name
     )
 
-    async def add_run(self, run: RunRow):
+    async def add_run(self, run: RunRow, fill_heartbeat : bool = False):
         dict = {
             "flow_id": run.flow_id,
             "user_name": run.user_name,
             "tags": json.dumps(run.tags),
             "system_tags": json.dumps(run.system_tags),
             "run_id": run.run_id,
+            "last_heartbeat_ts": str(new_heartbeat_ts()) if fill_heartbeat else None
         }
         return await self.create_record(dict)
 
