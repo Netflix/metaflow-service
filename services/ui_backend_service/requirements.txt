@@ -1,0 +1,8 @@
+aiohttp
+aiohttp-swagger
+pyee==8.0.1
+throttler==1.2.0
+psycopg2
+aiopg
+metaflow==2.4.2
+pygit2==1.6.1

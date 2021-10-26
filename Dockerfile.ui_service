@@ -1,0 +1,32 @@
+FROM python:3.7
+
+ARG UI_ENABLED="1"
+ARG UI_VERSION="v1.0.0"
+ENV UI_ENABLED=$UI_ENABLED
+ENV UI_VERSION=$UI_VERSION
+
+ARG BUILD_TIMESTAMP
+ARG BUILD_COMMIT_HASH
+
+ENV BUILD_TIMESTAMP=$BUILD_TIMESTAMP
+ENV BUILD_COMMIT_HASH=$BUILD_COMMIT_HASH
+
+ARG CUSTOM_QUICKLINKS
+
+ENV CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
+
+ADD services/__init__.py /root/services/__init__.py
+ADD services/data /root/services/data
+ADD services/utils /root/services/utils
+ADD services/metadata_service /root/services/metadata_service
+ADD services/ui_backend_service /root/services/ui_backend_service
+ADD setup.py setup.cfg /root/
+
+WORKDIR /root
+
+# Install Netflix/metaflow-ui release artifact
+RUN /root/services/ui_backend_service/download_ui.sh
+
+RUN pip install --editable .
+
+CMD ui_backend_service

@@ -1,3 +1,6 @@
+include services/metadata_service/requirements.txt
+include services/migration_service/requirements.txt
+include services/ui_backend_service/requirements.txt
 include requirements.dev.txt
 include requirements.txt
 include README.md

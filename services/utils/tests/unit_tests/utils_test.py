@@ -1,8 +1,9 @@
 import pytest
 import os
 import contextlib
+import json
 from aiohttp.test_utils import make_mocked_request
-from services.utils import format_qs, format_baseurl, DBConfiguration
+from services.utils import format_qs, format_baseurl, DBConfiguration, handle_exceptions
 
 pytestmark = [pytest.mark.unit_tests]
 
@@ -137,3 +138,37 @@ def test_db_conf_timeout():
     with set_env():
         db_conf = DBConfiguration(timeout=5)
         assert db_conf.timeout == 5
+
+async def test_handle_exceptions():
+    class FakeException(Exception):
+        def __init__(self, id, trace):
+            self.id = id
+            self.traceback_str = trace
+
+    @handle_exceptions
+    async def do_not_raise():
+        return True
+
+    @handle_exceptions
+    async def raise_with_id():
+        raise FakeException("test-id", "test-trace")
+
+    @handle_exceptions
+    async def raise_without_id():
+        raise Exception()
+
+    # wrapper should not touch successful calls.
+    assert (await do_not_raise())
+
+    # NOTE: aiohttp Response StringPayload only has the internal property _value for accessing the payload value.
+    response_with_id = await raise_with_id()
+    assert response_with_id.status == 500
+    _body = json.loads(response_with_id.body._value)
+    assert _body['id'] == 'test-id'
+    assert _body['traceback'] == 'test-trace'
+
+    response_without_id = await raise_without_id()
+    assert response_without_id.status == 500
+    _body = json.loads(response_without_id.body._value)
+    assert _body['id'] == 'generic-error'
+    assert _body['traceback'] is not None
