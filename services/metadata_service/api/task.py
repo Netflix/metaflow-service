@@ -5,7 +5,6 @@ from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
 from aiohttp import web
-from distutils.version import LooseVersion
 import asyncio
 
 
