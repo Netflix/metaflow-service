@@ -1,11 +1,10 @@
 from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.utils import read_body
+from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
 from aiohttp import web
-
 import asyncio
 
 
@@ -178,6 +177,8 @@ class TaskApi(object):
         system_tags = body.get("system_tags")
         task_name = body.get("task_id")
 
+        client_supports_heartbeats = has_heartbeat_capable_version_tag(system_tags)
+
         if task_name and task_name.isnumeric():
             return web.Response(status=400, body=json.dumps(
                 {"message": "provided task_name may not be a numeric"}))
@@ -194,7 +195,10 @@ class TaskApi(object):
             tags=tags,
             system_tags=system_tags,
         )
-        return await self._async_table.add_task(task)
+        result = await self._async_table.add_task(task, fill_heartbeat=client_supports_heartbeats)
+        if client_supports_heartbeats and result.response_code == 200:
+            await self._async_run_table.update_heartbeat(flow_id, run_number)
+        return result
 
     @format_response
     @handle_exceptions

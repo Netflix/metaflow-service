@@ -10,6 +10,7 @@ from functools import wraps
 from typing import Dict
 import logging
 import psycopg2
+from distutils.version import LooseVersion
 
 version = pkg_resources.require("metadata_service")[0].version
 
@@ -126,6 +127,19 @@ def format_baseurl(request: web.BaseRequest):
         "MF_BASEURL", "{scheme}://{host}".format(scheme=scheme, host=host))
     return "{baseurl}{path}".format(baseurl=baseurl, path=request.path)
 
+
+def has_heartbeat_capable_version_tag(system_tags):
+    """Check client version tag whether it is known to support heartbeats or not"""
+    try:
+        version_tags = [tag for tag in system_tags if tag.startswith('metaflow_version:')]
+        version = LooseVersion(version_tags[0][17:])
+
+        if version >= LooseVersion("1") and version < LooseVersion("2"):
+            return version >= LooseVersion("1.14.0")
+
+        return version >= LooseVersion("2.2.12")
+    except Exception:
+        return False
 
 # Database configuration helper
 # Prioritizes DSN string over individual connection arguments (host,user,...)

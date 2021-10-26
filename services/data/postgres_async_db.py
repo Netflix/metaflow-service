@@ -6,12 +6,11 @@ import json
 import math
 import re
 import time
-import datetime
 from services.utils import logging
 from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
-    get_db_ts_epoch_str, translate_run_key, translate_task_key
+    get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration
 
@@ -520,13 +519,14 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         table_name, flow_table_name
     )
 
-    async def add_run(self, run: RunRow):
+    async def add_run(self, run: RunRow, fill_heartbeat: bool = False):
         dict = {
             "flow_id": run.flow_id,
             "user_name": run.user_name,
             "tags": json.dumps(run.tags),
             "system_tags": json.dumps(run.system_tags),
             "run_id": run.run_id,
+            "last_heartbeat_ts": str(new_heartbeat_ts()) if fill_heartbeat else None
         }
         return await self.create_record(dict)
 
@@ -542,7 +542,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
         run_key, run_value = translate_run_key(run_id)
-        new_hb = int(datetime.datetime.utcnow().timestamp())
+        new_hb = new_heartbeat_ts()
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value),
                        "last_heartbeat_ts:<=": new_hb - WAIT_TIME}
@@ -646,7 +646,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         table_name, step_table_name
     )
 
-    async def add_task(self, task: TaskRow):
+    async def add_task(self, task: TaskRow, fill_heartbeat=False):
         # todo backfill run_number if missing?
         dict = {
             "flow_id": task.flow_id,
@@ -657,6 +657,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "user_name": task.user_name,
             "tags": json.dumps(task.tags),
             "system_tags": json.dumps(task.system_tags),
+            "last_heartbeat_ts": str(new_heartbeat_ts()) if fill_heartbeat else None
         }
         return await self.create_record(dict)
 
@@ -686,7 +687,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                                task_id: str):
         run_key, run_value = translate_run_key(run_id)
         task_key, task_value = translate_task_key(task_id)
-        new_hb = int(datetime.datetime.utcnow().timestamp())
+        new_hb = new_heartbeat_ts()
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value),
                        "step_name": step_name,

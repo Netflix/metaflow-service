@@ -72,6 +72,49 @@ async def test_task_post(cli, db):
     )
 
 
+async def test_task_post_has_initial_heartbeat_with_supported_version(cli, db):
+    # create flow, run and step to add tasks for.
+    _flow = (await add_flow(db)).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    # client version not passed so run hb should be empty
+    assert _run["last_heartbeat_ts"] is None
+
+    _step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"])).body
+
+    _task = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task".format(**_step),
+        payload={
+            "user_name": "test_user",
+            "tags": ["a_tag", "b_tag"],
+            "system_tags": ["runtime:test", "metaflow_version:2.0.5"]
+        },
+        status=200  # why 200 instead of 201?
+    )
+
+    # tasks should not have a heartbeat when it is created
+    # with a known version that does not support heartbeats.
+    assert _task['last_heartbeat_ts'] is None
+
+    _task = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task".format(**_step),
+        payload={
+            "user_name": "test_user",
+            "tags": ["a_tag", "b_tag"],
+            "system_tags": ["runtime:test", "metaflow_version:2.2.12"]
+        },
+        status=200  # why 200 instead of 201?
+    )
+
+    # tasks should have a heartbeat when it is created
+    # with a heartbeat-enabled client.
+    assert _task['last_heartbeat_ts'] is not None
+
+    # Run heartbeat should have been updated as well
+    _found = (await db.run_table_postgres.get_run(_run["flow_id"], _run["run_number"])).body
+    assert _found['last_heartbeat_ts'] is not None
+
 async def test_task_heartbeat_post(cli, db):
     # create flow, run and step to add tasks for.
     _flow = (await add_flow(db)).body
