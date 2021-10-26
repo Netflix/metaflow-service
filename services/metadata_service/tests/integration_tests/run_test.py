@@ -54,6 +54,54 @@ async def test_run_post(cli, db):
     )
 
 
+async def test_run_post_has_initial_heartbeat_with_supported_version(cli, db):
+    # create flow to add runs for.
+    _flow = (await add_flow(db)).body
+
+    # No initial heartbeat without client version info
+    _run = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/run".format(**_flow),
+        payload={
+            "user_name": "test_user",
+            "tags": ["a_tag", "b_tag"],
+            "system_tags": ["runtime:test"]
+        },
+        status=200  # why 200 instead of 201?
+    )
+
+    assert _run["last_heartbeat_ts"] is None
+
+    # No initial heartbeat with non-heartbeating client version
+    _run = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/run".format(**_flow),
+        payload={
+            "user_name": "test_user",
+            "tags": ["a_tag", "b_tag"],
+            "system_tags": ["runtime:test", "metaflow_version:2.0.5"]
+        },
+        status=200  # why 200 instead of 201?
+    )
+
+    assert _run["last_heartbeat_ts"] is None
+
+    # Should have initial heartbeat with heartbeating client version
+    _run = await assert_api_post_response(
+        cli,
+        path="/flows/{flow_id}/run".format(**_flow),
+        payload={
+            "user_name": "test_user",
+            "tags": ["a_tag", "b_tag"],
+            "system_tags": ["runtime:test", "metaflow_version:2.2.12"]
+        },
+        status=200  # why 200 instead of 201?
+    )
+
+    assert _run["last_heartbeat_ts"] is not None
+
+
+
 async def test_run_heartbeat_post(cli, db):
     # create flow to add runs for.
     _flow = (await add_flow(db)).body

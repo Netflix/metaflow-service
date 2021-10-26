@@ -76,6 +76,9 @@ async def test_task_post_has_initial_heartbeat_with_supported_version(cli, db):
     # create flow, run and step to add tasks for.
     _flow = (await add_flow(db)).body
     _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    # client version not passed so run hb should be empty
+    assert _run["last_heartbeat_ts"] is None
+
     _step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"])).body
 
     _task = await assert_api_post_response(
@@ -108,6 +111,9 @@ async def test_task_post_has_initial_heartbeat_with_supported_version(cli, db):
     # with a heartbeat-enabled client.
     assert _task['last_heartbeat_ts'] is not None
 
+    # Run heartbeat should have been updated as well
+    _found = (await db.run_table_postgres.get_run(_run["flow_id"], _run["run_number"])).body
+    assert _found['last_heartbeat_ts'] is not None
 
 async def test_task_heartbeat_post(cli, db):
     # create flow, run and step to add tasks for.
