@@ -1,3 +1,4 @@
+import os
 import hashlib
 import asyncio
 
@@ -225,6 +226,19 @@ class AdminApi(object):
             else:
                 worker_list = "Unable to get cache server pid"
 
+            # Extract current cache data usage in bytes
+            current_size = 0
+            try:
+                cache_data_path = os.path.abspath(store.cache._root)
+                proc = await asyncio.create_subprocess_shell(
+                    "du -s {} | cut -f1".format(cache_data_path),
+                    stdout=asyncio.subprocess.PIPE)
+                stdout, _ = await proc.communicate()
+                if stdout:
+                    current_size = int(stdout.decode())
+            except Exception as ex:
+                current_size = str(ex)
+
             cache_status[store.__class__.__name__] = {
                 "restart_requested": store.cache._restart_requested,
                 "is_alive": store.cache._is_alive,
@@ -234,6 +248,7 @@ class AdminApi(object):
                 "action_classes": list(map(lambda cls: cls.__name__, store.cache._action_classes)),
                 "max_actions": store.cache._max_actions,
                 "max_size": store.cache._max_size,
+                "current_size": current_size,
                 "ping": ping,
                 "check_action": check,
                 "proc": {
