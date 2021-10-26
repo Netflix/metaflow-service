@@ -12,7 +12,7 @@ UI_RELEASE_URL="https://github.com/Netflix/metaflow-ui/releases/download/${UI_VE
 if [ $UI_ENABLED = "1" ]
 then
     echo "Download UI version ${UI_VERSION} from $UI_RELEASE_URL to $DEST"
-    curl $UI_RELEASE_URL -o $FILENAME
+    curl -L $UI_RELEASE_URL -o $FILENAME
     unzip -o $FILENAME -d $DEST
     rm $FILENAME
 else

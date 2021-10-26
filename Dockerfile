@@ -10,9 +10,12 @@ ARG UI_VERSION="v1.0.0"
 ENV UI_ENABLED=$UI_ENABLED
 ENV UI_VERSION=$UI_VERSION
 
+ENV RUN_GROUPS=0
+ENV DEBUG_VIEW=1
+
 RUN go get -u github.com/pressly/goose/cmd/goose
 
-RUN apt-get update && apt-get -y install python3.7 && apt-get -y install python3-pip && apt-get -y install libpq-dev
+RUN apt-get update && apt-get -y install python3.7 && apt-get -y install python3-pip && apt-get -y install libpq-dev unzip
 
 RUN pip3 install virtualenv && pip3 install requests
 
