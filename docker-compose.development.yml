@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile.ui_service
       args:
-        UI_ENABLED: 0
+        UI_ENABLED: 1
     ports:
       - "${MF_UI_METADATA_PORT:-8083}:${MF_UI_METADATA_PORT:-8083}"
     volumes:

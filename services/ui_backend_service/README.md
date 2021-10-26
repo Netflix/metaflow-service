@@ -80,16 +80,16 @@ If you require the UI for local development, refer to [metaflow-ui/docs/README.m
 
 Enable built-in UI bundle serving (assumes assets are located inside `ui/` folder):
 
-- `UI_ENABLED` [defaults to 0]
+- `UI_ENABLED` [defaults to `1`]
 
 Use path prefix in case UI service is served under non-root path (`example.com/api/`):
 
-- `PATH_PREFIX=/api` [defaults to None]
+- `PATH_PREFIX=/api` [defaults to `None`]
 
 This also works as a Docker build argument to download and install latest or specific UI release:
 
 > ```sh
-> $ docker build --arg UI_ENABLED=1 UI_VERSION=v0.1.2 ...
+> $ docker build --arg UI_ENABLED=1 UI_VERSION=v1.0.0 ...
 > ```
 
 Use following environment variables to inject content to Metaflow UI index.html:
