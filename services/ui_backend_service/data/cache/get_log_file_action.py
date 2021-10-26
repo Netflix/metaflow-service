@@ -241,9 +241,11 @@ def lookup_id(task: Dict, logtype: str, limit: int = 0, page: int = 1, reverse_o
 
 def pathspec_for_task(task: Dict):
     "pathspec for a task"
-    return "{flow_id}/{run_number}/{step_name}/{task_id}".format(
-        flow_id=task["flow_id"],
-        run_number=task["run_number"],
-        step_name=task["step_name"],
-        task_id=task["task_id"]
+    # Prefer run_id over run_number
+    # Prefer task_name over task_id
+    return "{flow_id}/{run_id}/{step_name}/{task_name}".format(
+        flow_id=task['flow_id'],
+        run_id=task.get('run_id') or task['run_number'],
+        step_name=task['step_name'],
+        task_name=task.get('task_name') or task['task_id']
     )

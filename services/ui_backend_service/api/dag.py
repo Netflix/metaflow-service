@@ -65,11 +65,13 @@ class DagApi(object):
             status, body = format_response(request, db_response)
             return web_response(status, body)
 
+        # Prefer run_id over run_number
         flow_name = db_response.body['flow_id']
+        run_id = db_response.body.get('run_id') or db_response.body['run_number']
         invalidate_cache = query_param_enabled(request, "invalidate")
 
         dag = await self._dag_store.cache.GenerateDag(
-            flow_name, run_id_value, invalidate_cache=invalidate_cache)
+            flow_name, run_id, invalidate_cache=invalidate_cache)
 
         if dag.has_pending_request():
             async for event in dag.stream():
