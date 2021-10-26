@@ -42,7 +42,14 @@ class ArtifactSearchApi(object):
             else:
                 operator, value = _parse_search_term(value)
                 # Search through the artifact contents using the CacheClient
-                pathspecs = ["{flow_id}/{run_number}/{step_name}/{task_id}/{name}/{attempt_id}".format(**art) for art in meta_artifacts]
+                # Prefer run_id over run_number and task_name over task_id
+                pathspecs = ["{flow_id}/{run_id}/{step_name}/{task_name}/{name}/{attempt_id}".format(
+                    flow_id=art['flow_id'],
+                    run_id=art.get('run_id') or art['run_number'],
+                    step_name=art['step_name'],
+                    task_name=art.get('task_name') or art['task_id'],
+                    name=art['name'],
+                    attempt_id=art['attempt_id']) for art in meta_artifacts]
                 res = await self._artifact_store.cache.SearchArtifacts(
                     pathspecs, value, operator,
                     invalidate_cache=invalidate_cache)
@@ -125,7 +132,14 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
 
     results = []
     for artifact in artifacts:
-        pathspec = "{flow_id}/{run_number}/{step_name}/{task_id}/{name}/{attempt_id}".format(**artifact)
+        # Prefer run_id over run_number and task_name over task_id
+        pathspec = "{flow_id}/{run_id}/{step_name}/{task_name}/{name}/{attempt_id}".format(
+            flow_id=artifact['flow_id'],
+            run_id=artifact.get('run_id') or artifact['run_number'],
+            step_name=artifact['step_name'],
+            task_name=artifact.get('task_name') or artifact['task_id'],
+            name=artifact['name'],
+            attempt_id=artifact['attempt_id'])
         if pathspec in artifact_match_dict:
             match_data = artifact_match_dict[pathspec]
             if match_data['matches'] or not match_data['included']:

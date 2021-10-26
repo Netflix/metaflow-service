@@ -10,7 +10,7 @@ class ParameterRefiner(Refinery):
     Parameters
     -----------
     cache : AsyncCacheClient
-        An instance of a cache that implements the GetArtifacts action.
+        An instance of a cache that implements the GetParameters action.
     """
 
     def __init__(self, cache):
@@ -30,7 +30,10 @@ class ParameterRefiner(Refinery):
         return _res.get() or {}  # cache get() might return None if no keys are produced.
 
     def _record_to_action_input(self, record):
-        return "{flow_id}/{run_number}".format(**record)
+        # Prefer run_id over run_number
+        return "{flow_id}/{run_id}".format(
+            flow_id=record['flow_id'],
+            run_id=record.get('run_id') or record['run_number'])
 
     async def refine_record(self, record, values):
         return {k: {'value': v} for k, v in values.items()}
