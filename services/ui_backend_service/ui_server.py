@@ -129,7 +129,7 @@ def main():
     for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
         loop.add_signal_handler(sig, lambda sig=sig: async_loop_signal_handler(sig))
 
-    the_app = app(loop, DBConfiguration())
+    the_app = app(loop, DBConfiguration(statement_timeout=60))
     handler = web.AppRunner(the_app)
     loop.run_until_complete(handler.setup())
     f = loop.create_server(handler.server, DEFAULT_SERVICE_HOST, DEFAULT_SERVICE_PORT)
