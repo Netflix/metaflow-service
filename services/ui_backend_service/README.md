@@ -12,6 +12,8 @@ Refer to the project root for running the project [README.md](../../README.md)
 UI service provides backend instance that serves static frontend assets from [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui) repository.
 
 UI service is _not_ started by default next to Metadata & Migration services and needs to be started separately.
+We strongly recommend deploying the UI service against a [logical replica of the DB](https://aws.amazon.com/blogs/database/using-logical-replication-to-replicate-managed-amazon-rds-for-postgresql-and-amazon-aurora-to-self-managed-postgresql/) that the Metadata service uses to ensure stronger isolation between the UI service and the Metadata service.
+
 The UI service module is `services.ui_backend_service.ui_server`:
 
 > ```sh
