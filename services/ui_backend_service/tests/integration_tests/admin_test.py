@@ -83,7 +83,7 @@ async def test_ping(cli, db):
     assert body == "pong"
 
 
-async def test_version(cli, db):
+async def DISABLED_test_version(cli, db):
     resp = await cli.get("/version")
     body = await resp.text()
 
@@ -94,7 +94,7 @@ async def test_version(cli, db):
 async def test_links(cli, db):
     default_links = [
         {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
-        {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
+        {"href": 'http://chat.metaflow.org/', "label": 'Help'}
     ]
 
     resp = await cli.get("/links")
@@ -171,7 +171,7 @@ async def test_broken_json_notifications(broken_env, cli, db):
 async def test_broken_json_links(broken_env, cli, db):
     default_links = [
         {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
-        {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
+        {"href": 'http://chat.metaflow.org/', "label": 'Help'}
     ]
     resp = await cli.get("/links")
     body = await resp.json()
