@@ -9,7 +9,7 @@ import contextlib
 
 from services.ui_backend_service.data.db import AsyncPostgresDB
 from services.ui_backend_service.data.cache.store import CacheStore
-from services.utils import DBConfiguration
+from services.utils.tests import get_test_dbconf
 
 from services.ui_backend_service.api import (
     FlowApi, RunApi, StepApi, TaskApi,
@@ -43,7 +43,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
     # init a db adapter explicitly to be used for the api requests.
     # Skip all creation processes, these are handled with migration service and init_db
-    db_conf = DBConfiguration(timeout=1)
+    db_conf = get_test_dbconf()
     db = AsyncPostgresDB(name='api')
     loop.run_until_complete(db._init(db_conf=db_conf, create_tables=False, create_triggers=False))
 
@@ -69,7 +69,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
 
 async def init_db(cli):
-    db_conf = DBConfiguration(timeout=1)
+    db_conf = get_test_dbconf()
 
     # Make sure migration scripts are applied
     migration_db = MigrationAsyncPostgresDB.get_instance()

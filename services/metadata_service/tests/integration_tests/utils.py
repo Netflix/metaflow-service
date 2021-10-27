@@ -5,7 +5,7 @@ import psycopg2
 import pytest
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.utils import DBConfiguration
+from services.utils.tests import get_test_dbconf
 from services.metadata_service.api.admin import AuthApi
 from services.metadata_service.api.flow import FlowApi
 from services.metadata_service.api.run import RunApi
@@ -20,18 +20,6 @@ from services.migration_service.data.postgres_async_db import \
     AsyncPostgresDB as MigrationAsyncPostgresDB
 
 # Test fixture helpers begin
-
-
-def get_test_dbconf():
-    "Returns a DBConfiguration suitable for the test environment, or exits pytest completely upon failure"
-    db_conf = DBConfiguration()
-
-    if db_conf.dsn != "dbname=test user=test host=db_test port=5432 password=test":
-        pytest.exit("The test suite should only be run in a test environment. \n \
-            Configured database host is not suited for running tests. \n \
-            expected DSN to be: dbname=test user=test host=db_test port=5432 password=test")
-
-    return db_conf
 
 
 def init_app(loop, aiohttp_client, queue_ttl=30):
