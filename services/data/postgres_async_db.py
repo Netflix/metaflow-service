@@ -80,6 +80,7 @@ class _AsyncPostgresDB(object):
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
                     timeout=db_conf.timeout,
+                    options=db_conf.options,
                     echo=AIOPG_ECHO)
 
                 for table in self.tables:
@@ -369,7 +370,7 @@ class PostgresUtils(object):
         "executes the commands only if a trigger with the given name does not already exist on the table"
         # NOTE: keep a relatively low timeout for the setup queries,
         # as these should not take long to begin with, and we want to release as soon as possible in case of errors
-        with (await db.pool.cursor(timeout=10)) as cur:
+        with (await db.pool.cursor()) as cur:
             try:
                 await cur.execute(
                     """
@@ -387,7 +388,7 @@ class PostgresUtils(object):
                     db.logger.info("Creating trigger for table: {}".format(trigger_name))
                     for command in commands:
                         await cur.execute(command)
-            except asyncio.TimeoutError:
+            except (asyncio.CancelledError, asyncio.TimeoutError):
                 db.logger.warning("Trigger creation timed out, no triggers were set up for table: {}".format(table_name))
             finally:
                 cur.close()
