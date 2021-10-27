@@ -34,7 +34,7 @@ class AdminApi(object):
 
         defaults = [
             {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
-            {"href": 'https://gitter.im/metaflow_org/community?source=orgpage', "label": 'Help'}
+            {"href": 'http://chat.metaflow.org/', "label": 'Help'}
         ]
 
         self.notifications = _get_notifications_from_env() or []
