@@ -475,3 +475,13 @@ class TTLQueue:
 
     async def values_since(self, since_epoch: int):
         return [value for value in await self.values() if value[0] >= since_epoch]
+
+
+@web.middleware
+async def allow_get_requests_only(request, handler):
+    """
+    Only allow GET request, otherwise raise 405 Method Not Allowed.
+    """
+    if request.method != 'GET':
+        raise web.HTTPMethodNotAllowed(method=request.method, allowed_methods=['GET'])
+    return await handler(request)

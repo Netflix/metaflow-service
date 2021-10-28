@@ -15,7 +15,7 @@ from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, C
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
                   MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
                   TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi)
-
+from .api.utils import allow_get_requests_only
 from .data.cache import CacheStore
 from .data.db import AsyncPostgresDB
 from .doc import swagger_definitions, swagger_description
@@ -98,7 +98,11 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     # Add Metadata Service as a sub application so that Metaflow Client
     # can use it as a service backend in case none provided via METAFLOW_SERVICE_URL
-    app.add_subapp("/metadata", metadata_service_app(loop=loop, db_conf=db_conf))
+    #
+    # Metadata service exposed through UI service is intended for read-only use only.
+    # 'allow_get_requests_only' middleware will only accept GET requests.
+    app.add_subapp("/metadata", metadata_service_app(
+        loop=loop, db_conf=db_conf, middlewares=[allow_get_requests_only]))
 
     setup_swagger(app,
                   description=swagger_description,

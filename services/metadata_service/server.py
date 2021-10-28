@@ -17,10 +17,10 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration
 
 
-def app(loop=None, db_conf: DBConfiguration = None):
+def app(loop=None, db_conf: DBConfiguration = None, middlewares=None):
 
     loop = loop or asyncio.get_event_loop()
-    app = web.Application(loop=loop)
+    app = web.Application(loop=loop, middlewares=middlewares)
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))
     FlowApi(app)
