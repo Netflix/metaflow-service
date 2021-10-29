@@ -7,20 +7,26 @@ pytestmark = [pytest.mark.unit_tests]
 TEST_LOG = list((None, "log line {}".format(i)) for i in range(1, 1001))
 TEST_MFLOG = list((i, "log line {}".format(i)) for i in range(1, 1001))
 
-
-async def test_paginated_result():
-    body = paginated_result(content=TEST_LOG)
+@pytest.mark.parametrize(
+    "test_log, first_expected_item",
+    [
+        (TEST_LOG, {"row": 0, "line": "log line 1", "timestamp": None}),
+        (TEST_MFLOG, {"row": 0, "line": "log line 1", "timestamp": 1})
+    ]
+)
+async def test_paginated_result(test_log, first_expected_item):
+    body = paginated_result(content=test_log)
 
     # 1000 lines should fit in default pagination
     assert len(body['content']) == 1000
     assert body["pages"] == 1
     # order should be oldest to newest
-    assert body['content'][0] == {"row": 0, "line": "log line 1", "timestamp": None}
+    assert body['content'][0] == first_expected_item
 
-
-async def test_paginated_result_oob_page():
+@pytest.mark.parametrize("test_log", [TEST_LOG, TEST_MFLOG])
+async def test_paginated_result_oob_page(test_log):
     body = paginated_result(
-        content=TEST_LOG, page=2,
+        content=test_log, page=2,
         limit=2000, reverse_order=False,
         output_raw=False
     )
@@ -30,7 +36,7 @@ async def test_paginated_result_oob_page():
 
     # with zero limit, if requesting pages beyond the first, should receive nothing.
     body = paginated_result(
-        content=TEST_LOG, page=2,
+        content=test_log, page=2,
         limit=0, reverse_order=False,
         output_raw=False
     )
@@ -38,10 +44,10 @@ async def test_paginated_result_oob_page():
     assert body["pages"] == 1
     assert len(body['content']) == 0
 
-
-async def test_paginated_result_with_limit():
+@pytest.mark.parametrize("test_log", [TEST_LOG, TEST_MFLOG])
+async def test_paginated_result_with_limit(test_log):
     body = paginated_result(
-        content=TEST_LOG, page=2,
+        content=test_log, page=2,
         limit=5, reverse_order=False,
         output_raw=False
     )
@@ -50,32 +56,33 @@ async def test_paginated_result_with_limit():
     assert body["pages"] == 200
     assert [obj["line"] for obj in body['content']] == list("log line {}".format(i) for i in range(6, 11))
 
-
-async def test_paginated_result_ordering():
+@pytest.mark.parametrize("test_log", [TEST_LOG, TEST_MFLOG])
+async def test_paginated_result_ordering(test_log):
     body = paginated_result(
-        content=TEST_LOG, page=1,
+        content=test_log, page=1,
         limit=0, reverse_order=False,
         output_raw=False
     )
-    assert [obj["line"] for obj in body["content"]] == [line for _, line in TEST_LOG]
+    assert [obj["line"] for obj in body["content"]] == [line for _, line in test_log]
 
     body = paginated_result(
-        content=TEST_LOG, page=1,
+        content=test_log, page=1,
         limit=0, reverse_order=True,
         output_raw=False
     )
-    assert [obj["line"] for obj in body["content"]] == [line for _, line in TEST_LOG[::-1]]
+    assert [obj["line"] for obj in body["content"]] == [line for _, line in test_log[::-1]]
 
-
-async def test_paginated_result_raw_output():
+@pytest.mark.parametrize("test_log", [TEST_LOG, TEST_MFLOG])
+async def test_paginated_result_raw_output(test_log):
     body = paginated_result(
-        content=TEST_LOG, page=1,
+        content=test_log, page=1,
         limit=5, reverse_order=False,
         output_raw=True
     )
     assert body["pages"] == 1
     # should return full log despite pagination limit when requesting raw.
-    assert body["content"] == "\n".join(line for _, line in TEST_LOG)
+    # should skip timestamps in raw content for all log types
+    assert body["content"] == "\n".join(line for _, line in test_log)
 
 
 async def test_log_cache_id_uniqueness():
