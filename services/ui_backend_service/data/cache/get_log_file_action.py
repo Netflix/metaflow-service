@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from .client import CacheAction
 from services.utils import get_traceback_str
 
@@ -178,14 +178,25 @@ def get_log_size(task: Task, logtype: str):
 
 @wrap_metaflow_s3_errors
 def get_log_content(task: Task, logtype: str):
-    return task.stderr if logtype == STDERR else task.stdout
+    stream = 'stderr' if logtype == STDERR else 'stdout'
+    log_location = task.metadata_dict.get('log_location_%s' % stream)
+    if log_location:
+        return [
+            (None, line)
+            for line in task._load_log_legacy(log_location, stream).split("\n")
+        ]
+    else:
+        return [
+            (int(datetime.timestamp()), line)
+            for datetime, line in task.loglines(stream)
+        ]
 
 
-def paginated_result(content: str, page: int = 1, limit: int = 0, reverse_order: bool = False, output_raw=False):
+def paginated_result(content: List[Tuple[Optional[int], str]], page: int = 1, limit: int = 0, reverse_order: bool = False, output_raw=False):
     if not output_raw:
         loglines, total_pages = format_loglines(content, page, limit, reverse_order)
     else:
-        loglines = content
+        loglines = "\n".join(line for _, line in content)
         total_pages = 1
 
     return {
@@ -194,9 +205,12 @@ def paginated_result(content: str, page: int = 1, limit: int = 0, reverse_order:
     }
 
 
-def format_loglines(content: str, page: int = 1, limit: int = 0, reverse: bool = False) -> Tuple[List, int]:
+def format_loglines(content: List[Tuple[Optional[int], str]], page: int = 1, limit: int = 0, reverse: bool = False) -> Tuple[List, int]:
     "format, order and limit the log content. Return a list of log lines with row numbers"
-    lines = [{"row": row, "line": line} for row, line in enumerate(content.split("\n"))]
+    lines = [
+        {"row": row, "timestamp": line[0], "line": line[1]}
+        for row, line in enumerate(content)
+    ]
 
     _offset = limit * (page - 1)
     pages = max(len(lines) // limit, 1) if limit else 1
