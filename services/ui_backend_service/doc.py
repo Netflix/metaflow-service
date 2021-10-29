@@ -661,6 +661,7 @@ swagger_definitions = {
         "type": "object",
         "properties": {
             **modelprop("row", "int", "Row number", 0),
+            **modelprop("timestamp", "int", "Epoch timestamp of the log line entry", 1591788834035),
             **modelprop("line", "string", "Log line content", "logged text")
         },
         "required": ["row", "line"]
