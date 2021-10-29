@@ -4,7 +4,8 @@ from services.ui_backend_service.data.cache.get_log_file_action import paginated
 
 pytestmark = [pytest.mark.unit_tests]
 
-TEST_LOG = "\n".join(list("log line {}".format(i) for i in range(1, 1001)))
+TEST_LOG = list((None, "log line {}".format(i)) for i in range(1, 1001))
+TEST_MFLOG = list((i, "log line {}".format(i)) for i in range(1, 1001))
 
 
 async def test_paginated_result():
@@ -14,7 +15,7 @@ async def test_paginated_result():
     assert len(body['content']) == 1000
     assert body["pages"] == 1
     # order should be oldest to newest
-    assert body['content'][0] == {"row": 0, "line": "log line 1"}
+    assert body['content'][0] == {"row": 0, "line": "log line 1", "timestamp": None}
 
 
 async def test_paginated_result_oob_page():
@@ -56,14 +57,14 @@ async def test_paginated_result_ordering():
         limit=0, reverse_order=False,
         output_raw=False
     )
-    assert [obj["line"] for obj in body["content"]] == TEST_LOG.split("\n")
+    assert [obj["line"] for obj in body["content"]] == [line for _, line in TEST_LOG]
 
     body = paginated_result(
         content=TEST_LOG, page=1,
         limit=0, reverse_order=True,
         output_raw=False
     )
-    assert [obj["line"] for obj in body["content"]] == TEST_LOG.split("\n")[::-1]
+    assert [obj["line"] for obj in body["content"]] == [line for _, line in TEST_LOG[::-1]]
 
 
 async def test_paginated_result_raw_output():
@@ -74,7 +75,7 @@ async def test_paginated_result_raw_output():
     )
     assert body["pages"] == 1
     # should return full log despite pagination limit when requesting raw.
-    assert body["content"] == TEST_LOG
+    assert body["content"] == "\n".join(line for _, line in TEST_LOG)
 
 
 async def test_log_cache_id_uniqueness():
