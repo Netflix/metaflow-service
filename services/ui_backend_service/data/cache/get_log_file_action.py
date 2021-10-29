@@ -187,7 +187,7 @@ def get_log_content(task: Task, logtype: str):
         ]
     else:
         return [
-            (int(datetime.timestamp()), line)
+            (int(datetime.timestamp() * 1000), line)
             for datetime, line in task.loglines(stream)
         ]
 
