@@ -178,6 +178,10 @@ def get_log_size(task: Task, logtype: str):
 
 @wrap_metaflow_s3_errors
 def get_log_content(task: Task, logtype: str):
+    # NOTE: this re-implements some of the client logic from _load_log(self, stream)
+    # for backwards compatibility of different log types.
+    # Necessary due to the client not exposing a stdout/stderr property that would
+    # contain the optional timestamps.
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
     if log_location:
