@@ -2,7 +2,7 @@ import hashlib
 import json
 
 from .client import CacheAction
-from services.utils import get_traceback_str
+from .utils import streamed_errors
 
 from .custom_flowgraph import FlowGraph
 
@@ -84,19 +84,9 @@ class GenerateDag(CacheAction):
 
         result_key = [key for key in keys if key.startswith('dag:result')][0]
 
-        def stream_error(err, id, traceback=None):
-            return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
-
-        try:
+        with streamed_errors(stream_output):
             run = Run("{}/{}".format(flow_id, run_number))
             results[result_key] = json.dumps(generate_dag(flow_id, run.code.flowspec))
-        except Exception as ex:
-            if ex.__class__.__name__ == 'KeyError' and "filename 'python3' not found" in str(ex):
-                stream_error(
-                    'Parsing DAG graph is not supported for the language used in this Flow.',
-                    'dag-unsupported-flow-language')
-            else:
-                stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
 
         return results
 
@@ -104,16 +94,30 @@ class GenerateDag(CacheAction):
 
 
 def generate_dag(flow_id, source):
-    # Initialize a FlowGraph object
-    graph = FlowGraph(source=source, name=flow_id)
-    # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
-    dag = {}
-    for node in graph:
-        dag[node.name] = {
-            'type': node.type,
-            'box_next': node.type not in ('linear', 'join'),
-            'box_ends': node.matching_join,
-            'next': node.out_funcs,
-            'doc': node.doc
-        }
-    return dag
+    try:
+        # Initialize a FlowGraph object
+        graph = FlowGraph(source=source, name=flow_id)
+        # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
+        dag = {}
+        for node in graph:
+            dag[node.name] = {
+                'type': node.type,
+                'box_next': node.type not in ('linear', 'join'),
+                'box_ends': node.matching_join,
+                'next': node.out_funcs,
+                'doc': node.doc
+            }
+        return dag
+    except KeyError as ex:
+        if "filename 'python3' not found" in str(ex):
+            raise DAGUnsupportedFlowLanguage from None
+
+class DAGUnsupportedFlowLanguage(Exception):
+    """Unsupported flow language for DAG parsing"""
+    def __init__(self, *args: object) -> None:
+        self.message = 'Parsing DAG graph is not supported for the language used in this Flow.'
+        super().__init__(*args)
+    
+    def __str__(self):
+        return str(self.message)
+
