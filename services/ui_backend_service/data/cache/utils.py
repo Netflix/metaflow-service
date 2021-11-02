@@ -56,17 +56,24 @@ def streamed_errors(stream_output, re_raise=True):
     """
     Context manager for running cache action processing and streaming possible errors
     to the stream_output
+
+    Parameters
+    ----------
+    stream_output : Callable
+        Cache action stream output callable
+    
+    re_raise : bool
+        Default true. Whether to re-raise the caught error or not.
     """
     try:
         yield
     except Exception as ex:
         stream_output(
-            {
-                "type": "error",
-                "message": str(ex),
-                "id": ex.__class__.__name__,
-                "traceback": get_traceback_str()
-            }
+            error_event_msg(
+                str(ex),
+                ex.__class__.__name__,
+                get_traceback_str()
+            )
         )
         if re_raise:
             raise ex from None

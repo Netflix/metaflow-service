@@ -97,7 +97,7 @@ class GetData(CacheAction):
         Streaming errors should be avoided to minimize latency for subsequent requests.
 
         Stream error example:
-            stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
+            stream_error(str(ex), "MetaflowNotFound", get_traceback_str(), artifact_key)
         """
         targets = message['targets']
 
