@@ -904,10 +904,17 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     async def get_artifact(
         self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str
     ):
-
-        # To get the "latest" artifact, we check an artifact that always
-        # exists ('name') and get that attempt_id and then use that to fetch
-        # the artifact for that attempt.
+        # Return the artifact metadata for the latest attempt of the task.
+        #
+        # The quirk here is that different attempts may have different sets of
+        # artifacts. That is, if artifact "foo" was set in attempt N, that
+        # doesn't mean it was set in attempt N+1, and vice versa.
+        #
+        # To get the artifact value for the "latest" attempt, we first find 
+        # the latest attempt_id by querying the artifacts table for the
+        # artifact that always exists for every attempt (the artifact called
+        # 'name', containing the flow name), then use that attempt_id to get
+        # the artifact we're interested in.
         run_id_key, run_id_value = translate_run_key(run_id)
         task_id_key, task_id_value = translate_task_key(task_id)
         filter_dict = {
@@ -915,7 +922,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             run_id_key: run_id_value,
             "step_name": step_name,
             task_id_key: task_id_value,
-            "name": name
+            '"name"': "name"
         }
         name_record = await self.get_records(filter_dict=filter_dict,
                                              fetch_single=True, ordering=self.ordering)
