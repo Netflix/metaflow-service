@@ -2,6 +2,9 @@ import os
 import pickle
 from gzip import GzipFile
 from itertools import islice
+from contextlib import contextmanager
+
+from services.utils import get_traceback_str
 
 # Generic helpers
 
@@ -48,6 +51,25 @@ def artifact_location_from_key(x):
 
 # Cache action stream output helpers
 
+@contextmanager
+def streamed_errors(stream_output, re_raise=True):
+    """
+    Context manager for running cache action processing and streaming possible errors
+    to the stream_output
+    """
+    try:
+        yield
+    except Exception as ex:
+        stream_output(
+            {
+                "type": "error",
+                "message": str(ex),
+                "id": ex.__class__.__name__,
+                "traceback": get_traceback_str()
+            }
+        )
+        if re_raise:
+            raise ex from None
 
 class StreamedCacheError(Exception):
     "Used for custom raises during cache action stream errors"
