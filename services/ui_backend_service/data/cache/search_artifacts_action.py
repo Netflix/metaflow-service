@@ -5,7 +5,7 @@ from .client import CacheAction
 from services.utils import get_traceback_str
 from .utils import (error_event_msg, progress_event_msg,
                     artifact_cache_id, unpack_pathspec_with_attempt_id,
-                    MAX_S3_SIZE)
+                    streamed_errors, MAX_S3_SIZE)
 from ..refiner.refinery import unpack_processed_value
 from services.ui_backend_service.api.utils import operators_to_filters
 
@@ -112,25 +112,23 @@ class SearchArtifacts(CacheAction):
         def stream_progress(num):
             return stream_output(progress_event_msg(num))
 
-        def stream_error(err, id, traceback=None):
-            return stream_output(error_event_msg(err, id, traceback))
+        with streamed_errors(stream_output, re_raise=False):
+            # Fetch artifacts that are not cached already
+            for idx, pathspec in enumerate(pathspecs_to_fetch):
+                stream_progress((idx + 1) / len(pathspecs_to_fetch))
 
-        # Fetch artifacts that are not cached already
-        for idx, pathspec in enumerate(pathspecs_to_fetch):
-            stream_progress((idx + 1) / len(pathspecs_to_fetch))
-
-            try:
-                pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
-                artifact_key = "search:artifactdata:{}".format(pathspec)
-                artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
-                if artifact.size < MAX_S3_SIZE:
-                    results[artifact_key] = json.dumps([True, artifact.data])
-                else:
-                    results[artifact_key] = json.dumps(
-                        [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
-            except Exception as ex:
-                stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
-                results[artifact_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
+                try:
+                    pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
+                    artifact_key = "search:artifactdata:{}".format(pathspec)
+                    artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
+                    if artifact.size < MAX_S3_SIZE:
+                        results[artifact_key] = json.dumps([True, artifact.data])
+                    else:
+                        results[artifact_key] = json.dumps(
+                            [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
+                except Exception as ex:
+                    results[artifact_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
+                    raise ex from None # re-raise errors in order to stream it in context
 
         # Perform search on loaded artifacts.
         search_results = {}
