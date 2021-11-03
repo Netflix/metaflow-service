@@ -6,7 +6,8 @@ from .utils import streamed_errors
 
 from .custom_flowgraph import FlowGraph
 
-from metaflow import Run
+from metaflow import Run, namespace
+namespace(None)  # Always use global namespace by default
 
 
 class GenerateDag(CacheAction):
@@ -108,16 +109,18 @@ def generate_dag(flow_id, source):
                 'doc': node.doc
             }
         return dag
-    except KeyError as ex:
-        if "filename 'python3' not found" in str(ex):
-            raise DAGUnsupportedFlowLanguage from None
+    except Exception as ex:
+        if ex.__class__.__name__ == 'KeyError' and "filename 'python3' not found" in str(ex):
+            raise DAGUnsupportedFlowLanguage(
+                'Parsing DAG graph is not supported for the language used in this Flow.'
+            ) from None
+        else:
+            raise DAGParsingFailed(f"DAG Parsing failed: {str(ex)}")
+
 
 class DAGUnsupportedFlowLanguage(Exception):
     """Unsupported flow language for DAG parsing"""
-    def __init__(self, *args: object) -> None:
-        self.message = 'Parsing DAG graph is not supported for the language used in this Flow.'
-        super().__init__(*args)
-    
-    def __str__(self):
-        return str(self.message)
 
+
+class DAGParsingFailed(Exception):
+    """Something went wrong while parsing the DAG"""
