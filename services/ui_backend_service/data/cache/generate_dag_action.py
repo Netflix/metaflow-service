@@ -110,7 +110,7 @@ def generate_dag(flow_id, source):
             }
         return dag
     except Exception as ex:
-        if ex.__class__.__name__ == 'KeyError' and "filename 'python3' not found" in str(ex):
+        if ex.__class__.__name__ == 'KeyError' and "python" in str(ex):
             raise DAGUnsupportedFlowLanguage(
                 'Parsing DAG graph is not supported for the language used in this Flow.'
             ) from None
