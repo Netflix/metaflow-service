@@ -61,7 +61,7 @@ def streamed_errors(stream_output, re_raise=True):
     ----------
     stream_output : Callable
         Cache action stream output callable
-    
+
     re_raise : bool
         Default true. Whether to re-raise the caught error or not.
     """
@@ -77,6 +77,7 @@ def streamed_errors(stream_output, re_raise=True):
         )
         if re_raise:
             raise ex from None
+
 
 class StreamedCacheError(Exception):
     "Used for custom raises during cache action stream errors"

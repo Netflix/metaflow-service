@@ -10,7 +10,8 @@ from ..refiner.refinery import unpack_processed_value
 from services.ui_backend_service.api.utils import operators_to_filters
 
 
-from metaflow import DataArtifact
+from metaflow import DataArtifact, namespace
+namespace(None)  # Always use global namespace by default
 
 
 class SearchArtifacts(CacheAction):
@@ -128,7 +129,7 @@ class SearchArtifacts(CacheAction):
                             [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
                 except Exception as ex:
                     results[artifact_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
-                    raise ex from None # re-raise errors in order to stream it in context
+                    raise ex from None  # re-raise errors in order to stream it in context
 
         # Perform search on loaded artifacts.
         search_results = {}

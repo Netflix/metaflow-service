@@ -8,11 +8,10 @@ from .utils import streamed_errors
 # New imports
 
 from metaflow import namespace, Task
-namespace(None) # Always use global namespace by default
+namespace(None)  # Always use global namespace by default
 
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
-
 
 
 class GetLogFile(CacheAction):
