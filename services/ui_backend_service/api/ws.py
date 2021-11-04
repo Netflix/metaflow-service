@@ -112,7 +112,7 @@ class Websocket(object):
                     else:
                         await self._event_subscription(subscription, operation, resources, _data)
                 except ConnectionResetError:
-                    self.logger.info("Trying to broadcast to a stale subscription. Unsubscribing")
+                    self.logger.debug("Trying to broadcast to a stale subscription. Unsubscribing")
                     await self.unsubscribe_from(subscription.ws, subscription.uuid)
                 except Exception:
                     self.logger.exception("Broadcasting to subscription failed")
