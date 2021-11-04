@@ -106,10 +106,16 @@ class Websocket(object):
                 'data': _data
             })
             for subscription in self.subscriptions:
-                if not subscription.disconnected_ts:
-                    await self._event_subscription(subscription, operation, resources, _data)
-                elif subscription.disconnected_ts and time.time() - subscription.disconnected_ts > WS_QUEUE_TTL_SECONDS:
+                try:
+                    if subscription.disconnected_ts and time.time() - subscription.disconnected_ts > WS_QUEUE_TTL_SECONDS:
+                        await self.unsubscribe_from(subscription.ws, subscription.uuid)
+                    else:
+                        await self._event_subscription(subscription, operation, resources, _data)
+                except ConnectionResetError:
+                    self.logger.debug("Trying to broadcast to a stale subscription. Unsubscribing")
                     await self.unsubscribe_from(subscription.ws, subscription.uuid)
+                except Exception:
+                    self.logger.exception("Broadcasting to subscription failed")
 
     async def _event_subscription(self, subscription: WSSubscription, operation: str, resources: List[str], data: Dict):
         for resource in resources:
@@ -128,7 +134,6 @@ class Websocket(object):
     async def subscribe_to(self, ws, uuid: str, resource: str, since: int):
         # Always unsubscribe existing duplicate identifiers
         await self.unsubscribe_from(ws, uuid)
-
         # Create new subscription
         _resource, query, filter_fn = resource_conditions(resource)
         subscription = WSSubscription(
@@ -142,7 +147,7 @@ class Websocket(object):
             event_queue = await self.queue.values_since(since)
             for _, event in event_queue:
                 self.loop.create_task(
-                    await self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
+                    self._event_subscription(subscription, event['operation'], event['resources'], event['data'])
                 )
 
     async def unsubscribe_from(self, ws, uuid: str = None):
