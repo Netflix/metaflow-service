@@ -910,7 +910,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         # artifacts. That is, if artifact "foo" was set in attempt N, that
         # doesn't mean it was set in attempt N+1, and vice versa.
         #
-        # To get the artifact value for the "latest" attempt, we first find 
+        # To get the artifact value for the "latest" attempt, we first find
         # the latest attempt_id by querying the artifacts table for the
         # artifact that always exists for every attempt (the artifact called
         # 'name', containing the flow name), then use that attempt_id to get
