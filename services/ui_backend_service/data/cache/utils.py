@@ -79,11 +79,6 @@ def streamed_errors(stream_output, re_raise=True):
             raise ex from None
 
 
-class StreamedCacheError(Exception):
-    "Used for custom raises during cache action stream errors"
-    pass
-
-
 def progress_event_msg(number):
     "formatter for cache action progress stream messages"
     return {

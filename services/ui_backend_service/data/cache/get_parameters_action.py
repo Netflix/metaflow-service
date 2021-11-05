@@ -45,7 +45,9 @@ class GetParameters(GetData):
             with streamed_errors(stream_output):
                 step = Step("{}/_parameters".format(pathspec))
         except Exception as ex:
-            return False # Do not cache this since parameters might be available later
+            # NOTE: return false in order not to cache this
+            # since parameters might be available later
+            return False
 
         values = {}
         for artifact_name, artifact in step.task.artifacts._asdict().items():
