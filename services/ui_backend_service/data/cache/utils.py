@@ -3,6 +3,7 @@ import pickle
 from gzip import GzipFile
 from itertools import islice
 from contextlib import contextmanager
+from typing import Callable
 
 from services.utils import get_traceback_str
 
@@ -57,7 +58,7 @@ def artifact_location_from_key(x):
 # Cache action stream output helpers
 
 @contextmanager
-def streamed_errors(stream_output, re_raise=True):
+def streamed_errors(stream_output: Callable[[object], None], re_raise=True):
     """
     Context manager for running cache action processing and streaming possible errors
     to the stream_output

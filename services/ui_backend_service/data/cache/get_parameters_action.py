@@ -22,7 +22,7 @@ class GetParameters(GetData):
         return super().format_request(targets=pathspecs, invalidate_cache=invalidate_cache)
 
     @classmethod
-    def fetch_data(cls, pathspec: str, stream_output: Callable[[str], None]):
+    def fetch_data(cls, pathspec: str, stream_output: Callable[[object], None]):
         """
         Fetch data using Metaflow Client.
 
@@ -30,8 +30,9 @@ class GetParameters(GetData):
         ----------
         pathspec : str
             Run pathspec: "FlowId/RunNumber"
-        stream_output : Callable[str, None]
-            Stream output callable from execute(). Used for generic messaging
+        stream_output : Callable[[object], None]
+            Stream output callable from execute()  that accepts a JSON serializable object.
+            Used for generic messaging.
 
         Errors can be streamed to cache client using `stream_output` in combination with
         the error_event_msg helper. This way failures won't be cached for individual artifacts,

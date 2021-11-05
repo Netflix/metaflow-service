@@ -132,8 +132,9 @@ class GetData(CacheAction):
         ----------
         pathspec : str
             Task pathspec: "FlowId/RunNumber/StepName/TaskId"
-        stream_output : Callable[[str], None]
-            Stream output callable from execute(). Used for generic messaging
+        stream_output : Callable[[object], None]
+            Stream output callable from execute()  that accepts a JSON serializable object.
+            Used for generic messaging.
 
         Errors can be streamed to cache client using `stream_output` in combination with
         the error_event_msg helper. This way failures won't be cached for individual artifacts,
