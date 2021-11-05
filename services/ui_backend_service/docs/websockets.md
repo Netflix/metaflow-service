@@ -99,20 +99,18 @@ Error example:
     "event": {
       "type": "error",
       "message": "error message",
-      "id": "unique-error-id"
+      "id": "uniqueErrorId"
     }
   }
 ```
-The unique id of an error can be one of the following:
+The unique id is either the classname of the exception, or a custom id. Here are some of the most common ones:
 | Error ID                  | Description                                                       |
 |---------------------------|-------------------------------------------------------------------|
-| `s3-access-denied`        | server does not have access to s3 bucket                          |
-| `s3-not-found`            | s3 404 response                                                   |
-| `s3-bad-url`              | malformed s3 url                                                  |
-| `s3-missing-credentials`  | server does not have credentials for s3 access                    |
-| `s3-generic-error`        | something went wrong with s3 access                               |
+| `MetaflowS3AccessDenied`  | server does not have access to s3 bucket                          |
+| `MetaflowS3NotFound`      | s3 404 response                                                   |
+| `MetaflowS3URLException`  | malformed s3 url                                                  |
+| `MetaflowS3Exception`     | something went wrong with s3 access                               |
 | `artifact-handle-failed`  | something went wrong with processing the artifact                 |
-| `artifact-not-accessible` | artifact location is not accessible by the server (local storage) |
 
 Results example:
 ```json
