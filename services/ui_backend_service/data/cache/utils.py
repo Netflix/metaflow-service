@@ -6,6 +6,16 @@ from contextlib import contextmanager
 
 from services.utils import get_traceback_str
 
+# Custom Cache errors
+
+
+class DAGUnsupportedFlowLanguage(Exception):
+    """Unsupported flow language for DAG parsing"""
+
+
+class DAGParsingFailed(Exception):
+    """Something went wrong while parsing the DAG"""
+
 # Generic helpers
 
 

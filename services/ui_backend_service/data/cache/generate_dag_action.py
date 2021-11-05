@@ -2,7 +2,7 @@ import hashlib
 import json
 
 from .client import CacheAction
-from .utils import streamed_errors
+from .utils import streamed_errors, DAGParsingFailed, DAGUnsupportedFlowLanguage
 
 from .custom_flowgraph import FlowGraph
 
@@ -116,11 +116,3 @@ def generate_dag(flow_id, source):
             ) from None
         else:
             raise DAGParsingFailed(f"DAG Parsing failed: {str(ex)}")
-
-
-class DAGUnsupportedFlowLanguage(Exception):
-    """Unsupported flow language for DAG parsing"""
-
-
-class DAGParsingFailed(Exception):
-    """Something went wrong while parsing the DAG"""
