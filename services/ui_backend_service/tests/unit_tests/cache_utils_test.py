@@ -3,7 +3,7 @@ import pytest
 from services.ui_backend_service.data.cache.utils import (
     error_event_msg, progress_event_msg, search_result_event_msg,
     artifact_location_from_key, artifact_cache_id, unpack_pathspec_with_attempt_id,
-    streamed_errors
+    streamed_errors, cacheable_artifact_value, artifact_value
 )
 
 pytestmark = [pytest.mark.unit_tests]
@@ -88,3 +88,24 @@ def test_streamed_errors_exception_output():
             raise Exception("Should not be reraised")
     except Exception as ex:
         assert False #  Should not have re-raised exception
+    
+
+def test_cacheable_artifact_value():
+    artifact = TestArtifact("pathspec/to", 1, "test")
+    big_artifact = TestArtifact("pathspec/to", 123456789, "test")
+
+    assert cacheable_artifact_value(artifact) == '[true, "test"]'
+    assert cacheable_artifact_value(big_artifact) == '[false, "artifact-too-large", "pathspec/to: 123456789 bytes"]'
+
+def test_artifact_value():
+    artifact = TestArtifact("pathspec/to", 1, "test")
+    big_artifact = TestArtifact("pathspec/to", 123456789, "test")
+
+    assert artifact_value(artifact) == (True, "test")
+    assert artifact_value(big_artifact) == (False, "artifact-too-large", "pathspec/to: 123456789 bytes")
+
+class TestArtifact():
+    def __init__(self, pathspec, size, data):
+        self.pathspec = pathspec
+        self.size = size
+        self.data = data
