@@ -119,7 +119,7 @@ class GetData(CacheAction):
                     continue
                 results[target_key] = json.dumps(result)
             except Exception as ex:
-                results[target_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
+                results[target_key] = json.dumps([False, ex.__class__.__name__, str(ex), get_traceback_str()])
 
         return results
 

@@ -6,7 +6,7 @@ from services.utils import get_traceback_str
 from .utils import (error_event_msg, progress_event_msg,
                     artifact_cache_id, unpack_pathspec_with_attempt_id,
                     streamed_errors, MAX_S3_SIZE)
-from ..refiner.refinery import unpack_processed_value
+from ..refiner.refinery import unpack_processed_value, format_error_body
 from services.ui_backend_service.api.utils import operators_to_filters
 
 
@@ -128,7 +128,7 @@ class SearchArtifacts(CacheAction):
                         results[artifact_key] = json.dumps(
                             [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
                 except Exception as ex:
-                    results[artifact_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
+                    results[artifact_key] = json.dumps([False, ex.__class__.__name__, str(ex), get_traceback_str()])
                     raise ex from None  # re-raise errors in order to stream it in context
 
         # Perform search on loaded artifacts.
@@ -143,7 +143,7 @@ class SearchArtifacts(CacheAction):
 
         for key in artifact_keys:
             if key in results:
-                load_success, value, detail = unpack_processed_value(json.loads(results[key]))
+                load_success, value, detail, trace = unpack_processed_value(json.loads(results[key]))
             else:
                 load_success, value, _ = False, None, None
             # keep the matching case-insensitive
@@ -152,10 +152,11 @@ class SearchArtifacts(CacheAction):
             search_results[format_loc(key)] = {
                 "included": load_success,
                 "matches": matches,
-                "error": None if load_success else {
-                    "id": value or "artifact-handle-failed",
-                    "detail": detail or "Unknown error during artifact processing"
-                }
+                "error": None if load_success else format_error_body(
+                    id=value or "artifact-handle-failed",
+                    detail=detail or "Unknown error during artifact processing",
+                    traceback=trace
+                )
             }
 
         results[result_key] = json.dumps(search_results)
