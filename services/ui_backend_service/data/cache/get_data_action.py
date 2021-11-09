@@ -3,7 +3,6 @@ import hashlib
 
 from .client import CacheAction
 from services.utils import get_traceback_str
-from .utils import error_event_msg
 
 from metaflow import namespace
 
@@ -90,14 +89,14 @@ class GetData(CacheAction):
         Failure cached example:
             results[target_key] = json.dumps([False, 'artifact-too-large', artifact_data.size])
 
-        Alternatively errors can be streamed to cache client using `stream_error`.
+        Alternatively errors can be streamed to cache client using `stream_output`.
         This way failures won't be cached for individual artifacts, thus making
         it necessary to retry fetching during next attempt. (Will add significant overhead/delay).
 
         Streaming errors should be avoided to minimize latency for subsequent requests.
 
         Stream error example:
-            stream_error(str(ex), "s3-not-found", get_traceback_str(), artifact_key)
+            stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str(), artifact_key))
         """
         targets = message['targets']
 
@@ -111,19 +110,16 @@ class GetData(CacheAction):
             # Make a list of artifact locations that require fetching (not cached previously)
             targets_to_fetch = [loc for loc in targets if not cache_key_from_target(loc, "data:{}:".format(cls.__name__)) in existing_keys]
 
-        def stream_error(err: str, id: str, traceback: str = None):
-            return stream_output(error_event_msg(err, id, traceback))
-
         for target in targets_to_fetch:
             target_key = cache_key_from_target(target, "data:{}:".format(cls.__name__))
             try:
-                result = cls.fetch_data(target, stream_error)
+                result = cls.fetch_data(target, stream_output)
                 if result is None or result is False:
                     # Do not persist None or False return values
                     continue
                 results[target_key] = json.dumps(result)
             except Exception as ex:
-                results[target_key] = json.dumps([False, ex.__class__.__name__, get_traceback_str()])
+                results[target_key] = json.dumps([False, ex.__class__.__name__, str(ex), get_traceback_str()])
 
         return results
 
@@ -136,15 +132,17 @@ class GetData(CacheAction):
         ----------
         pathspec : str
             Task pathspec: "FlowId/RunNumber/StepName/TaskId"
-        stream_error : Callable[[str, str, str], None]
-            Stream error (Exception name, error id, traceback/details)
+        stream_output : Callable[[object], None]
+            Stream output callable from execute()  that accepts a JSON serializable object.
+            Used for generic messaging.
 
-        Errors can be streamed to cache client using `stream_error`.
-        This way failures won't be cached for individual artifacts, thus making
-        it necessary to retry fetching during next attempt. (Will add significant overhead/delay).
+        Errors can be streamed to cache client using `stream_output` in combination with
+        the error_event_msg helper. This way failures won't be cached for individual artifacts,
+        thus making it necessary to retry fetching during next attempt.
+        (Will add significant overhead/delay).
 
         Stream error example:
-            stream_error(str(ex), "s3-not-found", get_traceback_str())
+            stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str()))
 
         Success return:
             [True, "value"]

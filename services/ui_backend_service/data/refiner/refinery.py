@@ -90,13 +90,14 @@ class Refinery(object):
                 )
 
             if target in data:
-                success, value, detail = unpack_processed_value(data[target])
+                success, value, detail, trace = unpack_processed_value(data[target])
                 if success:
                     record = await self.refine_record(record, value)
                 else:
                     record['postprocess_error'] = format_error_body(
                         value if value else "artifact-handle-failed",
-                        detail if detail else "Unknown error during postprocessing"
+                        detail if detail else "Unknown error during postprocessing",
+                        trace
                     )
             else:
                 record['postprocess_error'] = format_error_body(
@@ -114,7 +115,7 @@ class Refinery(object):
         return DBResponse(response_code=response.response_code, body=body)
 
 
-def unpack_processed_value(value) -> Tuple[bool, Optional[Any], Optional[Any]]:
+def unpack_processed_value(value) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
     '''
     Unpack refined response returning tuple of: success, value, detail
 
@@ -124,11 +125,17 @@ def unpack_processed_value(value) -> Tuple[bool, Optional[Any], Optional[Any]]:
         True, 'foo', None
 
     Failure examples:
-        False, 'failure-id', 'error-details'
-        False, 'failure-id-without-details', None
-        False, None, None
+        False, 'failure-id', 'error-details', None
+        False, 'failure-id-without-details', None, None
+        False, None, None, None
+        False, 'CustomError', 'Custom failure description', 'stacktrace of error'
+
+    Returns
+    -------
+    tuple : (bool, optional(str), optional(str), optional(str))
+        Success|Failure, ExceptionClassName, Exception description, Stacktrace
     '''
-    return (list(value) + [None] * 3)[:3]
+    return (list(value) + [None] * 4)[:4]
 
 
 def format_error_body(id=None, detail=None, traceback=None):

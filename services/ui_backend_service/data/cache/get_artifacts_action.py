@@ -23,7 +23,7 @@ class GetArtifacts(GetData):
         return super().format_request(targets=pathspecs, invalidate_cache=invalidate_cache)
 
     @classmethod
-    def fetch_data(cls, pathspec: str, stream_error: Callable[[str, str, str], None]):
+    def fetch_data(cls, pathspec: str, stream_output: Callable[[str], None]):
         """
         Fetch data using Metaflow Client.
 
@@ -32,15 +32,17 @@ class GetArtifacts(GetData):
         pathspec : str
             Artifact pathspec with attempt id as last component:
                 "FlowId/RunNumber/StepName/TaskId/ArtifactName/0"
-        stream_error : Callable[[str, str, str], None]
-            Stream error (Exception name, error id, traceback/details)
+        stream_output : Callable[[object], None]
+            Stream output callable from execute() that accepts a JSON serializable object.
+            Used for generic messaging.
 
-        Errors can be streamed to cache client using `stream_error`.
-        This way failures won't be cached for individual artifacts, thus making
-        it necessary to retry fetching during next attempt. (Will add significant overhead/delay).
+        Errors can be streamed to cache client using `stream_output` in combination with
+        the error_event_msg helper. This way failures won't be cached for individual artifacts,
+        thus making it necessary to retry fetching during next attempt.
+        (Will add significant overhead/delay).
 
         Stream error example:
-            stream_error(str(ex), "s3-not-found", get_traceback_str())
+            stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str()))
         """
         pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
 

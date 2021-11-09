@@ -1,11 +1,9 @@
 from typing import List, Callable
 
 from .get_data_action import GetData
-from services.utils import get_traceback_str
-from .utils import MAX_S3_SIZE
+from .utils import MAX_S3_SIZE, streamed_errors
 
 from metaflow import Step
-from metaflow.exception import MetaflowNotFound
 
 
 class GetParameters(GetData):
@@ -24,7 +22,7 @@ class GetParameters(GetData):
         return super().format_request(targets=pathspecs, invalidate_cache=invalidate_cache)
 
     @classmethod
-    def fetch_data(cls, pathspec: str, stream_error: Callable[[str, str, str], None]):
+    def fetch_data(cls, pathspec: str, stream_output: Callable[[object], None]):
         """
         Fetch data using Metaflow Client.
 
@@ -32,23 +30,24 @@ class GetParameters(GetData):
         ----------
         pathspec : str
             Run pathspec: "FlowId/RunNumber"
-        stream_error : Callable[[str, str, str], None]
-            Stream error (Exception name, error id, traceback/details)
+        stream_output : Callable[[object], None]
+            Stream output callable from execute()  that accepts a JSON serializable object.
+            Used for generic messaging.
 
-        Errors can be streamed to cache client using `stream_error`.
-        This way failures won't be cached for individual artifacts, thus making
-        it necessary to retry fetching during next attempt. (Will add significant overhead/delay).
+        Errors can be streamed to cache client using `stream_output` in combination with
+        the error_event_msg helper. This way failures won't be cached for individual artifacts,
+        thus making it necessary to retry fetching during next attempt.
+        (Will add significant overhead/delay).
 
         Stream error example:
-            stream_error(str(ex), "s3-not-found", get_traceback_str())
+            stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str()))
         """
         try:
-            step = Step("{}/_parameters".format(pathspec))
-        except MetaflowNotFound:
-            stream_error('Failed to Get Parameters', 'failed-to-get-parameters', get_traceback_str())
-            return False  # Do not cache this since parameters might be available later
+            with streamed_errors(stream_output):
+                step = Step("{}/_parameters".format(pathspec))
         except Exception as ex:
-            stream_error("Failed to Get Parameters: {}".format(ex), 'failed-to-get-parameters', get_traceback_str())
+            # NOTE: return false in order not to cache this
+            # since parameters might be available later
             return False
 
         values = {}

@@ -2,6 +2,20 @@ import os
 import pickle
 from gzip import GzipFile
 from itertools import islice
+from contextlib import contextmanager
+from typing import Callable
+
+from services.utils import get_traceback_str
+
+# Custom Cache errors
+
+
+class DAGUnsupportedFlowLanguage(Exception):
+    """Unsupported flow language for DAG parsing"""
+
+
+class DAGParsingFailed(Exception):
+    """Something went wrong while parsing the DAG"""
 
 # Generic helpers
 
@@ -23,11 +37,6 @@ def decode(path):
         return obj
 
 
-def read_as_string(path):
-    "reads file contents as a string"
-    with open(path, "r") as f:
-        return f.read()
-
 # Cache Action helpers
 
 
@@ -48,10 +57,32 @@ def artifact_location_from_key(x):
 
 # Cache action stream output helpers
 
+@contextmanager
+def streamed_errors(stream_output: Callable[[object], None], re_raise=True):
+    """
+    Context manager for running cache action processing and streaming possible errors
+    to the stream_output
 
-class StreamedCacheError(Exception):
-    "Used for custom raises during cache action stream errors"
-    pass
+    Parameters
+    ----------
+    stream_output : Callable
+        Cache action stream output callable
+
+    re_raise : bool
+        Default true. Whether to re-raise the caught error or not.
+    """
+    try:
+        yield
+    except Exception as ex:
+        stream_output(
+            error_event_msg(
+                str(ex),
+                ex.__class__.__name__,
+                get_traceback_str()
+            )
+        )
+        if re_raise:
+            raise ex from None
 
 
 def progress_event_msg(number):

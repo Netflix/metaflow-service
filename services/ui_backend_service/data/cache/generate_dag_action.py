@@ -2,11 +2,12 @@ import hashlib
 import json
 
 from .client import CacheAction
-from services.utils import get_traceback_str
+from .utils import streamed_errors, DAGParsingFailed, DAGUnsupportedFlowLanguage
 
 from .custom_flowgraph import FlowGraph
 
-from metaflow import Run
+from metaflow import Run, namespace
+namespace(None)  # Always use global namespace by default
 
 
 class GenerateDag(CacheAction):
@@ -84,19 +85,9 @@ class GenerateDag(CacheAction):
 
         result_key = [key for key in keys if key.startswith('dag:result')][0]
 
-        def stream_error(err, id, traceback=None):
-            return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
-
-        try:
+        with streamed_errors(stream_output):
             run = Run("{}/{}".format(flow_id, run_number))
             results[result_key] = json.dumps(generate_dag(flow_id, run.code.flowspec))
-        except Exception as ex:
-            if ex.__class__.__name__ == 'KeyError' and "filename 'python3' not found" in str(ex):
-                stream_error(
-                    'Parsing DAG graph is not supported for the language used in this Flow.',
-                    'dag-unsupported-flow-language')
-            else:
-                stream_error(str(ex), ex.__class__.__name__, get_traceback_str())
 
         return results
 
@@ -104,16 +95,24 @@ class GenerateDag(CacheAction):
 
 
 def generate_dag(flow_id, source):
-    # Initialize a FlowGraph object
-    graph = FlowGraph(source=source, name=flow_id)
-    # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
-    dag = {}
-    for node in graph:
-        dag[node.name] = {
-            'type': node.type,
-            'box_next': node.type not in ('linear', 'join'),
-            'box_ends': node.matching_join,
-            'next': node.out_funcs,
-            'doc': node.doc
-        }
-    return dag
+    try:
+        # Initialize a FlowGraph object
+        graph = FlowGraph(source=source, name=flow_id)
+        # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
+        dag = {}
+        for node in graph:
+            dag[node.name] = {
+                'type': node.type,
+                'box_next': node.type not in ('linear', 'join'),
+                'box_ends': node.matching_join,
+                'next': node.out_funcs,
+                'doc': node.doc
+            }
+        return dag
+    except Exception as ex:
+        if ex.__class__.__name__ == 'KeyError' and "python" in str(ex):
+            raise DAGUnsupportedFlowLanguage(
+                'Parsing DAG graph is not supported for the language used in this Flow.'
+            ) from None
+        else:
+            raise DAGParsingFailed(f"DAG Parsing failed: {str(ex)}")

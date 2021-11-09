@@ -3,16 +3,13 @@ import json
 
 from typing import Dict, List, Optional, Tuple
 from .client import CacheAction
-from services.utils import get_traceback_str
-
-from ..s3 import (
-    S3AccessDenied, S3CredentialsMissing,
-    S3Exception, S3NotFound,
-    S3URLException, wrap_metaflow_s3_errors)
+from .utils import streamed_errors
 
 # New imports
 
 from metaflow import namespace, Task
+namespace(None)  # Always use global namespace by default
+
 STDOUT = 'log_location_stdout'
 STDERR = 'log_location_stderr'
 
@@ -129,12 +126,8 @@ class GetLogFile(CacheAction):
         previous_log_file = existing_keys.get(log_key, None)
         previous_log_size = json.loads(previous_log_file).get("log_size", None) if previous_log_file else None
 
-        def stream_error(err, id, traceback=None):
-            return stream_output({"type": "error", "message": err, "id": id, "traceback": traceback})
-
         log_size_changed = False  # keep track if we loaded new content
-        try:
-            namespace(None)
+        with streamed_errors(stream_output):
             task = Task(pathspec, attempt=attempt)
             # check if log has grown since last time.
             current_size = get_log_size(task, logtype)
@@ -145,15 +138,6 @@ class GetLogFile(CacheAction):
                 results[log_key] = json.dumps({"log_size": current_size, "content": content})
             else:
                 results = {**existing_keys}
-        except (S3AccessDenied, S3NotFound, S3URLException, S3CredentialsMissing) as ex:
-            stream_error(str(ex), ex.id)
-            raise ex from None
-        except S3Exception as ex:
-            stream_error(str(ex), ex.id, get_traceback_str())
-            raise ex from None
-        except Exception as ex:
-            stream_error(str(ex), 'log-handle-failed', get_traceback_str())
-            raise ex from None
 
         if log_size_changed or result_key not in existing_keys:
             results[result_key] = json.dumps(
@@ -171,12 +155,10 @@ class GetLogFile(CacheAction):
 # Utilities
 
 
-@wrap_metaflow_s3_errors
 def get_log_size(task: Task, logtype: str):
     return task.stderr_size if logtype == STDERR else task.stdout_size
 
 
-@wrap_metaflow_s3_errors
 def get_log_content(task: Task, logtype: str):
     # NOTE: this re-implements some of the client logic from _load_log(self, stream)
     # for backwards compatibility of different log types.
