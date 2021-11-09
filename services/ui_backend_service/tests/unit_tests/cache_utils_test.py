@@ -2,7 +2,8 @@ import pytest
 
 from services.ui_backend_service.data.cache.utils import (
     error_event_msg, progress_event_msg, search_result_event_msg,
-    artifact_location_from_key, artifact_cache_id, unpack_pathspec_with_attempt_id
+    artifact_location_from_key, artifact_cache_id, unpack_pathspec_with_attempt_id,
+    streamed_errors
 )
 
 pytestmark = [pytest.mark.unit_tests]
@@ -46,3 +47,44 @@ def test_unpack_pathspec_with_attempt_id():
     pathspec_without_attempt_id, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
     assert pathspec_without_attempt_id == "FlowName/RunNumber/StepName/TaskId"
     assert attempt_id == 4
+
+
+def test_streamed_errors_no_op():
+    # if nothing raised, callable should not be called
+    def _called():
+        # should not have been called
+        assert False
+    try:
+        with streamed_errors(_called):
+            pass
+    except Exception as ex:
+        assert False #  Should not have raised any exception
+
+
+
+def test_streamed_errors_exception_output():
+    # raised errors should be written to output callable.
+    def _raised(output):
+        assert output['type'] == 'error'
+        assert output['id'] == 'Exception'
+        assert output['message'] == 'Custom exception'
+        assert output['traceback'] is not None
+
+    try:
+        with streamed_errors(_raised):
+            raise Exception("Custom exception")
+        assert False #  Should never get here due to re-raising of the exception
+    except Exception as ex:
+        assert str(ex) == "Custom exception"
+
+
+def test_streamed_errors_exception_output():
+    # should not raise any exception with re_raise set to false.
+    def _re_raise(output):
+        pass
+    
+    try:
+        with streamed_errors(_re_raise, re_raise=False):
+            raise Exception("Should not be reraised")
+    except Exception as ex:
+        assert False #  Should not have re-raised exception
