@@ -63,8 +63,7 @@ class ArtifactSearchApi(object):
                 results = await _search_dict_filter(meta_artifacts, artifact_data)
 
             await ws.send_str(json.dumps({"event": search_result_event_msg(results)}))
-        except:
-            # TODO: maybe except the specific errors from cache server only? (CacheServerUnreachable, CacheFullException)
+        except Exception as ex:
             await ws.send_str(json.dumps({"event": error_event_msg("Accessing cache failed", "cache-access-failed")}))
             await ws.close(code=1011)
         return ws
