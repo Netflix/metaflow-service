@@ -6,7 +6,7 @@ from .utils import (cacheable_artifact_value, cacheable_exception_value,
                     progress_event_msg,
                     artifact_cache_id, unpack_pathspec_with_attempt_id,
                     streamed_errors)
-from ..refiner.refinery import unpack_processed_value, format_error_body
+from services.ui_backend_service.data import unpack_processed_value
 from services.ui_backend_service.api.utils import operators_to_filters
 
 
@@ -148,11 +148,11 @@ class SearchArtifacts(CacheAction):
             search_results[format_loc(key)] = {
                 "included": load_success,
                 "matches": matches,
-                "error": None if load_success else format_error_body(
-                    id=value or "artifact-handle-failed",
-                    detail=detail or "Unknown error during artifact processing",
-                    traceback=trace
-                )
+                "error": None if load_success else {
+                    "id": value or "artifact-handle-failed",
+                    "detail": detail or "Unknown error during artifact processing",
+                    "traceback": trace
+                }
             }
 
         results[result_key] = json.dumps(search_results)

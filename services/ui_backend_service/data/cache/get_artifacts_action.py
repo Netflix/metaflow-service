@@ -1,7 +1,7 @@
 from typing import List, Callable
 
 from .get_data_action import GetData
-from .utils import unpack_pathspec_with_attempt_id, cacheable_artifact_value
+from .utils import unpack_pathspec_with_attempt_id, artifact_value
 
 from metaflow import DataArtifact
 
@@ -47,4 +47,4 @@ class GetArtifacts(GetData):
         pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
 
         artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
-        return cacheable_artifact_value(artifact)
+        return artifact_value(artifact)
