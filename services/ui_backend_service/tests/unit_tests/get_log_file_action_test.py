@@ -1,6 +1,7 @@
 import pytest
+import datetime
 
-from services.ui_backend_service.data.cache.get_log_file_action import paginated_result, log_cache_id, lookup_id
+from services.ui_backend_service.data.cache.get_log_file_action import paginated_result, log_cache_id, lookup_id, _datetime_to_epoch
 
 pytestmark = [pytest.mark.unit_tests]
 
@@ -161,3 +162,12 @@ async def test_lookup_id_uniqueness():
 
     assert lookup_id(first_task, "stdout", 1, 1, False, False) != \
         lookup_id(first_task, "stdout", 1, 1, False, True)
+
+datetime_expectations = [
+    (None, None),
+    ("123", None),
+    (datetime.datetime(2021,10,27, 0, 0, tzinfo=datetime.timezone.utc), 1635292800000)
+]
+@pytest.mark.parametrize("datetime, output", datetime_expectations)
+async def test_datetime_to_epoch(datetime, output):
+    assert _datetime_to_epoch(datetime) == output

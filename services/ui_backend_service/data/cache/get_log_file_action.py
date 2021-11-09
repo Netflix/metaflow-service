@@ -191,7 +191,7 @@ def get_log_content(task: Task, logtype: str):
         ]
     else:
         return [
-            (int(datetime.timestamp() * 1000), line)
+            (_datetime_to_epoch(datetime), line)
             for datetime, line in task.loglines(stream)
         ]
 
@@ -267,3 +267,12 @@ def pathspec_for_task(task: Dict):
         step_name=task['step_name'],
         task_name=task.get('task_name') or task['task_id']
     )
+
+
+def _datetime_to_epoch(datetime) -> Optional[int]:
+    """convert datetime safely into an epoch in milliseconds"""
+    try:
+        return int(datetime.timestamp() * 1000)
+    except Exception:
+        # consider timestamp to be none if handling failed
+        return None
