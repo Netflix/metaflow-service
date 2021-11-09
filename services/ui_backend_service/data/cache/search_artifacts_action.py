@@ -2,11 +2,11 @@ import hashlib
 import json
 
 from .client import CacheAction
-from services.utils import get_traceback_str
-from .utils import (error_event_msg, progress_event_msg,
+from .utils import (cacheable_artifact_value, cacheable_exception_value,
+                    progress_event_msg,
                     artifact_cache_id, unpack_pathspec_with_attempt_id,
-                    streamed_errors, MAX_S3_SIZE)
-from ..refiner.refinery import unpack_processed_value, format_error_body
+                    streamed_errors)
+from services.ui_backend_service.data import unpack_processed_value
 from services.ui_backend_service.api.utils import operators_to_filters
 
 
@@ -122,13 +122,9 @@ class SearchArtifacts(CacheAction):
                     pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
                     artifact_key = "search:artifactdata:{}".format(pathspec)
                     artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
-                    if artifact.size < MAX_S3_SIZE:
-                        results[artifact_key] = json.dumps([True, artifact.data])
-                    else:
-                        results[artifact_key] = json.dumps(
-                            [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)])
+                    results[artifact_key] = cacheable_artifact_value(artifact)
                 except Exception as ex:
-                    results[artifact_key] = json.dumps([False, ex.__class__.__name__, str(ex), get_traceback_str()])
+                    results[artifact_key] = cacheable_exception_value(ex)
                     raise ex from None  # re-raise errors in order to stream it in context
 
         # Perform search on loaded artifacts.
@@ -152,11 +148,11 @@ class SearchArtifacts(CacheAction):
             search_results[format_loc(key)] = {
                 "included": load_success,
                 "matches": matches,
-                "error": None if load_success else format_error_body(
-                    id=value or "artifact-handle-failed",
-                    detail=detail or "Unknown error during artifact processing",
-                    traceback=trace
-                )
+                "error": None if load_success else {
+                    "id": value or "artifact-handle-failed",
+                    "detail": detail or "Unknown error during artifact processing",
+                    "traceback": trace
+                }
             }
 
         results[result_key] = json.dumps(search_results)

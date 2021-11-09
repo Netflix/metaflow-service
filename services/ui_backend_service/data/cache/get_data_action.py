@@ -2,7 +2,7 @@ import json
 import hashlib
 
 from .client import CacheAction
-from services.utils import get_traceback_str
+from .utils import cacheable_exception_value
 
 from metaflow import namespace
 
@@ -119,7 +119,7 @@ class GetData(CacheAction):
                     continue
                 results[target_key] = json.dumps(result)
             except Exception as ex:
-                results[target_key] = json.dumps([False, ex.__class__.__name__, str(ex), get_traceback_str()])
+                results[target_key] = cacheable_exception_value(ex)
 
         return results
 

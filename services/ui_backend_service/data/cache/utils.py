@@ -1,11 +1,13 @@
 import os
 import pickle
+import json
 from gzip import GzipFile
 from itertools import islice
 from contextlib import contextmanager
-from typing import Callable
+from typing import Callable, Tuple
 
 from services.utils import get_traceback_str
+from metaflow import DataArtifact
 
 # Custom Cache errors
 
@@ -55,7 +57,54 @@ def artifact_location_from_key(x):
     return x[len("search:artifactdata:"):]
 
 
+def artifact_value(artifact: DataArtifact) -> Tuple[bool, object]:
+    """
+    Fetch the artifact value, return success along with value.
+    Success will be false only in case the artifact size exceeds MAX_S3_SIZE.
+
+    Returns
+    -------
+    tuple : (bool, object)
+        (success, artifact.data)
+    """
+    if artifact.size < MAX_S3_SIZE:
+        return (True, artifact.data)
+    else:
+        return (False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size))
+
+
+def cacheable_artifact_value(artifact: DataArtifact) -> str:
+    """
+    Access a DataArtifacts .data property, returning it along a success state as a stringified json.
+    A failure will be returned if the artifact size is greater than the allowed MAX_S3_SIZE.
+
+    Returns
+    -------
+    str
+        successful:
+        '[true, "some value"]'
+        failure:
+        '[false, "artifact-too-large", "flow/run/step/task/artifact: 1234 bytes"]'
+    """
+    return json.dumps(artifact_value(artifact))
+
+
+def cacheable_exception_value(ex: Exception) -> str:
+    """
+    Returns a persistable json string representation of an Exception.
+    Use this to have a predefined format for persisting exceptions in the cache, for non-recoverable
+    exceptions that should not be tried again.
+
+    Returns
+    -------
+    str
+        example:
+        '[false, "CustomException", "description of exception", "traceback that lead to the exception"]'
+    """
+    return json.dumps([False, ex.__class__.__name__, str(ex), get_traceback_str()])
+
 # Cache action stream output helpers
+
 
 @contextmanager
 def streamed_errors(stream_output: Callable[[object], None], re_raise=True):

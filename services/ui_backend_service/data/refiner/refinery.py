@@ -1,6 +1,6 @@
-from typing import Any, Tuple, Optional
 from services.data.db_utils import DBResponse
 from services.ui_backend_service.features import FEATURE_REFINE_DISABLE
+from services.ui_backend_service.data import unpack_processed_value
 from services.utils import logging
 
 
@@ -113,29 +113,6 @@ class Refinery(object):
             body = await _process(response.body)
 
         return DBResponse(response_code=response.response_code, body=body)
-
-
-def unpack_processed_value(value) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
-    '''
-    Unpack refined response returning tuple of: success, value, detail
-
-    Defaults to None in case values are not defined.
-
-    Success example:
-        True, 'foo', None
-
-    Failure examples:
-        False, 'failure-id', 'error-details', None
-        False, 'failure-id-without-details', None, None
-        False, None, None, None
-        False, 'CustomError', 'Custom failure description', 'stacktrace of error'
-
-    Returns
-    -------
-    tuple : (bool, optional(str), optional(str), optional(str))
-        Success|Failure, ExceptionClassName, Exception description, Stacktrace
-    '''
-    return (list(value) + [None] * 4)[:4]
 
 
 def format_error_body(id=None, detail=None, traceback=None):
