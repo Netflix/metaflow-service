@@ -102,6 +102,10 @@ class CacheFuture(object):
                     stream = obj
                     break
 
+            if stream is None:
+                # in case waiting for file timed out and stream remained none.
+                return
+
             tail = ''
             while True:
                 buf = stream.readline()
