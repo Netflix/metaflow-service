@@ -87,7 +87,12 @@ class GenerateDag(CacheAction):
 
         with streamed_errors(stream_output):
             run = Run("{}/{}".format(flow_id, run_number))
-            results[result_key] = json.dumps(generate_dag(flow_id, run.code.flowspec))
+            try:
+                dag = run.dag  # TODO: change to correct one once client property is finalized
+            except AttributeError:  # TODO: change to specific exception when clientside DAG is not available
+                dag = generate_dag(flow_id, run.code.flowspec)
+
+            results[result_key] = json.dumps(dag)
 
         return results
 
