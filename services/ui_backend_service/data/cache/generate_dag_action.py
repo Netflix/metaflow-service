@@ -87,17 +87,17 @@ class GenerateDag(CacheAction):
 
         with streamed_errors(stream_output):
             run = Run("{}/{}".format(flow_id, run_number))
-            results[result_key] = json.dumps(generate_dag(flow_id, run.code.flowspec))
+            results[result_key] = json.dumps(generate_dag(run))
 
         return results
 
 # Utilities
 
 
-def generate_dag(flow_id, source):
+def generate_dag(run: Run):
     try:
         # Initialize a FlowGraph object
-        graph = FlowGraph(source=source, name=flow_id)
+        graph = FlowGraph(source=run.code.flowspec, name=run.parent.id)
         # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
         dag = {}
         for node in graph:
