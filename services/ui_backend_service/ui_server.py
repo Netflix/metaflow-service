@@ -14,7 +14,7 @@ from services.metadata_service.server import app as metadata_service_app
 from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
                   MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
-                  TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi)
+                  TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi, CardsApi)
 from .api.utils import allow_get_requests_only
 from .data.cache import CacheStore
 from .data.db import AsyncPostgresDB
@@ -90,6 +90,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     FeaturesApi(app)
     ConfigApi(app)
     PluginsApi(app)
+    CardsApi(app, async_db, cache_store)
 
     LogApi(app, async_db, cache_store)
     AdminApi(app, cache_store)
