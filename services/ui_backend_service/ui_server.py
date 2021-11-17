@@ -59,9 +59,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     async_db_cache = AsyncPostgresDB('ui:cache')
     loop.run_until_complete(async_db_cache._init(db_conf))
-    cache_store = CacheStore(db=async_db_cache, event_emitter=event_emitter)
-    app.on_startup.append(cache_store.start_caches)
-    app.on_cleanup.append(cache_store.stop_caches)
+    cache_store = CacheStore(app=app, db=async_db_cache, event_emitter=event_emitter)
 
     if FEATURE_DB_LISTEN_ENABLE:
         async_db_notify = AsyncPostgresDB('ui:notify')
