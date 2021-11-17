@@ -17,6 +17,7 @@ from .get_log_file_action import GetLogFile
 from .get_data_action import GetData
 from .get_parameters_action import GetParameters
 from .get_task_action import GetTask
+from .get_cards_action import GetCards
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -141,7 +142,7 @@ class ArtifactCacheStore(object):
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for artifact caching"
-        actions = [GetData, SearchArtifacts, GetTask, GetArtifacts, GetParameters]
+        actions = [GetData, SearchArtifacts, GetTask, GetArtifacts, GetParameters, GetCards]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
                                       max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
