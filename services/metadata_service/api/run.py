@@ -1,8 +1,6 @@
 import asyncio
 from services.data.models import RunRow
-from services.utils import has_heartbeat_capable_version_tag, read_body
-from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+from services.utils import has_heartbeat_capable_version_tag, read_body, format_response, handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
 
 

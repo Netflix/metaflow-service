@@ -1,5 +1,5 @@
 import json
-from services.metadata_service.api.utils import handle_exceptions, format_response
+from services.utils import handle_exceptions, format_response
 
 async def test_handle_exceptions():
 

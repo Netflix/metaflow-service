@@ -9,10 +9,11 @@ from aiohttp import web
 from botocore.client import Config
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import (
-    get_traceback_str
+    get_traceback_str,
+    web_response
 )
 from services.metadata_service.api.utils import METADATA_SERVICE_VERSION, \
-    METADATA_SERVICE_HEADER, web_response
+    METADATA_SERVICE_HEADER
 
 
 class AuthApi(object):

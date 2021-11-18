@@ -22,6 +22,8 @@ SERVICE_COMMIT_HASH = os.environ.get("BUILD_COMMIT_HASH", None)
 # Build time of service, if set as an environment variable.
 SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
 
+ACCESS_CONTROL_ALLOW_ORIGIN = os.environ.get("ACCESS_CONTROL_ALLOW_ORIGIN", None)
+
 # Setup log level based on environment variable
 log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
@@ -94,22 +96,38 @@ def format_response(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         db_response = await func(*args, **kwargs)
+        headers = MultiDict({METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION})
+        if ACCESS_CONTROL_ALLOW_ORIGIN:
+            headers['Access-Control-Allow-Origin'] = ACCESS_CONTROL_ALLOW_ORIGIN
         return web.Response(status=db_response.response_code,
                             body=json.dumps(db_response.body),
-                            headers=MultiDict(
-                                {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+                            headers=headers)
 
     return wrapper
 
 
 def web_response(status: int, body):
+    headers = MultiDict({
+        "Content-Type": "application/json",
+        METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION
+    })
+    if ACCESS_CONTROL_ALLOW_ORIGIN:
+        headers['Access-Control-Allow-Origin'] = ACCESS_CONTROL_ALLOW_ORIGIN
     return web.Response(status=status,
                         body=json.dumps(body),
-                        headers=MultiDict(
-                            {"Content-Type": "application/json",
-                             "Access-Control-Allow-Origin": "*",
-                             METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+                        headers=headers)
 
+
+def text_response(status: int, text):
+    headers = MultiDict({
+        "Content-Type": "text/plain",
+        METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION
+    })
+    if ACCESS_CONTROL_ALLOW_ORIGIN:
+        headers['Access-Control-Allow-Origin'] = ACCESS_CONTROL_ALLOW_ORIGIN
+    return web.Response(status=status,
+                        body=text,
+                        headers=headers)
 
 def format_qs(query: Dict[str, str], overwrite=None):
     q = dict(query)

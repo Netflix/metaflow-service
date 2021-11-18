@@ -6,7 +6,7 @@ from aiohttp import web
 from multidict import MultiDict
 from services.utils import (METADATA_SERVICE_HEADER, METADATA_SERVICE_VERSION,
                             SERVICE_BUILD_TIMESTAMP, SERVICE_COMMIT_HASH,
-                            web_response)
+                            web_response, text_response)
 
 from .utils import get_json_from_env
 
@@ -54,7 +54,7 @@ class AdminApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        return web.Response(text=str(UI_SERVICE_VERSION))
+        return text_response(status=200, text=str(UI_SERVICE_VERSION))
 
     async def ping(self, request):
         """
