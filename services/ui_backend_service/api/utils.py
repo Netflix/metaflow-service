@@ -19,6 +19,17 @@ JSON_CONFIG_ROOT = os.path.normpath(
 
 
 def get_json_config(variable_name: str):
+    """
+    Attempts to read a JSON configuration from an environment variable with
+    the given variable_name (in upper case). Failing to find an environment variable, it will
+    fallback to looking for a variable_name.config.json file in the ui_backend_service root
+
+    Example
+    -------
+    get_json_config("plugins")
+        Looks for a 'PLUGINS' environment variable. If none is found,
+        looks for a  'plugins.config.json' file in ui_backend_service root.
+    """
     env_name = variable_name.upper()
 
     filepath = os.path.join(JSON_CONFIG_ROOT, f"{variable_name.lower()}.config.json")
