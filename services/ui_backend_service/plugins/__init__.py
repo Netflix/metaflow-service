@@ -1,5 +1,5 @@
 from services.utils import logging
-from ..api.utils import get_json_from_env
+from ..api.utils import get_json_config
 
 from .plugin import (Plugin, PluginException)
 
@@ -18,7 +18,7 @@ def init_plugins():
 
     logger.info("Init plugins")
 
-    plugins = get_json_from_env("PLUGINS")
+    plugins = get_json_config("plugins")
     if plugins:
         global_auth = None
         if "auth" in plugins and isinstance(plugins["auth"], dict):
