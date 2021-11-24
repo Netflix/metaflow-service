@@ -22,20 +22,21 @@ def get_json_config(variable_name: str):
     """
     Attempts to read a JSON configuration from an environment variable with
     the given variable_name (in upper case). Failing to find an environment variable, it will
-    fallback to looking for a variable_name.config.json file in the ui_backend_service root
+    fallback to looking for a config.variable_name.json file in the ui_backend_service root
 
     Example
     -------
     get_json_config("plugins")
         Looks for a 'PLUGINS' environment variable. If none is found,
-        looks for a  'plugins.config.json' file in ui_backend_service root.
+        looks for a  'config.plugins.json' file in ui_backend_service root.
     """
     env_name = variable_name.upper()
 
-    filepath = os.path.join(JSON_CONFIG_ROOT, f"{variable_name.lower()}.config.json")
+    filepath = os.path.join(JSON_CONFIG_ROOT, f"config.{variable_name.lower()}.json")
 
     return get_json_from_env(env_name) or \
         get_json_from_file(filepath)
+
 
 def get_json_from_env(variable_name: str):
     try:
@@ -50,6 +51,7 @@ def get_json_from_file(filepath: str):
             return json.load(f)
     except Exception:
         return None
+
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[int, Dict]:
     query = {}
