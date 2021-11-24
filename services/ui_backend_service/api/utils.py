@@ -12,6 +12,19 @@ from services.data.db_utils import DBPagination, DBResponse
 from services.utils import format_baseurl, format_qs, web_response
 from functools import reduce
 
+# only look for config.json files in ui_backend_service root
+JSON_CONFIG_ROOT = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
+
+
+def get_json_config(variable_name: str):
+    env_name = variable_name.upper()
+
+    filepath = os.path.join(JSON_CONFIG_ROOT, f"{variable_name.lower()}.config.json")
+
+    return get_json_from_env(env_name) or \
+        get_json_from_file(filepath)
 
 def get_json_from_env(variable_name: str):
     try:
@@ -19,6 +32,13 @@ def get_json_from_env(variable_name: str):
     except Exception:
         return None
 
+
+def get_json_from_file(filepath: str):
+    try:
+        with open(filepath) as f:
+            return json.load(f)
+    except Exception:
+        return None
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[int, Dict]:
     query = {}
