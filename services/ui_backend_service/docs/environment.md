@@ -80,7 +80,7 @@ This affects API responses where meta links are provided as a response.
 
 ## Custom Navigation links for UI
 
-You can customize the admin navigation links presented by the UI by setting an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value should be a _stringified_ json of the format:
+You can customize the admin navigation links presented by the UI by creating a `custom_quicklinks.config.json` file on the server. See `custom_quicklinks.example.json` for a reference. Alternatively you can set an environment variable `CUSTOM_QUICKLINKS` for the backend process. The value for the environment variable should be a _stringified_ json of the format:
 
 ```json
 [
@@ -110,7 +110,7 @@ Provide the `CUSTOM_QUICKLINKS` environment variable for the docker run command
 
 ## System Notifications for UI
 
-You can define notifications that are broadcasted to all clients using the UI by setting an environment variable `NOTIFICATIONS` for the backend process. The value should be a _stringified_ json of the format:
+You can define notifications that are broadcasted to all clients using the UI by creating a `notifications.config.json` file on the server, see `notifications.example.json` for a reference. Alternatively you can set the environment variable `NOTIFICATIONS` for the backend process. The value for the environment variable should be a _stringified_ json of the format:
 
 ```json
 [
