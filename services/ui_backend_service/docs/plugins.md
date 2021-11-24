@@ -5,7 +5,7 @@ There are two ways to register a new plugin to UI service:
 1. Placing a folder under `services/ui_backend_service/plugins/installed`
 2. Defining a remote Git repository location
 
-Plugins can be registered via the `PLUGINS` environment variable or with a `plugins.config.json` file on the server. See `plugins.example.json` for reference. The value of the environment variable should be a _stringified_ json of the format:
+Plugins can be registered via the `PLUGINS` environment variable or with a `config.plugins.json` file on the server. See `example.plugins.json` for reference. The value of the environment variable should be a _stringified_ json of the format:
 
 ```json
 {
