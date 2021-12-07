@@ -6,7 +6,8 @@ from .utils import streamed_errors, DAGParsingFailed, DAGUnsupportedFlowLanguage
 
 from .custom_flowgraph import FlowGraph
 
-from metaflow import Run, namespace
+from metaflow import Run, Step, DataArtifact, namespace
+from metaflow.exception import MetaflowNotFound
 namespace(None)  # Always use global namespace by default
 
 
@@ -86,10 +87,14 @@ class GenerateDag(CacheAction):
         result_key = [key for key in keys if key.startswith('dag:result')][0]
 
         with streamed_errors(stream_output):
+            # TODO: Clean up the internal _graph_info accessing.
+            # Having to jump through a lot of hoops currently due to internal artifacts
+            # not being accessible directly.
             run = Run("{}/{}".format(flow_id, run_number))
+            param_step = Step("{}/_parameters".format(run.pathspec))
             try:
-                dag = run.dag  # TODO: change to correct one once client property is finalized
-            except AttributeError:  # TODO: change to specific exception when clientside DAG is not available
+                dag = DataArtifact("{}/_graph_info".format(param_step.task.pathspec)).data
+            except MetaflowNotFound:
                 dag = generate_dag(flow_id, run.code.flowspec)
 
             results[result_key] = json.dumps(dag)

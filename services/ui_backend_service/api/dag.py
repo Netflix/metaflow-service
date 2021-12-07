@@ -43,24 +43,11 @@ class DagApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesDagError500'
         """
-        flow_name = request.match_info['flow_id']
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
-        # 'code-package' value contains json with dstype, sha1 hash and location
-        # 'code-package-url' value contains only location as a string
-        db_response, *_ = await self._metadata_table.find_records(
-            conditions=[
-                "flow_id = %s",
-                "{run_id_key} = %s".format(
-                    run_id_key=run_id_key),
-                "(field_name = %s OR field_name = %s)"
-            ],
-            values=[
-                flow_name, run_id_value,
-                "code-package", "code-package-url"
-            ],
-            fetch_single=True, expanded=True
-        )
+        db_response = await self.get_run_ids_from_graph_info_artifact(request)
+        if not db_response.response_code == 200:
+            # Try to look for codepackage if graph artifact is missing
+            db_response = await self.get_run_ids_from_codepackage_metadata(request)
+
         if not db_response.response_code == 200:
             status, body = format_response(request, db_response)
             return web_response(status, body)
@@ -84,6 +71,68 @@ class DagApi(object):
         status, body = format_response(request, response)
 
         return web_response(status, body)
+
+    async def get_run_ids_from_codepackage_metadata(self, request):
+        """
+        Tries to locate 'code-package' or 'code-package-url' in run metadata.
+
+        Returns
+        -------
+        Tuple
+            flow_id : str
+            run_id : str or int
+        """
+        flow_name = request.match_info['flow_id']
+        run_id_key, run_id_value = translate_run_key(
+            request.match_info.get("run_number"))
+        # 'code-package' value contains json with dstype, sha1 hash and location
+        # 'code-package-url' value contains only location as a string
+        db_response, *_ = await self.db.metadata_table_postgres.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(
+                    run_id_key=run_id_key),
+                "(field_name = %s OR field_name = %s)"
+            ],
+            values=[
+                flow_name, run_id_value,
+                "code-package", "code-package-url"
+            ],
+            fetch_single=True, expanded=True
+        )
+
+        return db_response
+
+    async def get_run_ids_from_graph_info_artifact(self, request):
+        """
+        Tries to locate '_graph_info' in run artifacts
+
+        Returns
+        -------
+        Tuple
+            flow_id : str
+            run_id : str or int
+        """
+        flow_name = request.match_info['flow_id']
+        run_id_key, run_id_value = translate_run_key(
+            request.match_info.get("run_number"))
+
+        db_response, *_ = await self.db.artifact_table_postgres.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(
+                    run_id_key=run_id_key),
+                "step_name = %s",
+                "name = %s"
+            ],
+            values=[
+                flow_name, run_id_value, "_parameters",
+                "_graph_info",
+            ],
+            fetch_single=True, expanded=True
+        )
+
+        return db_response
 
 
 class GenerateDAGFailed(Exception):
