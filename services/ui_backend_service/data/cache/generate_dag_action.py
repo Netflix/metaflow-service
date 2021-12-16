@@ -95,7 +95,7 @@ class GenerateDag(CacheAction):
             try:
                 dag = DataArtifact("{}/_graph_info".format(param_step.task.pathspec)).data
             except MetaflowNotFound:
-                dag = generate_dag(flow_id, run.code.flowspec)
+                dag = generate_dag(flow_id, run)
 
             results[result_key] = json.dumps(dag)
 
@@ -104,8 +104,9 @@ class GenerateDag(CacheAction):
 # Utilities
 
 
-def generate_dag(flow_id, source):
+def generate_dag(flow_id, run: Run):
     try:
+        source = run.code.flowspec
         # Initialize a FlowGraph object
         graph = FlowGraph(source=source, name=flow_id)
         # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
@@ -120,7 +121,7 @@ def generate_dag(flow_id, source):
     except Exception as ex:
         if ex.__class__.__name__ == 'KeyError' and "python" in str(ex):
             raise DAGUnsupportedFlowLanguage(
-                'Parsing DAG graph is not supported for the language used in this Flow.'
+                'DAG parsing is not supported for the language used in this Flow.'
             ) from None
         else:
             raise DAGParsingFailed(f"DAG Parsing failed: {str(ex)}")
