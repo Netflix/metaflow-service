@@ -109,16 +109,14 @@ def generate_dag(flow_id, source):
         # Initialize a FlowGraph object
         graph = FlowGraph(source=source, name=flow_id)
         # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
-        dag = {}
-        for node in graph:
-            dag[node.name] = {
-                'type': node.type,
-                'box_next': node.type not in ('linear', 'join'),
-                'box_ends': node.matching_join,
-                'next': node.out_funcs,
-                'doc': node.doc
-            }
-        return dag
+        steps_info, steps_structure = graph.output_steps()
+        graph_info = {
+            "steps_info": steps_info,
+            "steps_structure": steps_structure,
+            "doc": graph.doc
+        }
+
+        return graph_info
     except Exception as ex:
         if ex.__class__.__name__ == 'KeyError' and "python" in str(ex):
             raise DAGUnsupportedFlowLanguage(
