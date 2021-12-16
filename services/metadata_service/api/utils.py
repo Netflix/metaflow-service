@@ -37,8 +37,10 @@ def web_response(status: int, body):
                              METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
 
-def http_500(msg, traceback_str=get_traceback_str()):
+def http_500(msg, traceback_str=None):
     # NOTE: worth considering if we want to expose tracebacks in the future in the api messages.
+    if traceback_str is None:
+        traceback_str = get_traceback_str()
     body = {
         'traceback': traceback_str,
         'detail': msg,

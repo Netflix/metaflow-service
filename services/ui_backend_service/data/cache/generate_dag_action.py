@@ -95,7 +95,7 @@ class GenerateDag(CacheAction):
             try:
                 dag = DataArtifact("{}/_graph_info".format(param_step.task.pathspec)).data
             except MetaflowNotFound:
-                dag = generate_dag(flow_id, run)
+                dag = generate_dag(run)
 
             results[result_key] = json.dumps(dag)
 
@@ -104,11 +104,10 @@ class GenerateDag(CacheAction):
 # Utilities
 
 
-def generate_dag(flow_id, run: Run):
+def generate_dag(run: Run):
     try:
-        source = run.code.flowspec
         # Initialize a FlowGraph object
-        graph = FlowGraph(source=source, name=flow_id)
+        graph = FlowGraph(source=run.code.flowspec, name=run.parent.id)
         # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
         steps_info, steps_structure = graph.output_steps()
         graph_info = {

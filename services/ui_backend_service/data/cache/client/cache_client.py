@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import hashlib
+import time
 
 from .cache_store import object_path, stream_path, is_safely_readable
 from .cache_action import Check
@@ -69,10 +70,13 @@ class CacheFuture(object):
     def stream(self, timeout=FOREVER):
 
         def _wait_paths(paths):
-            # wait until one of the paths is readable
+            # wait until one of the paths is readable.
+            # NOTE: for terminated workers, have a curfew of 20seconds before giving up on
+            # waiting for a stream file to appear.
+            started = time.time()
             while True:
                 # Make sure we still have pending cache worker request
-                if not self.has_pending_request():
+                if not self.has_pending_request() and time.time() - started > 20:
                     return
 
                 for path in paths:
@@ -98,11 +102,12 @@ class CacheFuture(object):
                     stream = obj
                     break
 
+            if stream is None:
+                # in case waiting for file timed out and stream remained none.
+                return
+
             tail = ''
             while True:
-                if not self.has_pending_request():
-                    break
-
                 buf = stream.readline()
                 if buf == '':
                     yield None
@@ -122,6 +127,13 @@ class CacheFuture(object):
                         yield msg
                 else:
                     tail += buf
+
+                if not self.has_pending_request():
+                    # NOTE: break only after reading the stream file in order to stream messages
+                    # even for cache workers that would otherwise exit
+                    # (and remove their pending request) before wait_iter has a chance
+                    # to access the file.
+                    break
 
         if self.stream_key:
             # the stream has three layers:

@@ -256,6 +256,11 @@ async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_
 
     log_response = res.get()
 
+    if log_response is None:
+        # This should not happen under normal circumstances.
+        raise LogException("Cache returned None for log content and raised no errors. \
+            The cache server might be experiencing issues.")
+
     return log_response["content"], log_response["pages"]
 
 
