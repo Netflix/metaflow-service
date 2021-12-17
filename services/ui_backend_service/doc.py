@@ -599,6 +599,34 @@ swagger_definitions = {
     "ModelsDag": {
         "type": "object",
         "properties": {
+            "file": {
+                "type": "string",
+                "description": "Filename of the script used to execute the flow.",
+                "required": False
+            },
+            "steps_info": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsDagStepsInfo",
+                "description": "DAG Step details"
+            },
+            "steps_structure": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsDagStepsStructure",
+                "description": "DAG Step structure"
+            }
+        }
+
+    },
+    # TODO: requires addition to type for nested arrays.
+    "ModelsDagStepsStructure": {
+        "type": "array",
+        "items": {
+            "type": "string",
+        }
+    },
+    "ModelsDagStepsInfo": {
+        "type": "object",
+        "properties": {
             "start": {
                 "type": "object",
                 "$ref": "#/definitions/ModelsDagNode",
@@ -620,17 +648,28 @@ swagger_definitions = {
     "ModelsDagNode": {
         "type": "object",
         "properties": {
+            "name": {
+                "type": "string",
+                "description": "Step name of the node"
+            },
             "type": {
                 "type": "string",
                 "description": "DAG Node type"
             },
-            "box_next": {
-                "type": "boolean",
-                "description": "Boolean value whether there is a next node inside the same split"
+            "line": {
+                "type": "integer",
+                "description": "Line of code where step definition starts"
             },
-            "box_ends": {
+            "doc": {
                 "type": "string",
-                "description": "name of step that joins the split"
+                "description": "DAG Node Docstring"
+            },
+            "decorators": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "required": False
             },
             "next": {
                 "type": "array",
@@ -639,12 +678,7 @@ swagger_definitions = {
                 },
                 "description": "names of next steps that follow from this step"
             },
-            "doc": {
-                "type": "string",
-                "description": "DAG Node Docstring"
-            }
         },
-        "required": ["type", "box_next", "box_ends", "next"]
     },
     "ModelsLogRow": {
         "type": "object",
