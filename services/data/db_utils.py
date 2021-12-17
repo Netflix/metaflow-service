@@ -15,17 +15,17 @@ def aiopg_exception_handling(exception):
     body = {"err_msg": err_msg}
     if isinstance(exception, psycopg2.IntegrityError):
         if "duplicate key" in err_msg:
-            return DBResponse(response_code=409, body=json.dumps(body))
+            return DBResponse(response_code=409, body=body)
         elif "foreign key" in err_msg:
-            return DBResponse(response_code=404, body=json.dumps(body))
+            return DBResponse(response_code=404, body=body)
         else:
-            return DBResponse(response_code=500, body=json.dumps(body))
+            return DBResponse(response_code=500, body=body)
     elif isinstance(exception, psycopg2.errors.UniqueViolation):
-        return DBResponse(response_code=409, body=json.dumps(body))
+        return DBResponse(response_code=409, body=body)
     elif isinstance(exception, IndexError):
         return DBResponse(response_code=404, body={})
     else:
-        return DBResponse(response_code=500, body=json.dumps(body))
+        return DBResponse(response_code=500, body=body)
 
 
 def get_db_ts_epoch_str():

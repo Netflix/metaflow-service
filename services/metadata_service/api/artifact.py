@@ -213,7 +213,7 @@ class ArtificatsApi(object):
         filtered_body = filter_artifacts_for_latest_attempt(
             artifacts.body)
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
+            status=artifacts.response_code, body=json.dumps(filtered_body).encode('utf8')
         )
 
     async def get_artifacts_by_task_attempt(self, request):
@@ -318,7 +318,7 @@ class ArtificatsApi(object):
         filtered_body = filter_artifacts_for_latest_attempt(
             artifacts.body)
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
+            status=artifacts.response_code, body=json.dumps(filtered_body).encode('utf8')
         )
 
     async def get_artifacts_by_run(self, request):
@@ -353,7 +353,7 @@ class ArtificatsApi(object):
         filtered_body = filter_artifacts_for_latest_attempt(
             artifacts.body)
         return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
+            status=artifacts.response_code, body=json.dumps(filtered_body).encode('utf8')
         )
 
     async def create_artifacts(self, request):
@@ -447,7 +447,7 @@ class ArtificatsApi(object):
                                                              step_name, task_id)
         except Exception:
             return web.Response(status=400, body=json.dumps(
-                {"message": "need to register run_id and task_id first"}))
+                {"message": "need to register run_id and task_id first"}).encode('utf8'))
 
         # todo change to bulk insert
         for artifact in body:
@@ -475,4 +475,4 @@ class ArtificatsApi(object):
 
         result = {"artifacts_created": count}
 
-        return web.Response(body=json.dumps(result))
+        return web.Response(body=json.dumps(result).encode('utf8'))

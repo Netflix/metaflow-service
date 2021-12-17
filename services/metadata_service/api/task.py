@@ -181,7 +181,7 @@ class TaskApi(object):
 
         if task_name and task_name.isnumeric():
             return web.Response(status=400, body=json.dumps(
-                {"message": "provided task_name may not be a numeric"}))
+                {"message": "provided task_name may not be a numeric"}).encode('utf8'))
 
         run_number, run_id = await self._db.get_run_ids(flow_id, run_number)
 

@@ -22,7 +22,7 @@ def format_response(func):
     async def wrapper(*args, **kwargs):
         db_response = await func(*args, **kwargs)
         return web.Response(status=db_response.response_code,
-                            body=json.dumps(db_response.body),
+                            body=json.dumps(db_response.body).encode('utf8'),
                             headers=MultiDict(
                                 {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
 
@@ -31,7 +31,7 @@ def format_response(func):
 
 def web_response(status: int, body):
     return web.Response(status=status,
-                        body=json.dumps(body),
+                        body=json.dumps(body).encode('utf8'),
                         headers=MultiDict(
                             {"Content-Type": "application/json",
                              METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))

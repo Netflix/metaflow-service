@@ -105,12 +105,12 @@ class AdminApi(object):
                 "db_schema_versions": ApiUtils.list_migrations(),
                 "unapplied_migrations": unapplied_migrations
             }
-            return web.Response(body=json.dumps(body),
+            return web.Response(body=json.dumps(body).encode('utf8'),
                                 headers=MultiDict({"Content-Type": "application/json"}))
 
         except Exception as e:
             body = {
                 "detail": repr(e)
             }
-            return web.Response(status=500, body=json.dumps(body),
+            return web.Response(status=500, body=json.dumps(body).encode('utf8'),
                                 headers=MultiDict({"Content-Type": "application/json"}))

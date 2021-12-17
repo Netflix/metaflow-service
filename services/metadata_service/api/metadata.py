@@ -179,7 +179,7 @@ class MetadataApi(object):
                                                              step_name, task_id)
         except Exception:
             return web.Response(status=400, body=json.dumps(
-                {"message": "need to register run_id and task_id first"}))
+                {"message": "need to register run_id and task_id first"}).encode('utf8'))
 
         for datum in body:
             values = {
@@ -202,4 +202,4 @@ class MetadataApi(object):
 
         result = {"metadata_created": count}
 
-        return web.Response(body=json.dumps(result))
+        return web.Response(body=json.dumps(result).encode('utf8'))
