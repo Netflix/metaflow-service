@@ -621,7 +621,13 @@ swagger_definitions = {
     "ModelsDagStepsStructure": {
         "type": "array",
         "items": {
-            "type": "string",
+            "anyOf": [
+                {"type": "string"},
+                {
+                    "type": "object",
+                    "$ref": "#/definitions/ModelsDagStepsStructure"}
+
+            ]
         }
     },
     "ModelsDagStepsInfo": {
