@@ -4,7 +4,7 @@ from services.data.db_utils import filter_artifacts_for_latest_attempt, \
     filter_artifacts_by_attempt_id_for_tasks
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+    handle_exceptions, http_500
 import json
 
 
@@ -166,6 +166,7 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id, artifact_name, attempt_id
         )
 
+    @format_response
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -209,13 +210,18 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_task(
             flow_name, run_number, step_name, task_id
         )
+        if artifacts.response_code == 200:
+          filtered_body = filter_artifacts_for_latest_attempt(
+              artifacts.body)
+          return web.Response(
+              status=artifacts.response_code, body=json.dumps(filtered_body)
+          )
+        else:
+          return web.Response(
+            status=500,body=json.dumps(http_500(artifacts.body))
+          )
 
-        filtered_body = filter_artifacts_for_latest_attempt(
-            artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
-
+    @format_response  
     async def get_artifacts_by_task_attempt(self, request):
         """
         ---
@@ -265,18 +271,23 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_task(
             flow_name, run_number, step_name, task_id
         )
-
-        if artifacts.body:
-            attempt_for_task = {artifacts.body[0]['task_id']: int(attempt_id)}
+        if artifacts.response_code == 200:
+          if artifacts.body:
+              attempt_for_task = {artifacts.body[0]['task_id']: int(attempt_id)}
+          else:
+              # Doesn't matter
+              attempt_for_task = {}
+          filtered_body = filter_artifacts_by_attempt_id_for_tasks(
+              artifacts.body, attempt_for_task)
+          return web.Response(
+              status=artifacts.response_code, body=json.dumps(filtered_body)
+          )
         else:
-            # Doesn't matter
-            attempt_for_task = {}
-        filtered_body = filter_artifacts_by_attempt_id_for_tasks(
-            artifacts.body, attempt_for_task)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
+          return web.Response(
+            status=500,body=json.dumps(http_500(artifacts.body))
+          )
 
+    @format_response
     async def get_artifacts_by_step(self, request):
         """
         ---
@@ -314,12 +325,16 @@ class ArtificatsApi(object):
         artifacts = await self._async_table.get_artifact_in_steps(
             flow_name, run_number, step_name
         )
-
-        filtered_body = filter_artifacts_for_latest_attempt(
-            artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
+        if artifacts.response_code == 200:
+          filtered_body = filter_artifacts_for_latest_attempt(
+              artifacts.body)
+          return web.Response(
+              status=artifacts.response_code, body=json.dumps(filtered_body)
+          )
+        else:
+          return web.Response(
+            status=500,body=json.dumps(http_500(artifacts.body))
+          )
 
     async def get_artifacts_by_run(self, request):
         """
@@ -350,11 +365,16 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
 
         artifacts = await self._async_table.get_artifacts_in_runs(flow_name, run_number)
-        filtered_body = filter_artifacts_for_latest_attempt(
-            artifacts.body)
-        return web.Response(
-            status=artifacts.response_code, body=json.dumps(filtered_body)
-        )
+        if artifacts.response_code == 200:
+          filtered_body = filter_artifacts_for_latest_attempt(
+              artifacts.body)
+          return web.Response(
+              status=artifacts.response_code, body=json.dumps(filtered_body)
+          )
+        else:
+          return web.Response(
+            status=500,body=json.dumps(http_500(artifacts.body))
+          )
 
     async def create_artifacts(self, request):
         """
