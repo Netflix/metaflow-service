@@ -166,7 +166,6 @@ class ArtificatsApi(object):
             flow_name, run_number, step_name, task_id, artifact_name, attempt_id
         )
 
-    @format_response
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -221,7 +220,6 @@ class ArtificatsApi(object):
             status=500,body=json.dumps(http_500(artifacts.body))
           )
 
-    @format_response  
     async def get_artifacts_by_task_attempt(self, request):
         """
         ---
@@ -287,7 +285,6 @@ class ArtificatsApi(object):
             status=500,body=json.dumps(http_500(artifacts.body))
           )
 
-    @format_response
     async def get_artifacts_by_step(self, request):
         """
         ---
