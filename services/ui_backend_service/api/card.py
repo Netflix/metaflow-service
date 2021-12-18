@@ -1,6 +1,7 @@
 from services.data.db_utils import translate_run_key, translate_task_key
+from services.ui_backend_service.data import unpack_processed_value
 from services.utils import handle_exceptions
-from .utils import format_response_list, get_pathspec_from_request, pagination_query, query_param_enabled, web_response, DBPagination, DBResponse
+from .utils import format_response_list, get_pathspec_from_request, query_param_enabled, web_response, DBPagination, DBResponse
 from aiohttp import web
 
 
@@ -89,7 +90,10 @@ class CardsApi(object):
         invalidate_cache = query_param_enabled(request, "invalidate")
         cards = await get_cards_for_task(self.cache.artifact_cache, task, invalidate_cache)
 
-        card_hashes = [{"hash": key} for key in cards.keys()]
+        if not cards:
+            return web_response(404, {'data': []})
+
+        card_hashes = [{"hash": hash, "type": data["type"]} for hash, data in cards.items()]
 
         # paginate list of cards
         limit, page, offset = get_pagination_params(request)
@@ -147,7 +151,7 @@ class CardsApi(object):
         cards = await get_cards_for_task(self.cache.artifact_cache, task)
 
         if hash in cards:
-            return web.Response(content_type="text/html", body=cards[hash])
+            return web.Response(content_type="text/html", body=cards[hash]["html"])
         else:
             return web.Response(content_type="text/html", status=404, body="Card not found for task.")
 
@@ -159,7 +163,7 @@ async def get_cards_for_task(cache_client, task, invalidate_cache=False):
         step_name=task.get("step_name"),
         task_id=task.get("task_name") or task.get("task_id"),
     )
-    res = await cache_client.cache.GetCards(pathspec, invalidate_cache)
+    res = await cache_client.cache.GetCards([pathspec], invalidate_cache)
 
     if res.has_pending_request():
         async for event in res.stream():
@@ -167,8 +171,14 @@ async def get_cards_for_task(cache_client, task, invalidate_cache=False):
                 # raise error, there was an exception during fetching.
                 raise CardException(event["message"], event["id"], event["traceback"])
         await res.wait()  # wait until results are ready
+    data = res.get()
+    if pathspec in data:
+        success, value, detail, trace = unpack_processed_value(data[pathspec])
+        if success:
+            return value
+    # TODO: handle persisted errors with card content processing?
 
-    return res.get()
+    return None
 
 
 def get_pagination_params(request):
