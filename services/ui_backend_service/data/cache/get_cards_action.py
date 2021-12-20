@@ -5,7 +5,7 @@ from services.ui_backend_service.data.cache.utils import streamed_errors
 from .get_data_action import GetData
 
 from metaflow import Task
-from metaflow.plugins.cards.card_client import get_cards
+from metaflow.cards import get_cards
 
 
 class GetCards(GetData):
