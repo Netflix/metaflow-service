@@ -1,8 +1,11 @@
+from typing import List
 import psycopg2
 import collections
 import datetime
 import time
 import json
+
+from .models import ArtifactRow
 
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
@@ -66,29 +69,12 @@ def get_latest_attempt_id_for_tasks(artifacts):
     return attempt_ids
 
 
-def filter_artifacts_for_latest_attempt(artifacts):
-    """
-    filters artifacts of latest task attempt. 
-    Args:
-        artifacts (List[ArtifactRow]): a dictionary form of `ArtifactRow`
-
-    Returns:
-        `list` of filtered artifacts for the latest attempt
-    """
+def filter_artifacts_for_latest_attempt(artifacts:List[ArtifactRow]) -> List[ArtifactRow]:
     attempt_ids = get_latest_attempt_id_for_tasks(artifacts)
     return filter_artifacts_by_attempt_id_for_tasks(artifacts, attempt_ids)
 
 
-def filter_artifacts_by_attempt_id_for_tasks(artifacts, attempt_for_tasks):
-    """
-    filters artifacts based on the attempt_ids. 
-    Args:
-        artifacts (List[ArtifactRow]): a dictionary form of `ArtifactRow`
-        attempt_for_tasks ([dict]): dictionary of {task_id:attempt_id}
-
-    Returns:
-        `list` of artifacts filtered based on `attempt_id`
-    """
+def filter_artifacts_by_attempt_id_for_tasks(artifacts:List[ArtifactRow], attempt_for_tasks:dict) -> List[ArtifactRow]:
     result = []
     for artifact in artifacts:
         if artifact['attempt_id'] == attempt_for_tasks[artifact['task_id']]:
