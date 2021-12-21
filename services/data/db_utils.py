@@ -5,7 +5,6 @@ import datetime
 import time
 import json
 
-from .models import ArtifactRow
 
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
@@ -69,12 +68,17 @@ def get_latest_attempt_id_for_tasks(artifacts):
     return attempt_ids
 
 
-def filter_artifacts_for_latest_attempt(artifacts:List[ArtifactRow]) -> List[ArtifactRow]:
+def filter_artifacts_for_latest_attempt(artifacts:List[dict]) -> List[dict]:
+    # `artifacts` is a `list` of dictionaries where each item in the list 
+    # consists of `ArtifactRow` in a dictionary form
     attempt_ids = get_latest_attempt_id_for_tasks(artifacts)
     return filter_artifacts_by_attempt_id_for_tasks(artifacts, attempt_ids)
 
 
-def filter_artifacts_by_attempt_id_for_tasks(artifacts:List[ArtifactRow], attempt_for_tasks:dict) -> List[ArtifactRow]:
+def filter_artifacts_by_attempt_id_for_tasks(artifacts:List[dict], attempt_for_tasks:dict) -> List[dict]:
+    # `artifacts` is a `list` of dictionaries where each item in the list 
+    # consists of `ArtifactRow` in a dictionary form
+    # `attempt_for_tasks` is a dictionary for form : {task_id:attempt_id}
     result = []
     for artifact in artifacts:
         if artifact['attempt_id'] == attempt_for_tasks[artifact['task_id']]:
