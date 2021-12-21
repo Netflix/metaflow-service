@@ -1,4 +1,4 @@
-from typing import List,Dict,Any
+from typing import List, Dict, Any
 import psycopg2
 import collections
 import datetime
@@ -68,7 +68,9 @@ def get_latest_attempt_id_for_tasks(artifacts):
     return attempt_ids
 
 
-def filter_artifacts_for_latest_attempt(artifacts: List[Dict[str,Any]]) -> List[Dict[str,Any]]:
+def filter_artifacts_for_latest_attempt(
+    artifacts: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
     # `artifacts` is a `list` of dictionaries where each item in the list
     # consists of `ArtifactRow` in a dictionary form
     attempt_ids = get_latest_attempt_id_for_tasks(artifacts)
@@ -76,7 +78,7 @@ def filter_artifacts_for_latest_attempt(artifacts: List[Dict[str,Any]]) -> List[
 
 
 def filter_artifacts_by_attempt_id_for_tasks(
-    artifacts: List[Dict[str,Any]], attempt_for_tasks: Dict[str,Any]
+    artifacts: List[Dict[str, Any]], attempt_for_tasks: Dict[str, Any]
 ) -> List[dict]:
     # `artifacts` is a `list` of dictionaries where each item in the list
     # consists of `ArtifactRow` in a dictionary form
