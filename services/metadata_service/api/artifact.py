@@ -217,7 +217,7 @@ class ArtificatsApi(object):
           )
         else:
           return web.Response(
-            status=500,body=json.dumps(http_500(artifacts.body))
+            status=artifacts.response_code,body=json.dumps(http_500(artifacts.body))
           )
 
     async def get_artifacts_by_task_attempt(self, request):
@@ -282,7 +282,7 @@ class ArtificatsApi(object):
           )
         else:
           return web.Response(
-            status=500,body=json.dumps(http_500(artifacts.body))
+            status=artifacts.response_code,body=json.dumps(http_500(artifacts.body))
           )
 
     async def get_artifacts_by_step(self, request):
@@ -330,7 +330,7 @@ class ArtificatsApi(object):
           )
         else:
           return web.Response(
-            status=500,body=json.dumps(http_500(artifacts.body))
+            status=artifacts.response_code,body=json.dumps(http_500(artifacts.body))
           )
 
     async def get_artifacts_by_run(self, request):
@@ -370,7 +370,7 @@ class ArtificatsApi(object):
           )
         else:
           return web.Response(
-            status=500,body=json.dumps(http_500(artifacts.body))
+            status=artifacts.response_code,body=json.dumps(http_500(artifacts.body))
           )
 
     async def create_artifacts(self, request):
