@@ -16,8 +16,8 @@ class CardsApi(object):
         )
         app.router.add_route(
             "GET",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards/{key}",
-            self.get_card_by_key,
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards/{hash}",
+            self.get_card_by_hash,
         )
 
     async def get_task_by_request(self, request):
@@ -107,7 +107,7 @@ class CardsApi(object):
         return web_response(status, body)
 
     @handle_exceptions
-    async def get_card_by_key(self, request):
+    async def get_card_by_hash(self, request):
         """
         ---
         description: Get specific card of a task
@@ -143,7 +143,7 @@ class CardsApi(object):
                   $ref: '#/definitions/ResponsesError405'
         """
 
-        hash = request.match_info.get("key")
+        hash = request.match_info.get("hash")
         task = await self.get_task_by_request(request)
         if not task:
             return web.Response(content_type="text/html", status=404, body="Task not found.")

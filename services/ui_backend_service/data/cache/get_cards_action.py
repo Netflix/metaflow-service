@@ -54,7 +54,7 @@ class GetCards(GetData):
         try:
             with streamed_errors(stream_output):
                 task = Task("{}".format(pathspec))
-                cards = {index: _card_item(card) for index, card in enumerate(get_cards(task))}
+                cards = {card.hash: _card_item(card) for card in get_cards(task)}
         except Exception:
             # NOTE: return false in order not to cache this
             # since parameters might be available later
