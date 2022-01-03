@@ -10,10 +10,20 @@ DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
 DBPagination = collections.namedtuple("DBPagination", "limit offset count page")
 
-
 def aiopg_exception_handling(exception):
     err_msg = str(exception)
     body = {"err_msg": err_msg}
+    if psycopg2.Error in type(exception).__bases__:
+        # this means that this is a psycopg2 exception
+        # since this is of type `psycopg2.Error` we can use https://www.psycopg.org/docs/module.html#psycopg2.Error
+        body = {
+            "err_msg" : {
+                'pgerror': exception.pgerror,
+                'pgcode': exception.pgcode,
+                'diag': None if exception.diag is None else {"message_primary":exception.diag.message_primary,"severity":exception.diag.severity,}
+            }
+        }
+        
     if isinstance(exception, psycopg2.IntegrityError):
         if "duplicate key" in err_msg:
             return DBResponse(response_code=409, body=json.dumps(body))
