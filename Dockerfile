@@ -33,7 +33,7 @@ ADD services/utils /root/services/utils
 ADD setup.py setup.cfg /root/
 WORKDIR /root
 RUN /opt/latest/bin/pip install .
-RUN pip install git+https://github.com/valayDave/metaflow.git@67e19
+RUN /opt/latest/bin/pip install git+https://github.com/valayDave/metaflow.git@67e19
 
 # Install Netflix/metaflow-ui release artifact
 RUN /root/services/ui_backend_service/download_ui.sh
