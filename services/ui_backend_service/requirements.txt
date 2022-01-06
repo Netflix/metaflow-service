@@ -4,5 +4,5 @@ pyee==8.0.1
 throttler==1.2.0
 psycopg2
 aiopg
-metaflow>=2.4.7
+git+https://github.com/valayDave/metaflow.git@67e19
 pygit2==1.6.1
