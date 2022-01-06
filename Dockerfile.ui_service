@@ -28,6 +28,6 @@ WORKDIR /root
 RUN /root/services/ui_backend_service/download_ui.sh
 
 RUN pip install --editable .
-RUN pip install git+https://github.com/valayDave/metaflow.git@mf-card-v12 --upgrade
+RUN pip install git+https://github.com/valayDave/metaflow.git@67e19 --upgrade
 
 CMD ui_backend_service
