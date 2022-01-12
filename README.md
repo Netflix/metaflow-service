@@ -132,8 +132,7 @@ The test suite requires a PostgreSQL database, along with the following environm
 
 ### Executing flows against a local Metadata service
 
-With the metadata service up and running at `http://localhost:8080`, you are able to use this as the service when executing Flows with the
-Metaflow client locally via
+With the metadata service up and running at `http://localhost:8080`, you are able to use this as the service when executing Flows with the Metaflow client locally via
 
 ```sh
 METAFLOW_SERVICE_URL=http://localhost:8080 python3 basicflow.py run
