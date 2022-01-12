@@ -138,7 +138,7 @@ With the metadata service up and running at `http://localhost:8080`, you are abl
 METAFLOW_SERVICE_URL=http://localhost:8080 python3 basicflow.py run
 ```
 
-Alternatively you can configure a default profile with the service URL for the Metaflow client to use. See (Configuring metaflow)[https://admin-docs.metaflow.org/overview/configuring-metaflow] for instructions.
+Alternatively you can configure a default profile with the service URL for the Metaflow client to use. See [Configuring metaflow](https://admin-docs.metaflow.org/overview/configuring-metaflow) for instructions.
 
 ## Migration Service
 The Migration service is a tool to help users manage underlying DB migrations and launch
