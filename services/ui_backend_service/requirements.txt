@@ -5,4 +5,4 @@ throttler==1.2.0
 psycopg2
 aiopg
 pygit2==1.6.1
-git+https://github.com/valayDave/metaflow.git@67e19#egg=metaflow
+git+https://github.com/valayDave/metaflow.git@67e19
