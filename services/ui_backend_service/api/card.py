@@ -12,7 +12,7 @@ class CardsApi(object):
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards",
-            self.get_cards_by_task,
+            self.get_cards_list_for_task,
         )
         app.router.add_route(
             "GET",
@@ -45,7 +45,7 @@ class CardsApi(object):
         return None
 
     @handle_exceptions
-    async def get_cards_by_task(self, request):
+    async def get_cards_list_for_task(self, request):
         """
         ---
         description: Get all identifiers of cards for a task
@@ -67,7 +67,7 @@ class CardsApi(object):
                 schema:
                   $ref: '#/definitions/ResponsesCardList'
             "404":
-                description: Task was not found. 
+                description: Task was not found.
             "405":
                 description: invalid HTTP Method
                 schema:
