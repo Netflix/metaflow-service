@@ -350,6 +350,7 @@ swagger_definitions = {
     "ResponsesTaskList": response_list("#/definitions/ModelsTask"),
     "ResponsesMetadataList": response_list("#/definitions/ModelsMetadata"),
     "ResponsesArtifactList": response_list("#/definitions/ModelsArtifact"),
+    "ResponsesCardList": response_list("#/definitions/ModelsCardInfo"),
     "ResponsesLinkList": {
         "type": "array",
         "items": {
@@ -469,6 +470,13 @@ swagger_definitions = {
         **modelprop("content_type", "string", "Content-type", "gzip+pickle-v2"),
         **modelprop("attempt_id", "integer", "Attempt id", 0),
     }),
+    "ModelsCardInfo": {
+        "type": "object",
+        "properties": {
+            **modelprop("type", "string", "Card type", "default"),
+            **modelprop("hash", "string", "Card hash", "123456abcdef"),
+        }
+    },
     "ModelsLink": {
         "type": "object",
         "properties": {

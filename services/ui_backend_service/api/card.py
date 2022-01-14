@@ -17,7 +17,7 @@ class CardsApi(object):
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards/{hash}",
-            self.get_card_by_hash,
+            self.get_card_content_by_hash,
         )
 
     async def get_task_by_request(self, request):
@@ -58,25 +58,16 @@ class CardsApi(object):
           - $ref: '#/definitions/Params/Path/task_id'
           - $ref: '#/definitions/Params/Builtin/_page'
           - $ref: '#/definitions/Params/Builtin/_limit'
-          - $ref: '#/definitions/Params/Builtin/_tags'
-          - $ref: '#/definitions/Params/Builtin/_group'
-          - $ref: '#/definitions/Params/Custom/flow_id'
-          - $ref: '#/definitions/Params/Custom/run_number'
-          - $ref: '#/definitions/Params/Custom/step_name'
-          - $ref: '#/definitions/Params/Custom/task_id'
-          - $ref: '#/definitions/Params/Custom/name'
-          - $ref: '#/definitions/Params/Custom/type'
-          - $ref: '#/definitions/Params/Custom/attempt_id'
           - $ref: '#/definitions/Params/Custom/invalidate'
-          - $ref: '#/definitions/Params/Custom/user_name'
-          - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
         - application/json
         responses:
             "200":
-                description: Returns all artifacts of specified task
+                description: Returns a list of cards for the specified task
                 schema:
-                  $ref: '#/definitions/ResponsesArtifactList'
+                  $ref: '#/definitions/ResponsesCardList'
+            "404":
+                description: Task was not found. 
             "405":
                 description: invalid HTTP Method
                 schema:
@@ -91,7 +82,7 @@ class CardsApi(object):
         cards = await get_cards_for_task(self.cache.artifact_cache, task, invalidate_cache)
 
         if not cards:
-            return web_response(404, {'data': []})
+            return web_response(200, {'data': []})
 
         card_hashes = [{"hash": hash, "type": data["type"]} for hash, data in cards.items()]
 
@@ -107,7 +98,7 @@ class CardsApi(object):
         return web_response(status, body)
 
     @handle_exceptions
-    async def get_card_by_hash(self, request):
+    async def get_card_content_by_hash(self, request):
         """
         ---
         description: Get specific card of a task
@@ -118,25 +109,14 @@ class CardsApi(object):
           - $ref: '#/definitions/Params/Path/run_number'
           - $ref: '#/definitions/Params/Path/step_name'
           - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Builtin/_tags'
-          - $ref: '#/definitions/Params/Builtin/_group'
-          - $ref: '#/definitions/Params/Custom/flow_id'
-          - $ref: '#/definitions/Params/Custom/run_number'
-          - $ref: '#/definitions/Params/Custom/step_name'
-          - $ref: '#/definitions/Params/Custom/task_id'
-          - $ref: '#/definitions/Params/Custom/name'
-          - $ref: '#/definitions/Params/Custom/type'
-          - $ref: '#/definitions/Params/Custom/ds_type'
           - $ref: '#/definitions/Params/Custom/invalidate'
-          - $ref: '#/definitions/Params/Custom/user_name'
-          - $ref: '#/definitions/Params/Custom/ts_epoch'
         produces:
-        - application/json
+        - text/html
         responses:
             "200":
-                description: Returns all artifacts of specified task
-                schema:
-                  $ref: '#/definitions/ResponsesArtifactList'
+                description: Returns the HTML content of a card with the specific hash
+            "404":
+                description: Card was not found.
             "405":
                 description: invalid HTTP Method
                 schema:
