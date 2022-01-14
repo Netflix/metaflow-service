@@ -84,7 +84,7 @@ class CardsApi(object):
         if not cards:
             return web_response(200, {'data': []})
 
-        card_hashes = [{"hash": hash, "type": data["type"]} for hash, data in cards.items()]
+        card_hashes = [{"id": data["id"], "hash": hash, "type": data["type"]} for hash, data in cards.items()]
 
         # paginate list of cards
         limit, page, offset = get_pagination_params(request)

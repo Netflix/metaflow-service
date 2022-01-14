@@ -48,6 +48,7 @@ class GetCards(GetData):
         """
         def _card_item(card):
             return {
+                "id": card.id,
                 "type": card.type,
                 "html": card.get()
             }
