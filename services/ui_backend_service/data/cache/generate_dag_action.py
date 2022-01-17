@@ -109,10 +109,10 @@ def generate_dag(run: Run):
         # Initialize a FlowGraph object
         graph = FlowGraph(source=run.code.flowspec, name=run.parent.id)
         # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
-        steps_info, steps_structure = graph.output_steps()
+        steps_info, graph_structure = graph.output_steps()
         graph_info = {
-            "steps_info": steps_info,
-            "steps_structure": steps_structure,
+            "steps": steps_info,
+            "graph_structure": graph_structure,
             "doc": graph.doc
         }
 

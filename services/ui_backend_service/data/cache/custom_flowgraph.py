@@ -205,12 +205,23 @@ class FlowGraph(object):
     def output_steps(self):
 
         steps_info = {}
-        steps_structure = []
+        graph_structure = []
+
+        def node_to_type(node):
+            if node.type in ["linear", "start", "end", "join"]:
+                return node.type
+            elif node.type == "split":
+                return "split-static"
+            elif node.type == "foreach":
+                if node.parallel_foreach:
+                    return "split-parallel"
+                return "split-foreach"
+            return "unknown"  # Should never happen
 
         def node_to_dict(name, node):
             return {
                 "name": name,
-                "type": node.type,
+                "type": node_to_type(node),
                 "line": node.func_lineno,
                 "doc": node.doc,
                 "next": node.out_funcs,
@@ -240,9 +251,9 @@ class FlowGraph(object):
                     cur_name = cur_node.out_funcs[0]
             return resulting_list
 
-        steps_structure = populate_block("start", "end")
+        graph_structure = populate_block("start", "end")
 
         steps_info["end"] = node_to_dict("end", self.nodes["end"])
-        steps_structure.append("end")
+        graph_structure.append("end")
 
-        return steps_info, steps_structure
+        return steps_info, graph_structure
