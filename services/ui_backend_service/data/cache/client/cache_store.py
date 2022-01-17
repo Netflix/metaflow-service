@@ -160,12 +160,17 @@ class CacheStore(object):
                 unmarked_size -= size
 
     def ensure_path(self, path):
+        "Ensures that the directory for a given path exists, creating it if missing."
         dirr = os.path.dirname(path)
+        self.ensure_dir(dirr)
+
+    def ensure_dir(self, dirr):
+        "Ensures that a directory exists, creating it if missing."
         if not os.path.isdir(dirr):
             try:
                 makedirs(dirr)
             except Exception as ex:
-                self.warn(ex, "Could not create dir: %s" % path)
+                self.warn(ex, "Could not create dir: %s" % dirr)
 
     def open_tempdir(self, token, action_name, stream_key):
         self._gc_objects()
@@ -175,6 +180,7 @@ class CacheStore(object):
                       % (self.total_size, self.max_size))
 
         try:
+            self.ensure_dir(self.tmproot)
             tmp = tempfile.mkdtemp(prefix='cache_action_%s.' % token,
                                    dir=self.tmproot)
         except Exception as ex:
