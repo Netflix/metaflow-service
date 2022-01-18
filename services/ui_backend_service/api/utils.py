@@ -16,6 +16,7 @@ from services.utils import logging
 
 logger = logging.getLogger("Utils")
 
+
 def get_json_from_env(variable_name: str):
     try:
         return json.loads(os.environ.get(variable_name))
