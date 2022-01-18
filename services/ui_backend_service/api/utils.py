@@ -11,12 +11,16 @@ from multidict import MultiDict
 from services.data.db_utils import DBPagination, DBResponse
 from services.utils import format_baseurl, format_qs, web_response
 from functools import reduce
+from services.utils import logging
 
+
+logger = logging.getLogger("Utils")
 
 def get_json_from_env(variable_name: str):
     try:
         return json.loads(os.environ.get(variable_name))
-    except Exception:
+    except Exception as e:
+        logger.warning("error parsing JSON: %s, from %s: %s", e, variable_name, os.environ.get(variable_name))
         return None
 
 
