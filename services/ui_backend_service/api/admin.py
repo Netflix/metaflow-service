@@ -8,7 +8,7 @@ from services.utils import (METADATA_SERVICE_HEADER, METADATA_SERVICE_VERSION,
                             SERVICE_BUILD_TIMESTAMP, SERVICE_COMMIT_HASH,
                             web_response)
 
-from .utils import get_json_from_env
+from .utils import get_json_config
 
 UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
     metadata_v=METADATA_SERVICE_VERSION,
@@ -37,8 +37,8 @@ class AdminApi(object):
             {"href": 'http://chat.metaflow.org/', "label": 'Help'}
         ]
 
-        self.notifications = _get_notifications_from_env() or []
-        self.navigation_links = _get_links_from_env() or defaults
+        self.notifications = _get_notifications_config() or []
+        self.navigation_links = _get_links_config() or defaults
 
     async def version(self, request):
         """
@@ -263,9 +263,9 @@ class AdminApi(object):
         })
 
 
-def _get_links_from_env():
-    return get_json_from_env("CUSTOM_QUICKLINKS")
+def _get_links_config():
+    return get_json_config("custom_quicklinks")
 
 
-def _get_notifications_from_env():
-    return get_json_from_env("NOTIFICATIONS")
+def _get_notifications_config():
+    return get_json_config("notifications")
