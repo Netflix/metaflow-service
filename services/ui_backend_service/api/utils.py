@@ -41,7 +41,7 @@ def get_json_config(variable_name: str):
     return get_json_from_env(env_name) or \
         get_json_from_file(filepath)
 
-  
+
 def get_json_from_env(variable_name: str):
     env_json = os.environ.get(variable_name)
     if env_json:
@@ -50,6 +50,7 @@ def get_json_from_env(variable_name: str):
         except Exception as e:
             logger.warning(f"Error parsing JSON: {e}, from {variable_name}: {env_json}")
     return None
+
 
 def get_json_from_file(filepath: str):
     try:
