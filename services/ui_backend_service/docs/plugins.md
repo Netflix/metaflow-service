@@ -1,26 +1,25 @@
 # Plugin System
 
-There are two ways to register a new plugin to UI service:
+There are two ways to register a new plugin to the UI service:
 
 1. Placing a folder under `services/ui_backend_service/plugins/installed`
 2. Defining a remote Git repository location
 
-Plugins can be registered via the `PLUGINS` environment variable or with a `config.plugins.json` file on the server. See `example.plugins.json` for reference. The value of the environment variable should be a _stringified_ json of the format:
+Plugins can be registered via the `PLUGINS` environment variable or with a `config.plugins.json` file on the server. See `example.plugins.json` for reference. When using the environment variable, the value should be a _stringified_ json that can properly be parsed by Python's `json.loads()`. 
 
-```json
-{
-  "plugin-example": "git@github.com:Netflix/metaflow-ui-plugin-example.git"
-}
+Example value:
+```
+export PLUGINS='{"plugin-example": "git@github.com:Netflix/metaflow-ui-plugin-example.git"}'
 ```
 
 All plugins are installed under `services/ui_backend_service/plugins/installed`. Local plugins should be placed under this folder, e.g. `services/ui_backend_service/plugins/installed/plugin-example/`.
-Plugins are loaded only if `PLUGINS` environment variable contains entry for a specific plugin.
+Plugins are loaded only if the plugin configuration contains an entry for a specific plugin.
 
 Both HTTPS and SSH repositories are supported.
 
 ## Documentation
 
-At minimun a plugin should contain file called `manifest.json` with following contents:
+At minimum, a plugin should contain a file called `manifest.json` with the following contents:
 
 ```json
 {
@@ -30,9 +29,9 @@ At minimun a plugin should contain file called `manifest.json` with following co
 }
 ```
 
-Where `entrypoint` refers to a source that will be loaded inside sandboxed iframe on user's browser.
+Where `entrypoint` refers to a source that will be loaded inside a sandboxed iframe on the user's browser.
 
-`entrypoint` can also be defined as absolute url:
+`entrypoint` can also be defined as an absolute url:
 
 ```json
 {
@@ -58,8 +57,8 @@ There are multiple ways to provide authentication credentials:
 - SSH key pair
 - SSH Agent (`~/.ssh`)
 
-Authentication credentials can be provided by using `auth` object at the top level of `PLUGINS` json
-or alternatively by defining `auth` object at repository level.
+Authentication credentials can be provided by using an `auth` object at the top level of `PLUGINS` json
+or alternatively by defining an `auth` object at the repository level.
 
 ```json
 {
@@ -79,12 +78,12 @@ See Examples -section for reference.
 
 ## Plugin development
 
-- Plugin development documentation can be found from [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui/blob/master/docs/plugin-system.md) repository.
+- Plugin development documentation can be found in the [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui/blob/master/docs/plugin-system.md) repository.
 - See [example plugins](https://github.com/Netflix/metaflow-ui/tree/master/plugin-api/Examples) for reference implementation.
 
 ## Examples
 
-Following JSON describes different ways to register plugins. Each plugin will be automatically downloaded to `services/ui_backend_service/plugins/installed`:
+The following JSON describes different ways to register plugins. Each plugin will be automatically downloaded to `services/ui_backend_service/plugins/installed`:
 
 ```json
 {
@@ -114,7 +113,7 @@ Following JSON describes different ways to register plugins. Each plugin will be
 }
 ```
 
-Following JSON describes different ways to provide authentication credentials for remote Git repositories:
+The following JSON describes different ways to provide authentication credentials for remote Git repositories:
 
 ```json
 {
@@ -174,7 +173,7 @@ Following JSON describes different ways to provide authentication credentials fo
 }
 ```
 
-Following JSON describes different ways to register local plugins. Each plugin should already have folder under `services/ui_backend_service/plugins/installed` with the same name:
+The following JSON describes different ways to register local plugins. Each plugin should already have a folder under `services/ui_backend_service/plugins/installed` with the same name:
 
 ```json
 {
