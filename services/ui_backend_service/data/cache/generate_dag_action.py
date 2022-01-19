@@ -87,9 +87,6 @@ class GenerateDag(CacheAction):
         result_key = [key for key in keys if key.startswith('dag:result')][0]
 
         with streamed_errors(stream_output):
-            # TODO: Clean up the internal _graph_info accessing.
-            # Having to jump through a lot of hoops currently due to internal artifacts
-            # not being accessible directly.
             run = Run("{}/{}".format(flow_id, run_number))
             param_step = Step("{}/_parameters".format(run.pathspec))
             try:
