@@ -18,12 +18,13 @@ logger = logging.getLogger("Utils")
 
 
 def get_json_from_env(variable_name: str):
-    try:
-        return json.loads(os.environ.get(variable_name))
-    except Exception as e:
-        logger.warning("error parsing JSON: %s, from %s: %s", e, variable_name, os.environ.get(variable_name))
-        return None
-
+    env_json = os.environ.get(variable_name)
+    if env_json:
+        try:
+            return json.loads(env_json)
+        except Exception as e:
+            logger.warning(f"Error parsing JSON: {e}, from {variable_name}: {env_json}")
+    return None
 
 def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[int, Dict]:
     query = {}
