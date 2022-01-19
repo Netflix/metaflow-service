@@ -11,6 +11,10 @@ from multidict import MultiDict
 from services.data.db_utils import DBPagination, DBResponse
 from services.utils import format_baseurl, format_qs, web_response
 from functools import reduce
+from services.utils import logging
+
+
+logger = logging.getLogger("Utils")
 
 # only look for config.json files in ui_backend_service root
 JSON_CONFIG_ROOT = os.path.normpath(
@@ -49,7 +53,13 @@ def get_json_from_file(filepath: str):
     try:
         with open(filepath) as f:
             return json.load(f)
-    except Exception:
+    except FileNotFoundError:
+        # not an issue, as users might not want to configure certain components.
+        return None
+    except Exception as ex:
+        logger.warning(
+            f"Error parsing JSON from file: {filepath}\n Error: {str(ex)}"
+        )
         return None
 
 
