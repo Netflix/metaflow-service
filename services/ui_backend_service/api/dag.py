@@ -43,10 +43,10 @@ class DagApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesDagError500'
         """
-        db_response = await self.get_run_ids_from_graph_info_artifact(request)
+        db_response = await self.get_graph_info_artifact(request)
         if not db_response.response_code == 200:
             # Try to look for codepackage if graph artifact is missing
-            db_response = await self.get_run_ids_from_codepackage_metadata(request)
+            db_response = await self.get_codepackage_metadata(request)
 
         if not db_response.response_code == 200:
             status, body = format_response(request, db_response)
@@ -72,15 +72,9 @@ class DagApi(object):
 
         return web_response(status, body)
 
-    async def get_run_ids_from_codepackage_metadata(self, request):
+    async def get_codepackage_metadata(self, request) -> DBResponse:
         """
         Tries to locate 'code-package' or 'code-package-url' in run metadata.
-
-        Returns
-        -------
-        Tuple
-            flow_id : str
-            run_id : str or int
         """
         flow_name = request.match_info['flow_id']
         run_id_key, run_id_value = translate_run_key(
@@ -103,15 +97,9 @@ class DagApi(object):
 
         return db_response
 
-    async def get_run_ids_from_graph_info_artifact(self, request):
+    async def get_graph_info_artifact(self, request) -> DBResponse:
         """
         Tries to locate '_graph_info' in run artifacts
-
-        Returns
-        -------
-        Tuple
-            flow_id : str
-            run_id : str or int
         """
         flow_name = request.match_info['flow_id']
         run_id_key, run_id_value = translate_run_key(
