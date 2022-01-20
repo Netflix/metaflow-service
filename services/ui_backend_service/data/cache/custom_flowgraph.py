@@ -208,6 +208,7 @@ class FlowGraph(object):
         graph_structure = []
 
         def node_to_type(node):
+            "convert internal node type to a more descriptive one for API consumers."
             if node.type in ["linear", "start", "end", "join"]:
                 return node.type
             elif node.type == "split":
