@@ -1,12 +1,4 @@
-import inspect
 import ast
-import re
-
-# ***IMPORTANT***
-# AST-only version of FlowGraph generation.
-# This is only included as the current version of the metaflow libraries FlowGraph does not include the
-# AST-only version of the graph parsing.
-# ***IMPORTANT***
 
 
 class DAGNode(object):
@@ -210,25 +202,59 @@ class FlowGraph(object):
         return '\n'.join(str(n) for _, n in sorted((n.func_lineno, n)
                                                    for n in self.nodes.values()))
 
-    def output_dot(self):
+    def output_steps(self):
 
-        def edge_specs():
-            for node in self.nodes.values():
-                for edge in node.out_funcs:
-                    yield '%s -> %s;' % (node.name, edge)
+        steps_info = {}
+        graph_structure = []
 
-        def node_specs():
-            for node in self.nodes.values():
-                nodetype = 'join' if node.num_args > 1 else node.type
-                yield '"{0.name}"'\
-                      '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> '\
-                      '  fontname = "Helvetica" '\
-                      '  shape = "record" ];'.format(node, type=nodetype)
+        def node_to_type(node):
+            "convert internal node type to a more descriptive one for API consumers."
+            if node.type in ["linear", "start", "end", "join"]:
+                return node.type
+            elif node.type == "split":
+                return "split-static"
+            elif node.type == "foreach":
+                if node.parallel_foreach:
+                    return "split-parallel"
+                return "split-foreach"
+            return "unknown"  # Should never happen
 
-        return "digraph {0.name} {{\n"\
-               "rankdir=LR;\n"\
-               "{nodes}\n"\
-               "{edges}\n"\
-               "}}".format(self,
-                           nodes='\n'.join(node_specs()),
-                           edges='\n'.join(edge_specs()))
+        def node_to_dict(name, node):
+            return {
+                "name": name,
+                "type": node_to_type(node),
+                "line": node.func_lineno,
+                "doc": node.doc,
+                "next": node.out_funcs,
+                "foreach_artifact": node.foreach_param,
+            }
+
+        def populate_block(start_name, end_name):
+            cur_name = start_name
+            resulting_list = []
+            while cur_name != end_name:
+                cur_node = self.nodes[cur_name]
+                node_dict = node_to_dict(cur_name, cur_node)
+
+                steps_info[cur_name] = node_dict
+                resulting_list.append(cur_name)
+
+                if cur_node.type not in ("start", "linear", "join"):
+                    # We need to look at the different branches for this
+                    resulting_list.append(
+                        [
+                            populate_block(s, cur_node.matching_join)
+                            for s in cur_node.out_funcs
+                        ]
+                    )
+                    cur_name = cur_node.matching_join
+                else:
+                    cur_name = cur_node.out_funcs[0]
+            return resulting_list
+
+        graph_structure = populate_block("start", "end")
+
+        steps_info["end"] = node_to_dict("end", self.nodes["end"])
+        graph_structure.append("end")
+
+        return steps_info, graph_structure
