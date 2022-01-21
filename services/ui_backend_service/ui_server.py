@@ -37,8 +37,6 @@ DEFAULT_METADATA_SERVICE_URL = "http://{}:{}{}/metadata".format(
 # Provide defaults for Metaflow Client
 os.environ['METAFLOW_SERVICE_URL'] = os.environ.get('METAFLOW_SERVICE_URL', DEFAULT_METADATA_SERVICE_URL)
 os.environ['USERNAME'] = os.environ.get('USERNAME', 'none')
-# TODO: drop this back to 0 once the client is fixed to handle it correctly.
-os.environ['METAFLOW_S3_RETRY_COUNT'] = os.environ.get('METAFLOW_S3_RETRY_COUNT', '1')
 os.environ['METAFLOW_CLIENT_CACHE_MAX_SIZE'] = os.environ.get('METAFLOW_CLIENT_CACHE_MAX_SIZE', '0')
 os.environ['METAFLOW_DEFAULT_METADATA'] = os.environ.get('METAFLOW_DEFAULT_METADATA', 'service')
 
