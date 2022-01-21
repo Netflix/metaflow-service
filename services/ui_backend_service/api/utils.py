@@ -13,8 +13,8 @@ from services.utils import format_baseurl, format_qs, web_response
 from functools import reduce
 from services.utils import logging
 
-
 logger = logging.getLogger("Utils")
+
 
 # only look for config.json files in ui_backend_service root
 JSON_CONFIG_ROOT = os.path.normpath(
@@ -27,7 +27,6 @@ def get_json_config(variable_name: str):
     Attempts to read a JSON configuration from an environment variable with
     the given variable_name (in upper case). Failing to find an environment variable, it will
     fallback to looking for a config.variable_name.json file in the ui_backend_service root
-
     Example
     -------
     get_json_config("plugins")
@@ -43,10 +42,13 @@ def get_json_config(variable_name: str):
 
 
 def get_json_from_env(variable_name: str):
-    try:
-        return json.loads(os.environ.get(variable_name))
-    except Exception:
-        return None
+    env_json = os.environ.get(variable_name)
+    if env_json:
+        try:
+            return json.loads(env_json)
+        except Exception as e:
+            logger.warning(f"Error parsing JSON: {e}, from {variable_name}: {env_json}")
+    return None
 
 
 def get_json_from_file(filepath: str):
