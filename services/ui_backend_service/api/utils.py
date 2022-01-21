@@ -530,4 +530,3 @@ async def allow_get_requests_only(request, handler):
     if request.method != 'GET':
         raise web.HTTPMethodNotAllowed(method=request.method, allowed_methods=['GET'])
     return await handler(request)
-    
