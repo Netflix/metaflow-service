@@ -11,12 +11,55 @@ from multidict import MultiDict
 from services.data.db_utils import DBPagination, DBResponse
 from services.utils import format_baseurl, format_qs, web_response
 from functools import reduce
+from services.utils import logging
+
+
+logger = logging.getLogger("Utils")
+
+# only look for config.json files in ui_backend_service root
+JSON_CONFIG_ROOT = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
+
+
+def get_json_config(variable_name: str):
+    """
+    Attempts to read a JSON configuration from an environment variable with
+    the given variable_name (in upper case). Failing to find an environment variable, it will
+    fallback to looking for a config.variable_name.json file in the ui_backend_service root
+
+    Example
+    -------
+    get_json_config("plugins")
+        Looks for a 'PLUGINS' environment variable. If none is found,
+        looks for a  'config.plugins.json' file in ui_backend_service root.
+    """
+    env_name = variable_name.upper()
+
+    filepath = os.path.join(JSON_CONFIG_ROOT, f"config.{variable_name.lower()}.json")
+
+    return get_json_from_env(env_name) or \
+        get_json_from_file(filepath)
 
 
 def get_json_from_env(variable_name: str):
     try:
         return json.loads(os.environ.get(variable_name))
     except Exception:
+        return None
+
+
+def get_json_from_file(filepath: str):
+    try:
+        with open(filepath) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # not an issue, as users might not want to configure certain components.
+        return None
+    except Exception as ex:
+        logger.warning(
+            f"Error parsing JSON from file: {filepath}\n Error: {str(ex)}"
+        )
         return None
 
 
