@@ -81,10 +81,14 @@ class CardsApi(object):
         invalidate_cache = query_param_enabled(request, "invalidate")
         cards = await get_cards_for_task(self.cache.artifact_cache, task, invalidate_cache)
 
-        if not cards:
+        if cards is None:
+            # Cache failed to return anything, even errors. Count this as cards missing.
             return web_response(200, {'data': []})
 
-        card_hashes = [{"id": data["id"], "hash": hash, "type": data["type"]} for hash, data in cards.items()]
+        card_hashes = [
+            {"id": data["id"], "hash": hash, "type": data["type"]}
+            for hash, data in cards.items()
+        ]
 
         # paginate list of cards
         limit, page, offset = get_pagination_params(request)
@@ -130,7 +134,10 @@ class CardsApi(object):
 
         cards = await get_cards_for_task(self.cache.artifact_cache, task)
 
-        if hash in cards:
+        if cards is None:
+            return web.Response(content_type="text/html", status=404, body="Card not found for task. Possibly still being processed.")
+
+        if cards and hash in cards:
             return web.Response(content_type="text/html", body=cards[hash]["html"])
         else:
             return web.Response(content_type="text/html", status=404, body="Card not found for task.")
@@ -152,11 +159,12 @@ async def get_cards_for_task(cache_client, task, invalidate_cache=False):
                 raise CardException(event["message"], event["id"], event["traceback"])
         await res.wait()  # wait until results are ready
     data = res.get()
-    if pathspec in data:
+    if data and pathspec in data:
         success, value, detail, trace = unpack_processed_value(data[pathspec])
         if success:
             return value
-    # TODO: handle persisted errors with card content processing?
+        else:
+            raise CardException(detail, value, trace)
 
     return None
 
