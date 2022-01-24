@@ -4,7 +4,7 @@ import signal
 import concurrent
 
 from aiohttp import web
-from aiohttp_swagger import *
+from aiohttp_swagger import setup_swagger
 from pyee import AsyncIOEventEmitter
 from services.utils import DBConfiguration, logging
 
@@ -96,6 +96,9 @@ def app(loop=None, db_conf: DBConfiguration = None):
     LogApi(app, async_db, cache_store)
     AdminApi(app, cache_store)
 
+    setup_swagger(app,
+                  description=swagger_description,
+                  definitions=swagger_definitions)
     # Add Metadata Service as a sub application so that Metaflow Client
     # can use it as a service backend in case none provided via METAFLOW_SERVICE_URL
     #
@@ -103,10 +106,6 @@ def app(loop=None, db_conf: DBConfiguration = None):
     # 'allow_get_requests_only' middleware will only accept GET requests.
     app.add_subapp("/metadata", metadata_service_app(
         loop=loop, db_conf=db_conf, middlewares=[allow_get_requests_only]))
-
-    setup_swagger(app,
-                  description=swagger_description,
-                  definitions=swagger_definitions)
 
     if os.environ.get("UI_ENABLED", "1") == "1":
         # Serve UI bundle only if enabled
