@@ -1,5 +1,4 @@
 from subprocess import Popen, PIPE
-import shlex
 from ..data.postgres_async_db import PostgresUtils
 from . import version_dict, latest, \
     make_goose_migration_template, make_goose_template

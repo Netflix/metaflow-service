@@ -2,7 +2,7 @@ import asyncio
 import os
 
 from aiohttp import web
-from aiohttp_swagger import *
+from aiohttp_swagger import setup_swagger
 
 from .api.run import RunApi
 from .api.flow import FlowApi
