@@ -1,7 +1,5 @@
 import json
-import os
 
-import psycopg2
 import pytest
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
@@ -22,7 +20,7 @@ from services.migration_service.data.postgres_async_db import \
 # Test fixture helpers begin
 
 
-def init_app(loop, aiohttp_client, queue_ttl=30):
+async def init_app(aiohttp_client, queue_ttl=30):
     app = web.Application()
 
     # Migration routes as a subapp
@@ -38,7 +36,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     ArtificatsApi(app)
     MetadataApi(app)
 
-    return loop.run_until_complete(aiohttp_client(app))
+    return await aiohttp_client(app)
 
 
 async def init_db(cli):
@@ -70,6 +68,18 @@ async def clean_db(db: AsyncPostgresDB):
     ]
     for table in tables:
         await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name))
+
+
+@pytest.fixture
+async def cli(aiohttp_client):
+    return await init_app(aiohttp_client)
+
+
+@pytest.fixture
+async def db(cli):
+    async_db = await init_db(cli)
+    yield async_db
+    await clean_db(async_db)
 
 # Test fixture helpers end
 

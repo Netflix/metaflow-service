@@ -1,7 +1,7 @@
 from services.ui_backend_service.api.plugins import PluginsApi
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
-from pytest import approx
+import pytest
 import os
 import json
 import datetime
@@ -32,7 +32,7 @@ TIMEOUT_FUTURE = 0.2
 # Test fixture helpers begin
 
 
-def init_app(loop, aiohttp_client, queue_ttl=30):
+async def init_app(aiohttp_client, queue_ttl=30):
     app = web.Application()
     app.event_emitter = AsyncIOEventEmitter()
 
@@ -45,7 +45,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
     # Skip all creation processes, these are handled with migration service and init_db
     db_conf = get_test_dbconf()
     db = AsyncPostgresDB(name='api')
-    loop.run_until_complete(db._init(db_conf=db_conf, create_tables=False, create_triggers=False))
+    await db._init(db_conf=db_conf, create_tables=False, create_triggers=False)
 
     cache_store = CacheStore(db=db, event_emitter=app.event_emitter)
 
@@ -65,7 +65,7 @@ def init_app(loop, aiohttp_client, queue_ttl=30):
 
     AdminApi(app, cache_store)
 
-    return loop.run_until_complete(aiohttp_client(app))
+    return await aiohttp_client(app)
 
 
 async def init_db(cli):
@@ -97,6 +97,18 @@ async def clean_db(db: AsyncPostgresDB):
     ]
     for table in tables:
         await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name))
+
+
+@pytest.fixture
+async def cli(aiohttp_client):
+    return await init_app(aiohttp_client)
+
+
+@pytest.fixture
+async def db(cli):
+    async_db = await init_db(cli)
+    yield async_db
+    await clean_db(async_db)
 
 # Test fixture helpers end
 
@@ -301,7 +313,7 @@ def _test_dict_approx(actual, expected, approx_keys, threshold=1000):
     # TODO: If possible, a less error prone solution would be to somehow mock/freeze the now() on a per-test basis.
     for k, v in actual.items():
         if k in approx_keys:
-            assert v == approx(expected[k], rel=threshold)
+            assert v == pytest.approx(expected[k], rel=threshold)
         else:
             assert v == expected[k]
 

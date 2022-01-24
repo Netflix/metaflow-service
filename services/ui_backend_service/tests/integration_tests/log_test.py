@@ -1,28 +1,11 @@
 import pytest
 from unittest import mock
 from .utils import (
-    add_metadata, init_app, init_db, clean_db,
+    add_metadata, cli, db,
     add_flow, add_run, add_step, add_task,
     _test_list_resources
 )
 pytestmark = [pytest.mark.integration_tests]
-
-
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
-
-# Fixtures end
 
 
 async def test_log_default_response(cli, db):

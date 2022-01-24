@@ -1,26 +1,10 @@
 import pytest
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, db,
     add_flow, add_run, add_step, add_task, add_artifact,
-    _test_list_resources, _test_single_resource
+    _test_list_resources
 )
 pytestmark = [pytest.mark.integration_tests]
-
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
-
-# Fixtures end
 
 
 async def test_list_artifact(cli, db):
@@ -38,36 +22,36 @@ async def test_list_artifact(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task), 200, [])
 
     _first = (await add_artifact(db,
-                                    flow_id=_task.get("flow_id"),
-                                    run_number=_task.get("run_number"),
-                                    run_id=_task.get("run_id"),
-                                    step_name=_task.get("step_name"),
-                                    task_id=_task.get("task_id"),
-                                    task_name=_task.get("task_name"),
-                                    artifact={
-                                        "name": "name",
-                                        "location": "location",
-                                        "ds_type": "ds_type",
-                                        "sha": "sha",
-                                        "type": "type",
-                                        "content_type": "content_type",
-                                        "attempt_id": 0})).body
+                                 flow_id=_task.get("flow_id"),
+                                 run_number=_task.get("run_number"),
+                                 run_id=_task.get("run_id"),
+                                 step_name=_task.get("step_name"),
+                                 task_id=_task.get("task_id"),
+                                 task_name=_task.get("task_name"),
+                                 artifact={
+                                     "name": "name",
+                                     "location": "location",
+                                     "ds_type": "ds_type",
+                                     "sha": "sha",
+                                     "type": "type",
+                                     "content_type": "content_type",
+                                     "attempt_id": 0})).body
 
     _second = (await add_artifact(db,
-                                    flow_id=_task.get("flow_id"),
-                                    run_number=_task.get("run_number"),
-                                    run_id=_task.get("run_id"),
-                                    step_name=_task.get("step_name"),
-                                    task_id=_task.get("task_id"),
-                                    task_name=_task.get("task_name"),
-                                    artifact={
-                                        "name": "name",
-                                        "location": "location",
-                                        "ds_type": "ds_type",
-                                        "sha": "sha",
-                                        "type": "type",
-                                        "content_type": "content_type",
-                                        "attempt_id": 1})).body
+                                  flow_id=_task.get("flow_id"),
+                                  run_number=_task.get("run_number"),
+                                  run_id=_task.get("run_id"),
+                                  step_name=_task.get("step_name"),
+                                  task_id=_task.get("task_id"),
+                                  task_name=_task.get("task_name"),
+                                  artifact={
+                                      "name": "name",
+                                      "location": "location",
+                                      "ds_type": "ds_type",
+                                      "sha": "sha",
+                                      "type": "type",
+                                      "content_type": "content_type",
+                                      "attempt_id": 1})).body
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task), 200, [_first, _second])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(**_task), 200, [_first, _second])
