@@ -1,27 +1,11 @@
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
     add_flow, add_run, add_step
 )
 import pytest
-import json
+
 pytestmark = [pytest.mark.integration_tests]
-
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
-
-# Fixtures end
 
 
 async def test_step_post(cli, db):
@@ -45,7 +29,7 @@ async def test_step_post(cli, db):
     _found = (await db.step_table_postgres.get_step(_step["flow_id"], _step["run_number"], _step["step_name"])).body
 
     compare_partial(_found, {"step_name": "test_step", **payload})
-    
+
     # Duplicate step names should not be accepted for a run
     await assert_api_post_response(
         cli,
