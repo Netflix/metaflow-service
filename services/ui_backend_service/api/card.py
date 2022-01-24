@@ -1,3 +1,4 @@
+from typing import Dict, Optional
 from services.data.db_utils import translate_run_key, translate_task_key
 from services.ui_backend_service.data import unpack_processed_value
 from services.utils import handle_exceptions
@@ -8,7 +9,7 @@ from aiohttp import web
 class CardsApi(object):
     def __init__(self, app, db, cache=None):
         self.db = db
-        self.cache = cache
+        self.cache = getattr(cache, "artifact_cache", None)
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards",
@@ -79,10 +80,12 @@ class CardsApi(object):
             return web_response(404, {'data': []})
 
         invalidate_cache = query_param_enabled(request, "invalidate")
-        cards = await get_cards_for_task(self.cache.artifact_cache, task, invalidate_cache)
+        cards = await get_cards_for_task(self.cache, task, invalidate_cache)
 
         if cards is None:
-            # Cache failed to return anything, even errors. Count this as cards missing.
+            # Handle edge: Cache failed to return anything, even errors.
+            # NOTE: choice of status 200 here is quite arbitrary, as the cache returning None is usually
+            # caused by a premature request, and cards are not permanently missing.
             return web_response(200, {'data': []})
 
         card_hashes = [
@@ -132,7 +135,7 @@ class CardsApi(object):
         if not task:
             return web.Response(content_type="text/html", status=404, body="Task not found.")
 
-        cards = await get_cards_for_task(self.cache.artifact_cache, task)
+        cards = await get_cards_for_task(self.cache, task)
 
         if cards is None:
             return web.Response(content_type="text/html", status=404, body="Card not found for task. Possibly still being processed.")
@@ -143,7 +146,20 @@ class CardsApi(object):
             return web.Response(content_type="text/html", status=404, body="Card not found for task.")
 
 
-async def get_cards_for_task(cache_client, task, invalidate_cache=False):
+async def get_cards_for_task(cache_client, task, invalidate_cache=False) -> Optional[Dict[str, Dict]]:
+    """
+    Return a dictionary of cards from the cache, or nothing.
+
+    Example:
+    --------
+    {
+        "abc123": {
+            "id": 1,
+            "hash": "abc123",
+            "html": "htmlcontent"
+        }
+    }
+    """
     pathspec = "{flow_id}/{run_id}/{step_name}/{task_id}".format(
         flow_id=task.get("flow_id"),
         run_id=task.get("run_id") or task.get("run_number"),
