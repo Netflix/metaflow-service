@@ -1,29 +1,13 @@
 import pytest
 from unittest import mock
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, db,
     add_flow, add_run, add_artifact,
     add_step, add_task, add_metadata,
-    _test_list_resources, _test_single_resource
+    _test_single_resource
 )
 pytestmark = [pytest.mark.integration_tests]
 
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
-
-
-# Fixtures end
 
 # NOTE: For Tasks which don’t have heartbeat enabled, for heartbeat checks fall back on using the timestamp of the latest metadata entry for the task as a proxy and set x and Y to 2 weeks.
 # NOTE: For Tasks which don’t have attempt_ok in metadata, utilize the value of attempt specific task_ok in s3
