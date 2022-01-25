@@ -1,6 +1,6 @@
 import pytest
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, init_db, clean_db,
     add_flow, add_run, add_step, add_task, add_artifact, add_metadata,
     TIMEOUT_FUTURE
 )
@@ -12,11 +12,6 @@ from services.ui_backend_service.api.notify import ListenNotify
 pytestmark = [pytest.mark.integration_tests]
 
 # Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
 
 
 @pytest.fixture
