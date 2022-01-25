@@ -44,7 +44,7 @@ class ListenNotify(object):
                         self.ping(conn)
                     )
             except Exception as ex:
-                self.logger.warn(str(ex))
+                self.logger.warning(str(ex))
             finally:
                 await asyncio.sleep(1)
 

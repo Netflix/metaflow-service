@@ -43,7 +43,7 @@ def init_plugins():
                 else:
                     auth = global_auth
             else:
-                logger.warn("   [{}] Invalid plugin format, skipping".format(identifier))
+                logger.warning("   [{}] Invalid plugin format, skipping".format(identifier))
                 continue
 
             if paths and isinstance(paths, list):

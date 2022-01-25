@@ -81,7 +81,7 @@ class CacheAsyncClient(CacheClient):
                     self._proc.stdin.drain(),
                     timeout=WAIT_FREQUENCY)
         except asyncio.TimeoutError:
-            self.logger.warn("StreamWriter.drain timeout, request restart: {}".format(repr(self._proc.stdin)))
+            self.logger.warning("StreamWriter.drain timeout, request restart: {}".format(repr(self._proc.stdin)))
             # Drain timeout error indicates unrecoverable critical issue,
             # essentially the cache functionality remains broken after the first asyncio.TimeoutError.
             # Request restart from CacheStore so that normal operation can be resumed.
