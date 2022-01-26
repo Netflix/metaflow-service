@@ -1,5 +1,5 @@
 import ast
-from metaflow.graph import DAGNode
+from metaflow.graph import deindent_docstring, DAGNode, FlowGraph as _FlowGraph
 
 
 class StepVisitor(ast.NodeVisitor):
@@ -16,7 +16,7 @@ class StepVisitor(ast.NodeVisitor):
             self.nodes[node.name] = DAGNode(node, decos, doc if doc else '')
 
 
-class FlowGraph(object):
+class FlowGraph(_FlowGraph):
     # NOTE: This implementation relies on passing in the name of the FlowSpec class
     # to be parsed from the sourcecode.
     def __init__(self, source, name):
@@ -36,66 +36,10 @@ class FlowGraph(object):
         [root] = list(filter(_flow, ast.parse(source).body))
         self.name = root.name
         doc = ast.get_docstring(root)
-        self.doc = doc if doc else ''
+        self.doc = deindent_docstring(doc) if doc else ''
         nodes = {}
         StepVisitor(nodes).visit(root)
         return nodes
-
-    def _postprocess(self):
-        # any node who has a foreach as any of its split parents
-        # has is_inside_foreach=True *unless* all of those foreaches
-        # are joined by the node
-        for node in self.nodes.values():
-            foreaches = [p for p in node.split_parents
-                         if self.nodes[p].type == 'foreach']
-            if [f for f in foreaches
-                    if self.nodes[f].matching_join != node.name]:
-                node.is_inside_foreach = True
-
-    def _traverse_graph(self):
-
-        def traverse(node, seen, split_parents):
-
-            if node.type in ('split-or', 'split-and', 'foreach'):
-                node.split_parents = split_parents
-                split_parents = split_parents + [node.name]
-            elif node.type == 'join':
-                # ignore joins without splits
-                if split_parents:
-                    self[split_parents[-1]].matching_join = node.name
-                    node.split_parents = split_parents
-                    split_parents = split_parents[:-1]
-            else:
-                node.split_parents = split_parents
-
-            for n in node.out_funcs:
-                # graph may contain loops - ignore them
-                if n not in seen:
-                    # graph may contain unknown transitions - ignore them
-                    if n in self:
-                        child = self[n]
-                        child.in_funcs.add(node.name)
-                        traverse(child, seen + [n], split_parents)
-
-        if 'start' in self:
-            traverse(self['start'], [], [])
-
-        # fix the order of in_funcs
-        for node in self.nodes.values():
-            node.in_funcs = sorted(node.in_funcs)
-
-    def __getitem__(self, x):
-        return self.nodes[x]
-
-    def __contains__(self, x):
-        return x in self.nodes
-
-    def __iter__(self):
-        return iter(self.nodes.values())
-
-    def __str__(self):
-        return '\n'.join(str(n) for _, n in sorted((n.func_lineno, n)
-                                                   for n in self.nodes.values()))
 
     def output_steps(self):
 
