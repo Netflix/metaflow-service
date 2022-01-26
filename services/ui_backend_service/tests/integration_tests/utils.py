@@ -1,4 +1,3 @@
-from services.ui_backend_service.api.plugins import PluginsApi
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
 import pytest
@@ -15,7 +14,7 @@ from services.ui_backend_service.api import (
     FlowApi, RunApi, StepApi, TaskApi,
     MetadataApi, ArtificatsApi, TagApi,
     Websocket, AdminApi, FeaturesApi,
-    AutoCompleteApi, PluginsApi, LogApi
+    AutoCompleteApi, PluginsApi, LogApi, CardsApi
 )
 
 from services.ui_backend_service.data.db.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
@@ -60,6 +59,7 @@ async def init_app(aiohttp_client, queue_ttl=30):
     FeaturesApi(app)
     PluginsApi(app)
     LogApi(app, db)
+    CardsApi(app, db)
 
     Websocket(app, db, app.event_emitter, queue_ttl)
 

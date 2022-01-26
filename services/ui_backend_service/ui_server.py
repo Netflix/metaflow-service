@@ -14,7 +14,7 @@ from services.metadata_service.server import app as metadata_service_app
 from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
                   MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
-                  TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi)
+                  TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi, CardsApi)
 from .api.utils import allow_get_requests_only
 from .data.cache import CacheStore
 from .data.db import AsyncPostgresDB
@@ -37,7 +37,6 @@ DEFAULT_METADATA_SERVICE_URL = "http://{}:{}{}/metadata".format(
 # Provide defaults for Metaflow Client
 os.environ['METAFLOW_SERVICE_URL'] = os.environ.get('METAFLOW_SERVICE_URL', DEFAULT_METADATA_SERVICE_URL)
 os.environ['USERNAME'] = os.environ.get('USERNAME', 'none')
-os.environ['METAFLOW_S3_RETRY_COUNT'] = os.environ.get('METAFLOW_S3_RETRY_COUNT', '0')
 os.environ['METAFLOW_CLIENT_CACHE_MAX_SIZE'] = os.environ.get('METAFLOW_CLIENT_CACHE_MAX_SIZE', '0')
 os.environ['METAFLOW_DEFAULT_METADATA'] = os.environ.get('METAFLOW_DEFAULT_METADATA', 'service')
 
@@ -59,9 +58,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     async_db_cache = AsyncPostgresDB('ui:cache')
     loop.run_until_complete(async_db_cache._init(db_conf))
-    cache_store = CacheStore(db=async_db_cache, event_emitter=event_emitter)
-    app.on_startup.append(cache_store.start_caches)
-    app.on_cleanup.append(cache_store.stop_caches)
+    cache_store = CacheStore(app=app, db=async_db_cache, event_emitter=event_emitter)
 
     if FEATURE_DB_LISTEN_ENABLE:
         async_db_notify = AsyncPostgresDB('ui:notify')
@@ -92,6 +89,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     FeaturesApi(app)
     ConfigApi(app)
     PluginsApi(app)
+    CardsApi(app, async_db, cache_store)
 
     LogApi(app, async_db, cache_store)
     AdminApi(app, cache_store)

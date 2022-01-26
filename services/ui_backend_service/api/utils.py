@@ -3,7 +3,7 @@ import os
 import re
 import time
 from collections import deque
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Optional
 from urllib.parse import parse_qsl, urlsplit
 
 from aiohttp import web
@@ -520,6 +520,22 @@ class TTLQueue:
 
     async def values_since(self, since_epoch: int):
         return [value for value in await self.values() if value[0] >= since_epoch]
+
+
+def get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional[str]]:
+    """extract relevant resource id's from the request
+
+    Returns
+    -------
+    flow_id, run_number, step_name, task_id, attempt_id
+    """
+    flow_id = request.match_info.get("flow_id")
+    run_number = request.match_info.get("run_number")
+    step_name = request.match_info.get("step_name")
+    task_id = request.match_info.get("task_id")
+    attempt_id = request.query.get("attempt_id", None)
+
+    return flow_id, run_number, step_name, task_id, attempt_id
 
 
 @web.middleware

@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
-from .utils import format_response_list
+from .utils import format_response_list, get_pathspec_from_request
 
 from aiohttp import web
 from multidict import MultiDict
@@ -180,7 +180,7 @@ class LogApi(object):
 
     async def get_task_by_request(self, request):
         flow_id, run_number, step_name, task_id, attempt_id = \
-            _get_pathspec_from_request(request)
+            get_pathspec_from_request(request)
 
         run_id_key, run_id_value = translate_run_key(run_number)
         task_id_key, task_id_value = translate_task_key(task_id)
@@ -286,22 +286,6 @@ def file_download_response(filename, body):
         headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
         body=body
     )
-
-
-def _get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional[str]]:
-    """extract relevant resource id's from the request
-
-    Returns
-    -------
-    flow_id, run_number, step_name, task_id, attempt_id
-    """
-    flow_id = request.match_info.get("flow_id")
-    run_number = request.match_info.get("run_number")
-    step_name = request.match_info.get("step_name")
-    task_id = request.match_info.get("task_id")
-    attempt_id = request.query.get("attempt_id", None)
-
-    return flow_id, run_number, step_name, task_id, attempt_id
 
 
 class LogException(Exception):
