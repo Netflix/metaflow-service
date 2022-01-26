@@ -74,7 +74,7 @@ class CacheStore(object):
 
     async def _monitor_restart_requests(self):
         while True:
-            for _cache in [self.artifact_cache, self.dag_cache]:
+            for _cache in [self.artifact_cache, self.dag_cache, self.log_cache]:
                 if await _cache.restart_requested():
                     cache_name = type(_cache).__name__
                     logger.info("[{}] restart requested...".format(cache_name))
