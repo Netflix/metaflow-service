@@ -50,20 +50,18 @@ class FlowGraph(object):
         # has is_inside_foreach=True *unless* all of those foreaches
         # are joined by the node
         for node in self.nodes.values():
-            foreaches = [p for p in node.split_parents
-                         if self.nodes[p].type == 'foreach']
-            if [f for f in foreaches
-                    if self.nodes[f].matching_join != node.name]:
+            foreaches = [
+                p for p in node.split_parents if self.nodes[p].type == "foreach"
+            ]
+            if [f for f in foreaches if self.nodes[f].matching_join != node.name]:
                 node.is_inside_foreach = True
 
     def _traverse_graph(self):
-
         def traverse(node, seen, split_parents):
-
-            if node.type in ('split-or', 'split-and', 'foreach'):
+            if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
-            elif node.type == 'join':
+            elif node.type == "join":
                 # ignore joins without splits
                 if split_parents:
                     self[split_parents[-1]].matching_join = node.name
@@ -81,8 +79,8 @@ class FlowGraph(object):
                         child.in_funcs.add(node.name)
                         traverse(child, seen + [n], split_parents)
 
-        if 'start' in self:
-            traverse(self['start'], [], [])
+        if "start" in self:
+            traverse(self["start"], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():
@@ -98,8 +96,9 @@ class FlowGraph(object):
         return iter(self.nodes.values())
 
     def __str__(self):
-        return '\n'.join(str(n) for _, n in sorted((n.func_lineno, n)
-                                                   for n in self.nodes.values()))
+        return "\n".join(
+            str(n) for _, n in sorted((n.func_lineno, n) for n in self.nodes.values())
+        )
 
     def output_steps(self):
 
