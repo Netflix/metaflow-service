@@ -4,7 +4,7 @@ from services.ui_backend_service.data.cache.custom_flowgraph import FlowGraph
 pytestmark = [pytest.mark.unit_tests]
 
 
-def test_flowgraph_ast_parsing():
+def test_valid_flow_source_flowgraph_parsing():
   flow_source = """
 from metaflow import FlowSpec, step, Parameter, retry
 
@@ -78,146 +78,146 @@ if __name__ == '__main__':
   """
 
   expected_graph = {
-    "steps": {
-        "start": {
-            "name": "start",
-            "type": "start",
-            "line": 9,
-            "doc": "",
-            "next": [
-                "regular_step"
-            ],
-            "foreach_artifact": None
-        },
-        "regular_step": {
-            "name": "regular_step",
-            "type": "split-static",
-            "line": 13,
-            "doc": "Just a regular step that splits into two",
-            "next": [
-                "prepare_foreach",
-                "prepare_foreach2"
-            ],
-            "foreach_artifact": None
-        },
-        "prepare_foreach": {
-            "name": "prepare_foreach",
-            "type": "split-foreach",
-            "line": 22,
-            "doc": "Generate a list of things to process in the first foreach",
-            "next": [
-                "process_foreach"
-            ],
-            "foreach_artifact": "things"
-        },
-        "process_foreach": {
-            "name": "process_foreach",
-            "type": "linear",
-            "line": 34,
-            "doc": "",
-            "next": [
-                "join"
-            ],
-            "foreach_artifact": None
-        },
-        "join": {
-            "name": "join",
-            "type": "join",
-            "line": 46,
-            "doc": "",
-            "next": [
-                "ultimate_join"
-            ],
-            "foreach_artifact": None
-        },
-        "prepare_foreach2": {
-            "name": "prepare_foreach2",
-            "type": "split-foreach",
-            "line": 28,
-            "doc": "Generate a list of things to process in the second foreach",
-            "next": [
-                "process_foreach2"
-            ],
-            "foreach_artifact": "things"
-        },
-        "process_foreach2": {
-            "name": "process_foreach2",
-            "type": "linear",
-            "line": 39,
-            "doc": "Process second foreach and retry in case of failures",
-            "next": [
-                "join2"
-            ],
-            "foreach_artifact": None
-        },
-        "join2": {
-            "name": "join2",
-            "type": "join",
-            "line": 50,
-            "doc": "",
-            "next": [
-                "after_join"
-            ],
-            "foreach_artifact": None
-        },
-        "after_join": {
-            "name": "after_join",
-            "type": "linear",
-            "line": 54,
-            "doc": "",
-            "next": [
-                "ultimate_join"
-            ],
-            "foreach_artifact": None
-        },
-        "ultimate_join": {
-            "name": "ultimate_join",
-            "type": "join",
-            "line": 59,
-            "doc": "Join both process path results",
-            "next": [
-                "end"
-            ],
-            "foreach_artifact": None
-        },
-        "end": {
-            "name": "end",
-            "type": "end",
-            "line": 64,
-            "doc": "",
-            "next": [],
-            "foreach_artifact": None
-        }
-    },
-    "graph_structure": [
-        "start",
-        "regular_step",
-        [
-            [
-                "prepare_foreach",
-                [
-                    [
-                        "process_foreach"
-                    ]
-                ],
-                "join"
-            ],
-            [
-                "prepare_foreach2",
-                [
-                    [
-                        "process_foreach2"
-                    ]
-                ],
-                "join2",
-                "after_join"
-            ]
-        ],
-        "ultimate_join",
-        "end"
-    ],
-    "doc": ""
-}
+      "steps": {
+          "start": {
+              "name": "start",
+              "type": "start",
+              "line": 9,
+              "doc": "",
+              "next": [
+                  "regular_step"
+              ],
+              "foreach_artifact": None
+          },
+          "regular_step": {
+              "name": "regular_step",
+              "type": "split-static",
+              "line": 13,
+              "doc": "Just a regular step that splits into two",
+              "next": [
+                  "prepare_foreach",
+                  "prepare_foreach2"
+              ],
+              "foreach_artifact": None
+          },
+          "prepare_foreach": {
+              "name": "prepare_foreach",
+              "type": "split-foreach",
+              "line": 22,
+              "doc": "Generate a list of things to process in the first foreach",
+              "next": [
+                  "process_foreach"
+              ],
+              "foreach_artifact": "things"
+          },
+          "process_foreach": {
+              "name": "process_foreach",
+              "type": "linear",
+              "line": 34,
+              "doc": "",
+              "next": [
+                  "join"
+              ],
+              "foreach_artifact": None
+          },
+          "join": {
+              "name": "join",
+              "type": "join",
+              "line": 46,
+              "doc": "",
+              "next": [
+                  "ultimate_join"
+              ],
+              "foreach_artifact": None
+          },
+          "prepare_foreach2": {
+              "name": "prepare_foreach2",
+              "type": "split-foreach",
+              "line": 28,
+              "doc": "Generate a list of things to process in the second foreach",
+              "next": [
+                  "process_foreach2"
+              ],
+              "foreach_artifact": "things"
+          },
+          "process_foreach2": {
+              "name": "process_foreach2",
+              "type": "linear",
+              "line": 39,
+              "doc": "Process second foreach and retry in case of failures",
+              "next": [
+                  "join2"
+              ],
+              "foreach_artifact": None
+          },
+          "join2": {
+              "name": "join2",
+              "type": "join",
+              "line": 50,
+              "doc": "",
+              "next": [
+                  "after_join"
+              ],
+              "foreach_artifact": None
+          },
+          "after_join": {
+              "name": "after_join",
+              "type": "linear",
+              "line": 54,
+              "doc": "",
+              "next": [
+                  "ultimate_join"
+              ],
+              "foreach_artifact": None
+          },
+          "ultimate_join": {
+              "name": "ultimate_join",
+              "type": "join",
+              "line": 59,
+              "doc": "Join both process path results",
+              "next": [
+                  "end"
+              ],
+              "foreach_artifact": None
+          },
+          "end": {
+              "name": "end",
+              "type": "end",
+              "line": 64,
+              "doc": "",
+              "next": [],
+              "foreach_artifact": None
+          }
+      },
+      "graph_structure": [
+          "start",
+          "regular_step",
+          [
+              [
+                  "prepare_foreach",
+                  [
+                      [
+                          "process_foreach"
+                      ]
+                  ],
+                  "join"
+              ],
+              [
+                  "prepare_foreach2",
+                  [
+                      [
+                          "process_foreach2"
+                      ]
+                  ],
+                  "join2",
+                  "after_join"
+              ]
+          ],
+          "ultimate_join",
+          "end"
+      ],
+      "doc": ""
+  }
   graph = FlowGraph(flow_source, "DAGTest")
   steps_info, graph_structure = graph.output_steps()
   graph_info = {
@@ -227,3 +227,49 @@ if __name__ == '__main__':
   }
 
   assert graph_info == expected_graph
+
+
+def test_broken_flow_source_flowgraph_parsing():
+    flow_source = """
+from metaflow import FlowSpec, step, Parameter
+
+class BasicFlow(FlowSpec):
+    @step
+    def start(self):
+        self.next(self.end)
+
+if __name__ == '__main__':
+    BasicFlow()
+    """
+    try:
+        graph = FlowGraph(flow_source, "BasicFlow")
+        graph.output_steps()
+    except Exception:
+        pass  # expect a raised exception
+    else:
+        assert False  # Parsing should have failed
+
+
+def test_invalid_flowname_flowgraph_parsing():
+    flow_source = """
+from metaflow import FlowSpec, step, Parameter
+
+class BasicFlow(FlowSpec):
+    @step
+    def start(self):
+        self.next(self.end)
+    
+    @step
+    def end(self):
+        print("done")
+
+if __name__ == '__main__':
+    BasicFlow()
+    """
+    try:
+        graph = FlowGraph(flow_source, "WrongFlow")
+        graph.output_steps()
+    except Exception:
+        pass  # expect a raised exception
+    else:
+        assert False  # Parsing should have failed
