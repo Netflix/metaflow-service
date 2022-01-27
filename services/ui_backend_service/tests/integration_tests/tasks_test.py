@@ -1,27 +1,11 @@
 import pytest
 import time
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, db,
     add_flow, add_run, add_step, add_task, add_artifact,
     _test_list_resources, _test_single_resource, add_metadata, get_heartbeat_ts
 )
 pytestmark = [pytest.mark.integration_tests]
-
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
-
-# Fixtures end
 
 
 async def test_list_tasks(cli, db):
@@ -393,6 +377,7 @@ async def test_task_attempt_statuses_with_attempt_ok_failed(cli, db):
 # NOTE: for a more accurate finished_at timestamp, use the greatest timestamp out of task_ok / attempt_ok / attempt-done
 # as this is the latest write_timestamp for the task
 
+
 async def test_task_attempt_status_completed(cli, db):
     _task = await create_task(db)
     _task['duration'] = None
@@ -481,7 +466,6 @@ async def test_task_attempt_status_failed_with_existing_subsequent_attempt(cli, 
     _first_attempt['duration'] = _first_attempt['finished_at'] - _first_attempt['started_at']
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts".format(**_task), 200, [_second_attempt, _first_attempt])
-
 
 
 # Resource Helpers / factories

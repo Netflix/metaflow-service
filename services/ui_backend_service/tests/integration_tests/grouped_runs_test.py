@@ -1,28 +1,12 @@
 import pytest
 import time
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, db,
     add_flow, add_run, add_artifact,
     add_step, add_task, add_metadata,
     _test_list_resources, _test_single_resource, get_heartbeat_ts
 )
 pytestmark = [pytest.mark.integration_tests]
-
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
-
-# Fixtures end
 
 
 async def test_list_runs_group_by_flow_id(cli, db):

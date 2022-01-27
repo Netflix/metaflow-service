@@ -3,7 +3,7 @@ import time
 import asyncio
 import math
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, init_app, init_db, clean_db,
     add_flow,
     TIMEOUT_FUTURE
 )
@@ -15,14 +15,9 @@ pytestmark = [pytest.mark.integration_tests]
 
 
 @pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-def cli_short_ttl(loop, aiohttp_client):
+async def cli_short_ttl(aiohttp_client):
     # Use 0.5 second TTL for Websocket queue
-    return init_app(loop, aiohttp_client, queue_ttl=0.5)
+    return await init_app(aiohttp_client, queue_ttl=0.5)
 
 
 @pytest.fixture

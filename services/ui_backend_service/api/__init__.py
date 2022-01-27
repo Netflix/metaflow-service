@@ -14,6 +14,7 @@ from .metadata import MetadataApi
 from .features import FeaturesApi
 from .config import ConfigApi
 from .plugins import PluginsApi
+from .card import CardsApi
 
 # service processes
 from .notify import ListenNotify

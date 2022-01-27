@@ -2,9 +2,7 @@ import asyncio
 import os
 
 from aiohttp import web
-from aiohttp_swagger import *
-
-from subprocess import Popen, PIPE
+from aiohttp_swagger import setup_swagger
 
 from .api.admin import AdminApi
 

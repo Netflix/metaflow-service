@@ -4,7 +4,7 @@ import json
 import os
 import contextlib
 from .utils import (
-    init_app, init_db, clean_db
+    cli, db
 )
 from ...plugins import init_plugins, list_plugins, _reset_plugins, Plugin
 from aiohttp import web
@@ -14,18 +14,6 @@ import pygit2
 pytestmark = [pytest.mark.integration_tests]
 
 # Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
 
 
 @pytest.fixture

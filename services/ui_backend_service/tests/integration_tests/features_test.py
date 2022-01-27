@@ -1,17 +1,8 @@
 import pytest
 from .utils import (
-    init_app, set_env
+    init_app, set_env, cli
 )
 pytestmark = [pytest.mark.integration_tests]
-
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-# Fixtures end
 
 
 async def get_features(cli):

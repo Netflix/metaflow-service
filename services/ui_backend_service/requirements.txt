@@ -1,8 +1,8 @@
-aiohttp
-aiohttp-swagger
+aiohttp >= 3.8.1, < 4
+aiohttp-swagger >= 1.0.13, < 2
 pyee==8.0.1
 throttler==1.2.0
 psycopg2
 aiopg
-metaflow>=2.4.2
 pygit2==1.6.1
+metaflow>=2.5.0

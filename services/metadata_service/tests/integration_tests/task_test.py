@@ -1,27 +1,11 @@
 from .utils import (
-    init_app, init_db, clean_db,
+    cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
     add_flow, add_run, add_step, add_task
 )
 import pytest
-import json
+
 pytestmark = [pytest.mark.integration_tests]
-
-# Fixtures begin
-
-
-@pytest.fixture
-def cli(loop, aiohttp_client):
-    return init_app(loop, aiohttp_client)
-
-
-@pytest.fixture
-async def db(cli):
-    async_db = await init_db(cli)
-    yield async_db
-    await clean_db(async_db)
-
-# Fixtures end
 
 
 async def test_task_post(cli, db):
@@ -114,6 +98,7 @@ async def test_task_post_has_initial_heartbeat_with_supported_version(cli, db):
     # Run heartbeat should have been updated as well
     _found = (await db.run_table_postgres.get_run(_run["flow_id"], _run["run_number"])).body
     assert _found['last_heartbeat_ts'] is not None
+
 
 async def test_task_heartbeat_post(cli, db):
     # create flow, run and step to add tasks for.

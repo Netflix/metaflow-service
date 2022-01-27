@@ -17,6 +17,7 @@ from .get_log_file_action import GetLogFile
 from .get_data_action import GetData
 from .get_parameters_action import GetParameters
 from .get_task_action import GetTask
+from .get_cards_action import GetCards
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -41,14 +42,21 @@ class CacheStore(object):
     db : PostgresAsyncDB
         An initialized instance of a DB adapter for fetching data. Required f.ex. for preloading artifacts.
     event_emitter : AsyncIOEventEmitter
-        An event emitter instance (any kind) that implements an .on('event', callback) for subscribing to events.
+        (optional) An event emitter instance (any kind) that implements an .on('event', callback) for subscribing to events.
+    app : aiohttp.web.Application
+        (optional) An Aiohttp web application to tie the start_caches and stop_caches helpers to.
     """
 
-    def __init__(self, db, event_emitter=None):
+    def __init__(self, db, event_emitter=None, app=None):
         self.db = db
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
         self.dag_cache = DAGCacheStore(event_emitter, db)
         self.log_cache = LogCacheStore(event_emitter)
+
+        # bind setup and teardown helpers.
+        if app:
+            app.on_startup.append(self.start_caches)
+            app.on_cleanup.append(self.stop_caches)
 
     async def start_caches(self, app):
         "Starts all caches as part of app startup"
@@ -134,7 +142,7 @@ class ArtifactCacheStore(object):
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for artifact caching"
-        actions = [GetData, SearchArtifacts, GetTask, GetArtifacts, GetParameters]
+        actions = [GetData, SearchArtifacts, GetTask, GetArtifacts, GetParameters, GetCards]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
                                       max_size=CACHE_ARTIFACT_STORAGE_LIMIT,

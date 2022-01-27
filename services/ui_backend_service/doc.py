@@ -350,6 +350,7 @@ swagger_definitions = {
     "ResponsesTaskList": response_list("#/definitions/ModelsTask"),
     "ResponsesMetadataList": response_list("#/definitions/ModelsMetadata"),
     "ResponsesArtifactList": response_list("#/definitions/ModelsArtifact"),
+    "ResponsesCardList": response_list("#/definitions/ModelsCardInfo"),
     "ResponsesLinkList": {
         "type": "array",
         "items": {
@@ -469,6 +470,13 @@ swagger_definitions = {
         **modelprop("content_type", "string", "Content-type", "gzip+pickle-v2"),
         **modelprop("attempt_id", "integer", "Attempt id", 0),
     }),
+    "ModelsCardInfo": {
+        "type": "object",
+        "properties": {
+            **modelprop("type", "string", "Card type", "default"),
+            **modelprop("hash", "string", "Card hash", "123456abcdef"),
+        }
+    },
     "ModelsLink": {
         "type": "object",
         "properties": {
@@ -599,6 +607,40 @@ swagger_definitions = {
     "ModelsDag": {
         "type": "object",
         "properties": {
+            "file": {
+                "type": "string",
+                "description": "Filename of the script used to execute the flow.",
+                "required": False
+            },
+            "steps_info": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsDagStepsInfo",
+                "description": "DAG Step details"
+            },
+            "steps_structure": {
+                "type": "object",
+                "$ref": "#/definitions/ModelsDagStepsStructure",
+                "description": "DAG Step structure"
+            }
+        }
+
+    },
+    # TODO: requires addition to type for nested arrays.
+    "ModelsDagStepsStructure": {
+        "type": "array",
+        "items": {
+            "anyOf": [
+                {"type": "string"},
+                {
+                    "type": "object",
+                    "$ref": "#/definitions/ModelsDagStepsStructure"}
+
+            ]
+        }
+    },
+    "ModelsDagStepsInfo": {
+        "type": "object",
+        "properties": {
             "start": {
                 "type": "object",
                 "$ref": "#/definitions/ModelsDagNode",
@@ -620,17 +662,28 @@ swagger_definitions = {
     "ModelsDagNode": {
         "type": "object",
         "properties": {
+            "name": {
+                "type": "string",
+                "description": "Step name of the node"
+            },
             "type": {
                 "type": "string",
                 "description": "DAG Node type"
             },
-            "box_next": {
-                "type": "boolean",
-                "description": "Boolean value whether there is a next node inside the same split"
+            "line": {
+                "type": "integer",
+                "description": "Line of code where step definition starts"
             },
-            "box_ends": {
+            "doc": {
                 "type": "string",
-                "description": "name of step that joins the split"
+                "description": "DAG Node Docstring"
+            },
+            "decorators": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "required": False
             },
             "next": {
                 "type": "array",
@@ -639,12 +692,7 @@ swagger_definitions = {
                 },
                 "description": "names of next steps that follow from this step"
             },
-            "doc": {
-                "type": "string",
-                "description": "DAG Node Docstring"
-            }
         },
-        "required": ["type", "box_next", "box_ends", "next"]
     },
     "ModelsLogRow": {
         "type": "object",
