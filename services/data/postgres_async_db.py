@@ -242,7 +242,6 @@ class AsyncPostgresTable(object):
             return aiopg_exception_handling(error), None
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occured")
-            print(error)
             return aiopg_exception_handling(error), None
 
     async def create_record(self, record_dict):

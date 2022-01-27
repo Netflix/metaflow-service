@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Dict, Any
 import psycopg2
 import collections
@@ -14,7 +15,13 @@ DBPagination = collections.namedtuple("DBPagination", "limit offset count page")
 def aiopg_exception_handling(exception):
     err_msg = str(exception)
     body = {"err_msg": err_msg}
-    if psycopg2.Error in type(exception).__bases__:
+    if isinstance(exception, asyncio.TimeoutError):
+        body = {
+            "err_msg": {
+                "type" : "timeout error",
+            }
+        }
+    elif psycopg2.Error in type(exception).__bases__:
         # this means that this is a psycopg2 exception
         # since this is of type `psycopg2.Error` we can use https://www.psycopg.org/docs/module.html#psycopg2.Error
         body = {
