@@ -18,7 +18,7 @@ def aiopg_exception_handling(exception):
     if isinstance(exception, asyncio.TimeoutError):
         body = {
             "err_msg": {
-                "type" : "timeout error",
+                "type": "timeout error",
             }
         }
     elif psycopg2.Error in type(exception).__bases__:
