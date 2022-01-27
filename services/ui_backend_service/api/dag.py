@@ -9,7 +9,6 @@ class DagApi(object):
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/dag", self.get_run_dag
         )
-        self._metadata_table = self.db.metadata_table_postgres
         self._dag_store = getattr(cache, "dag_cache", None)
 
     @handle_exceptions
@@ -79,56 +78,10 @@ class DagApi(object):
         """
         flow_name = request.match_info['flow_id']
         run_number = request.match_info.get("run_number")
-        db_response = await self.get_run_graph_info_artifact(flow_name, run_number)
+        db_response = await self.db.artifact_table_postgres.get_run_graph_info_artifact(flow_name, run_number)
         if not db_response.response_code == 200:
             # Try to look for codepackage if graph artifact is missing
-            db_response = await self.get_run_codepackage_metadata(flow_name, run_number)
-
-        return db_response
-
-    async def get_run_codepackage_metadata(self, flow_name: str, run_id: str) -> DBResponse:
-        """
-        Tries to locate 'code-package' or 'code-package-url' in run metadata.
-        """
-        run_id_key, run_id_value = translate_run_key(run_id)
-        # 'code-package' value contains json with dstype, sha1 hash and location
-        # 'code-package-url' value contains only location as a string
-        db_response, *_ = await self.db.metadata_table_postgres.find_records(
-            conditions=[
-                "flow_id = %s",
-                "{run_id_key} = %s".format(
-                    run_id_key=run_id_key),
-                "(field_name = %s OR field_name = %s)"
-            ],
-            values=[
-                flow_name, run_id_value,
-                "code-package", "code-package-url"
-            ],
-            fetch_single=True, expanded=True
-        )
-
-        return db_response
-
-    async def get_run_graph_info_artifact(self, flow_name: str, run_id: str) -> DBResponse:
-        """
-        Tries to locate '_graph_info' in run artifacts
-        """
-        run_id_key, run_id_value = translate_run_key(run_id)
-
-        db_response, *_ = await self.db.artifact_table_postgres.find_records(
-            conditions=[
-                "flow_id = %s",
-                "{run_id_key} = %s".format(
-                    run_id_key=run_id_key),
-                "step_name = %s",
-                "name = %s"
-            ],
-            values=[
-                flow_name, run_id_value, "_parameters",
-                "_graph_info",
-            ],
-            fetch_single=True, expanded=True
-        )
+            db_response = await self.db.metadata_table_postgres.get_run_codepackage_metadata(flow_name, run_number)
 
         return db_response
 
