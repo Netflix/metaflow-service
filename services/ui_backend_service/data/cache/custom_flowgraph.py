@@ -5,6 +5,7 @@ from metaflow.graph import deindent_docstring, DAGNode
 # which can parse a graph out of a flow_name and a source code string, instead of relying on
 # importing the source code as a module.
 
+
 class StepVisitor(ast.NodeVisitor):
 
     def __init__(self, nodes):
