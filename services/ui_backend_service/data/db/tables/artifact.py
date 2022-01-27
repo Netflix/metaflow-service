@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from .base import AsyncPostgresTable
 from .task import AsyncTaskTablePostgres
 from ..models import ArtifactRow
@@ -47,7 +47,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         )
 
     async def get_artifact_names(self, conditions: List[str] = [],
-                                 values: List[str] = [], limit: int = 0, offset: int = 0) -> (DBResponse, DBPagination):
+                                 values: List[str] = [], limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
         """
         Get a paginated set of artifact names.
 
@@ -90,3 +90,26 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         _body = [row[0] for row in res.body]
 
         return DBResponse(res.response_code, _body), pag
+
+    async def get_run_graph_info_artifact(self, flow_name: str, run_id: str) -> DBResponse:
+        """
+        Tries to locate '_graph_info' in run artifacts
+        """
+        run_id_key, run_id_value = translate_run_key(run_id)
+
+        db_response, *_ = await self.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(
+                    run_id_key=run_id_key),
+                "step_name = %s",
+                "name = %s"
+            ],
+            values=[
+                flow_name, run_id_value, "_parameters",
+                "_graph_info",
+            ],
+            fetch_single=True, expanded=True
+        )
+
+        return db_response
