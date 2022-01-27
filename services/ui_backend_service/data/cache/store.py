@@ -7,6 +7,7 @@ from services.data.db_utils import DBResponse
 
 from .client import CacheAsyncClient
 from pyee import AsyncIOEventEmitter
+from services.ui_backend_service.data.db.utils import get_run_dag_data
 from services.ui_backend_service.features import (FEATURE_CACHE_ENABLE,
                                                   FEATURE_PREFETCH_ENABLE)
 from services.utils import logging
@@ -313,10 +314,7 @@ class DAGCacheStore(object):
         """
         logger.debug("  - Preload DAG for {}/{}".format(flow_name, run_number))
         # Check first if a DAG can be generated for the run.
-        db_response = await self.db.artifact_table_postgres.get_run_graph_info_artifact(flow_name, run_number)
-        if not db_response.response_code == 200:
-            # Try to look for codepackage if graph artifact is missing
-            db_response = await self.db.metadata_table_postgres.get_run_codepackage_metadata(flow_name, run_number)
+        db_response = await get_run_dag_data(self.db, flow_name, run_number)
 
         if not db_response.response_code == 200:
             return  # No reason to trigger the cache action when a DAG can not be generated.

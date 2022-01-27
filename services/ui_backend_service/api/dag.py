@@ -1,6 +1,7 @@
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import format_response, web_response, query_param_enabled
+from services.ui_backend_service.data.db.utils import get_run_dag_data
 
 
 class DagApi(object):
@@ -42,9 +43,11 @@ class DagApi(object):
                 schema:
                     $ref: '#/definitions/ResponsesDagError500'
         """
+        flow_name = request.match_info['flow_id']
+        run_number = request.match_info.get("run_number")
         # Before running the cache action, we make sure that the run has
         # the necessary data to generate a DAG.
-        db_response = await self.get_run_dag_data(request)
+        db_response = await get_run_dag_data(self.db, flow_name, run_number)
 
         if not db_response.response_code == 200:
             # DAG data was not found, return with the corresponding status.
@@ -70,20 +73,6 @@ class DagApi(object):
         status, body = format_response(request, response)
 
         return web_response(status, body)
-
-    async def get_run_dag_data(self, request) -> DBResponse:
-        """
-        Fetches either a _graph_info artifact, or a code-package metadata entry if the artifact is missing.
-        Used to determine whether a run can display a DAG.
-        """
-        flow_name = request.match_info['flow_id']
-        run_number = request.match_info.get("run_number")
-        db_response = await self.db.artifact_table_postgres.get_run_graph_info_artifact(flow_name, run_number)
-        if not db_response.response_code == 200:
-            # Try to look for codepackage if graph artifact is missing
-            db_response = await self.db.metadata_table_postgres.get_run_codepackage_metadata(flow_name, run_number)
-
-        return db_response
 
 
 class GenerateDAGFailed(Exception):
