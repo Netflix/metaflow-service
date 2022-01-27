@@ -179,6 +179,12 @@ class ListenNotify(object):
                         data["field_name"] in ["code-package-url", "code-package"]:
                     self.event_emitter.emit("preload-dag", data['flow_id'], data['run_number'])
 
+                if operation == "INSERT" and \
+                        table.table_name == self.db.artifact_table_postgres.table_name and \
+                        data["step_name"] == "_parameters" and \
+                        data["name"] == "_graph_info":
+                    self.event_emitter.emit("preload-dag", data['flow_id'], data['run_number'])
+
         except Exception:
             self.logger.exception("Exception occurred")
 

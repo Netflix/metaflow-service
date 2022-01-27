@@ -3,8 +3,11 @@ import os
 import shutil
 from typing import Dict, List, Optional
 
+from services.data.db_utils import DBResponse
+
 from .client import CacheAsyncClient
 from pyee import AsyncIOEventEmitter
+from services.ui_backend_service.data.db.utils import get_run_dag_data
 from services.ui_backend_service.features import (FEATURE_CACHE_ENABLE,
                                                   FEATURE_PREFETCH_ENABLE)
 from services.utils import logging
@@ -310,8 +313,16 @@ class DAGCacheStore(object):
             Run number
         """
         logger.debug("  - Preload DAG for {}/{}".format(flow_name, run_number))
+        # Check first if a DAG can be generated for the run.
+        db_response = await get_run_dag_data(self.db, flow_name, run_number)
 
-        res = await self.cache.GenerateDag(flow_name, run_number)
+        if not db_response.response_code == 200:
+            return  # No reason to trigger the cache action when a DAG can not be generated.
+
+        # Prefer run_id over run_number
+        run_id = db_response.body.get('run_id') or db_response.body['run_number']
+
+        res = await self.cache.GenerateDag(flow_name, run_id)
         async for event in res.stream():
             if event["type"] == "error":
                 logger.error(event)
