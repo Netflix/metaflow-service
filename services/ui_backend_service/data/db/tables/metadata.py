@@ -1,3 +1,4 @@
+from services.data.db_utils import DBResponse, translate_run_key
 from .base import AsyncPostgresTable
 from .task import AsyncTaskTablePostgres
 from ..models import MetadataRow
@@ -25,3 +26,26 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             "(SELECT regexp_matches(tags::text, 'attempt_id:(\\d+)'))[1]::int as attempt_id"
         )
         return keys
+
+    async def get_run_codepackage_metadata(self, flow_name: str, run_id: str) -> DBResponse:
+        """
+        Tries to locate 'code-package' or 'code-package-url' in run metadata.
+        """
+        run_id_key, run_id_value = translate_run_key(run_id)
+        # 'code-package' value contains json with dstype, sha1 hash and location
+        # 'code-package-url' value contains only location as a string
+        db_response, *_ = await self.find_records(
+            conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(
+                    run_id_key=run_id_key),
+                "(field_name = %s OR field_name = %s)"
+            ],
+            values=[
+                flow_name, run_id_value,
+                "code-package", "code-package-url"
+            ],
+            fetch_single=True, expanded=True
+        )
+
+        return db_response
