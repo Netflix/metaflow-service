@@ -21,7 +21,7 @@ def aiopg_exception_handling(exception):
                 "type": "timeout error",
             }
         }
-    elif psycopg2.Error in type(exception).__bases__:
+    elif isinstance(exception, psycopg2.Error):
         # this means that this is a psycopg2 exception
         # since this is of type `psycopg2.Error` we can use https://www.psycopg.org/docs/module.html#psycopg2.Error
         body = {
