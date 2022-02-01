@@ -25,10 +25,12 @@ def app(loop=None, db_conf: DBConfiguration = None):
 def main():
     loop = asyncio.get_event_loop()
     the_app = app(loop, db_conf)
-    handler = the_app.make_handler()
+    handler = web.AppRunner(the_app)
+    loop.run_until_complete(handler.setup())
+
     port = os.environ.get("MF_MIGRATION_PORT", 8082)
     host = str(os.environ.get("MF_METADATA_HOST", "0.0.0.0"))
-    f = loop.create_server(handler, host, port)
+    f = loop.create_server(handler.server, host, port)
 
     srv = loop.run_until_complete(f)
 
