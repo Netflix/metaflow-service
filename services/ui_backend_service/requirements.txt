@@ -6,3 +6,4 @@ psycopg2
 aiopg
 pygit2==1.6.1
 metaflow>=2.5.0
+click==8.0.3
