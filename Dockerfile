@@ -30,7 +30,7 @@ ADD services/data /root/services/data
 ADD services/metadata_service /root/services/metadata_service
 ADD services/ui_backend_service /root/services/ui_backend_service
 ADD services/utils /root/services/utils
-ADD setup.py setup.cfg /root/
+ADD setup.py setup.cfg run_goose.py /root/
 WORKDIR /root
 RUN /opt/latest/bin/pip install .
 

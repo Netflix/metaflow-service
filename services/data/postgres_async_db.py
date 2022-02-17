@@ -68,7 +68,7 @@ class _AsyncPostgresDB(object):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=True):
+    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=False):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
         retries = max_connection_retires

@@ -1,4 +1,5 @@
 import os
+import sys
 import requests
 import socket
 import time
@@ -27,10 +28,16 @@ try:
             retry_count = retry_count - 1
     # continue
     s.close()
+    if retry_count == 0:
+        print("ran out of retries to get migration version, exiting")
+        sys.exit(1)
 except Exception as e:
     print(e)
+    sys.exit(1)
 
 r = requests.get('http://localhost:{0}/version'.format(port))
+r.raise_for_status()
+
 conf_file = open('/root/services/migration_service/config', 'w')
 print(r.text, file=conf_file)
 conf_file.close()

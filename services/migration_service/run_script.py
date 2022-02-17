@@ -1,5 +1,6 @@
 from subprocess import Popen
 import os
+import sys
 
 
 def setup_env(version_value: str):
@@ -26,7 +27,10 @@ if __name__ == "__main__":
             close_fds=True
         )
 
-        get_env_version.wait()
+        if get_env_version.wait() != 0:
+            print("Failed to get env version", file=sys.stderr)
+            sys.exit(1)
+
 
         # read in version of metadata service to load
         version_value_file = open('/root/services/migration_service/config', 'r')
@@ -40,10 +44,14 @@ if __name__ == "__main__":
             env=setup_env(version_value)
         )
 
-        metadata_server_process.wait()
-        migration_server_process.wait()
+        rc = metadata_server_process.wait()
+        if rc != 0:
+            print("Metadata server exited with non zero status")
+            sys.exit(rc)
+        rc = migration_server_process.wait()
+        if rc != 0:
+            print("Migration server exited with non zero status")
+            sys.exit(rc)
     except Exception as e:
         print(e)
-    finally:
-        # should never be reached
-        exit(1)
+        sys.exit(1)

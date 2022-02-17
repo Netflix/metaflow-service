@@ -3,7 +3,7 @@ from ..data.postgres_async_db import PostgresUtils
 from . import version_dict, latest, \
     make_goose_migration_template, make_goose_template
 from services.migration_service.migration_config import db_conf
-
+import sys
 
 class ApiUtils(object):
 
@@ -54,10 +54,12 @@ class ApiUtils(object):
             version = await ApiUtils.get_goose_version()
             return version_dict[version]
         else:
+            print("Running initial migration..", file=sys.stderr)
             goose_version_cmd = make_goose_migration_template(db_conf.connection_string_url, 'up')
             p = Popen(goose_version_cmd, shell=True,
                       close_fds=True)
-            p.wait()
+            if p.wait() != 0:
+                raise Exception("Failed to run initial migration")
             return latest
 
     @staticmethod
