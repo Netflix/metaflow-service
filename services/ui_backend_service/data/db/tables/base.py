@@ -44,7 +44,6 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
     joins: List[str] = None
     select_columns: List[str] = keys
     join_columns: List[str] = None
-    _command = None
     _filters = None
     _row_type = None
 

@@ -21,7 +21,6 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     primary_keys = MetadataStepTable.primary_keys
     trigger_keys = MetadataStepTable.trigger_keys
     run_table_name = MetadataRunTable.table_name
-    _command = MetadataStepTable._command
     task_table_name = MetadataTaskTable.table_name
     artifact_table_name = MetadataArtifactTable.table_name
     metadata_table_name = MetaMetadataTable.table_name
