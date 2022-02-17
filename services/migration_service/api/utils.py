@@ -5,8 +5,8 @@ from . import version_dict, latest, \
 from services.migration_service.migration_config import db_conf
 import sys
 
-class ApiUtils(object):
 
+class ApiUtils(object):
     @staticmethod
     def list_migrations():
         migrations_list = list((version_dict.keys()))

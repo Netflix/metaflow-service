@@ -31,7 +31,6 @@ if __name__ == "__main__":
             print("Failed to get env version", file=sys.stderr)
             sys.exit(1)
 
-
         # read in version of metadata service to load
         version_value_file = open('/root/services/migration_service/config', 'r')
         version_value = str(version_value_file.read()).strip()

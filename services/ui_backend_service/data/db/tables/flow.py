@@ -12,7 +12,6 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
     primary_keys = MetadataFlowTable.primary_keys
     trigger_keys = MetadataFlowTable.trigger_keys
     select_columns = keys
-    _command = MetadataFlowTable._command
     _row_type = FlowRow
 
     async def get_flow_ids(self, conditions: List[str] = [],

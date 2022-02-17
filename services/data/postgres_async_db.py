@@ -68,7 +68,7 @@ class _AsyncPostgresDB(object):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=False):
+    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
         retries = max_connection_retires
@@ -82,7 +82,7 @@ class _AsyncPostgresDB(object):
                     echo=AIOPG_ECHO)
 
                 for table in self.tables:
-                    await table._init(create_tables=create_tables, create_triggers=create_triggers)
+                    await table._init(create_triggers=create_triggers)
 
                 self.logger.info(
                     "Connection established.\n"
@@ -143,7 +143,6 @@ class AsyncPostgresTable(object):
     joins: List[str] = None
     select_columns: List[str] = keys
     join_columns: List[str] = None
-    _command = None
     _insert_command = None
     _filters = None
     _base_query = "SELECT {0} from"
@@ -151,13 +150,11 @@ class AsyncPostgresTable(object):
 
     def __init__(self, db: _AsyncPostgresDB = None):
         self.db = db
-        if self.table_name is None or self._command is None:
+        if self.table_name is None:
             raise NotImplementedError(
-                "need to specify table name and create command")
+                "need to specify table name")
 
-    async def _init(self, create_tables: bool, create_triggers: bool):
-        if create_tables:
-            await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
+    async def _init(self, create_triggers: bool):
         if create_triggers:
             self.db.logger.info(
                 "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
@@ -349,21 +346,6 @@ class AsyncPostgresTable(object):
 
 class PostgresUtils(object):
     @staticmethod
-    async def create_if_missing(db: _AsyncPostgresDB, table_name, command):
-        with (await db.pool.cursor()) as cur:
-            try:
-                await cur.execute(
-                    "select * from information_schema.tables where table_name=%s",
-                    (table_name,),
-                )
-                table_exist = bool(cur.rowcount)
-                if not table_exist:
-                    await cur.execute(command)
-            finally:
-                cur.close()
-    # todo add method to check schema version
-
-    @staticmethod
     async def create_trigger_if_missing(db: _AsyncPostgresDB, table_name, trigger_name, commands=[]):
         "executes the commands only if a trigger with the given name does not already exist on the table"
         with (await db.pool.cursor()) as cur:
@@ -459,17 +441,6 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id"]
     trigger_keys = primary_keys
     select_columns = keys
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) PRIMARY KEY,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB
-    )
-    """.format(
-        table_name
-    )
     _row_type = FlowRow
 
     async def add_flow(self, flow: FlowRow):
@@ -501,23 +472,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys + ["last_heartbeat_ts"]
     select_columns = keys
     flow_table_name = AsyncFlowTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number SERIAL NOT NULL,
-        run_id VARCHAR(255),
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        last_heartbeat_ts BIGINT,
-        PRIMARY KEY(flow_id, run_number),
-        FOREIGN KEY(flow_id) REFERENCES {1} (flow_id),
-        UNIQUE (flow_id, run_id)
-    )
-    """.format(
-        table_name, flow_table_name
-    )
 
     async def add_run(self, run: RunRow, fill_heartbeat: bool = False):
         dict = {
@@ -568,23 +522,6 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(flow_id, run_number, step_name),
-        FOREIGN KEY(flow_id, run_number) REFERENCES {1} (flow_id, run_number),
-        UNIQUE(flow_id, run_id, step_name)
-    )
-    """.format(
-        table_name, run_table_name
-    )
 
     async def add_step(self, step_object: StepRow):
         dict = {
@@ -626,25 +563,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys
     select_columns = keys
     step_table_name = AsyncStepTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_id BIGSERIAL PRIMARY KEY,
-        task_name VARCHAR(255),
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        last_heartbeat_ts BIGINT,
-        FOREIGN KEY(flow_id, run_number, step_name) REFERENCES {1} (flow_id, run_number, step_name),
-        UNIQUE (flow_id, run_number, step_name, task_name)
-    )
-    """.format(
-        table_name, step_table_name
-    )
 
     async def add_task(self, task: TaskRow, fill_heartbeat=False):
         # todo backfill run_number if missing?
@@ -718,25 +636,6 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     trigger_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name", "value"]
     select_columns = keys
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255),
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_name VARCHAR(255),
-        task_id BIGINT NOT NULL,
-        id BIGSERIAL NOT NULL,
-        field_name VARCHAR(255) NOT NULL,
-        value TEXT NOT NULL,
-        type VARCHAR(255) NOT NULL,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(id, flow_id, run_number, step_name, task_id, field_name)
-    )
-    """.format(table_name)
 
     async def add_metadata(
         self,
@@ -804,30 +703,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
                     "step_name", "task_id", "attempt_id", "name"]
     trigger_keys = primary_keys
     select_columns = keys
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_id BIGINT NOT NULL,
-        task_name VARCHAR(255),
-        name VARCHAR(255) NOT NULL,
-        location VARCHAR(255) NOT NULL,
-        ds_type VARCHAR(255) NOT NULL,
-        sha VARCHAR(255),
-        type VARCHAR(255),
-        content_type VARCHAR(255),
-        user_name VARCHAR(255),
-        attempt_id SMALLINT NOT NULL,
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(flow_id, run_number, step_name, task_id, attempt_id, name)
-    )
-    """.format(
-        table_name
-    )
 
     async def add_artifact(
         self,

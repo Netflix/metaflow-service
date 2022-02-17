@@ -223,7 +223,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         )
     ]
     step_table_name = AsyncStepTablePostgres.table_name
-    _command = MetadataTaskTable._command
 
     async def get_task_attempt(self, flow_id: str, run_key: str,
                                step_name: str, task_key: str, attempt_id: int = None,

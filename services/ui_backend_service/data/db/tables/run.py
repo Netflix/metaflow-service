@@ -200,7 +200,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
         )
     ]
-    _command = MetadataRunTable._command
 
     async def get_recent_runs(self):
         _records, *_ = await self.find_records(
