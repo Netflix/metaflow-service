@@ -16,7 +16,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     primary_keys = MetadataArtifactTable.primary_keys
     trigger_keys = MetadataArtifactTable.trigger_keys
     select_columns = keys
-    _command = MetadataArtifactTable._command
 
     async def get_run_parameter_artifacts(self, flow_name, run_number, postprocess=None, invalidate_cache=False):
         run_id_key, run_id_value = translate_run_key(run_number)

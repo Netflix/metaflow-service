@@ -44,7 +44,7 @@ async def init_app(aiohttp_client, queue_ttl=30):
     # Skip all creation processes, these are handled with migration service and init_db
     db_conf = get_test_dbconf()
     db = AsyncPostgresDB(name='api')
-    await db._init(db_conf=db_conf, create_tables=False, create_triggers=False)
+    await db._init(db_conf=db_conf, create_triggers=False)
 
     cache_store = CacheStore(db=db, event_emitter=app.event_emitter)
 
