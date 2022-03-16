@@ -13,7 +13,7 @@ ENV UI_VERSION=$UI_VERSION
 ENV FEATURE_RUN_GROUPS=0
 ENV FEATURE_DEBUG_VIEW=1
 
-RUN go get -u github.com/pressly/goose/cmd/goose
+RUN go install github.com/pressly/goose/v3/cmd/goose@v3.5.3
 
 RUN apt-get update && apt-get -y install python3.7 && apt-get -y install python3-pip && apt-get -y install libpq-dev unzip
 
