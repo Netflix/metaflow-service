@@ -2,7 +2,6 @@ import asyncio
 import os
 
 from aiohttp import web
-from aiohttp_swagger import setup_swagger
 
 from .api.run import RunApi
 from .api.flow import FlowApi
@@ -30,7 +29,6 @@ def app(loop=None, db_conf: DBConfiguration = None, middlewares=None):
     MetadataApi(app)
     ArtificatsApi(app)
     AuthApi(app)
-    setup_swagger(app)
     return app
 
 
