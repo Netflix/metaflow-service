@@ -2,7 +2,6 @@ import asyncio
 import os
 
 from aiohttp import web
-from aiohttp_swagger import setup_swagger
 
 from .api.admin import AdminApi
 
@@ -18,7 +17,6 @@ def app(loop=None, db_conf: DBConfiguration = None):
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))
     AdminApi(app)
-    setup_swagger(app)
     return app
 
 
