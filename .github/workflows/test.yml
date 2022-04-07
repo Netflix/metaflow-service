@@ -83,7 +83,7 @@ jobs:
         with:
           go-version: ${{ matrix.golang-version }}
       - name: Install goose migration tool
-        run: go get -u github.com/pressly/goose/cmd/goose
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.5.3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v2
         with:
