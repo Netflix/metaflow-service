@@ -6,3 +6,9 @@ aiopg
 pygit2==1.6.1
 metaflow>=2.5.0
 click==8.0.3
+opentracing-async-instrumentation==0.2.1
+opentelemetry-api==1.7.1
+opentelemetry-sdk==1.7.1
+opentelemetry-exporter-otlp==1.7.1
+opentelemetry-exporter-otlp-proto-http==1.7.1
+opentelemetry-instrumentation-aiopg

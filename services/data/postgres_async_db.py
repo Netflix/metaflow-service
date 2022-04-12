@@ -9,6 +9,13 @@ import time
 from services.utils import logging
 from typing import List, Tuple
 
+try:
+    from opentelemetry.instrumentation.aiopg import AiopgInstrumentor
+
+    AiopgInstrumentor().instrument()
+except ImportError:
+    pass
+
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow

@@ -8,6 +8,7 @@ from pyee import AsyncIOEventEmitter
 from services.utils import DBConfiguration, logging
 
 from services.metadata_service.server import app as metadata_service_app
+from services.utils.tracing import init_tracing
 
 # service processes and routes
 from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
@@ -23,6 +24,7 @@ from .features import (FEATURE_DB_LISTEN_ENABLE, FEATURE_HEARTBEAT_ENABLE,
 from .frontend import Frontend
 
 from .plugins import init_plugins
+from opentracing_async_instrumentation.client_hooks import aiohttpserver
 
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
@@ -49,6 +51,10 @@ def app(loop=None, db_conf: DBConfiguration = None):
     loop = loop or asyncio.get_event_loop()
     _app = web.Application(loop=loop)
     app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
+    if init_tracing():
+        logging.info("Initializing tracing")
+    else:
+        logging.info("Skipping tracing initialization")
 
     async_db = AsyncPostgresDB('ui')
     loop.run_until_complete(async_db._init(db_conf=db_conf, create_triggers=DB_TRIGGER_CREATE))
@@ -99,7 +105,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     # Metadata service exposed through UI service is intended for read-only use only.
     # 'allow_get_requests_only' middleware will only accept GET requests.
     app.add_subapp("/metadata", metadata_service_app(
-        loop=loop, db_conf=db_conf, middlewares=[allow_get_requests_only]))
+        loop=loop, db_conf=db_conf, middlewares=[aiohttpserver.enable_tracing, allow_get_requests_only]))
 
     if os.environ.get("UI_ENABLED", "1") == "1":
         # Serve UI bundle only if enabled
@@ -116,6 +122,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
             await loop.run_in_executor(pool, init_plugins)
     asyncio.run_coroutine_threadsafe(_init_plugins(), loop)
 
+    _app.middlewares.append(aiohttpserver.enable_tracing)
     return _app
 
 
