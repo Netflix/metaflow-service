@@ -27,7 +27,7 @@ WORKDIR /root
 # Install Netflix/metaflow-ui release artifact
 RUN /root/services/ui_backend_service/download_ui.sh
 
-RUN python3 -m pip install -- upgrade pip==22.0.4
+RUN python3 -m pip install --upgrade pip==22.0.4
 RUN pip install --editable .
 
 CMD ui_backend_service
