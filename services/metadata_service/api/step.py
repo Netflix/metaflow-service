@@ -1,5 +1,5 @@
 from services.data import StepRow
-from services.metadata_service.api.tagging_utils import replace_tags_in_db_response
+from services.metadata_service.api.tagging_utils import replace_with_run_tags_in_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
@@ -56,7 +56,7 @@ class StepApi(object):
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         db_response = await self._async_table.get_steps(flow_id, run_number)
-        db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
     @format_response
@@ -97,7 +97,7 @@ class StepApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         db_response = await self._async_table.get_step(flow_id, run_number, step_name)
-        db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
     @format_response
@@ -162,5 +162,5 @@ class StepApi(object):
         )
 
         db_response = await self._async_table.add_step(step_row)
-        db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response

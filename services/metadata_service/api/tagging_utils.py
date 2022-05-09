@@ -1,15 +1,11 @@
-from pprint import pprint
-
 from services.data.db_utils import DBResponse
-from typing import List
 
 
-async def replace_tags_in_db_response(flow_id, run_number, run_table_postgres, db_response: DBResponse) -> DBResponse:
+async def replace_with_run_tags_in_db_response(flow_id, run_number, run_table_postgres, db_response: DBResponse) -> DBResponse:
     # Only replace tags if response code is legit
     # Object creation ought to return 201 (let's prepare for that)
     if db_response.response_code not in (200, 201):
         return db_response
-    items_to_modify: List
     if type(db_response.body) != list:
         items_to_modify = [db_response.body]
     else:

@@ -4,7 +4,7 @@ from services.data.db_utils import (
     filter_artifacts_for_latest_attempt,
     filter_artifacts_by_attempt_id_for_tasks,
 )
-from services.metadata_service.api.tagging_utils import replace_tags_in_db_response
+from services.metadata_service.api.tagging_utils import replace_with_run_tags_in_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import (
     format_response,
@@ -114,7 +114,7 @@ class ArtificatsApi(object):
         db_response = await self._async_table.get_artifact(
             flow_id, run_number, step_name, task_id, artifact_name
         )
-        db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
     @format_response
@@ -174,7 +174,7 @@ class ArtificatsApi(object):
         db_response = await self._async_table.get_artifact_by_attempt(
             flow_id, run_number, step_name, task_id, artifact_name, attempt_id
         )
-        db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
     async def get_artifacts_by_task(self, request):
@@ -221,7 +221,7 @@ class ArtificatsApi(object):
             flow_id, run_number, step_name, task_id
         )
         if db_response.response_code == 200:
-            db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+            db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
             filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
             return web.Response(
                 status=db_response.response_code, body=json.dumps(filtered_body)
@@ -282,7 +282,7 @@ class ArtificatsApi(object):
             flow_id, run_number, step_name, task_id
         )
         if db_response.response_code == 200:
-            db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+            db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
             if db_response.body:
                 attempt_for_task = {db_response.body[0]["task_id"]: int(attempt_id)}
             else:
@@ -338,7 +338,7 @@ class ArtificatsApi(object):
             flow_id, run_number, step_name
         )
         if db_response.response_code == 200:
-            db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+            db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
             filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
             return web.Response(
                 status=db_response.response_code, body=json.dumps(filtered_body)
@@ -379,7 +379,7 @@ class ArtificatsApi(object):
 
         db_response = await self._async_table.get_artifacts_in_runs(flow_id, run_number)
         if db_response.response_code == 200:
-            db_response = await replace_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+            db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
             filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
             return web.Response(
                 status=db_response.response_code, body=json.dumps(filtered_body)
