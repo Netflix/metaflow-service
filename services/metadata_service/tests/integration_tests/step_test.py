@@ -34,7 +34,7 @@ async def test_step_post(cli, db):
         path="/flows/{flow_id}/runs/{run_number}/steps/test_step/step".format(**_run),
         payload=payload,
         status=200,  # why 200 instead of 201?
-        expected_body_check_fn=_check_response_body
+        check_fn=_check_response_body
     )
 
     # Record should be found in DB
@@ -80,7 +80,8 @@ async def test_steps_get(cli, db):
     update_objects_with_run_tags('step', [_first_step, _second_step], _run)
 
     # try to get all the created steps
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps".format(**_first_step), data=[_first_step, _second_step])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps".format(**_first_step),
+                                  data=[_first_step, _second_step] ,data_is_unordered_list=True)
 
     # getting steps for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps".format(**_first_step), status=200, data=[])

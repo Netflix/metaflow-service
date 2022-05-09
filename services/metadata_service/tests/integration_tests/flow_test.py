@@ -41,7 +41,7 @@ async def test_flows_get(cli, db):
     _second_flow = (await add_flow(db, flow_id="AnotherTestFlow", user_name="test_user-1")).body
 
     # try to get all the created flows
-    await assert_api_get_response(cli, "/flows", data=[_first_flow, _second_flow])
+    await assert_api_get_response(cli, "/flows", data=[_first_flow, _second_flow], data_is_unordered_list=True)
 
 
 async def test_flow_get(cli, db):

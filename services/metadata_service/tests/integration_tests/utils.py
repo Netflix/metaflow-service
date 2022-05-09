@@ -204,7 +204,8 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
 # Resource helpers
 
 
-async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None, expected_body_check_fn: Callable = None):
+async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None,
+                                  data_is_unordered_list: bool = False, check_fn: Callable = None):
     """
     Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
     Expectation is that the API returns text/plain format json.
@@ -219,6 +220,10 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
         http status code to expect from response
     data : object
         An object to assert the api response against.
+    data_is_unordered_list : bool
+        Data is an unordered list, so ignore ordering when comparing data and response body
+    check_fn : Callable
+        A function for checking response parsed JSON.
     """
     response = await cli.get(path)
 
@@ -226,12 +231,23 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
 
     body = json.loads(await response.text())
     if data:
-        assert body == data
-    if expected_body_check_fn:
-        expected_body_check_fn(body)
+        if data_is_unordered_list:
+            assert type(data) == list and type(body) == list
+            if not data:
+                assert body == []
+            else:
+                # if item contains fields A and B, then sort list first by item[A], then item[B]
+                def _sort_key(r):
+                    return tuple(r[k] for k in sorted(r.keys()))
+                assert sorted(data, key=_sort_key) == sorted(body, key=_sort_key)
+        else:
+            assert body == data
+    if check_fn:
+        check_fn(body)
 
 
-async def assert_api_post_response(cli, path: str, payload: object = None, status: int = 200, expected_body: object = None, expected_body_check_fn: Callable = None):
+async def assert_api_post_response(cli, path: str, payload: object = None, status: int = 200, expected_body: object = None,
+                                   check_fn: Callable = None):
     """
     Perform a POST request with the provided http cli to the provided path with the payload,
     asserts that the status and data received are correct.
@@ -249,7 +265,7 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
         http status code to expect from response
     expected_body : object
         An object to assert the api response against.
-    expected_body_check_fn: Callable
+    check_fn: Callable
         A function for checking the response body. It should raise AssertionError on check failure.
 
     Returns
@@ -264,8 +280,8 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
     body = json.loads(await response.text())
     if expected_body:
         assert body == expected_body
-    if expected_body_check_fn:
-        expected_body_check_fn(body)
+    if check_fn:
+        check_fn(body)
     return body
 
 
