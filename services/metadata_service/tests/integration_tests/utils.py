@@ -205,7 +205,7 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 
 async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None,
-                                  data_is_unordered_list: bool = False, check_fn: Callable = None):
+                                  data_is_unordered_list: bool = False):
     """
     Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
     Expectation is that the API returns text/plain format json.
@@ -222,28 +222,25 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
         An object to assert the api response against.
     data_is_unordered_list : bool
         Data is an unordered list, so ignore ordering when comparing data and response body
-    check_fn : Callable
-        A function for checking response parsed JSON.
     """
     response = await cli.get(path)
 
     assert response.status == status
 
     body = json.loads(await response.text())
-    if data:
-        if data_is_unordered_list:
-            assert type(data) == list and type(body) == list
-            if not data:
-                assert body == []
-            else:
-                # if item contains fields A and B, then sort list first by item[A], then item[B]
-                def _sort_key(r):
-                    return tuple(r[k] for k in sorted(r.keys()))
-                assert sorted(data, key=_sort_key) == sorted(body, key=_sort_key)
-        else:
-            assert body == data
-    if check_fn:
-        check_fn(body)
+    if data is None:
+        return
+    if data_is_unordered_list:
+        assert type(data) == list and type(body) == list
+        if not data:
+            assert body == []
+            return
+        # if item contains fields A and B, then sort list first by item[A], then item[B]
+        def _sort_key(r):
+            return tuple(r[k] for k in sorted(r.keys()))
+        assert sorted(data, key=_sort_key) == sorted(body, key=_sort_key)
+    else:
+        assert body == data
 
 
 async def assert_api_post_response(cli, path: str, payload: object = None, status: int = 200, expected_body: object = None,
