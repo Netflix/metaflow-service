@@ -1,4 +1,5 @@
 import json
+from typing import Callable
 
 import pytest
 from aiohttp import web
@@ -99,7 +100,8 @@ async def add_flow(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
                   run_number: int = None, run_id: str = None,
-                  user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                  user_name="dipper",
+                  tags=["run_tag"], system_tags=["run_sys_tag"],
                   last_heartbeat_ts: int = None):
     run = {
         "flow_id": flow_id,
@@ -114,7 +116,9 @@ async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
                    run_number: int = None, run_id: str = None, step_name="step",
-                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+                   user_name="dipper",
+                   # Defaults should diverge from add_run defaults, for testing run tag consolidation
+                   tags=["step_tag"], system_tags=["step_sys_tag"]):
     step = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -129,7 +133,9 @@ async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
                    run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
-                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                   user_name="dipper",
+                   # Defaults should diverge from add_run defaults, for testing run tag consolidation
+                   tags=["task_tag"], system_tags=["task_sys_tag"],
                    last_heartbeat_ts: int = None):
     task = {
         "flow_id": flow_id,
@@ -147,7 +153,9 @@ async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
 async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
                        run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
                        metadata={},
-                       user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+                       user_name="dipper",
+                       # Defaults should diverge from add_run defaults, for testing run tag consolidation
+                       tags=["metadata_tag"], system_tags=["metadata_sys_tag"]):
     values = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -168,7 +176,9 @@ async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
 async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
                        run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
                        artifact={},
-                       user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+                       user_name="dipper",
+                       # Defaults should diverge from add_run defaults, for testing run tag consolidation
+                       tags=["artifact_tag"], system_tags=["artifact_sys_tag"]):
     values = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -194,7 +204,7 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
 # Resource helpers
 
 
-async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None):
+async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None, expected_body_check_fn: Callable = None):
     """
     Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
     Expectation is that the API returns text/plain format json.
@@ -214,12 +224,14 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
 
     assert response.status == status
 
+    body = json.loads(await response.text())
     if data:
-        body = json.loads(await response.text())
         assert body == data
+    if expected_body_check_fn:
+        expected_body_check_fn(body)
 
 
-async def assert_api_post_response(cli, path: str, payload: object = None, status: int = 200, expected_body: object = None):
+async def assert_api_post_response(cli, path: str, payload: object = None, status: int = 200, expected_body: object = None, expected_body_check_fn: Callable = None):
     """
     Perform a POST request with the provided http cli to the provided path with the payload,
     asserts that the status and data received are correct.
@@ -237,11 +249,13 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
         http status code to expect from response
     expected_body : object
         An object to assert the api response against.
+    expected_body_check_fn: Callable
+        A function for checking the response body. It should raise AssertionError on check failure.
 
     Returns
     -------
-    Object or None
-        returns the body of the api response if no data was provided to assert against, otherwise returns None
+    Object
+        Always returns the body of the api response unless we fail some assertion and throw.
     """
     response = await cli.post(path, json=payload)
 
@@ -250,8 +264,9 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
     body = json.loads(await response.text())
     if expected_body:
         assert body == expected_body
-    else:
-        return body
+    if expected_body_check_fn:
+        expected_body_check_fn(body)
+    return body
 
 
 def compare_partial(actual, partial):
@@ -259,3 +274,12 @@ def compare_partial(actual, partial):
     for k, v in partial.items():
         assert k in actual
         assert v == actual[k]
+
+
+def update_objects_with_run_tags(obj_type_name: str, objects: list, run: object):
+    # expect object's tags to be overridden by tags of their ancestral run
+    for obj in objects:
+        assert obj['tags'] != run['tags'], f'Expected divergent {obj_type_name} tags to ensure test efficacy'
+        assert obj['system_tags'] != run['system_tags'], f'Expected divergent {obj_type_name} system_tags to ensure test efficacy'
+        obj['tags'] = run['tags']
+        obj['system_tags'] = run['system_tags']

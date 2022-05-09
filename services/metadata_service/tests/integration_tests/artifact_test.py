@@ -2,12 +2,11 @@ from .utils import (
     cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
     add_flow, add_run, add_step,
-    add_task, add_artifact
+    add_task, add_artifact, update_objects_with_run_tags
 )
 import pytest
 
 pytestmark = [pytest.mark.integration_tests]
-
 
 
 # Shared Artifact test data
@@ -132,6 +131,9 @@ async def test_run_artifacts_get(cli, db):
     _first_artifact = (await add_artifact(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], artifact=ARTIFACT_A)).body
     _second_artifact = (await add_artifact(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], artifact=ARTIFACT_B)).body
 
+    # expect artifacts' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('artifact', [_first_artifact, _second_artifact], _run)
+
     # try to get all the created artifacts
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task), data=[_first_artifact, _second_artifact])
 
@@ -152,6 +154,9 @@ async def test_step_artifacts_get(cli, db):
     # add artifacts to the task
     _first_artifact = (await add_artifact(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], artifact=ARTIFACT_A)).body
     _second_artifact = (await add_artifact(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], artifact=ARTIFACT_B)).body
+
+    # expect artifacts' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('artifact', [_first_artifact, _second_artifact], _run)
 
     # try to get all the created artifacts
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(**_task), data=[_first_artifact, _second_artifact])
@@ -177,6 +182,9 @@ async def test_task_artifacts_get(cli, db):
     _first_artifact = (await add_artifact(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], artifact=ARTIFACT_A)).body
     _second_artifact = (await add_artifact(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], artifact=ARTIFACT_B)).body
 
+    # expect artifacts' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('artifact', [_first_artifact, _second_artifact], _run)
+
     # try to get all the created artifacts
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task), data=[_second_artifact, _first_artifact])
 
@@ -193,7 +201,7 @@ async def test_task_artifacts_get(cli, db):
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/1234/artifacts".format(**_task), status=200, data=[])
 
 
-async def test_task_get(cli, db):
+async def test_artifact_get(cli, db):
     # create flow, run, step and task for test
     _flow = (await add_flow(db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])).body
     _run = (await add_run(db, flow_id=_flow["flow_id"])).body
@@ -202,6 +210,9 @@ async def test_task_get(cli, db):
 
     # add artifact to task for testing
     _artifact = (await add_artifact(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], artifact=ARTIFACT_A)).body
+
+    # expect artifact's tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('artifact', [_artifact], _run)
 
     # try to get created artifact
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts/{name}".format(**_artifact), data=_artifact)

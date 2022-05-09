@@ -127,8 +127,14 @@ async def test_runs_get(cli, db):
     _first_run = (await add_run(db, flow_id=_flow["flow_id"])).body
     _second_run = (await add_run(db, flow_id=_flow["flow_id"])).body
 
+    # API does not guarantee ordering, so let's tolerate that in test
+    def _compare_unordered_runs(body):
+        actual = sorted(body, key=lambda r: r['run_number'])
+        expected = sorted([_first_run, _second_run], key=lambda r: r['run_number'])
+        assert actual == expected
+
     # try to get all the created runs
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run), data=[_second_run, _first_run])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run), expected_body_check_fn=_compare_unordered_runs)
 
     # getting runs for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs", status=200, data=[])
