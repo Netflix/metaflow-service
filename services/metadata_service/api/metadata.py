@@ -111,9 +111,7 @@ class MetadataApi(object):
         """
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        db_response = await self._async_table.get_metadata_in_runs(
-            flow_id , run_number
-        )
+        db_response = await self._async_table.get_metadata_in_runs(flow_id, run_number)
         db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 

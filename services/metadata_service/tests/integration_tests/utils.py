@@ -235,6 +235,7 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
         if not data:
             assert body == []
             return
+
         # if item contains fields A and B, then sort list first by item[A], then item[B]
         def _sort_key(r):
             return tuple(r[k] for k in sorted(r.keys()))
