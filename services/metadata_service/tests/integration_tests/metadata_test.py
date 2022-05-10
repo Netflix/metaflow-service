@@ -2,7 +2,7 @@ from .utils import (
     cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
     add_flow, add_run, add_step,
-    add_task, add_metadata, update_objects_with_run_tags
+    add_task, add_metadata
 )
 import pytest
 
@@ -111,9 +111,6 @@ async def test_run_metadata_get(cli, db):
     _first_metadata = (await add_metadata(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], metadata=METADATA_A)).body
     _second_metadata = (await add_metadata(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], metadata=METADATA_B)).body
 
-    # expect metadata tags to be overridden by tags of their ancestral run
-    update_objects_with_run_tags('metadata', [_first_metadata, _second_metadata], _run)
-
     # try to get all the created metadata
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
                                   data=[_first_metadata, _second_metadata], data_is_unordered_list=True)
@@ -135,9 +132,6 @@ async def test_task_metadata_get(cli, db):
     # add metadata to the task
     _first_metadata = (await add_metadata(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], metadata=METADATA_A)).body
     _second_metadata = (await add_metadata(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], metadata=METADATA_B)).body
-
-    # expect metadata tags to be overridden by tags of their ancestral run
-    update_objects_with_run_tags('metadata', [_first_metadata, _second_metadata], _run)
 
     # try to get all the created metadata
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task),

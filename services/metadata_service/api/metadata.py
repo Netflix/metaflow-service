@@ -1,7 +1,5 @@
 from aiohttp import web
 import json
-
-from services.metadata_service.api.tagging_utils import replace_with_run_tags_in_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
@@ -33,7 +31,6 @@ class MetadataApi(object):
         )
         self._db = AsyncPostgresDB.get_instance()
         self._async_table = AsyncPostgresDB.get_instance().metadata_table_postgres
-        self._async_run_table = AsyncPostgresDB.get_instance().run_table_postgres
 
     @format_response
     @handle_exceptions
@@ -72,15 +69,13 @@ class MetadataApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        flow_id = request.match_info.get("flow_id")
+        flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
-        db_response = await self._async_table.get_metadata(
-            flow_id, run_number, step_name, task_id
+        return await self._async_table.get_metadata(
+            flow_name, run_number, step_name, task_id
         )
-        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
-        return db_response
 
     @format_response
     @handle_exceptions
@@ -109,11 +104,11 @@ class MetadataApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        flow_id = request.match_info.get("flow_id")
+        flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        db_response = await self._async_table.get_metadata_in_runs(flow_id, run_number)
-        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
-        return db_response
+        return await self._async_table.get_metadata_in_runs(
+            flow_name, run_number
+        )
 
     async def create_metadata(self, request):
         """
