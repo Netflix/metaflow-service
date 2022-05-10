@@ -221,7 +221,7 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
     data : object
         An object to assert the api response against.
     data_is_unordered_list_of_dicts : bool
-        Data is an unordered list, so ignore ordering when comparing data and response body
+        Data is an unordered list of dictionaries, so ignore ordering when comparing data and response body
     """
     response = await cli.get(path)
 
