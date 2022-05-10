@@ -81,7 +81,7 @@ async def test_steps_get(cli, db):
 
     # try to get all the created steps
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps".format(**_first_step),
-                                  data=[_first_step, _second_step] ,data_is_unordered_list=True)
+                                  data=[_first_step, _second_step], data_is_unordered_list_of_dicts=True)
 
     # getting steps for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps".format(**_first_step), status=200, data=[])

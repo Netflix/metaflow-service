@@ -1,6 +1,6 @@
 from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.metadata_service.api.tagging_utils import replace_with_run_tags_in_db_response
+from services.metadata_service.api.tagging_utils import apply_run_tags_to_db_response
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
@@ -75,7 +75,7 @@ class TaskApi(object):
         step_name = request.match_info.get("step_name")
 
         db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
-        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
     @format_response
@@ -122,7 +122,7 @@ class TaskApi(object):
         db_response = await self._async_table.get_task(
             flow_id, run_number, step_name, task_id
         )
-        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
     @format_response
@@ -203,7 +203,7 @@ class TaskApi(object):
             system_tags=system_tags,
         )
         db_response = await self._async_table.add_task(task, fill_heartbeat=client_supports_heartbeats)
-        db_response = await replace_with_run_tags_in_db_response(flow_id, run_number, self._async_run_table, db_response)
+        db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
         if client_supports_heartbeats and db_response.response_code == 200:
             await self._async_run_table.update_heartbeat(flow_id, run_number)
         return db_response

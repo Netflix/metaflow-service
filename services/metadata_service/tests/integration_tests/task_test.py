@@ -174,7 +174,7 @@ async def test_tasks_get(cli, db):
 
     # try to get all the created tasks
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_first_task),
-                                  data=[_second_task, _first_task], data_is_unordered_list=True)
+                                  data=[_second_task, _first_task], data_is_unordered_list_of_dicts=True)
 
     # getting tasks for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks".format(**_first_task), status=200, data=[])

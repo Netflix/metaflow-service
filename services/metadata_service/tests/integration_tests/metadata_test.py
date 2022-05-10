@@ -113,7 +113,7 @@ async def test_run_metadata_get(cli, db):
 
     # try to get all the created metadata
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
-                                  data=[_first_metadata, _second_metadata], data_is_unordered_list=True)
+                                  data=[_first_metadata, _second_metadata], data_is_unordered_list_of_dicts=True)
 
     # getting metadata for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/metadata".format(**_task), status=200, data=[])
@@ -135,7 +135,7 @@ async def test_task_metadata_get(cli, db):
 
     # try to get all the created metadata
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task),
-                                  data=[_first_metadata, _second_metadata], data_is_unordered_list=True)
+                                  data=[_first_metadata, _second_metadata], data_is_unordered_list_of_dicts=True)
 
     # getting metadata for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task), status=200, data=[])

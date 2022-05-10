@@ -136,7 +136,7 @@ async def test_run_artifacts_get(cli, db):
 
     # try to get all the created artifacts
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task),
-                                  data=[_first_artifact, _second_artifact], data_is_unordered_list=True)
+                                  data=[_first_artifact, _second_artifact], data_is_unordered_list_of_dicts=True)
 
     # getting artifacts for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/artifacts".format(**_task), status=200, data=[])
@@ -162,7 +162,7 @@ async def test_step_artifacts_get(cli, db):
     # try to get all the created artifacts
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(**_task),
                                   data=[_first_artifact, _second_artifact],
-                                  data_is_unordered_list=True)
+                                  data_is_unordered_list_of_dicts=True)
 
     # getting artifacts for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/artifacts".format(**_task), status=200, data=[])
@@ -190,7 +190,7 @@ async def test_task_artifacts_get(cli, db):
 
     # try to get all the created artifacts
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task),
-                                  data=[_second_artifact, _first_artifact], data_is_unordered_list=True)
+                                  data=[_second_artifact, _first_artifact], data_is_unordered_list_of_dicts=True)
 
     # getting artifacts for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task), status=200, data=[])

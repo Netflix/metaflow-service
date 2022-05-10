@@ -205,7 +205,7 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 
 async def assert_api_get_response(cli, path: str, status: int = 200, data: object = None,
-                                  data_is_unordered_list: bool = False):
+                                  data_is_unordered_list_of_dicts: bool = False):
     """
     Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
     Expectation is that the API returns text/plain format json.
@@ -220,7 +220,7 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
         http status code to expect from response
     data : object
         An object to assert the api response against.
-    data_is_unordered_list : bool
+    data_is_unordered_list_of_dicts : bool
         Data is an unordered list, so ignore ordering when comparing data and response body
     """
     response = await cli.get(path)
@@ -230,9 +230,9 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
     body = json.loads(await response.text())
     if data is None:
         return
-    if data_is_unordered_list:
-        assert type(data) == list and type(body) == list
-        if not data:
+    if data_is_unordered_list_of_dicts:
+        assert isinstance(data, list) and isinstance(body, list)
+        if len(data) == 0:
             assert body == []
             return
 

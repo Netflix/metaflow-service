@@ -129,7 +129,7 @@ async def test_runs_get(cli, db):
 
     # try to get all the created runs
     await assert_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run),
-                                  data=[_second_run, _first_run], data_is_unordered_list=True)
+                                  data=[_second_run, _first_run], data_is_unordered_list_of_dicts=True)
 
     # getting runs for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs", status=200, data=[])
