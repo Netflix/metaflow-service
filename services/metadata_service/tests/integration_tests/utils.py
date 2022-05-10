@@ -232,9 +232,6 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
         return
     if data_is_unordered_list_of_dicts:
         assert isinstance(data, list) and isinstance(body, list)
-        if len(data) == 0:
-            assert body == []
-            return
 
         # if item contains fields A and B, then sort list first by item[A], then item[B]
         def _sort_key(r):
