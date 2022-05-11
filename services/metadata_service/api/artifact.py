@@ -394,6 +394,9 @@ class ArtificatsApi(object):
         """
         ---
         description: This end-point allow to test that service is up.
+                    "tags" and "system_tags" values will be persisted to DB, but will not be
+                    returned by read endpoints - the related run's "tags" and "system_tags" will
+                    be returned instead.
         tags:
         - Artifacts
         parameters:
