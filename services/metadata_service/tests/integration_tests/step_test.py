@@ -1,7 +1,9 @@
+import copy
+
 from .utils import (
     cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
-    add_flow, add_run, add_step
+    add_flow, add_run, add_step, update_objects_with_run_tags
 )
 import pytest
 
@@ -18,11 +20,21 @@ async def test_step_post(cli, db):
         "tags": ["a_tag", "b_tag"],
         "system_tags": ["runtime:test"]
     }
+
+    # Check all fields from payload match what we get back from POST,
+    # except for tags, which should match run tags instead.
+    def _check_response_body(body):
+        payload_cp = copy.deepcopy(payload)
+        payload_cp["tags"] = _run["tags"]
+        payload_cp["system_tags"] = _run["system_tags"]
+        compare_partial(body, payload_cp)
+
     _step = await assert_api_post_response(
         cli,
         path="/flows/{flow_id}/runs/{run_number}/steps/test_step/step".format(**_run),
         payload=payload,
-        status=200  # why 200 instead of 201?
+        status=200,  # why 200 instead of 201?
+        check_fn=_check_response_body
     )
 
     # Record should be found in DB
@@ -64,8 +76,12 @@ async def test_steps_get(cli, db):
     _first_step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="first_step")).body
     _second_step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="second_step")).body
 
+    # expect steps' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('step', [_first_step, _second_step], _run)
+
     # try to get all the created steps
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps".format(**_first_step), data=[_first_step, _second_step])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps".format(**_first_step),
+                                  data=[_first_step, _second_step], data_is_unordered_list_of_dicts=True)
 
     # getting steps for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps".format(**_first_step), status=200, data=[])
@@ -81,6 +97,9 @@ async def test_step_get(cli, db):
 
     # add step to run for testing
     _step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="first_step")).body
+
+    # expect step's tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('step', [_step], _run)
 
     # try to get created step
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}".format(**_step), data=_step)
