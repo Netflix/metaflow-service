@@ -314,6 +314,8 @@ class DAGCacheStore(object):
         """
         logger.debug("  - Preload DAG for {}/{}".format(flow_name, run_number))
         # Check first if a DAG can be generated for the run.
+        # pylint-initial-ignore: Not sure where db comes from
+        # pylint: disable=no-member
         db_response = await get_run_dag_data(self.db, flow_name, run_number)
 
         if not db_response.response_code == 200:
@@ -322,6 +324,8 @@ class DAGCacheStore(object):
         # Prefer run_id over run_number
         run_id = db_response.body.get('run_id') or db_response.body['run_number']
 
+        # pylint-initial-ignore: Not sure where GenerateDag comes from
+        # pylint: disable=no-member
         res = await self.cache.GenerateDag(flow_name, run_id)
         async for event in res.stream():
             if event["type"] == "error":

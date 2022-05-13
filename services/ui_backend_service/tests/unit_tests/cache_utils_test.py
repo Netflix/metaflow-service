@@ -78,7 +78,7 @@ def test_streamed_errors_exception_output():
         assert str(ex) == "Custom exception"
 
 
-def test_streamed_errors_exception_output():
+def test_streamed_errors_exception_output_no_re_raise():
     # should not raise any exception with re_raise set to false.
     def _re_raise(output):
         pass

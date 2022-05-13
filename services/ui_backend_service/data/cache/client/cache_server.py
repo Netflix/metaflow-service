@@ -299,4 +299,6 @@ def cli(root=None,
 
 
 if __name__ == '__main__':
+    # Click magic
+    # pylint: disable=unexpected-keyword-arg
     cli(auto_envvar_prefix='MFCACHE')
