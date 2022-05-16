@@ -3,7 +3,7 @@ from .utils import (
     cli, db,
     add_flow, add_run, add_step, add_task,
     add_artifact, get_heartbeat_ts,
-    _test_list_resources, _test_single_resource
+    _test_list_resources, _test_single_resource, update_objects_with_run_tags
 )
 pytestmark = [pytest.mark.integration_tests]
 
@@ -42,6 +42,7 @@ async def test_step_duration(cli, db):
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"))).body
     _step['run_id'] = _run['run_number']
     _step['duration'] = 1  # approx step duration for started step
+    update_objects_with_run_tags('step', [_step], _run)
 
     # step duration should fallback to current time when no tasks exist.
     await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}".format(**_step), 200, _step, approx_keys=["duration"])

@@ -144,7 +144,7 @@ async def add_flow(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
                   run_number: int = None, run_id: str = None,
-                  user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                  user_name="dipper", tags=["run_user_tag"], system_tags=["run_system_tag"],
                   last_heartbeat_ts=None):
     run = {
         "flow_id": flow_id,
@@ -159,7 +159,7 @@ async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
                    run_number: int = None, run_id: str = None, step_name="step",
-                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+                   user_name="dipper", tags=["step_user_tag"], system_tags=["step_system_tag"]):
     step = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -174,7 +174,7 @@ async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
                    run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
-                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"],
+                   user_name="dipper", tags=["task_user_tag"], system_tags=["task_system_tag"],
                    last_heartbeat_ts=None):
     task = {
         "flow_id": flow_id,
@@ -214,7 +214,7 @@ async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
 async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
                        run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
                        artifact={},
-                       user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+                       user_name="dipper", tags=["artifact_user_tag"], system_tags=["artifact_system_tag"]):
     values = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -260,7 +260,7 @@ def _fill_missing_resource_data(_item):
     return _item
 
 
-async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], approx_keys=None):
+async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], ignore_data_order=False, approx_keys=None):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
@@ -275,12 +275,29 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
 
     expected_data[:] = map(_fill_missing_resource_data, expected_data)
     assert len(data) == len(expected_data)
-    for i, d in enumerate(data):
-        if approx_keys:
-            _test_dict_approx(d, expected_data[i], approx_keys)
-        else:
-            assert d == expected_data[i]
 
+    data_to_be_compared = data
+    expected_data_to_be_compared = expected_data
+    if ignore_data_order:
+        assert isinstance(data, list) and isinstance(expected_data, list)
+
+        # If item contains fields A and B, then sort list first by item[A], then item[B]
+        # Exclude approx_keys, because we don't want approx_sort.
+        def _sort_key(r):
+            if isinstance(r, str):
+                return (r,)
+            # Stringify everything for sorting purposes (avoid TypeError on "<" operator)
+            return tuple(str(r[k]) for k in sorted(r.keys()) if (not approx_keys or k not in approx_keys))
+        data_to_be_compared = sorted(data, key=_sort_key)
+        expected_data_to_be_compared = sorted(expected_data, key=_sort_key)
+
+    for i, d in enumerate(data_to_be_compared):
+        if approx_keys:
+            _test_dict_approx(d, expected_data_to_be_compared[i], approx_keys)
+        else:
+            assert d == expected_data_to_be_compared[i]
+
+    # return raw data as returned from the GET - unaffected by any internal sorting
     return resp.status, data
 
 
@@ -322,4 +339,12 @@ def get_heartbeat_ts(offset=5):
     "Return a heartbeat timestamp with the given offset in seconds. Default offset is 5 seconds"
     return int(datetime.datetime.utcnow().timestamp()) + offset
 
+
+def update_objects_with_run_tags(obj_type_name: str, objects: list, run: object):
+    # expect object's tags to be overridden by tags of their ancestral run
+    for obj in objects:
+        assert obj['tags'] != run['tags'], f'Expected divergent {obj_type_name} tags to ensure test efficacy'
+        assert obj['system_tags'] != run['system_tags'], f'Expected divergent {obj_type_name} system_tags to ensure test efficacy'
+        obj['tags'] = run['tags']
+        obj['system_tags'] = run['system_tags']
 # Resource helpers end

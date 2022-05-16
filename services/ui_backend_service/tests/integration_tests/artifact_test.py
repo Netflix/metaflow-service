@@ -2,7 +2,7 @@ import pytest
 from .utils import (
     cli, db,
     add_flow, add_run, add_step, add_task, add_artifact,
-    _test_list_resources
+    _test_list_resources, update_objects_with_run_tags
 )
 pytestmark = [pytest.mark.integration_tests]
 
@@ -53,6 +53,8 @@ async def test_list_artifact(cli, db):
                                       "content_type": "content_type",
                                       "attempt_id": 1})).body
 
+    update_objects_with_run_tags(_task.get("flow_id"), [_first, _second], _run)
+
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task), 200, [_first, _second])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(**_task), 200, [_first, _second])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(**_task), 200, [_first, _second])
@@ -60,10 +62,11 @@ async def test_list_artifact(cli, db):
 
 async def test_list_artifact_attempt_ids(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
-
     steps = []
+    run_by_step_name = {}
     for step_name in ["first", "second"]:
         _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+        run_by_step_name[step_name] = _run
         steps.append((await add_step(db, flow_id=_run.get("flow_id"), step_name=step_name,
                                      run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body)
 
@@ -92,6 +95,9 @@ async def test_list_artifact_attempt_ids(cli, db):
                                             artifact={"attempt_id": attempt_id})).body
 
             artifacts_visible_for_second_step.append(_artifact)
+
+    update_objects_with_run_tags('artifact', artifacts_visible_for_first_step, run_by_step_name["first"])
+    update_objects_with_run_tags('artifact', artifacts_visible_for_second_step, run_by_step_name["second"])
 
     await _test_list_resources(cli, db,
                                "/flows/{flow_id}/runs/{run_number}/artifacts".format(

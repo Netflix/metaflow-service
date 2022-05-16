@@ -1,5 +1,6 @@
 from typing import Tuple
 from services.data.db_utils import translate_run_key
+from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import handle_exceptions
 from services.ui_backend_service.data.cache.utils import (
     search_result_event_msg, error_event_msg
@@ -74,14 +75,15 @@ class ArtifactSearchApi(object):
         Includes localstore artifacts as well, as we want to return that these could not be searched over.
         """
         run_id_key, run_id_value = translate_run_key(run_key)
-        meta_artifacts = await self._artifact_table.get_records(
+        db_response = await self._artifact_table.get_records(
             filter_dict={
                 "flow_id": flow_name,
                 run_id_key: run_id_value,
                 "name": artifact_name
             }
         )
-        return meta_artifacts.body
+        db_response = await apply_run_tags_to_db_response(flow_name, run_key, self._run_table, db_response)
+        return db_response.body
 
 # Utilities
 
