@@ -1,6 +1,6 @@
 from services.data.db_utils import translate_run_key, translate_task_key
 from services.utils import handle_exceptions
-from .utils import find_records
+from .utils import find_records, postprocess_chain, apply_run_tags_postprocess
 from ..data.refiner import TaskRefiner
 
 
@@ -28,6 +28,7 @@ class TaskApi(object):
             self.get_task_attempts,
         )
         self._async_table = self.db.task_table_postgres
+        self._async_run_table = self.db.run_table_postgres
         self.refiner = TaskRefiner(cache=cache.artifact_cache) if cache else None
 
     @handle_exceptions
@@ -70,8 +71,8 @@ class TaskApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
+        run_number = request.match_info.get("run_number")
+        run_id_key, run_id_value = translate_run_key(run_number)
 
         return await find_records(request,
                                   self._async_table,
@@ -85,7 +86,9 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.get_postprocessor(request)
+                                  postprocess=postprocess_chain([
+                                      apply_run_tags_postprocess(flow_name, run_number, self._async_run_table),
+                                      self.get_postprocessor(request)])
                                   )
 
     @handle_exceptions
@@ -128,8 +131,8 @@ class TaskApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
+        run_number = request.match_info.get("run_number")
+        run_id_key, run_id_value = translate_run_key(run_number)
         step_name = request.match_info.get("step_name")
 
         return await find_records(request,
@@ -146,7 +149,9 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.get_postprocessor(request)
+                                  postprocess=postprocess_chain([
+                                      apply_run_tags_postprocess(flow_name, run_number, self._async_run_table),
+                                      self.get_postprocessor(request)])
                                   )
 
     @handle_exceptions
@@ -177,8 +182,8 @@ class TaskApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
+        run_number = request.match_info.get("run_number")
+        run_id_key, run_id_value = translate_run_key(run_number)
         step_name = request.match_info.get("step_name")
         task_id_key, task_id_value = translate_task_key(
             request.match_info.get("task_id"))
@@ -197,8 +202,10 @@ class TaskApi(object):
                                       flow_name, run_id_value, step_name, task_id_value],
                                   initial_order=["attempt_id DESC"],
                                   enable_joins=True,
-                                  postprocess=self.get_postprocessor(request)
-                                  )
+                                  postprocess=postprocess_chain([
+                                      apply_run_tags_postprocess(flow_name, run_number, self._async_run_table),
+                                      self.get_postprocessor(request)]
+                                  ))
 
     @handle_exceptions
     async def get_task_attempts(self, request):
@@ -241,8 +248,8 @@ class TaskApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
+        run_number = request.match_info.get("run_number")
+        run_id_key, run_id_value = translate_run_key(run_number)
         step_name = request.match_info.get("step_name")
         task_id_key, task_id_value = translate_task_key(
             request.match_info.get("task_id"))
@@ -263,7 +270,10 @@ class TaskApi(object):
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
                                   enable_joins=True,
-                                  postprocess=self.get_postprocessor(request)
+                                  postprocess=postprocess_chain([
+                                      apply_run_tags_postprocess(flow_name, run_number, self._async_run_table),
+                                      self.get_postprocessor(request)]
+                                  )
                                   )
 
     def get_postprocessor(self, request):

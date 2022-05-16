@@ -1,14 +1,12 @@
 from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.metadata_service.api.tagging_utils import apply_run_tags_to_db_response
+from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 import json
 from aiohttp import web
 import asyncio
-
-from services.data.db_utils import DBResponse
 
 
 class TaskApi(object):

@@ -73,7 +73,7 @@ async def test_list_metadata_field_names(cli, db):
                                                "value": '{"ds_type": "s3", "location": "s3://bucket/Flow/1/end/2/1.stdout.log", "attempt": 1}',
                                                "type": "log_path"})).body
 
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task), 200, [_metadata_second, _metadata_first])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task), 200, [_metadata_second, _metadata_first], ignore_data_order=True)
 
 
 async def test_list_metadata_attempt_id_filter(cli, db):
@@ -138,18 +138,18 @@ async def test_list_metadata_attempt_id_filter(cli, db):
     _metadata_second["attempt_id"] = 1
 
     # no filter
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?order=ts_epoch".format(**_task), 200, [_metadata_second, _metadata_first, _metadata_global])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?_order=ts_epoch".format(**_task), 200, [_metadata_second, _metadata_first, _metadata_global])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata?_order=ts_epoch".format(**_task), 200, [_metadata_second, _metadata_first])
 
     # attempt_id=0
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?order=ts_epoch&attempt_id=0".format(**_task), 200, [_metadata_first])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?_order=ts_epoch&attempt_id=0".format(**_task), 200, [_metadata_first])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata?_order=ts_epoch&attempt_id=0".format(**_task), 200, [_metadata_first])
 
     # attempt_id=0,1
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?order=ts_epoch&attempt_id=0,1".format(**_task), 200, [_metadata_second, _metadata_first])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?_order=ts_epoch&attempt_id=0,1".format(**_task), 200, [_metadata_second, _metadata_first])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata?_order=ts_epoch&attempt_id=0,1".format(**_task), 200, [_metadata_second, _metadata_first])
 
     # attempt_id IS NULL
-    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?order=ts_epoch&attempt_id:is=null".format(**_task), 200, [_metadata_global])
+    await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/metadata?_order=ts_epoch&attempt_id:is=null".format(**_task), 200, [_metadata_global])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata?_order=ts_epoch&attempt_id:is=null".format(**_task), 200, [])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata?_order=ts_epoch&attempt_id:is=null".format(**_second_task), 200, [_metadata_global])
