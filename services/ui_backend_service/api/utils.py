@@ -540,11 +540,11 @@ def get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, O
     return flow_id, run_number, step_name, task_id, attempt_id
 
 
-# Postprocessor functions also accept a keyword argument "invalidate_cache"
-Postprocessor = Callable[[DBResponse], DBResponse]
+# Postprocess functions also accept a keyword argument "invalidate_cache"
+Postprocess = Callable[[DBResponse], DBResponse]
 
 
-def postprocess_chain(postprocess_list: List[Optional[Postprocessor]]) -> Optional[Postprocessor]:
+def postprocess_chain(postprocess_list: List[Optional[Postprocess]]) -> Optional[Postprocess]:
     if not postprocess_list:
         return None
 
