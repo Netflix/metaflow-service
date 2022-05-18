@@ -230,6 +230,8 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
                 records = await cur.fetchall()
                 if serialize:
                     for record in records:
+                        # pylint-initial-ignore: Lack of __init__ makes this too hard for pylint
+                        # pylint: disable=not-callable
                         row = self._row_type(**record)
                         rows.append(row.serialize(expanded))
                 else:

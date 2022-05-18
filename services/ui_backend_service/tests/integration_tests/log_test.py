@@ -69,14 +69,14 @@ async def test_log_paginated_response(cli, db):
         _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out?_limit=3".format(**_task), 200, None)
         assert data == []
 
-    async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
+    async def read_and_output_2(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
         assert limit == 3
         assert page == 4
         assert reverse_order is True
         assert output_raw is False
         return [], 1
 
-    with mock.patch("services.ui_backend_service.api.log.read_and_output", new=read_and_output):
+    with mock.patch("services.ui_backend_service.api.log.read_and_output", new=read_and_output_2):
         # ordering by row should be possible in reverse. should obey limit.
         _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out?_order=-row&_limit=3&_page=4".format(**_task), 200, None)
         assert data == []
