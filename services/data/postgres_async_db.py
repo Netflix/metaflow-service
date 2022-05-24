@@ -162,7 +162,7 @@ class AsyncPostgresTable(object):
             await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
-                          ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
+                          ordering: List[str] = None, limit: int = 0, expanded=False, cur: aiopg.Cursor=None) -> DBResponse:
         conditions = []
         values = []
         for col_name, col_val in filter_dict.items():
@@ -171,13 +171,13 @@ class AsyncPostgresTable(object):
 
         response, _ = await self.find_records(
             conditions=conditions, values=values, fetch_single=fetch_single,
-            order=ordering, limit=limit, expanded=expanded
+            order=ordering, limit=limit, expanded=expanded, cur=cur
         )
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
-                           enable_joins=False) -> Tuple[DBResponse, DBPagination]:
+                           enable_joins=False, cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
         sql_template = """
         SELECT * FROM (
             SELECT
@@ -203,42 +203,45 @@ class AsyncPostgresTable(object):
         ).strip()
 
         return await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                      expanded=expanded, limit=limit, offset=offset)
+                                      expanded=expanded, limit=limit, offset=offset, cur=cur)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
+                          expanded=False, limit: int = 0, offset: int = 0, cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
+        async def _execute_sql_using_cursor(_cur):
+            await _cur.execute(select_sql, values)
+
+            rows = []
+            records = await _cur.fetchall()
+            for record in records:
+                row = self._row_type(**record)  # pylint: disable=not-callable
+                rows.append(row.serialize(expanded))
+
+            count = len(rows)
+
+            # Will raise IndexError in case fetch_single=True and there's no results
+            body = rows[0] if fetch_single else rows
+            pagination = DBPagination(
+                limit=limit,
+                offset=offset,
+                count=count,
+                page=math.floor(int(offset) / max(int(limit), 1)) + 1,
+            )
+            return body, pagination
+        if cur:
+            # if we are using the passed in cursor, we allow any errors to be managed by cursor owner
+            body, pagination = await _execute_sql_using_cursor(cur)
+            return DBResponse(response_code=200, body=body), pagination
         try:
-            with (
-                await self.db.pool.cursor(
+            with (await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql, values)
-
-                rows = []
-                records = await cur.fetchall()
-                for record in records:
-                    row = self._row_type(**record)  # pylint: disable=not-callable
-                    rows.append(row.serialize(expanded))
-
-                count = len(rows)
-
-                # Will raise IndexError in case fetch_single=True and there's no results
-                body = rows[0] if fetch_single else rows
-
-                pagination = DBPagination(
-                    limit=limit,
-                    offset=offset,
-                    count=count,
-                    page=math.floor(int(offset) / max(int(limit), 1)) + 1,
-                )
-
-                cur.close()
-                return DBResponse(response_code=200, body=body), pagination
+            )) as cur:
+                body, pagination = await _execute_sql_using_cursor(cur)
+                cur.close()  # not sure if this is needed... exiting with block should do this already
+            return DBResponse(response_code=200, body=body), pagination
         except IndexError as error:
             return aiopg_exception_handling(error), None
         except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
+            self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error), None
 
     async def create_record(self, record_dict):
@@ -286,10 +289,28 @@ class AsyncPostgresTable(object):
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
         except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
+            self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
 
-    async def update_row(self, filter_dict={}, update_dict={}):
+    async def run_in_transaction_with_serializable_isolation_level(self, fun):
+        try:
+            with (
+                    await self.db.pool.cursor(
+                        cursor_factory=psycopg2.extras.DictCursor,
+                    )
+            ) as cur:
+                async with cur.begin():
+                    await cur.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+                    res = await fun(cur)
+                cur.close()  # is this really needed? TODO
+                return res
+        except psycopg2.errors.SerializationFailure:
+            return DBResponse(response_code=503, body="Conflicting concurrent tag mutation, please retry")
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occurred")
+            return aiopg_exception_handling(error)
+
+    async def update_row(self, filter_dict={}, update_dict={}, cur: aiopg.Cursor = None):
         # generate where clause
         filters = []
         for col_name, col_val in filter_dict.items():
@@ -322,25 +343,30 @@ class AsyncPostgresTable(object):
         update_sql = """
                 UPDATE {0} SET {1} WHERE {2};
         """.format(self.table_name, set_clause, where_clause)
+
+        async def _update_row_with_cursor(_cur):
+            await _cur.execute(update_sql)
+            if _cur.rowcount < 1:
+                return DBResponse(response_code=404,
+                                  body={"msg": "could not find row"})
+            if _cur.rowcount > 1:
+                return DBResponse(response_code=500,
+                                  body={"msg": "duplicate rows"})
+            return DBResponse(response_code=200, body={"rowcount": _cur.rowcount})
+        if cur:
+            return await _update_row_with_cursor(cur)
         try:
             with (
                 await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
-                await cur.execute(update_sql)
-                if cur.rowcount < 1:
-                    return DBResponse(response_code=404,
-                                      body={"msg": "could not find row"})
-                if cur.rowcount > 1:
-                    return DBResponse(response_code=500,
-                                      body={"msg": "duplicate rows"})
-                body = {"rowcount": cur.rowcount}
+                db_response = await _update_row_with_cursor(cur)
                 # todo make sure connection is closed even with error
                 cur.close()
-                return DBResponse(response_code=200, body=body)
+                return db_response
         except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
+            self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
 
 
@@ -484,11 +510,11 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
+    async def get_run(self, flow_id: str, run_id: str, expanded: bool = False, cur: aiopg.Cursor = None):
         key, value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id, key: str(value)}
         return await self.get_records(filter_dict=filter_dict,
-                                      fetch_single=True, expanded=expanded)
+                                      fetch_single=True, expanded=expanded, cur=cur)
 
     async def get_all_runs(self, flow_id: str):
         filter_dict = {"flow_id": flow_id}
@@ -509,6 +535,17 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
         return DBResponse(response_code=result.response_code,
                           body=json.dumps(body))
+
+    async def update_run_tags(self, flow_id: str, run_id: str, run_tags: list, cur: aiopg.Cursor=None):
+        run_key, run_value = translate_run_key(run_id)
+        filter_dict = {"flow_id": flow_id,
+                       run_key: str(run_value)}
+        set_dict = {"tags": "'" + json.dumps(run_tags) + "'"}  # TODO we can/should do better than manual quoting
+        result = await self.update_row(filter_dict=filter_dict,
+                                       update_dict=set_dict,
+                                       cur=cur)
+        return DBResponse(response_code=result.response_code,
+                          body=json.dumps(set_dict))  # TODO what if response code is bad?
 
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
