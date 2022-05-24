@@ -280,8 +280,8 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
     return body
 
 
-async def assert_api_patch_response(cli, path: str, payload: object = None, status: int = 200, expected_body: object = None,
-                                   check_fn: Callable = None):
+async def assert_api_patch_response(cli, path: str, payload: object = None, status: int = 200,
+                                    expected_body: object = None, check_fn: Callable = None):
     """
     Perform a PATCH request with the provided http cli to the provided path with the payload,
     asserts that the status and data received are correct.

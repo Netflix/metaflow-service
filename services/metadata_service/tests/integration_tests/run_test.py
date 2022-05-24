@@ -178,31 +178,43 @@ async def test_run_mutate_user_tags(cli, db):
         assert all(tag not in _run_in_db["tags"] for tag in tags)
 
     # try invalid inputs (like tag lists that are not lists, or tag values that are not string)
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_add": "so_meta"}, status=422)
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_add": [5]}, status=422)
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_remove": "so_meta"}, status=422)
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_remove": [5]}, status=422)
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/__NOT_A_RUN__/tag/mutate'.format(**_run), payload={"tags_to_add": ["user_tag"]}, status=404)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_add": "so_meta"}, status=422)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_add": [5]}, status=422)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_remove": "so_meta"}, status=422)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_remove": [5]}, status=422)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/__NOT_A_RUN__/tag/mutate'.format(**_run),
+                                    payload={"tags_to_add": ["user_tag"]}, status=404)
 
     # try to remove system tags - it should not work
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_remove": _run["system_tags"]}, status=422)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_remove": _run["system_tags"]}, status=422)
     await assert_tags_unchanged()
 
     # try to add system tags - it should be no-op (but no error)
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_add": _run["system_tags"]}, status=200)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_add": _run["system_tags"]}, status=200)
     await assert_tags_unchanged()
 
     # try to add user tags
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_add": ["coca-cola", "pepsi"]}, status=200)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_add": ["coca-cola", "pepsi"]}, status=200)
     await assert_tags_in_db(["coca-cola", "pepsi"])
 
     # try to remove user tags
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_remove": ["coca-cola", "pepsi"]}, status=200)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_remove": ["coca-cola", "pepsi"]}, status=200)
     await assert_tags_not_in_db(["coca-cola", "pepsi"])
 
     # try to replace user tags
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_add": ["coca-cola", "pepsi"]}, status=200)
-    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), payload={"tags_to_add": ["sprite", "pepsi"], "tags_to_remove": ["coca-cola", "pepsi"]}, status=200)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_add": ["coca-cola", "pepsi"]}, status=200)
+    await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                    payload={"tags_to_add": ["sprite", "pepsi"],
+                                             "tags_to_remove": ["coca-cola", "pepsi"]}, status=200)
     await assert_tags_in_db(["sprite", "pepsi"])
     await assert_tags_not_in_db(["coca-cola"])
 
@@ -216,16 +228,16 @@ async def test_run_mutate_user_tags_concurrency(cli, db):
 
     async def _mutation_request_with_retries(path, payload):
         attempts = 0
-        delay = 0.3
+        delay = 0.2
         r = random.Random(json.dumps(payload))
         for _ in range(10):
             attempts += 1
             response = await cli.patch(path, json=payload)
             if response.status == 200:
                 return attempts
-            # 500: generic connection acquisition timeout
+            # 503: temporarily conflicting with another mutate request
             elif response.status == 503:
-                delay *= r.uniform(1.0, 1.4)
+                delay *= r.uniform(1.0, 1.2)
                 await asyncio.sleep(delay)
             else:
                 raise AssertionError("Unexpected status %d" % response.status)
@@ -239,8 +251,8 @@ async def test_run_mutate_user_tags_concurrency(cli, db):
         a_tag = str(i)
         expected_tag_set.add(a_tag)
         awaitables.append(_mutation_request_with_retries('/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), {"tags_to_add": [a_tag]}))
-    retry_counts = await asyncio.gather(*awaitables)
-    assert sum(retry_counts) >= 25
+    attempt_counts = await asyncio.gather(*awaitables)
+    assert sum(attempt_counts) > 50
 
     _run_in_db = (await db.run_table_postgres.get_run(_run["flow_id"], _run["run_number"])).body
     assert sorted(_run_in_db["tags"]) == sorted(expected_tag_set)

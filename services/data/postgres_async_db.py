@@ -162,7 +162,8 @@ class AsyncPostgresTable(object):
             await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
-                          ordering: List[str] = None, limit: int = 0, expanded=False, cur: aiopg.Cursor=None) -> DBResponse:
+                          ordering: List[str] = None, limit: int = 0, expanded=False,
+                          cur: aiopg.Cursor = None) -> DBResponse:
         conditions = []
         values = []
         for col_name, col_val in filter_dict.items():
@@ -206,8 +207,9 @@ class AsyncPostgresTable(object):
                                       expanded=expanded, limit=limit, offset=offset, cur=cur)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0, cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
-        async def _execute_sql_using_cursor(_cur):
+                          expanded=False, limit: int = 0, offset: int = 0,
+                          cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
+        async def _execute_on_cursor(_cur):
             await _cur.execute(select_sql, values)
 
             rows = []
@@ -229,14 +231,14 @@ class AsyncPostgresTable(object):
             return body, pagination
         if cur:
             # if we are using the passed in cursor, we allow any errors to be managed by cursor owner
-            body, pagination = await _execute_sql_using_cursor(cur)
+            body, pagination = await _execute_on_cursor(cur)
             return DBResponse(response_code=200, body=body), pagination
         try:
             with (await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
             )) as cur:
-                body, pagination = await _execute_sql_using_cursor(cur)
-                cur.close()  # not sure if this is needed... exiting with block should do this already
+                body, pagination = await _execute_on_cursor(cur)
+                cur.close()  # unsure if needed, leaving in there for safety
             return DBResponse(response_code=200, body=body), pagination
         except IndexError as error:
             return aiopg_exception_handling(error), None
@@ -344,7 +346,7 @@ class AsyncPostgresTable(object):
                 UPDATE {0} SET {1} WHERE {2};
         """.format(self.table_name, set_clause, where_clause)
 
-        async def _update_row_with_cursor(_cur):
+        async def _execute_update_on_cursor(_cur):
             await _cur.execute(update_sql)
             if _cur.rowcount < 1:
                 return DBResponse(response_code=404,
@@ -354,15 +356,14 @@ class AsyncPostgresTable(object):
                                   body={"msg": "duplicate rows"})
             return DBResponse(response_code=200, body={"rowcount": _cur.rowcount})
         if cur:
-            return await _update_row_with_cursor(cur)
+            return await _execute_update_on_cursor(cur)
         try:
             with (
                 await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
-                db_response = await _update_row_with_cursor(cur)
-                # todo make sure connection is closed even with error
+                db_response = await _execute_update_on_cursor(cur)
                 cur.close()
                 return db_response
         except (Exception, psycopg2.DatabaseError) as error:
@@ -536,7 +537,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return DBResponse(response_code=result.response_code,
                           body=json.dumps(body))
 
-    async def update_run_tags(self, flow_id: str, run_id: str, run_tags: list, cur: aiopg.Cursor=None):
+    async def update_run_tags(self, flow_id: str, run_id: str, run_tags: list, cur: aiopg.Cursor = None):
         run_key, run_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value)}
@@ -545,7 +546,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                                        update_dict=set_dict,
                                        cur=cur)
         return DBResponse(response_code=result.response_code,
-                          body=json.dumps(set_dict))  # TODO what if response code is bad?
+                          body=json.dumps(set_dict))
 
 
 class AsyncStepTablePostgres(AsyncPostgresTable):

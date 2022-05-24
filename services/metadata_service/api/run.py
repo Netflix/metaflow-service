@@ -207,26 +207,30 @@ class RunApi(object):
             if run_db_response.response_code != 200:
                 if run_db_response.response_code == 404:
                     return run_db_response
-                return DBResponse(response_code=422, body="Failed to get run (get_run status %d)" % run_db_response.response_code)
+                return DBResponse(response_code=422,
+                                  body="Failed to get run (get_run status %d)" % run_db_response.response_code)
             run = run_db_response.body
             existing_tag_set = set(run["tags"])
             existing_system_tag_set = set(run["system_tags"])
 
             for tag in tags_to_remove_set:
                 if tag in existing_system_tag_set:
-                    return DBResponse(response_code=422, body="Cannot remove a tag that is an existing system tag (%s)" % tag)
+                    return DBResponse(response_code=422,
+                                      body="Cannot remove a tag that is an existing system tag (%s)" % tag)
 
             # Apply removals before additions.
-            # Make sure no existing system tags get added as a user tag
+            # And, make sure no existing system tags get added as a user tag
             next_run_tag_set = (existing_tag_set - tags_to_remove_set) | (tags_to_add_set - existing_system_tag_set)
             if next_run_tag_set == existing_tag_set:
-                return DBResponse(response_code=200, body=json.dumps({"tags": list(next_run_tag_set)}))
+                return DBResponse(response_code=200,
+                                  body=json.dumps({"tags": list(next_run_tag_set)}))
             next_run_tags = list(next_run_tag_set)
 
             update_db_response = await self._async_table.update_run_tags(flow_name, run_number, next_run_tags, cur=cur)
             if update_db_response.response_code != 200:
                 return update_db_response
-            return DBResponse(response_code=200, body=json.dumps({"tags": next_run_tags}))
+            return DBResponse(response_code=200,
+                              body=json.dumps({"tags": next_run_tags}))
 
         return await self._async_table.run_in_transaction_with_serializable_isolation_level(_in_tx_mutation_logic)
 
