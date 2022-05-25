@@ -1,5 +1,6 @@
 import psycopg2
 import psycopg2.extras
+from psycopg2.extensions import QuotedString
 import os
 import aiopg
 import json
@@ -541,7 +542,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         run_key, run_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value)}
-        set_dict = {"tags": "'" + json.dumps(run_tags) + "'"}  # TODO we can/should do better than manual quoting
+
+        set_dict = {"tags": QuotedString(json.dumps(run_tags)).getquoted().decode()}
         result = await self.update_row(filter_dict=filter_dict,
                                        update_dict=set_dict,
                                        cur=cur)
