@@ -182,11 +182,11 @@ class RunApi(object):
                 description: invalid HTTP Request
             "405":
                 description: invalid HTTP Method
+            "409":
+                description: mutation request conflicts with an existing in-flight mutation. Retry recommended
             "422":
                 description: illegal tag mutation. No update performed.  E.g. could be because we tried to remove
                              a system tag.
-            "503":
-                description: mutation request conflicts with an existing in-flight mutation. Retry recommended
         """
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
