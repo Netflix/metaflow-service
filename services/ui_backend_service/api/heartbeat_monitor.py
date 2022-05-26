@@ -4,6 +4,7 @@ from typing import Dict, Callable, Optional
 
 from pyee import AsyncIOEventEmitter
 
+from .utils import postprocess_chain, apply_run_tags_postprocess
 from ..data.db.tables.base import HEARTBEAT_THRESHOLD
 from ..data.refiner import TaskRefiner
 from .notify import resource_list
@@ -165,6 +166,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._task_table = self.db.task_table_postgres
+        self._run_table = self.db.run_table_postgres
         self.refiner = TaskRefiner(cache=self.cache.artifact_cache) if cache else None
 
     async def heartbeat_handler(self, action: str, data: Dict):
@@ -188,7 +190,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     async def add_to_watch(self, data):
         # TODO: Optimize db trigger so we do not have to fetch a record in order to add it to the
         # heartbeat monitor
-        task = await self.get_task(
+        task = await self._get_task(
             data["flow_id"],
             data["run_number"],
             data["step_name"],
@@ -201,7 +203,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
                 self.watched[key] = heartbeat_ts
 
-    async def get_task(self, flow_id: str, run_key: str, step_name: str, task_key: str, attempt_id: int = None, postprocess=None) -> Optional[Dict]:
+    async def _get_task(self, flow_id: str, run_key: str, step_name: str, task_key: str, attempt_id: int = None, postprocess=None) -> Optional[Dict]:
         """
         Fetches task from DB. Specifying attempt_id will fetch the specific attempt.
         Otherwise the newest attempt is returned.
@@ -212,13 +214,16 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             either the task Dict object is returned, or if no task is found, None is returned.
         """
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
-        result = await self._task_table.get_task_attempt(flow_id, run_key, step_name, task_key, attempt_id, postprocess)
+        result = await self._task_table.get_task_attempt(flow_id, run_key, step_name, task_key,
+                                                         attempt_id=attempt_id,
+                                                         postprocess=postprocess_chain(
+                                                             [apply_run_tags_postprocess(flow_id, run_key, self._run_table), postprocess]))
 
         return result.body if result.response_code == 200 else None
 
     async def load_and_broadcast(self, key):
         flow_id, run_number, step_name, task_id, attempt_id = self.decode_key_ids(key)
-        task = await self.get_task(flow_id, run_number, step_name, task_id, attempt_id, postprocess=self.refiner.postprocess)
+        task = await self._get_task(flow_id, run_number, step_name, task_id, attempt_id, postprocess=self.refiner.postprocess)
         resources = resource_list(self._task_table.table_name, task) if task else None
         if resources and task['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.

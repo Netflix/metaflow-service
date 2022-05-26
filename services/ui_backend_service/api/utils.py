@@ -6,9 +6,11 @@ from collections import deque
 from typing import Callable, Dict, List, Tuple, Optional
 from urllib.parse import parse_qsl, urlsplit
 
+from asyncio import iscoroutinefunction
 from aiohttp import web
 from multidict import MultiDict
 from services.data.db_utils import DBPagination, DBResponse
+from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import format_baseurl, format_qs, web_response
 from functools import reduce
 from services.utils import logging
@@ -536,6 +538,33 @@ def get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, O
     attempt_id = request.query.get("attempt_id", None)
 
     return flow_id, run_number, step_name, task_id, attempt_id
+
+
+# Postprocess functions also accept a keyword argument "invalidate_cache"
+Postprocess = Callable[[DBResponse], DBResponse]
+
+
+def postprocess_chain(postprocess_list: List[Optional[Postprocess]]) -> Optional[Postprocess]:
+    if not postprocess_list:
+        return None
+
+    async def _chained(input_db_response: DBResponse, invalidate_cache: bool = False) -> DBResponse:
+        result = input_db_response
+        for _postprocess in postprocess_list:
+            if _postprocess is None:
+                continue
+            if iscoroutinefunction(_postprocess):
+                result = await _postprocess(result, invalidate_cache=invalidate_cache)
+            else:
+                result = _postprocess(result, invalidate_cache=invalidate_cache)
+        return result
+    return _chained
+
+
+def apply_run_tags_postprocess(flow_id, run_number, run_table_postgres):
+    async def _postprocess(db_response: DBResponse, invalidate_cache=False):
+        return await apply_run_tags_to_db_response(flow_id, run_number, run_table_postgres, db_response)
+    return _postprocess
 
 
 @web.middleware

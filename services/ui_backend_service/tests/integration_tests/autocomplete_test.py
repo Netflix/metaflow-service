@@ -61,7 +61,7 @@ async def test_tags_autocomplete(cli, db):
     # manually refresh the cached tags
     await cli.server.app.AutoCompleteApi.update_cached_tags()
     # Note that runtime:dev tags gets assigned automatically
-    await _test_list_resources(cli, db, '/tags/autocomplete', 200, ['runtime:dev', 'tag:something'])
+    await _test_list_resources(cli, db, '/tags/autocomplete', 200, ['run_system_tag', 'tag:something'])
 
     # Partial match
     await _test_list_resources(cli, db, '/tags/autocomplete?tag:co=thing', 200, ['tag:something'])

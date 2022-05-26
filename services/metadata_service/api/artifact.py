@@ -4,7 +4,7 @@ from services.data.db_utils import (
     filter_artifacts_for_latest_attempt,
     filter_artifacts_by_attempt_id_for_tasks,
 )
-from services.metadata_service.api.tagging_utils import apply_run_tags_to_db_response
+from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import (
     format_response,

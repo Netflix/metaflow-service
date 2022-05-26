@@ -1,6 +1,6 @@
 from services.data.db_utils import translate_run_key
 from services.utils import handle_exceptions
-from .utils import find_records
+from .utils import find_records, apply_run_tags_postprocess
 
 
 class StepApi(object):
@@ -13,6 +13,7 @@ class StepApi(object):
             "GET", "/flows/{flow_id}/runs/{run_number}/steps/{step_name}", self.get_step
         )
         self._async_table = self.db.step_table_postgres
+        self._async_run_table = self.db.run_table_postgres
 
     @handle_exceptions
     async def get_steps(self, request):
@@ -48,8 +49,8 @@ class StepApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
+        run_number = request.match_info.get("run_number")
+        run_id_key, run_id_value = translate_run_key(run_number)
 
         return await find_records(request,
                                   self._async_table,
@@ -60,8 +61,8 @@ class StepApi(object):
                                   allowed_order=self._async_table.keys,
                                   allowed_group=self._async_table.keys,
                                   allowed_filters=self._async_table.keys,
-                                  enable_joins=True
-                                  )
+                                  enable_joins=True,
+                                  postprocess=apply_run_tags_postprocess(flow_name, run_number, self._async_run_table))
 
     @handle_exceptions
     async def get_step(self, request):
@@ -88,8 +89,8 @@ class StepApi(object):
         """
 
         flow_name = request.match_info.get("flow_id")
-        run_id_key, run_id_value = translate_run_key(
-            request.match_info.get("run_number"))
+        run_number = request.match_info.get("run_number")
+        run_id_key, run_id_value = translate_run_key(run_number)
         step_name = request.match_info.get("step_name")
 
         return await find_records(request,
@@ -102,5 +103,6 @@ class StepApi(object):
                                       "step_name = %s"],
                                   initial_values=[
                                       flow_name, run_id_value, step_name],
-                                  enable_joins=True
+                                  enable_joins=True,
+                                  postprocess=apply_run_tags_postprocess(flow_name, run_number, self._async_run_table)
                                   )
