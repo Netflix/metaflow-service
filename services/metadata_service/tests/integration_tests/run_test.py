@@ -179,13 +179,13 @@ async def test_run_mutate_user_tags(cli, db):
 
     # try invalid inputs (like tag lists that are not lists, or tag values that are not string)
     await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
-                                    payload={"tags_to_add": "so_meta"}, status=422)
+                                    payload={"tags_to_add": "so_meta"}, status=400)
     await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
-                                    payload={"tags_to_add": [5]}, status=422)
+                                    payload={"tags_to_add": [5]}, status=400)
     await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
-                                    payload={"tags_to_remove": "so_meta"}, status=422)
+                                    payload={"tags_to_remove": "so_meta"}, status=400)
     await assert_api_patch_response(cli, '/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
-                                    payload={"tags_to_remove": [5]}, status=422)
+                                    payload={"tags_to_remove": [5]}, status=400)
     await assert_api_patch_response(cli, '/flows/{flow_id}/runs/__NOT_A_RUN__/tag/mutate'.format(**_run),
                                     payload={"tags_to_add": ["user_tag"]}, status=404)
 
@@ -235,8 +235,9 @@ async def test_run_mutate_user_tags_concurrency(cli, db):
             response = await cli.patch(path, json=payload)
             if response.status == 200:
                 return attempts
-            # 503: temporarily conflicting with another mutate request
-            elif response.status == 503:
+            # 409 temporarily conflicting with another mutate request
+            # See https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409
+            elif response.status == 409:
                 delay *= r.uniform(1.0, 1.2)
                 await asyncio.sleep(delay)
             else:

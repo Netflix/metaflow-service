@@ -182,6 +182,11 @@ class RunApi(object):
                 description: invalid HTTP Request
             "405":
                 description: invalid HTTP Method
+            "422":
+                description: illegal tag mutation. No update performed.  E.g. could be because we tried to remove
+                             a system tag.
+            "503":
+                description: mutation request conflicts with an existing in-flight mutation. Retry recommended
         """
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
@@ -189,15 +194,16 @@ class RunApi(object):
         tags_to_add = body.get("tags_to_add", [])
         tags_to_remove = body.get("tags_to_remove", [])
 
+        # We return 400 when request structure is wrong
         if not isinstance(tags_to_add, list):
-            return DBResponse(response_code=422, body="tags_to_add must be a list")
+            return DBResponse(response_code=400, body="tags_to_add must be a list")
 
         if not isinstance(tags_to_remove, list):
-            return DBResponse(response_code=422, body="tags_to_remove must be a list")
+            return DBResponse(response_code=400, body="tags_to_remove must be a list")
 
         # let's make sure we have a list of strings
         if not all(isinstance(t, str) for t in chain(tags_to_add, tags_to_remove)):
-            return DBResponse(response_code=422, body="All tag values must be strings")
+            return DBResponse(response_code=400, body="All tag values must be strings")
 
         tags_to_add_set = set(tags_to_add)
         tags_to_remove_set = set(tags_to_remove)
@@ -205,18 +211,19 @@ class RunApi(object):
         async def _in_tx_mutation_logic(cur):
             run_db_response = await self._async_table.get_run(flow_name, run_number, cur=cur)
             if run_db_response.response_code != 200:
-                if run_db_response.response_code == 404:
-                    return run_db_response
-                return DBResponse(response_code=422,
-                                  body="Failed to get run (get_run status %d)" % run_db_response.response_code)
+                # if something went wrong with get_run, just return the error from that directly
+                # e.g. 404, or some other error. This is useful for the client (vs additional wrapping, etc).
+                return run_db_response
             run = run_db_response.body
             existing_tag_set = set(run["tags"])
             existing_system_tag_set = set(run["system_tags"])
 
-            for tag in tags_to_remove_set:
-                if tag in existing_system_tag_set:
-                    return DBResponse(response_code=422,
-                                      body="Cannot remove a tag that is an existing system tag (%s)" % tag)
+            if tags_to_remove_set & existing_system_tag_set:
+                # We use 422 here to communicate that the request was well-formatted in terms of structure and
+                # that the server understood what was being requested. However, it failed business rules.
+                return DBResponse(response_code=422,
+                                  body="Cannot remove tags that are existing system tags %s" %
+                                       str(tags_to_remove_set & existing_system_tag_set))
 
             # Apply removals before additions.
             # And, make sure no existing system tags get added as a user tag

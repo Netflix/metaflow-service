@@ -308,7 +308,8 @@ class AsyncPostgresTable(object):
                 cur.close()  # is this really needed? TODO
                 return res
         except psycopg2.errors.SerializationFailure:
-            return DBResponse(response_code=503, body="Conflicting concurrent tag mutation, please retry")
+            # See https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409
+            return DBResponse(response_code=409, body="Conflicting concurrent tag mutation, please retry")
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
