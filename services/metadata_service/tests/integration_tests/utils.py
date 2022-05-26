@@ -280,6 +280,45 @@ async def assert_api_post_response(cli, path: str, payload: object = None, statu
     return body
 
 
+async def assert_api_patch_response(cli, path: str, payload: object = None, status: int = 200,
+                                    expected_body: object = None, check_fn: Callable = None):
+    """
+    Perform a PATCH request with the provided http cli to the provided path with the payload,
+    asserts that the status and data received are correct.
+    Expectation is that the API returns text/plain format json.
+
+    Parameters
+    ----------
+    cli : aiohttp cli
+        aiohttp test client
+    path : str
+        url path to perform POST request to
+    payload : object (default None)
+        the payload to be sent with the PATCH request, as json.
+    status : int (default 200)
+        http status code to expect from response
+    expected_body : object
+        An object to assert the api response against.
+    check_fn: Callable
+        A function for checking the response body. It should raise AssertionError on check failure.
+
+    Returns
+    -------
+    Object
+        Always returns the body of the api response unless we fail some assertion and throw.
+    """
+    response = await cli.patch(path, json=payload)
+
+    assert response.status == status
+
+    body = json.loads(await response.text())
+    if expected_body:
+        assert body == expected_body
+    if check_fn:
+        check_fn(body)
+    return body
+
+
 def compare_partial(actual, partial):
     "compare that all keys of partial exist in actual, and that the values match."
     for k, v in partial.items():
