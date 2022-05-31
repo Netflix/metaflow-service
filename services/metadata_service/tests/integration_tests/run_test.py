@@ -235,6 +235,9 @@ async def test_run_mutate_user_tags_concurrency(cli, db):
             attempts += 1
             response = await cli.patch(path, json=payload)
             if response.status == 200:
+                # Parse the response, to make sure that it is the JSON format we
+                # expect, AND the response correctly reflects the presence of the
+                # tag being added
                 data = json.loads(await response.text())
                 assert tag_to_add in data["tags"]
                 return attempts
