@@ -226,14 +226,17 @@ async def test_run_mutate_user_tags_concurrency(cli, db):
     # add run to flow for testing.  Start with 0 user tags
     _run = (await add_run(db, flow_id=_flow["flow_id"], tags=[])).body
 
-    async def _mutation_request_with_retries(path, payload):
+    async def _add_tag_request_with_retries(path, tag_to_add):
         attempts = 0
         delay = 0.2
+        payload = {"tags_to_add": [tag_to_add]}
         r = random.Random(json.dumps(payload))
         for _ in range(10):
             attempts += 1
             response = await cli.patch(path, json=payload)
             if response.status == 200:
+                data = json.loads(await response.text())
+                assert tag_to_add in data["tags"]
                 return attempts
             # 409 temporarily conflicting with another mutate request
             # See https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409
@@ -251,7 +254,8 @@ async def test_run_mutate_user_tags_concurrency(cli, db):
     for i in range(50):
         a_tag = str(i)
         expected_tag_set.add(a_tag)
-        awaitables.append(_mutation_request_with_retries('/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run), {"tags_to_add": [a_tag]}))
+        awaitables.append(_add_tag_request_with_retries('/flows/{flow_id}/runs/{run_number}/tag/mutate'.format(**_run),
+                                                        a_tag))
     attempt_counts = await asyncio.gather(*awaitables)
     assert sum(attempt_counts) > 50
 

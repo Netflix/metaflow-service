@@ -545,11 +545,9 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                        run_key: str(run_value)}
 
         set_dict = {"tags": QuotedString(json.dumps(run_tags)).getquoted().decode()}
-        result = await self.update_row(filter_dict=filter_dict,
-                                       update_dict=set_dict,
-                                       cur=cur)
-        return DBResponse(response_code=result.response_code,
-                          body=json.dumps(set_dict))
+        return await self.update_row(filter_dict=filter_dict,
+                                     update_dict=set_dict,
+                                     cur=cur)
 
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
