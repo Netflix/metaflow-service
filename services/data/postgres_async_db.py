@@ -1,3 +1,4 @@
+import asyncio
 import psycopg2
 import psycopg2.extras
 from psycopg2.extensions import QuotedString
@@ -80,6 +81,7 @@ class _AsyncPostgresDB(object):
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
                     timeout=db_conf.timeout,
+                    options=db_conf.options,
                     echo=AIOPG_ECHO)
 
                 for table in self.tables:
@@ -377,6 +379,8 @@ class PostgresUtils(object):
     @staticmethod
     async def create_trigger_if_missing(db: _AsyncPostgresDB, table_name, trigger_name, commands=[]):
         "executes the commands only if a trigger with the given name does not already exist on the table"
+        # NOTE: keep a relatively low timeout for the setup queries,
+        # as these should not take long to begin with, and we want to release as soon as possible in case of errors
         with (await db.pool.cursor()) as cur:
             try:
                 await cur.execute(
@@ -389,9 +393,14 @@ class PostgresUtils(object):
                     (table_name, trigger_name),
                 )
                 trigger_exist = bool(cur.rowcount)
-                if not trigger_exist:
+                if trigger_exist:
+                    db.logger.info("Trigger {} already exists, skipping.".format(trigger_name))
+                else:
+                    db.logger.info("Creating trigger for table: {}".format(trigger_name))
                     for command in commands:
                         await cur.execute(command)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                db.logger.warning("Trigger creation timed out, no triggers were set up for table: {}".format(table_name))
             finally:
                 cur.close()
 

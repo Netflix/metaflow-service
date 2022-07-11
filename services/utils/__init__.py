@@ -169,6 +169,7 @@ class DBConfiguration(object):
     pool_max: int = None  # aiopg default: 10
 
     timeout: int = None  # aiopg default: 60 (seconds)
+    options: str = None  # psycopg2 configuration options
 
     _dsn: str = None
 
@@ -182,7 +183,9 @@ class DBConfiguration(object):
                  prefix="MF_METADATA_DB_",
                  pool_min: int = 1,
                  pool_max: int = 10,
-                 timeout: int = 60):
+                 timeout: int = 60,
+                 statement_timeout: int = None):
+        self.options = "-c statement_timeout={}".format(statement_timeout * 1000) if statement_timeout else None
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
         # Check if it is a BAD DSN String.
