@@ -213,10 +213,10 @@ class Websocket(object):
         refiner_postprocess = None
         table = None
         if table_name == self.db.task_table_postgres.table_name:
-            table = self.db.task_table_postgres
+            table = self.db.run_table_postgres
             refiner_postprocess = self.task_refiner.postprocess
         elif table_name == self.db.artifact_table_postgres.table_name:
-            table = self.db.artifact_table_postgres
+            table = self.db.run_table_postgres
             refiner_postprocess = self.artifact_refiner.postprocess
 
         if table:
