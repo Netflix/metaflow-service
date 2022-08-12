@@ -6,3 +6,4 @@ aiopg
 pygit2==1.6.1
 metaflow>=2.6.1
 click==8.0.3
+aiohttp_cors==0.7.0
