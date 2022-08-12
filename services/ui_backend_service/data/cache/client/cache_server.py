@@ -294,6 +294,9 @@ class Scheduler(object):
 def cli(root=None,
         max_actions=None,
         max_size=None):
+    # NOTE: The store will only be accessed by this process. The processes
+    # in the pool never touch the store itself. This is done in the __init__ and
+    # terminate methods in Worker which all happen in this process.
     store = CacheStore(root, max_size, echo)
     Scheduler(store, max_actions).loop()
 
