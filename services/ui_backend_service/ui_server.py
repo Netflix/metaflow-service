@@ -111,7 +111,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     if ORIGIN_TO_ALLOW_CORS_FROM:
         import aiohttp_cors
-        logging.info("Allows for CORS for origin %s" % ORIGIN_TO_ALLOW_CORS_FROM)
+        logging.info("We will allows CORS from the origin %s" % ORIGIN_TO_ALLOW_CORS_FROM)
         cors = aiohttp_cors.setup(_app, defaults={
             ORIGIN_TO_ALLOW_CORS_FROM: aiohttp_cors.ResourceOptions(
                 allow_credentials=True,
