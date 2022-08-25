@@ -4,5 +4,5 @@ throttler==1.2.0
 psycopg2
 aiopg
 pygit2==1.6.1
-metaflow>=2.6.1
+metaflow>=2.7.7
 click==8.0.3
