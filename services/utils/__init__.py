@@ -134,6 +134,9 @@ def format_qs(query: Dict[str, str], overwrite=None):
 def format_baseurl(request: web.BaseRequest):
     scheme = request.headers.get("X-Forwarded-Proto") or request.scheme
     host = request.headers.get("X-Forwarded-Host") or request.host
+    # Only get the first Forwarded-Host/Proto in case there are more than one
+    scheme = scheme.split(",")[0].strip()
+    host = host.split(",")[0].strip()
     baseurl = os.environ.get(
         "MF_BASEURL", "{scheme}://{host}".format(scheme=scheme, host=host))
     return "{baseurl}{path}".format(baseurl=baseurl, path=request.path)
