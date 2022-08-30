@@ -149,7 +149,7 @@ class CacheStore(object):
                     del self.gc_queue[path]
                     self.total_size -= size
                 else:
-                    self.warn(
+                    self.echo(
                         "Could not remove file at '%s' -- removing from GC" % path
                     )
                     # We still remove to prevent the garbage collector from
