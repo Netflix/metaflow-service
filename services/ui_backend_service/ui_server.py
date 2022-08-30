@@ -5,7 +5,7 @@ import concurrent
 
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
-from services.utils import DBConfiguration, logging
+from services.utils import DBConfiguration, logging, ORIGIN_TO_ALLOW_CORS_FROM
 
 from services.metadata_service.server import app as metadata_service_app
 
@@ -108,6 +108,21 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     if len(PATH_PREFIX) > 0:
         _app.add_subapp(PATH_PREFIX, app)
+
+    if ORIGIN_TO_ALLOW_CORS_FROM:
+        import aiohttp_cors
+        logging.info("We will allows CORS from the origin %s" % ORIGIN_TO_ALLOW_CORS_FROM)
+        cors = aiohttp_cors.setup(_app, defaults={
+            ORIGIN_TO_ALLOW_CORS_FROM: aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers="*",
+                allow_headers="*",
+                allow_methods="*",
+            )
+        })
+        # Configure CORS on all routes.
+        for route in list(_app.router.routes()):
+            cors.add(route)
 
     logging.info("Metadata service available at {}".format(DEFAULT_METADATA_SERVICE_URL))
 

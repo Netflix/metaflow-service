@@ -26,6 +26,10 @@ SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
 log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
 logging.basicConfig(level=log_level)
 
+# E.g. set to http://localhost:3000 to allow CORS coming from a UI served from there
+# Setting to '*' to be maximally loose.
+ORIGIN_TO_ALLOW_CORS_FROM = os.environ.get('ORIGIN_TO_ALLOW_CORS_FROM', None)
+
 
 async def read_body(request_content):
     byte_array = bytearray()
@@ -103,12 +107,19 @@ def format_response(func):
 
 
 def web_response(status: int, body):
+    headers = MultiDict(
+        {"Content-Type": "application/json",
+         METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION})
+    if not ORIGIN_TO_ALLOW_CORS_FROM:
+        # The aiohttp-cors library actively asserts that this response header
+        # is actively NOT set, before setting it to the original request's origin.
+        #
+        # Therefore, we only want to add this blanket response header iff ORIGIN_TO_ALLOW_CORS_FROM
+        # is not configured (default).
+        headers["Access-Control-Allow-Origin"] = "*"
     return web.Response(status=status,
                         body=json.dumps(body),
-                        headers=MultiDict(
-                            {"Content-Type": "application/json",
-                             "Access-Control-Allow-Origin": "*",
-                             METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+                        headers=headers)
 
 
 def format_qs(query: Dict[str, str], overwrite=None):
