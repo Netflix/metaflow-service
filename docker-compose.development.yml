@@ -26,7 +26,7 @@ services:
       - MF_METADATA_DB_POOL_MAX=10
       - LOGLEVEL=INFO
       - AIOPG_ECHO=0
-      - UI_ENABLED=1
+      - UI_ENABLED=0
       - PREFETCH_RUNS_SINCE=2592000 # 30 days in seconds
       - PREFETCH_RUNS_LIMIT=1 # Prefetch only one run
       - S3_NUM_WORKERS=2
@@ -49,7 +49,7 @@ services:
       - GA_TRACKING_ID=none
       - PLUGINS=$PLUGINS
     depends_on:
-      - db
+      - migration
   metadata:
     build:
       context: .
@@ -70,11 +70,10 @@ services:
     depends_on:
       - migration
   migration:
+    command: ["/opt/latest/bin/python3", "/root/run_goose.py"]
     build:
       context: .
-      dockerfile: Dockerfile.migration_service
-    ports:
-      - "${MF_MIGRATION_PORT:-8082}:${MF_MIGRATION_PORT:-8082}"
+      dockerfile: Dockerfile
     volumes:
       - ./services:/root/services
     environment:

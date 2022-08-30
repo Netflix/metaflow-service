@@ -1,9 +1,11 @@
 import os
 import sys
+import time
 import argparse
 from subprocess import Popen
 from urllib.parse import quote
 import psycopg2
+import psycopg2.errorcodes
 
 
 def check_if_goose_table_exists(db_connection_string: str):
@@ -25,9 +27,25 @@ def check_if_goose_table_exists(db_connection_string: str):
         conn.close()
 
 
+def wait_for_postgres(db_connection_string: str, timeout_seconds: int):
+    deadline = time.time() + timeout_seconds
+    while True:
+        try:
+            conn = psycopg2.connect(db_connection_string)
+            conn.close()
+            return
+        except psycopg2.OperationalError as e:
+            if time.time() < deadline:
+                print(f"Failed to connect to postgres ({e}), sleeping", file=sys.stderr)
+                time.sleep(.5)
+            else:
+                raise
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run goose migrations")
     parser.add_argument("--only-if-empty-db", default=False, action="store_true")
+    parser.add_argument("--wait", type=int, default=30, help="Wait for connection for X seconds")
     args = parser.parse_args()
 
     db_connection_string = "postgresql://{}:{}@{}:{}/{}?sslmode=disable".format(
@@ -37,6 +55,9 @@ def main():
         os.environ["MF_METADATA_DB_PORT"],
         os.environ["MF_METADATA_DB_NAME"],
     )
+
+    if args.wait:
+        wait_for_postgres(db_connection_string, timeout_seconds=args.wait)
 
     if args.only_if_empty_db:
         if check_if_goose_table_exists(db_connection_string):
