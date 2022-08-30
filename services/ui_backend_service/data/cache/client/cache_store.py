@@ -127,7 +127,8 @@ class CacheStore(object):
         # yet, so we can safely delete the marked objects without a quarantine:
         self._gc_objects(quarantine=-1)
 
-        self.echo(
+        self.warn(
+            None,
             "Cache initialized with %d permanents objects, "
             "%d disposable objects, totaling %d bytes."
             % (len(self.objects_queue), len(self.disposables_queue), self.total_size)
