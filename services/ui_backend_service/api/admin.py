@@ -258,7 +258,8 @@ class AdminApi(object):
                 "workers": worker_list
             }
 
-        return web_response(status=200, body={
+        status = 200 if all([x["is_alive"] for x in cache_status.values()]) else 500
+        return web_response(status=status, body={
             "cache": cache_status
         })
 
