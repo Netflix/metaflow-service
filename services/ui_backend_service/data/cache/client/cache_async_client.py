@@ -48,17 +48,22 @@ class CacheAsyncClient(CacheClient):
 
     async def read_message(self, line: str):
         try:
+            # We check for isEnabledFor because some things may be very long to print
+            # (in particularly pending_requests)
             message = json.loads(line)
-            self.logger.info(message)
+            if self.logger.isEnabledFor(logging.INFO):
+                self.logger.info(message)
             if message['op'] == OP_WORKER_CREATE:
                 self.pending_requests.add(message['stream_key'])
             elif message['op'] == OP_WORKER_TERMINATE:
                 self.pending_requests.remove(message['stream_key'])
 
-            self.logger.info("Pending stream keys: {}".format(
-                list(self.pending_requests)))
+            if self.logger.isEnabledFor(logging.INFO):
+                self.logger.info("Pending stream keys: {}".format(
+                    list(self.pending_requests)))
         except JSONDecodeError as ex:
-            self.logger.info("Message: {}".format(line))
+            if self.logger.isEnabledFor(logging.INFO):
+                self.logger.info("Message: {}".format(line))
         except Exception as ex:
             self.logger.exception(ex)
 
