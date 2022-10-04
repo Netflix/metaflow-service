@@ -8,8 +8,8 @@ from .cache_client import CacheClient, CacheServerUnreachable, CacheClientTimeou
 
 from services.utils import logging
 
-OP_WORKER_CREATE = "worker_create"
-OP_WORKER_TERMINATE = "worker_terminate"
+OP_WORKER_CREATE = 'worker_create'
+OP_WORKER_TERMINATE = 'worker_terminate'
 
 WAIT_FREQUENCY = 0.2
 HEARTBEAT_FREQUENCY = 1
@@ -20,15 +20,19 @@ class CacheAsyncClient(CacheClient):
     _restart_requested = False
 
     async def start_server(self, cmdline, env):
-        self.logger = logging.getLogger(
-            "CacheAsyncClient:{root}".format(root=self._root)
+        self.logger = logging.getLogger("CacheAsyncClient:{root}".format(root=self._root))
+
+        self._proc = await asyncio.create_subprocess_exec(*cmdline,
+                                                          env=env,
+                                                          stdin=PIPE,
+                                                          stdout=PIPE,
+                                                          stderr=STDOUT,
+                                                          limit=1024000)  # 1024KB
+
+        asyncio.gather(
+            self._heartbeat(),
+            self.read_stdout()
         )
-
-        self._proc = await asyncio.create_subprocess_exec(
-            *cmdline, env=env, stdin=PIPE, stdout=PIPE, stderr=STDOUT, limit=1024000
-        )  # 1024KB
-
-        asyncio.gather(self._heartbeat(), self.read_stdout())
 
     async def _read_pipe(self, src):
         while self._is_alive:
@@ -49,15 +53,14 @@ class CacheAsyncClient(CacheClient):
             message = json.loads(line)
             if self.logger.isEnabledFor(logging.INFO):
                 self.logger.info(message)
-            if message["op"] == OP_WORKER_CREATE:
-                self.pending_requests.add(message["stream_key"])
-            elif message["op"] == OP_WORKER_TERMINATE:
-                self.pending_requests.remove(message["stream_key"])
+            if message['op'] == OP_WORKER_CREATE:
+                self.pending_requests.add(message['stream_key'])
+            elif message['op'] == OP_WORKER_TERMINATE:
+                self.pending_requests.remove(message['stream_key'])
 
             if self.logger.isEnabledFor(logging.INFO):
-                self.logger.info(
-                    "Pending stream keys: {}".format(list(self.pending_requests))
-                )
+                self.logger.info("Pending stream keys: {}".format(
+                    list(self.pending_requests)))
         except JSONDecodeError as ex:
             if self.logger.isEnabledFor(logging.INFO):
                 self.logger.info("Message: {}".format(line))
