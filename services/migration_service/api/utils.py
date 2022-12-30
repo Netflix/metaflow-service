@@ -25,7 +25,7 @@ class ApiUtils(object):
     @staticmethod
     async def get_goose_version():
         # if tables exist but goose doesn't find version table then
-        goose_version_cmd = make_goose_template(db_conf.connection_string_url, 'version')
+        goose_version_cmd = make_goose_template(db_conf.connection_string_url(), 'version')
 
         p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,
                   close_fds=True)
@@ -55,7 +55,7 @@ class ApiUtils(object):
             return version_dict[version]
         else:
             print("Running initial migration..", file=sys.stderr)
-            goose_version_cmd = make_goose_migration_template(db_conf.connection_string_url, 'up')
+            goose_version_cmd = make_goose_migration_template(db_conf.connection_string_url(), 'up')
             p = Popen(goose_version_cmd, shell=True,
                       close_fds=True)
             if p.wait() != 0:
@@ -65,7 +65,7 @@ class ApiUtils(object):
     @staticmethod
     async def is_migration_in_progress():
         goose_version_cmd = make_goose_template(
-            db_conf.connection_string_url, "status"
+            db_conf.connection_string_url(), "status"
         )
 
         p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,

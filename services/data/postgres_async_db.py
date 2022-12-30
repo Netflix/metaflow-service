@@ -7,13 +7,13 @@ import json
 import math
 import re
 import time
-from services.utils import logging
+from services.utils import logging, DBType
 from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
-from services.utils import DBConfiguration
+from services.utils import DBConfiguration, USE_SEPARATE_READER_POOL
 
 from services.data.service_configs import max_connection_retires, \
     connection_retry_wait_time_seconds
@@ -49,6 +49,7 @@ class _AsyncPostgresDB(object):
     metadata_table_postgres = None
 
     pool = None
+    reader_pool = None
     db_conf: DBConfiguration = None
 
     def __init__(self, name='global'):
@@ -77,21 +78,36 @@ class _AsyncPostgresDB(object):
         for i in range(retries):
             try:
                 self.pool = await aiopg.create_pool(
-                    db_conf.dsn,
+                    db_conf.get_dsn(),
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
                     timeout=db_conf.timeout,
                     pool_recycle=10 * db_conf.timeout,
                     echo=AIOPG_ECHO)
 
+                self.reader_pool = await aiopg.create_pool(
+                    db_conf.get_dsn(type=DBType.READER),
+                    minsize=db_conf.pool_min,
+                    maxsize=db_conf.pool_max,
+                    timeout=db_conf.timeout,
+                    pool_recycle=10 * db_conf.timeout,
+                    echo=AIOPG_ECHO) if USE_SEPARATE_READER_POOL == "1" else self.pool
+
                 for table in self.tables:
                     await table._init(create_triggers=create_triggers)
 
                 self.logger.info(
-                    "Connection established.\n"
+                    "Writer Connection established.\n"
                     "   Pool min: {pool_min} max: {pool_max}\n".format(
                         pool_min=self.pool.minsize,
                         pool_max=self.pool.maxsize))
+
+                if USE_SEPARATE_READER_POOL == "1":
+                    self.logger.info(
+                        "Reader Connection established.\n"
+                        "   Pool min: {pool_min} max: {pool_max}\n".format(
+                            pool_min=self.reader_pool.minsize,
+                            pool_max=self.reader_pool.maxsize))
 
                 break  # Break the retry loop
             except Exception as e:
@@ -237,7 +253,7 @@ class AsyncPostgresTable(object):
             body, pagination = await _execute_on_cursor(cur)
             return DBResponse(response_code=200, body=body), pagination
         try:
-            with (await self.db.pool.cursor(
+            with (await self.db.reader_pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
             )) as cur:
                 body, pagination = await _execute_on_cursor(cur)

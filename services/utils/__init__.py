@@ -6,11 +6,14 @@ import pkg_resources
 from multidict import MultiDict
 from urllib.parse import urlencode, quote
 from aiohttp import web
+from enum import Enum
 from functools import wraps
 from typing import Dict
 import logging
 import psycopg2
 from packaging.version import Version, parse
+
+USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0")
 
 version = pkg_resources.require("metadata_service")[0].version
 
@@ -169,6 +172,9 @@ def has_heartbeat_capable_version_tag(system_tags):
 #   4. Default connection arguments (DBConfiguration(host="..."))
 #
 
+class DBType(Enum):
+    READER = 1
+    WRITER = 2
 
 class DBConfiguration(object):
     host: str = None
@@ -196,7 +202,8 @@ class DBConfiguration(object):
                  prefix="MF_METADATA_DB_",
                  pool_min: int = 1,
                  pool_max: int = 10,
-                 timeout: int = 60):
+                 timeout: int = 60,
+                 reader_host: str = "localhost"):
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
         # Check if it is a BAD DSN String.
@@ -205,6 +212,8 @@ class DBConfiguration(object):
             if not self._is_valid_dsn(self._dsn):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
+        self._reader_host = \
+            os.environ.get(prefix + "READER_HOST", reader_host) if USE_SEPARATE_READER_POOL == "1" else self._host
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
@@ -245,21 +254,32 @@ class DBConfiguration(object):
             # This means that the DSN is unparsable.
             return None
 
-    @property
-    def connection_string_url(self):
+    def connection_string_url(self, type=None):
         # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
-        return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}?sslmode=disable'
+        if type is None or type == DBType.WRITER:
+            return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}?sslmode=disable'
+        elif type == DBType.READER:
+            return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._reader_host}:{self._port}/{self._database_name}?sslmode=disable'
 
-    @property
-    def dsn(self):
+    def get_dsn(self, type=None):
         if self._dsn is None:
-            return psycopg2.extensions.make_dsn(
-                dbname=self._database_name,
-                user=self._user,
-                host=self._host,
-                port=self._port,
-                password=self._password
-            )
+            if type is None or type == DBType.WRITER:
+                return psycopg2.extensions.make_dsn(
+                    dbname=self._database_name,
+                    user=self._user,
+                    host=self._host,
+                    port=self._port,
+                    password=self._password
+                )
+            elif type == DBType.READER:
+                # we assume that everything except the hostname remains the same for a reader
+                return psycopg2.extensions.make_dsn(
+                    dbname=self._database_name,
+                    user=self._user,
+                    host=self._reader_host,
+                    port=self._port,
+                    password=self._password
+                )
         else:
             return self._dsn
 
@@ -282,3 +302,7 @@ class DBConfiguration(object):
     @property
     def host(self):
         return self._host
+
+    @property
+    def reader_host(self):
+        return self._reader_host

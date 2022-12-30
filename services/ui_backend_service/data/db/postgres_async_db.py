@@ -35,6 +35,7 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
     metadata_table_postgres = None
 
     pool = None
+    reader_pool = None
     db_conf: DBConfiguration = None
 
     def __init__(self, name='global'):
