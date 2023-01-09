@@ -1,4 +1,4 @@
-FROM golang:1.16.3
+FROM golang:1.18.9-buster
 
 ARG BUILD_TIMESTAMP
 ARG BUILD_COMMIT_HASH
@@ -15,7 +15,7 @@ ENV FEATURE_DEBUG_VIEW=1
 
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.5.3
 
-RUN apt-get update && apt-get -y install python3.7 && apt-get -y install python3-pip && apt-get -y install libpq-dev unzip
+RUN apt-get update -y && apt-get -y install python3.7 && apt-get -y install python3-pip && apt-get -y install libpq-dev unzip
 
 RUN pip3 install virtualenv && pip3 install requests
 
