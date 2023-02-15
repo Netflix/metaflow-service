@@ -1,6 +1,8 @@
 from aiohttp import web
 from pyee import AsyncIOEventEmitter
 import pytest
+import psycopg2
+import psycopg2.extras
 import os
 import json
 import datetime
@@ -95,8 +97,11 @@ async def clean_db(db: AsyncPostgresDB):
         db.run_table_postgres,
         db.flow_table_postgres
     ]
-    for table in tables:
-        await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name))
+    with (await db.pool.cursor(
+            cursor_factory=psycopg2.extras.DictCursor
+    )) as cur:
+        for table in tables:
+            await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name), cur=cur)
 
 
 @pytest.fixture

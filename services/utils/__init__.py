@@ -172,9 +172,13 @@ def has_heartbeat_capable_version_tag(system_tags):
 #   4. Default connection arguments (DBConfiguration(host="..."))
 #
 
+
 class DBType(Enum):
+    # The DB host is a read replica
     READER = 1
+    # The DB host is a writer instance
     WRITER = 2
+
 
 class DBConfiguration(object):
     host: str = None
@@ -203,7 +207,7 @@ class DBConfiguration(object):
                  pool_min: int = 1,
                  pool_max: int = 10,
                  timeout: int = 60,
-                 reader_host: str = "localhost"):
+                 read_replica_host: str = "localhost"):
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
         # Check if it is a BAD DSN String.
@@ -212,8 +216,8 @@ class DBConfiguration(object):
             if not self._is_valid_dsn(self._dsn):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
-        self._reader_host = \
-            os.environ.get(prefix + "READER_HOST", reader_host) if USE_SEPARATE_READER_POOL == "1" else self._host
+        self._read_replica_host = \
+            os.environ.get(prefix + "READ_REPLICA_HOST", read_replica_host) if USE_SEPARATE_READER_POOL == "1" else self._host
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
@@ -259,7 +263,7 @@ class DBConfiguration(object):
         if type is None or type == DBType.WRITER:
             return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}?sslmode=disable'
         elif type == DBType.READER:
-            return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._reader_host}:{self._port}/{self._database_name}?sslmode=disable'
+            return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}?sslmode=disable'
 
     def get_dsn(self, type=None):
         if self._dsn is None:
@@ -276,7 +280,7 @@ class DBConfiguration(object):
                 return psycopg2.extensions.make_dsn(
                     dbname=self._database_name,
                     user=self._user,
-                    host=self._reader_host,
+                    host=self._read_replica_host,
                     port=self._port,
                     password=self._password
                 )
@@ -304,5 +308,5 @@ class DBConfiguration(object):
         return self._host
 
     @property
-    def reader_host(self):
-        return self._reader_host
+    def read_replica_host(self):
+        return self._read_replica_host
