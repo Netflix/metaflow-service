@@ -186,3 +186,28 @@ The `MF_LOG_LOAD_POLICY` environment variable restricts the amount of log conten
 ## Card content restriction
 
 The `MF_CARD_LOAD_POLICY` (default `full`) environment variable can be set to `blurb_only` to return a Python code snippet to access card using Metaflow client, instead of loading actual HTML card payload.
+
+
+## Scaling reads using read replicas
+
+Databases such as [Amazon Aurora](https://aws.amazon.com/rds/aurora/) provide 
+[read replicas](https://aws.amazon.com/rds/features/read-replicas/) that make it easy to elastically scale beyond
+the capacity constraints of single database instance for heavy read workloads. You are able to separate out the reads
+and the writes of this application by setting the following two environment variables:
+
+>```
+> USE_SEPARATE_READER_POOL = 1                               
+> MF_METADATA_DB_READ_REPLICA_HOST = <READ_REPLICA_ENDPOINT>
+>```
+
+As the name suggests, the `USE_SEPARATE_READER_POOL` variable creates a separate read pool with the same 
+min/max pool size as the writer pool. It is also required to set this variable `MF_METADATA_DB_READ_REPLICA_HOST` to 
+point to the read replica endpoint that is typically a load balancer in front of all the database's read replicas.
+
+### Accounting for eventual consistency
+
+When a read replica is created, there is a lag between the time a transaction is committed to the writer instance and
+the time when the newly written data is available in the read replica. In Amazon Aurora, this [lag is usually much less
+than 100ms](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Replication.html) because the replicas
+share the same underlying storage layer as the writer instance thereby avoiding the need to copy data into the replica
+nodes. This Metaflow UI service application is read heavy and hence is a great candidate for scaling reads using this model.
