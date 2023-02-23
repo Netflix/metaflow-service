@@ -6,6 +6,7 @@ from .get_data_action import GetData
 
 from metaflow import Task
 from metaflow.cards import get_cards
+import os
 
 
 class GetCards(GetData):
@@ -46,16 +47,49 @@ class GetCards(GetData):
         Stream error example:
             stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str()))
         """
-        def _card_item(card):
+        def _card_item(card, card_idx):
+            card_load_policy = os.environ.get('MF_CARD_LOAD_POLICY', 'full')
+            if card_load_policy == 'full':
+                card_html = card.get()
+            elif card_load_policy == 'blurb_only':
+                card_html = f"""<html>
+                <body>
+Your organization has disabled cards viewing from the Metaflow UI. Here is a code snippet to retrieve cards using the Metaflow client library:
+
+<pre>
+<code>
+from metaflow import Task, namespace
+from metaflow.cards import get_cards
+
+namespace(None)
+task = Task("{pathspec}")
+card = get_cards(task)[{card_idx}]
+
+# Uncomment block below to view card in a web browser.
+# import tempfile
+# import webbrowser
+# html_file = tempfile.mktemp(".html")
+# with open(html_file, 'w') as f:
+#    f.write(card.get())
+# webbrowser.open_new('file://' + html_file)
+
+</code>
+</pre>
+
+Please visit <a href="https://docs.metaflow.org/api/client" target="_blank">https://docs.metaflow.org/api/client</a> for detailed documentation.
+                </body>
+                </html>"""
+            else:
+                raise ValueError(f"Invalid value for MF_CARD_LOAD_POLICY ({card_load_policy}) - must be 'full' or 'blurb_only'")
             return {
                 "id": card.id,
                 "type": card.type,
-                "html": card.get()
+                "html": card_html
             }
         try:
             with streamed_errors(stream_output):
                 task = Task("{}".format(pathspec))
-                cards = {card.hash: _card_item(card) for card in get_cards(task)}
+                cards = {card.hash: _card_item(card, i) for i, card in enumerate(get_cards(task))}
         except Exception:
             # NOTE: return false in order not to cache this
             # since parameters might be available later
