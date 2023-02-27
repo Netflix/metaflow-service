@@ -81,11 +81,11 @@ class GetLogFile(CacheAction):
         result_key = log_result_id(task, logtype, limit, page, reverse_order, raw_log)
         stream_key = 'log:stream:%s' % lookup_id(task, logtype, limit, page, reverse_order, raw_log)
 
-        return msg, \
-               [log_key, result_key], \
-               stream_key, \
-               [stream_key, result_key], \
-               invalidate_cache
+        return (msg,
+                [log_key, result_key],
+                stream_key,
+                [stream_key, result_key],
+                invalidate_cache)
 
     @classmethod
     def response(cls, keys_objs):
@@ -158,22 +158,19 @@ class GetLogFile(CacheAction):
 
 # Utilities
 
-# TODOs in order
-# Implement same code for Cards
-# Add unit test coverage
-# Add integration test coverage
-# Minify, prettify everything
-# Add docs re new configs in project
 def get_log_provider():
     log_file_policy = os.environ.get('MF_LOG_LOAD_POLICY', 'full').lower()
     if log_file_policy == 'full':
-        return FullLogProvider
+        return FullLogProvider()
     elif log_file_policy == 'tail':
-        return TailLogProvider
+        # In number of characters (UTF-8)
+        tail_max_size = int(os.environ.get('MF_LOG_LOAD_TAIL_SIZE', 100 * 1024))
+        return TailLogProvider(tail_max_size=tail_max_size)
     elif log_file_policy == 'blurb_only':
-        return BlurbOnlyLogProvider
+        return BlurbOnlyLogProvider()
     else:
-        raise ValueError("Unknown log value for MF_LOG_LOAD_POLICY (%s). Must be 'full', 'tail', or 'blurb_only'" % log_file_policy)
+        raise ValueError("Unknown log value for MF_LOG_LOAD_POLICY (%s). "
+                         "Must be 'full', 'tail', or 'blurb_only'" % log_file_policy)
 
 
 def get_log_size(task: Task, logtype: str):
@@ -201,40 +198,42 @@ def get_log_content(task: Task, logtype: str):
 
 class LogProviderBase:
 
-    @staticmethod
-    def get_log_hash(task: Task, logtype: str) -> int:
+    def get_log_hash(self, task: Task, logtype: str) -> int:
         raise NotImplementedError
 
-    @staticmethod
-    def get_log_content(task: Task, logtype: str):
+    def get_log_content(self, task: Task, logtype: str):
         raise NotImplementedError
 
 
 class TailLogProvider(LogProviderBase):
-    @staticmethod
-    def get_log_hash(task: Task, logtype: str) -> int:
+    def __init__(self, tail_max_size: int):
+        super().__init__()
+        self._tail_max_size = tail_max_size
+
+    def get_log_hash(self, task: Task, logtype: str) -> int:
         # We can still use the true log size as a hash - still valid way to detect log growth
         return get_log_size(task, logtype)
 
-    @staticmethod
-    def get_log_content(task: Task, logtype: str):
-        # In number of characters (UTF-8)
-        tail_max_size = int(os.environ.get('MF_LOG_LOAD_TAIL_SIZE', 100 * 1024))
+    def get_log_content(self, task: Task, logtype: str):
+
         # Note this is inefficient - we will load a 1GB log even if we only want last 100 bytes.
         # Doing this efficiently is a step change in complexity and effort - we can do it when justified in future.
         raw_content = get_log_content(task, logtype)
+        if len(raw_content) == 0:
+            return raw_content  # empty list
 
         chars_seen = 0
         oldest_line_idx = None
         for i in range(len(raw_content) - 1, -1, -1):
             chars_seen += len(raw_content[i][1])
-            oldest_line_idx = i
-            if chars_seen > tail_max_size:
+            if chars_seen > self._tail_max_size:
                 break
-        if oldest_line_idx is None:
-            return []
+            oldest_line_idx = i
         if oldest_line_idx == 0:
             return raw_content
+        if oldest_line_idx is None:
+            return [(raw_content[-1][0], f"All {len(raw_content)} log lines truncated.")]
+
         # peel the first timestamp in returned payload, attach to the user message here
         result = [(raw_content[oldest_line_idx][0], f"...{oldest_line_idx} more earlier lines truncated...")]
         result.extend(raw_content[oldest_line_idx:])
@@ -242,25 +241,23 @@ class TailLogProvider(LogProviderBase):
 
 
 class BlurbOnlyLogProvider(LogProviderBase):
-    @staticmethod
-    def get_log_hash(task: Task, logtype: str) -> int:
+    def get_log_hash(self, task: Task, logtype: str) -> int:
         # We know the content is static
         return 42
 
-    @staticmethod
-    def get_log_content(task: Task, logtype: str):
+    def get_log_content(self, task: Task, logtype: str):
         stream_name = 'stderr' if logtype == STDERR else 'stdout'
         # Improvement ideas:
         # - Use a specific Metaflow namespace (not quite trivial as we need to check various system tags to resolve.
         # - Is there anyway to also provide a CLI command, in addition to Python code?
-        blurb = f"""# Your organization has disabled logs viewing from the Metaflow UI. Here is a code snippet to retrieve logs using the Metaflow client library:
-            
+        blurb = f"""# Your organization has disabled logs viewing from the Metaflow UI. Here is a code snippet to get logs using the Metaflow client library:
+
 from metaflow import Task, namespace
 
 namespace(None)
 task = Task("{task.pathspec}", attempt={task.current_attempt})
 {stream_name} = task.{stream_name}
-            
+
 # Please visit https://docs.metaflow.org/api/client for detailed documentation."""
 
         return [(None, line) for line in blurb.split("\n")]
@@ -268,13 +265,11 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
 
 class FullLogProvider(LogProviderBase):
 
-    @staticmethod
-    def get_log_hash(task: Task, logtype: str) -> int:
+    def get_log_hash(self, task: Task, logtype: str) -> int:
         """size is a valid hash function"""
         return get_log_size(task, logtype)
 
-    @staticmethod
-    def get_log_content(task: Task, logtype: str):
+    def get_log_content(self, task: Task, logtype: str):
         return get_log_content(task, logtype)
 
 
