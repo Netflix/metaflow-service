@@ -9,6 +9,8 @@ The following are optional environment variables that can be used to fine-tune t
   - [Baseurl configuration](#baseurl-configuration)
   - [Custom navigation links for UI](#custom-navigation-links-for-ui)
   - [System notifications for UI](#system-notifications-for-ui)
+  - [Log content restriction options](#log-content-restriction-options)
+  - [Card content restriction](#card-content-restriction)
 
 ## Web socket message retention
 
@@ -170,3 +172,17 @@ Plaintext example:
   }
 ]
 ```
+
+## Log content restriction options
+
+The `MF_LOG_LOAD_POLICY` environment variable restricts the amount of log content loaded by the UI. These values are supported:
+
+* `full` (default): loads entire log.
+* `tail`: loads the tail of the log only (up to a fixed size by number of characters. See `MF_LOG_LOAD_TAIL_SIZE` below.
+* `blurb_only`: does not load the log at all. Instead return Python code snippet to access logs using Metaflow client.
+
+`MF_LOG_LOAD_TAIL_SIZE` may be used when `MF_LOG_LOAD_POLICY=tail`. Returns the last N lines of the log file, where N is maximized without returning more than MF_LOG_LOAD_TAIL_SIZE number of characters. Defaults to `100*1024` characters.
+
+## Card content restriction
+
+The `MF_CARD_LOAD_POLICY` (default `full`) environment variable can be set to `blurb_only` to return a Python code snippet to access card using Metaflow client, instead of loading actual HTML card payload.
