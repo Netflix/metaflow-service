@@ -26,7 +26,7 @@ services:
       - MF_METADATA_DB_POOL_MAX=10
       - LOGLEVEL=INFO
       - AIOPG_ECHO=0
-      - UI_ENABLED=1
+      - UI_ENABLED=0
       - PREFETCH_RUNS_SINCE=2592000 # 30 days in seconds
       - PREFETCH_RUNS_LIMIT=1 # Prefetch only one run
       - S3_NUM_WORKERS=2
@@ -44,24 +44,12 @@ services:
       - FEATURE_DB_LISTEN_DISABLE=0
       - FEATURE_ARTIFACT_SEARCH=1
       - FEATURE_ARTIFACT_TABLE=1
-      - FEATURE_LOGS=0
       - CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
       - NOTIFICATIONS=$NOTIFICATIONS
       - GA_TRACKING_ID=none
       - PLUGINS=$PLUGINS
-      - METAFLOW_DATASTORE_SYSROOT_S3=s3://oleg2-s3-mztdpcvj/metaflow
-      - MF_DATASTORE_ROOT=s3://oleg2-s3-mztdpcvj/metaflow
-      - METAFLOW_DEFAULT_DATASTORE=s3
-      - AWS_VAULT=devsandbox
-      - AWS_DEFAULT_REGION=us-east-2
-      - AWS_REGION=us-east-2
-      - AWS_ACCESS_KEY_ID=ASIAQDIEO5HJZAAPMB4V
-      - AWS_SECRET_ACCESS_KEY=iTiF9eSqqy8hlIv5OkbpFPY+I91XQ7ACV1s/g0EW
-      - AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEGUaCXVzLWVhc3QtMSJHMEUCIQDrgsFIXIr5cZ+Orw6J9hp/SDKSP8Dds56NoaGKNUlG1gIgJSbVqxmM489CgMzgnheXpwbgNs3Izh4/tMcdVhRjZewqoQIIHhABGgwwMDY5ODg2ODc4MjciDJ8whRhm7XxVYdqYCir+AbEuxxSAURuEvWmen7AuZ3FEKywCVlJEbjZoAFn+dIzbo9XPbvb1fQR1ql6iZwR/TgXsYKNqOYcfl0b8bUmpGTkOgTcKHljZZHUOJd9TMk5E37qdNksGoxp8uFGq1LIGs+lCWQvQXj1TNs89YsQRBrSdKaxmoUgQ1V3LEUTKcvR9iiNPDBMQFoquBsujJJcVagGIpoC/EbfDDxGkwvI5jRgPxeOMfZSazPhK7umLIakqpfUgG3Uu0mJNMa7sCbmhM+cdhLqcLj7wzDEdkWpwOJhcXN+u6JItOwjP22naGnCSQY6x36ATK/9PE4x9UxU6XvGX7etvVSZdBJWWD5qUMKCkmaAGOp0BtnUwE9wKzcOe73UFbqXdYDRHjiQ4yGdlr9SWAMnECi9Z4kLxavzVCs8dUQOPiftbAZavCNBCgIoE0nQxDzWm1JkZQ3mOmsNGR3u5Melkycm2Cm/5Nyr9AzfRjbxXUnkTx8XHK/Xuf0Z0MzofDEpv62gHS9OjhNBFeDsjBzNwAI3IlCWY9fsXlRDQFd6dOIawCSt4mgE7m+dExLXeEg==
-      - AWS_SECURITY_TOKEN=IQoJb3JpZ2luX2VjEGUaCXVzLWVhc3QtMSJHMEUCIQDrgsFIXIr5cZ+Orw6J9hp/SDKSP8Dds56NoaGKNUlG1gIgJSbVqxmM489CgMzgnheXpwbgNs3Izh4/tMcdVhRjZewqoQIIHhABGgwwMDY5ODg2ODc4MjciDJ8whRhm7XxVYdqYCir+AbEuxxSAURuEvWmen7AuZ3FEKywCVlJEbjZoAFn+dIzbo9XPbvb1fQR1ql6iZwR/TgXsYKNqOYcfl0b8bUmpGTkOgTcKHljZZHUOJd9TMk5E37qdNksGoxp8uFGq1LIGs+lCWQvQXj1TNs89YsQRBrSdKaxmoUgQ1V3LEUTKcvR9iiNPDBMQFoquBsujJJcVagGIpoC/EbfDDxGkwvI5jRgPxeOMfZSazPhK7umLIakqpfUgG3Uu0mJNMa7sCbmhM+cdhLqcLj7wzDEdkWpwOJhcXN+u6JItOwjP22naGnCSQY6x36ATK/9PE4x9UxU6XvGX7etvVSZdBJWWD5qUMKCkmaAGOp0BtnUwE9wKzcOe73UFbqXdYDRHjiQ4yGdlr9SWAMnECi9Z4kLxavzVCs8dUQOPiftbAZavCNBCgIoE0nQxDzWm1JkZQ3mOmsNGR3u5Melkycm2Cm/5Nyr9AzfRjbxXUnkTx8XHK/Xuf0Z0MzofDEpv62gHS9OjhNBFeDsjBzNwAI3IlCWY9fsXlRDQFd6dOIawCSt4mgE7m+dExLXeEg==
-      - AWS_SESSION_EXPIRATION=2023-03-07T08:45:40Z
     depends_on:
-      - db
+      - migration
   metadata:
     build:
       context: .
@@ -82,11 +70,10 @@ services:
     depends_on:
       - migration
   migration:
+    command: ["/opt/latest/bin/python3", "/root/run_goose.py"]
     build:
       context: .
-      dockerfile: Dockerfile.migration_service
-    ports:
-      - "${MF_MIGRATION_PORT:-8082}:${MF_MIGRATION_PORT:-8082}"
+      dockerfile: Dockerfile
     volumes:
       - ./services:/root/services
     environment:
@@ -103,14 +90,7 @@ services:
       - db
   db:
     image: "postgres:11"
-    command:
-      [
-        "postgres",
-        "-c",
-        "log_statement=none",
-        "-c",
-        "wal_level=logical"
-      ]
+    command: ["postgres", "-c", "log_statement=none", "-c", "wal_level=logical"]
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -118,11 +98,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - db_dev_data3:/var/lib/postgresql/data
+      - db_dev_data:/var/lib/postgresql/data2
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 volumes:
-  db_dev_data3:
+  db_dev_data:
