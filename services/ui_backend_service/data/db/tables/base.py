@@ -110,8 +110,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
             select_sql = sql_template.format(
                 keys=",".join(
-                    self.select_columns
-                    + (self.join_columns if enable_joins and self.join_columns else [])
+                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])
                 ),
                 table_name=overwrite_select_from
                 if overwrite_select_from
@@ -142,8 +141,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
             groups_sql = groups_sql_template.format(
                 keys=",".join(
-                    self.select_columns
-                    + (self.join_columns if enable_joins and self.join_columns else [])
+                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])
                 ),
                 table_name=self.table_name,
                 joins=" ".join(self.joins)
@@ -194,8 +192,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
             select_sql = sql_template.format(
                 keys=",".join(
-                    self.select_columns
-                    + (self.join_columns if enable_joins and self.join_columns else [])
+                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])
                 ),
                 table_name=overwrite_select_from
                 if overwrite_select_from
