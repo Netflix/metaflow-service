@@ -1,4 +1,4 @@
-FROM golang:1.19.6-buster
+FROM golang:1.20.2-buster
 
 ARG BUILD_TIMESTAMP
 ARG BUILD_COMMIT_HASH
