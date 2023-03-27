@@ -63,13 +63,6 @@ DROP INDEX CONCURRENTLY IF EXISTS artifact_v3_idx_str_ids_primary_key;
 
 -- +goose Down
 
-DROP INDEX IF EXISTS runs_v3_idx_str_ids_primary_key_v2;
-DROP INDEX IF EXISTS steps_v3_idx_str_ids_primary_key_v2;
-DROP INDEX IF EXISTS metadata_v3_idx_str_ids_a_key;
-DROP INDEX IF EXISTS metadata_v3_idx_str_ids_a_key_with_task_id;
-DROP INDEX IF EXISTS artifact_v3_idx_str_ids_primary_key_v2;
-DROP INDEX IF EXISTS artifact_v3_idx_str_ids_primary_key_with_task_id;
-
 -- copy of 20211202100726_add_str_id_indices.sql
 -- runs idx on flow_id, run_id
 CREATE INDEX CONCURRENTLY IF NOT EXISTS runs_v3_idx_str_ids_primary_key ON runs_v3 (flow_id, run_id)
@@ -106,3 +99,10 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS artifact_v3_idx_str_ids_primary_key ON a
 WHERE
   run_id IS NOT NULL
   AND task_name IS NOT NULL;
+
+DROP INDEX CONCURRENTLY IF EXISTS runs_v3_idx_str_ids_primary_key_v2;
+DROP INDEX CONCURRENTLY IF EXISTS steps_v3_idx_str_ids_primary_key_v2;
+DROP INDEX CONCURRENTLY IF EXISTS metadata_v3_idx_str_ids_a_key;
+DROP INDEX CONCURRENTLY IF EXISTS metadata_v3_idx_str_ids_a_key_with_task_id;
+DROP INDEX CONCURRENTLY IF EXISTS artifact_v3_idx_str_ids_primary_key_v2;
+DROP INDEX CONCURRENTLY IF EXISTS artifact_v3_idx_str_ids_primary_key_with_task_id;
