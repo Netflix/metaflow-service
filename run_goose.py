@@ -51,7 +51,7 @@ def main():
     parser.add_argument("--wait", type=int, default=30, help="Wait for connection for X seconds")
     args = parser.parse_args()
 
-    db_connection_string = "postgresql://{}:{}@{}:{}/{}?sslmode=disable".format(
+    db_connection_string = "postgresql://{}:{}@{}:{}/{}?sslmode=require".format(
         quote(os.environ["MF_METADATA_DB_USER"]),
         quote(os.environ["MF_METADATA_DB_PSWD"]),
         os.environ["MF_METADATA_DB_HOST"],
