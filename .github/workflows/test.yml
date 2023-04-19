@@ -78,7 +78,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test
         options: >-
-          --health-cmd pg_isready -d test -U test
+          --health-cmd "pg_isready -d test -U test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
