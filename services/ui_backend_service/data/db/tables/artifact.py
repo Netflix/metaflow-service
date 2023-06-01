@@ -19,7 +19,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
 
     async def get_run_parameter_artifacts(self, flow_name, run_number, postprocess=None, invalidate_cache=False):
         run_id_key, run_id_value = translate_run_key(run_number)
-        # TODO: Needs task_name handling
+        # DONE: Needs task_name handling
+        restrict_tasks_condition = ["task_name IS NOT NULL"] if run_id_key=="run_id" else []
 
         # '_parameters' step has all the parameters as artifacts. only pick the
         # public parameters (no underscore prefix)
@@ -31,7 +32,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
                 "name NOT LIKE %s",
                 "name <> %s",
                 "name <> %s"
-            ],
+            ]+restrict_tasks_condition,
             values=[
                 flow_name,
                 run_id_value,
@@ -96,7 +97,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         Tries to locate '_graph_info' in run artifacts
         """
         run_id_key, run_id_value = translate_run_key(run_id)
-        # TODO: Needs task_name handling
+        # DONE: Needs task_name handling
+        restrict_tasks_condition = ["task_name IS NOT NULL"] if run_id_key=="run_id" else []
 
         db_response, *_ = await self.find_records(
             conditions=[
@@ -105,7 +107,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
                     run_id_key=run_id_key),
                 "step_name = %s",
                 "name = %s"
-            ],
+            ]+restrict_tasks_condition,
             values=[
                 flow_name, run_id_value, "_parameters",
                 "_graph_info",

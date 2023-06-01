@@ -73,14 +73,15 @@ class TaskApi(object):
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         run_id_key, run_id_value = translate_run_key(run_number)
-        # TODO: Needs task_name handling
+        # DONE: Needs task_name handling
+        restrict_tasks_condition = ["task_name IS NOT NULL"] if run_id_key=="run_id" else []
 
         return await find_records(request,
                                   self._async_table,
                                   initial_conditions=[
                                       "flow_id = %s",
                                       "{run_id_key} = %s".format(
-                                          run_id_key=run_id_key)],
+                                          run_id_key=run_id_key)]+restrict_tasks_condition,
                                   initial_values=[
                                       flow_name, run_id_value],
                                   allowed_order=self._async_table.keys + ["finished_at", "duration", "attempt_id"],
@@ -135,7 +136,8 @@ class TaskApi(object):
         run_number = request.match_info.get("run_number")
         run_id_key, run_id_value = translate_run_key(run_number)
         step_name = request.match_info.get("step_name")
-        # TODO: Needs task_name handling
+        # DONE: Needs task_name handling
+        restrict_tasks_condition = ["task_name IS NOT NULL"] if run_id_key=="run_id" else []
 
         return await find_records(request,
                                   self._async_table,
@@ -143,7 +145,7 @@ class TaskApi(object):
                                       "flow_id = %s",
                                       "{run_id_key} = %s".format(
                                           run_id_key=run_id_key),
-                                      "step_name = %s"],
+                                      "step_name = %s"]+restrict_tasks_condition,
                                   initial_values=[
                                       flow_name, run_id_value, step_name],
                                   initial_order=["attempt_id DESC"],

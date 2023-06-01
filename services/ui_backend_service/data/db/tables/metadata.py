@@ -31,7 +31,9 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         Tries to locate 'code-package' or 'code-package-url' in run metadata.
         """
         run_id_key, run_id_value = translate_run_key(run_id)
-        # TODO: Needs task_name handling
+        # DONE: Needs task_name handling
+        restrict_tasks_condition = ["task_name IS NOT NULL"] if run_id_key=="run_id" else []
+
         # 'code-package' value contains json with dstype, sha1 hash and location
         # 'code-package-url' value contains only location as a string
         db_response, *_ = await self.find_records(
@@ -40,7 +42,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
                 "{run_id_key} = %s".format(
                     run_id_key=run_id_key),
                 "(field_name = %s OR field_name = %s)"
-            ],
+            ]+restrict_tasks_condition,
             values=[
                 flow_name, run_id_value,
                 "code-package", "code-package-url"

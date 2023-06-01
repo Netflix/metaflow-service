@@ -121,14 +121,15 @@ class MetadataApi(object):
         flow_name = request.match_info.get("flow_id")
         run_id_key, run_id_value = translate_run_key(
             request.match_info.get("run_number"))
-        # TODO: Needs task_name handling
+        # DONE: Needs task_name handling
+        restrict_tasks_condition = ["task_name IS NOT NULL"] if run_id_key=="run_id" else []
 
         return await find_records(request,
                                   self._async_table,
                                   initial_conditions=[
                                       "flow_id = %s",
                                       "{run_id_key} = %s".format(
-                                          run_id_key=run_id_key)],
+                                          run_id_key=run_id_key)]+restrict_tasks_condition,
                                   initial_values=[
                                       flow_name, run_id_value],
                                   allowed_order=self._async_table.keys,

@@ -294,11 +294,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         DBResponse
         """
         run_id_key, run_id_value = translate_run_key(run_key)
-        # TODO: Needs task_name handling
+        # DONE: Needs task_name handling
+        restrict_tasks_condition = ["task_name IS NOT NULL"] if run_id_key=="run_id" else []
         conditions = [
             "flow_id = %s",
             "{run_id_column} = %s".format(run_id_column=run_id_key)
-        ]
+        ]+restrict_tasks_condition
         values = [flow_id, run_id_value]
 
         result, *_ = await self.find_records(
