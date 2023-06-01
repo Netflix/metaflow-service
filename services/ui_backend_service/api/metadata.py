@@ -121,6 +121,7 @@ class MetadataApi(object):
         flow_name = request.match_info.get("flow_id")
         run_id_key, run_id_value = translate_run_key(
             request.match_info.get("run_number"))
+        # TODO: Needs task_name handling
 
         return await find_records(request,
                                   self._async_table,

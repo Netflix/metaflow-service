@@ -75,6 +75,7 @@ class ArtifactSearchApi(object):
         Includes localstore artifacts as well, as we want to return that these could not be searched over.
         """
         run_id_key, run_id_value = translate_run_key(run_key)
+        # TODO: Needs task_name handling
         db_response = await self._artifact_table.get_records(
             filter_dict={
                 "flow_id": flow_name,

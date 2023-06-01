@@ -150,6 +150,7 @@ class AutoCompleteApi(object):
         run_id = request.match_info.get("run_id")
 
         run_key, run_value = translate_run_key(run_id)
+        # TODO: Needs task_name handling
 
         return await resource_response(
             request,
@@ -179,6 +180,7 @@ class AutoCompleteApi(object):
         run_id = request.match_info.get("run_id")
 
         run_key, run_value = translate_run_key(run_id)
+        # TODO: Needs task_name handling
 
         return await resource_response(
             request,

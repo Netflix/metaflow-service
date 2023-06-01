@@ -294,6 +294,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         DBResponse
         """
         run_id_key, run_id_value = translate_run_key(run_key)
+        # TODO: Needs task_name handling
         conditions = [
             "flow_id = %s",
             "{run_id_column} = %s".format(run_id_column=run_id_key)

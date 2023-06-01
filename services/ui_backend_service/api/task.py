@@ -73,6 +73,7 @@ class TaskApi(object):
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         run_id_key, run_id_value = translate_run_key(run_number)
+        # TODO: Needs task_name handling
 
         return await find_records(request,
                                   self._async_table,
@@ -134,6 +135,7 @@ class TaskApi(object):
         run_number = request.match_info.get("run_number")
         run_id_key, run_id_value = translate_run_key(run_number)
         step_name = request.match_info.get("step_name")
+        # TODO: Needs task_name handling
 
         return await find_records(request,
                                   self._async_table,
