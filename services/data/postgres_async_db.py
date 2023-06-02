@@ -81,7 +81,7 @@ class _AsyncPostgresDB(object):
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
                     timeout=db_conf.timeout,
-                    pool_recycle=10 * db_conf.timeout,
+                    pool_recycle=-1,
                     echo=AIOPG_ECHO)
 
                 for table in self.tables:
