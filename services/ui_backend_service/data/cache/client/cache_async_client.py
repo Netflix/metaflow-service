@@ -81,7 +81,7 @@ class CacheAsyncClient(CacheClient):
             async with self._drain_lock:
                 await asyncio.wait_for(self._proc.stdin.drain(), timeout=WAIT_FREQUENCY)
         except asyncio.TimeoutError:
-            self.logger.warn(
+            self.logger.warning(
                 "StreamWriter.drain timeout, request restart: {}".format(
                     repr(self._proc.stdin)
                 )

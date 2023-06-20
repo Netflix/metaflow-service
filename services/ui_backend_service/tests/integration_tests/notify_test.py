@@ -28,8 +28,8 @@ async def db(cli):
 # Fixtures end
 
 
-def _set_notify_handler(cli, loop):
-    should_call = Future(loop=loop)
+def _set_notify_handler(cli):
+    should_call = Future()
 
     async def event_handler(operation: str, resources: List[str], result: Dict, table, filter_dict):
         should_call.set_result([operation, resources, result])
@@ -38,9 +38,9 @@ def _set_notify_handler(cli, loop):
     return should_call
 
 
-async def test_pg_notify_simple_flow(cli, db, loop):
+async def test_pg_notify_simple_flow(cli, db):
     # Add new Flow
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
 
     # Wait for results
@@ -52,9 +52,9 @@ async def test_pg_notify_simple_flow(cli, db, loop):
 
 # Test INSERT and UPDATE pg_notify triggers
 # Resource insert order is important here due to foreign keys
-async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
+async def test_pg_notify_trigger_updates_on_task(cli, db):
     # Add new Flow
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
 
     # Wait for results
@@ -64,7 +64,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     assert result == assertable_flow(_flow)
 
     # Add new Run
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     # _run["status"] = "running"
 
@@ -76,7 +76,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     assert result == assertable_run(_run)
 
     # Add normal Step
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
 
     # Wait for results
@@ -87,7 +87,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     assert result == assertable_step(_step)
 
     # Add new Task
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _task_step = (await add_task(db,
                                  flow_id=_step.get("flow_id"),
                                  step_name=_step.get("step_name"),
@@ -106,7 +106,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     assert result == assertable_task(_task_step)
 
     # Add end Step
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="end", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
 
     # Wait for results
@@ -117,7 +117,7 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     assert result == assertable_step(_step)
 
     # Add new Task to end Step
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _task_end = (await add_task(db,
                                 flow_id=_run.get("flow_id"),
                                 step_name="end",
@@ -135,8 +135,8 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     assert result == assertable_task(_task_end)
 
     # Add artifact (Task will be done)
-    _should_call_task_done = Future(loop=loop)
-    _should_call_artifact_insert = Future(loop=loop)
+    _should_call_task_done = Future()
+    _should_call_artifact_insert = Future()
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if operation == "UPDATE":
@@ -168,8 +168,8 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
     cli.server.app.event_emitter.remove_all_listeners()
 
     # Add artifact (Run will be done)
-    _should_call_task_done = Future(loop=loop)
-    _should_call_run_done = Future(loop=loop)
+    _should_call_task_done = Future()
+    _should_call_run_done = Future()
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if operation == "UPDATE":
@@ -206,30 +206,30 @@ async def test_pg_notify_trigger_updates_on_task(cli, db, loop):
 # Resource insert order is important here due to foreign keys
 # Test artifact attempt_id and task updates related to it
 # Task finished_at and attempt_id should always reflect artifact values
-async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
+async def test_pg_notify_trigger_updates_on_attempt_id(cli, db):
     # Add new Flow
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
 
     # Wait for results
     await wait_for(_should_call, TIMEOUT_FUTURE)
 
     # Add new Run
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
 
     # Wait for results
     await wait_for(_should_call, TIMEOUT_FUTURE)
 
     # Add normal Step
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="step", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
 
     # Wait for results
     await wait_for(_should_call, TIMEOUT_FUTURE)
 
     # Add new Task
-    _should_call = _set_notify_handler(cli, loop)
+    _should_call = _set_notify_handler(cli)
     _task_step = (await add_task(db,
                                  flow_id=_step.get("flow_id"),
                                  step_name=_step.get("step_name"),
@@ -241,8 +241,8 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
 
     # Add artifact with attempt_id = 0 (Task will be done)
 
-    _should_call_task_done = Future(loop=loop)
-    _should_call_artifact_insert = Future(loop=loop)
+    _should_call_task_done = Future()
+    _should_call_artifact_insert = Future()
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if operation == 'UPDATE':
@@ -276,8 +276,8 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     cli.server.app.event_emitter.remove_all_listeners()
 
     # Add artifact with attempt_id = 1 (Task will be done)
-    _should_call_task_done = Future(loop=loop)
-    _should_call_artifact_insert = Future(loop=loop)
+    _should_call_task_done = Future()
+    _should_call_artifact_insert = Future()
 
     async def _event_handler_task_done(operation: str, resources: List[str], result: Dict, table, filter_dict):
         if operation == 'UPDATE':
@@ -311,7 +311,7 @@ async def test_pg_notify_trigger_updates_on_attempt_id(cli, db, loop):
     cli.server.app.event_emitter.remove_all_listeners()
 
 
-async def test_pg_notify_dag_code_package_url(cli, db, loop):
+async def test_pg_notify_dag_code_package_url(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="start", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
@@ -323,7 +323,7 @@ async def test_pg_notify_dag_code_package_url(cli, db, loop):
 
     cli.server.app.event_emitter.remove_all_listeners()
 
-    _should_call_dag = Future(loop=loop)
+    _should_call_dag = Future()
 
     async def _event_handler_dag(flow_name: str, run_number: str):
         if not _should_call_dag.done():
@@ -347,7 +347,7 @@ async def test_pg_notify_dag_code_package_url(cli, db, loop):
     assert str(run_number) == str(_task.get("run_number"))
 
 
-async def test_pg_notify_dag_code_package(cli, db, loop):
+async def test_pg_notify_dag_code_package(cli, db):
     _flow = (await add_flow(db, flow_id="HelloFlow")).body
     _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
     _step = (await add_step(db, flow_id=_run.get("flow_id"), step_name="start", run_number=_run.get("run_number"), run_id=_run.get("run_id"))).body
@@ -359,7 +359,7 @@ async def test_pg_notify_dag_code_package(cli, db, loop):
 
     cli.server.app.event_emitter.remove_all_listeners()
 
-    _should_call_dag = Future(loop=loop)
+    _should_call_dag = Future()
 
     async def _event_handler_dag(flow_name: str, run_number: str):
         if not _should_call_dag.done():
