@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM python:3.11
 ADD services/__init__.py /root/services/
 ADD services/data /root/services/data
 ADD services/utils /root/services/utils

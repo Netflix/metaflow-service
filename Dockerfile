@@ -16,7 +16,7 @@ ENV FEATURE_DEBUG_VIEW=1
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
 RUN apt-get update -y \
-    && apt-get -y install python3.7 python3-pip libpq-dev unzip
+    && apt-get -y install python3.11 python3-pip libpq-dev unzip
 
 RUN pip3 install virtualenv requests
 
