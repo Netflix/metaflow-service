@@ -1,4 +1,8 @@
-FROM golang:1.20.2-buster
+FROM golang:1.20.5 as goose
+RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
+
+FROM python:3.11-bookworm
+COPY --from=goose /go/bin/goose /usr/local/bin/
 
 ARG BUILD_TIMESTAMP
 ARG BUILD_COMMIT_HASH
@@ -12,11 +16,6 @@ ENV UI_VERSION=$UI_VERSION
 
 ENV FEATURE_RUN_GROUPS=0
 ENV FEATURE_DEBUG_VIEW=1
-
-RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
-
-RUN apt-get update -y \
-    && apt-get -y install python3.11 python3-pip libpq-dev unzip
 
 RUN pip3 install virtualenv requests
 
