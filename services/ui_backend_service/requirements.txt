@@ -1,6 +1,7 @@
 aiohttp >= 3.8.1, < 4
 pyee==8.0.1
 throttler==1.2.0
+packaging
 psycopg2
 aiopg
 pygit2==1.6.1
