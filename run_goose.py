@@ -8,20 +8,23 @@ import psycopg2
 import psycopg2.errorcodes
 
 
+DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
+
+
 def check_if_goose_table_exists(db_connection_string: str):
     conn = psycopg2.connect(db_connection_string)
     cur = conn.cursor()
     try:
         cur.execute("SELECT schemaname,tablename FROM pg_tables")
-        tables = [name for schema, name in cur.fetchall() if schema == "public"]
+        tables = [name for schema, name in cur.fetchall() if schema == DB_SCHEMA_NAME]
         if "goose_db_version" not in tables:
             print(
-                f"Goose migration table not found among tables in schema public. Found: {', '.join(tables)}",
+                f"Goose migration table not found among tables in schema {DB_SCHEMA_NAME}. Found: {', '.join(tables)}",
                 file=sys.stderr,
             )
             return False
         else:
-            print(f"Goose migration table found in schema public", file=sys.stderr)
+            print(f"Goose migration table found in schema {DB_SCHEMA_NAME}", file=sys.stderr)
             return True
     finally:
         conn.close()

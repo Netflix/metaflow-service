@@ -34,6 +34,7 @@ STEP_TABLE_NAME = os.environ.get("DB_TABLE_NAME_STEPS", "steps_v3")
 TASK_TABLE_NAME = os.environ.get("DB_TABLE_NAME_TASKS", "tasks_v3")
 METADATA_TABLE_NAME = os.environ.get("DB_TABLE_NAME_METADATA", "metadata_v3")
 ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
+DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 
 operator_match = re.compile('([^:]*):([=><]+)$')
 
@@ -397,7 +398,7 @@ class PostgresUtils(object):
                 cur.close()
 
     @staticmethod
-    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
+    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME):
         if not keys:
             pass
 
