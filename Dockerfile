@@ -1,4 +1,4 @@
-FROM golang:1.20.5 as goose
+FROM golang:1.20.2-buster as goose
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
 FROM python:3.11.4-slim-bookworm
