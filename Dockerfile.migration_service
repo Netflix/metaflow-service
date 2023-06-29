@@ -1,8 +1,11 @@
 FROM golang:1.20.2 AS goose
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
-FROM python:3.11.4
+FROM python:3.11.4-slim-bookworm
 COPY --from=goose /go/bin/goose /usr/local/bin/
+
+RUN apt-get update -y \
+    && apt-get -y install libpq-dev
 
 ADD services/__init__.py /root/services/__init__.py
 ADD services/utils /root/services/utils
