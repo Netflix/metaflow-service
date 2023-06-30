@@ -72,7 +72,7 @@ def main():
 
     p = Popen(
         [
-            "/go/bin/goose",
+            "goose",
             "-dir",
             "/root/services/migration_service/migration_files/",
             "postgres",

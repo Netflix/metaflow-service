@@ -1,4 +1,4 @@
-FROM python:3.7.13
+FROM python:3.11.4-slim-bookworm
 
 ARG UI_ENABLED="1"
 ARG UI_VERSION="v1.3.2"
@@ -14,6 +14,9 @@ ENV BUILD_COMMIT_HASH=$BUILD_COMMIT_HASH
 ARG CUSTOM_QUICKLINKS
 
 ENV CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
+
+RUN apt-get update -y \
+    && apt-get -y install libpq-dev unzip gcc curl
 
 ADD services/__init__.py /root/services/__init__.py
 ADD services/data /root/services/data

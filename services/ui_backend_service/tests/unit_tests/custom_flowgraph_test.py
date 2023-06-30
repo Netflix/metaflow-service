@@ -82,7 +82,7 @@ if __name__ == '__main__':
           "start": {
               "name": "start",
               "type": "start",
-              "line": 9,
+              "line": 10,
               "doc": "",
               "next": [
                   "regular_step"
@@ -92,7 +92,7 @@ if __name__ == '__main__':
           "regular_step": {
               "name": "regular_step",
               "type": "split-static",
-              "line": 13,
+              "line": 14,
               "doc": "Just a regular step that splits into two",
               "next": [
                   "prepare_foreach",
@@ -103,7 +103,7 @@ if __name__ == '__main__':
           "prepare_foreach": {
               "name": "prepare_foreach",
               "type": "split-foreach",
-              "line": 22,
+              "line": 23,
               "doc": "Generate a list of things to process in the first foreach",
               "next": [
                   "process_foreach"
@@ -113,7 +113,7 @@ if __name__ == '__main__':
           "process_foreach": {
               "name": "process_foreach",
               "type": "linear",
-              "line": 34,
+              "line": 35,
               "doc": "",
               "next": [
                   "join"
@@ -123,7 +123,7 @@ if __name__ == '__main__':
           "join": {
               "name": "join",
               "type": "join",
-              "line": 46,
+              "line": 47,
               "doc": "",
               "next": [
                   "ultimate_join"
@@ -133,7 +133,7 @@ if __name__ == '__main__':
           "prepare_foreach2": {
               "name": "prepare_foreach2",
               "type": "split-foreach",
-              "line": 28,
+              "line": 29,
               "doc": "Generate a list of things to process in the second foreach",
               "next": [
                   "process_foreach2"
@@ -143,7 +143,7 @@ if __name__ == '__main__':
           "process_foreach2": {
               "name": "process_foreach2",
               "type": "linear",
-              "line": 39,
+              "line": 41,
               "doc": "Process second foreach and retry in case of failures",
               "next": [
                   "join2"
@@ -153,7 +153,7 @@ if __name__ == '__main__':
           "join2": {
               "name": "join2",
               "type": "join",
-              "line": 50,
+              "line": 51,
               "doc": "",
               "next": [
                   "after_join"
@@ -163,7 +163,7 @@ if __name__ == '__main__':
           "after_join": {
               "name": "after_join",
               "type": "linear",
-              "line": 54,
+              "line": 55,
               "doc": "",
               "next": [
                   "ultimate_join"
@@ -173,7 +173,7 @@ if __name__ == '__main__':
           "ultimate_join": {
               "name": "ultimate_join",
               "type": "join",
-              "line": 59,
+              "line": 60,
               "doc": "Join both process path results",
               "next": [
                   "end"
@@ -183,7 +183,7 @@ if __name__ == '__main__':
           "end": {
               "name": "end",
               "type": "end",
-              "line": 64,
+              "line": 65,
               "doc": "",
               "next": [],
               "foreach_artifact": None

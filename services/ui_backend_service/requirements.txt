@@ -4,7 +4,7 @@ throttler==1.2.0
 packaging
 psycopg2
 aiopg
-pygit2==1.6.1
+pygit2==1.12.1
 aiohttp_cors==0.7.0
 metaflow>=2.9.6
 click==8.0.3
