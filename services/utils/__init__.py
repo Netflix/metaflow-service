@@ -206,8 +206,7 @@ class DBConfiguration(object):
                  prefix="MF_METADATA_DB_",
                  pool_min: int = 1,
                  pool_max: int = 10,
-                 timeout: int = 60,
-                 read_replica_host: str = "localhost"):
+                 timeout: int = 60):
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
         # Check if it is a BAD DSN String.
@@ -217,7 +216,7 @@ class DBConfiguration(object):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
         self._read_replica_host = \
-            os.environ.get(prefix + "READ_REPLICA_HOST", read_replica_host) if USE_SEPARATE_READER_POOL == "1" else self._host
+            os.environ.get(prefix + "READ_REPLICA_HOST") if USE_SEPARATE_READER_POOL == "1" else self._host
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
