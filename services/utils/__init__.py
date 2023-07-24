@@ -269,7 +269,6 @@ class DBConfiguration(object):
         else:
             ssl_query = f'sslmode=disable'
 
-        print(f'{base_url}?{ssl_query}')
         return f'{base_url}?{ssl_query}'
 
     @property
