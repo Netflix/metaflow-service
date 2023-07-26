@@ -10,3 +10,4 @@ metaflow>=2.9.6
 click==8.0.3
 azure-storage-blob==12.13.1
 azure-identity==1.10.0
+google-cloud-storage~=2.10.0
