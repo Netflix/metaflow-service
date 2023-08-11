@@ -11,9 +11,9 @@ CONFIG_FILENAME = 'manifest.json'
 INSTALLED_PLUGINS_DIR = 'installed'
 
 _dirname = os.path.dirname(os.path.realpath(__file__))
+installed_plugins_base_dir = os.environ.get("INSTALLED_PLUGINS_BASE_DIR", _dirname)
 
 PluginConfig = collections.namedtuple("PluginConfig", "name version entrypoint")
-
 
 class Plugin(object):
     identifier: str = None
@@ -36,7 +36,8 @@ class Plugin(object):
         self.parameters = parameters
 
         # Base path for plugin folder
-        self.basepath = os.path.join(_dirname, INSTALLED_PLUGINS_DIR, self.identifier)
+        self.basepath = os.path.join(installed_plugins_base_dir, INSTALLED_PLUGINS_DIR, self.identifier)
+        self.logger.info("self.basepath: {}".format(self.basepath))
 
         # Path to plugin files such as manifest.json.
         # Differs from root path in case of multi-plugin repositories.
@@ -97,10 +98,12 @@ class Plugin(object):
     def _load_config(self) -> PluginConfig:
         try:
             config = json.loads(self.get_file(CONFIG_FILENAME))
+
             if not all(key in config for key in ('name', 'version', 'entrypoint')):
                 return None
             return dict(config)
-        except:
+        except Exception as e:
+            self.logger.info("load_config exception:{}".format(e))
             return None
 
     def _list_files(self) -> List[str]:
@@ -117,13 +120,15 @@ class Plugin(object):
 
     def get_file(self, filename):
         """Return file contents"""
+        
         if not self.has_file(filename):
             return None
 
         try:
             with open(os.path.join(self.filepath, filename), 'r') as file:
                 return file.read()
-        except:
+        except Exception as e:
+            self.logger.info("get_file exception for: {}: {}".format(filename,e))
             return None
 
     def serve(self, filename):
