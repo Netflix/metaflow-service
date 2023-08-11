@@ -44,6 +44,3 @@ RUN pip3 install -r /root/services/migration_service/requirements.txt
 
 RUN chmod 777 /root/services/migration_service/run_script.py
 CMD python3  services/migration_service/run_script.py
-
-# Copy installed plugins to a readable location
-COPY /root/services/ui_backend_service/plugins/installed /tmp/plugins
