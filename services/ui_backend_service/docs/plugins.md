@@ -3,11 +3,12 @@
 There are two ways to register a new plugin to the UI service:
 
 1. Placing a folder under `services/ui_backend_service/plugins/installed`
-2. Defining a remote Git repository location
+2. Defining a remote Git Repository location
 
-Plugins can be registered via the `PLUGINS` environment variable or with a `config.plugins.json` file on the server. See `example.plugins.json` for reference. When using the environment variable, the value should be a _stringified_ json that can properly be parsed by Python's `json.loads()`. 
+Plugins can be registered via the `PLUGINS` environment variable or with a `config.plugins.json` file on the server. See `example.plugins.json` for reference. When using the environment variable, the value should be a _stringified_ json that can properly be parsed by Python's `json.loads()`.
 
 Example value:
+
 ```
 export PLUGINS='{"plugin-example": "git@github.com:Netflix/metaflow-ui-plugin-example.git"}'
 ```
@@ -17,9 +18,11 @@ Plugins are loaded only if the plugin configuration contains an entry for a spec
 
 Both HTTPS and SSH repositories are supported.
 
+If you choose to hold the plugins in a different directory, you can set the `INSTALLED_PLUGINS_BASE_DIR` environment variable to point to the directory. Note that the plugins should be under an `installed` subdirectory e.g. `my_other_directory/installed/my_plugin` when `INSTALLED_PLUGINS_BASE_DIR` is set to `my_other_directory`.
+
 ## Documentation
 
-At minimum, a plugin should contain a file called `manifest.json` with the following contents:
+At a minimum, a plugin should contain a file called `manifest.json` with the following contents:
 
 ```json
 {
@@ -31,7 +34,7 @@ At minimum, a plugin should contain a file called `manifest.json` with the follo
 
 Where `entrypoint` refers to a source that will be loaded inside a sandboxed iframe on the user's browser.
 
-`entrypoint` can also be defined as an absolute url:
+`entrypoint` can also be defined as an absolute URL:
 
 ```json
 {
@@ -41,7 +44,7 @@ Where `entrypoint` refers to a source that will be loaded inside a sandboxed ifr
 }
 ```
 
-Following API routes are supported:
+The following API routes are supported:
 
 | Route                                  | Description                                                                   |
 | -------------------------------------- | ----------------------------------------------------------------------------- |
@@ -58,7 +61,7 @@ There are multiple ways to provide authentication credentials:
 - SSH Agent (`~/.ssh`)
 
 Authentication credentials can be provided by using an `auth` object at the top level of `PLUGINS` json
-or alternatively by defining an `auth` object at the repository level.
+or by defining an `auth` object at the repository level.
 
 ```json
 {
@@ -74,12 +77,12 @@ or alternatively by defining an `auth` object at the repository level.
 }
 ```
 
-See Examples -section for reference.
+See examples -section for reference.
 
 ## Plugin development
 
 - Plugin development documentation can be found in the [Netflix/metaflow-ui](https://github.com/Netflix/metaflow-ui/blob/master/docs/plugin-system.md) repository.
-- See [example plugins](https://github.com/Netflix/metaflow-ui/tree/master/plugin-api/Examples) for reference implementation.
+- See [example plugins](https://github.com/Netflix/metaflow-ui/tree/master/plugin-api/Examples) for a reference implementation.
 
 ## Examples
 

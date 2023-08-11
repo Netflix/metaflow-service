@@ -1,7 +1,0 @@
-{
-  "name": "Argo",
-  "version": "1.0.2",
-  "entrypoint": "plugin.html",
-  "slot": "header",
-  "container": "none"
-}
