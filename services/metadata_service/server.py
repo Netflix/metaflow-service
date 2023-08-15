@@ -15,11 +15,15 @@ from .api.metadata import MetadataApi
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import DBConfiguration
 
+PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
+
 
 def app(loop=None, db_conf: DBConfiguration = None, middlewares=None):
 
     loop = loop or asyncio.get_event_loop()
-    app = web.Application(loop=loop, middlewares=middlewares)
+
+    _app = web.Application(loop=loop)
+    app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))
     FlowApi(app)
@@ -29,7 +33,12 @@ def app(loop=None, db_conf: DBConfiguration = None, middlewares=None):
     MetadataApi(app)
     ArtificatsApi(app)
     AuthApi(app)
-    return app
+
+    if len(PATH_PREFIX) > 0:
+        _app.add_subapp(PATH_PREFIX, app)
+    if middlewares:
+        _app.middlewares.extend(middlewares)
+    return _app
 
 
 def main():
