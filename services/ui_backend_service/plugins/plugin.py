@@ -15,6 +15,7 @@ installed_plugins_base_dir = os.environ.get("INSTALLED_PLUGINS_BASE_DIR", _dirna
 
 PluginConfig = collections.namedtuple("PluginConfig", "name version entrypoint")
 
+
 class Plugin(object):
     identifier: str = None
     repository: str = None
@@ -120,7 +121,6 @@ class Plugin(object):
 
     def get_file(self, filename):
         """Return file contents"""
-        
         if not self.has_file(filename):
             return None
 
@@ -128,7 +128,7 @@ class Plugin(object):
             with open(os.path.join(self.filepath, filename), 'r') as file:
                 return file.read()
         except Exception as e:
-            self.logger.info("get_file exception for: {}: {}".format(filename,e))
+            self.logger.info("get_file exception for: {}: {}".format(filename, e))
             return None
 
     def serve(self, filename):
