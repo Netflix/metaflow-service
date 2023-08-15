@@ -15,13 +15,13 @@ from .cache_async_client import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
 import click
 
-from .cache_action import CacheAction,\
-    LO_PRIO,\
-    HI_PRIO,\
+from .cache_action import CacheAction, \
+    LO_PRIO, \
+    HI_PRIO, \
     import_action_class
 
-from .cache_store import CacheStore,\
-    key_filename,\
+from .cache_store import CacheStore, \
+    key_filename, \
     is_safely_readable
 
 
