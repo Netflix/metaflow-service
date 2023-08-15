@@ -54,10 +54,10 @@ class GenerateDag(CacheAction):
         result_key = 'dag:result:%s' % hashlib.sha1((key_identifier).encode('utf-8')).hexdigest()
         stream_key = 'dag:stream:%s' % hashlib.sha1((key_identifier).encode('utf-8')).hexdigest()
 
-        return msg,\
-            [result_key],\
-            stream_key,\
-            [stream_key],\
+        return msg, \
+            [result_key], \
+            stream_key, \
+            [stream_key], \
             invalidate_cache
 
     @classmethod
