@@ -1,6 +1,7 @@
 version: "3"
 services:
   ui_backend:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile.ui_service
@@ -51,6 +52,7 @@ services:
     depends_on:
       - migration
   metadata:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile.metadata_service
@@ -71,9 +73,10 @@ services:
       - migration
   migration:
     command: ["/opt/latest/bin/python3", "/root/run_goose.py"]
+    platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.migration_service
     volumes:
       - ./services:/root/services
     environment:
