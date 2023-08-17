@@ -10,7 +10,7 @@ RUN apt-get update -y \
 ADD services/__init__.py /root/services/__init__.py
 ADD services/utils /root/services/utils
 ADD services/migration_service /root/services/migration_service
-ADD setup.py setup.cfg /root/
+ADD setup.py setup.cfg run_goose.py /root/
 WORKDIR /root
 RUN pip install --editable .
 CMD migration_service

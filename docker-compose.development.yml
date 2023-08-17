@@ -72,7 +72,7 @@ services:
     depends_on:
       - migration
   migration:
-    command: ["/opt/latest/bin/python3", "/root/run_goose.py"]
+    command: ["python", "/root/run_goose.py"]
     platform: linux/amd64
     build:
       context: .
