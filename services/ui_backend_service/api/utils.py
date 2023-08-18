@@ -38,7 +38,7 @@ def get_json_config(variable_name: str):
     env_name = variable_name.upper()
 
     filepath = os.path.join(JSON_CONFIG_ROOT, f"config.{variable_name.lower()}.json")
-    logger.info("Looking for JSON config in env: {} or file: {}".format(env_name, filepath))
+    logger.info(f"Looking for JSON config in env: {env_name} or file: {filepath}")
     return get_json_from_env(env_name) or \
         get_json_from_file(filepath)
 
