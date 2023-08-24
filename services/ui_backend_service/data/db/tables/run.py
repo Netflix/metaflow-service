@@ -130,7 +130,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN end_attempt_ok IS NOT NULL AND end_attempt_ok.value IS FALSE
             THEN 'failed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_threshold}
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN 'running'
             ELSE 'failed'
         END) AS status
