@@ -58,10 +58,10 @@ class SearchArtifacts(CacheAction):
         stream_key = 'search:stream:%s' % request_id
         result_key = 'search:result:%s' % request_id
 
-        return msg,\
-            [result_key, *artifact_keys],\
-            stream_key,\
-            [stream_key, result_key],\
+        return msg, \
+            [result_key, *artifact_keys], \
+            stream_key, \
+            [stream_key, result_key], \
             invalidate_cache
 
     @classmethod

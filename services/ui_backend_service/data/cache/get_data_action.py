@@ -45,10 +45,10 @@ class GetData(CacheAction):
         request_id = lookup_id(targets)
         stream_key = cache_key_from_target(request_id, "data:stream:{}:".format(cls.__name__))
 
-        return msg,\
-            target_keys,\
-            stream_key,\
-            [stream_key],\
+        return msg, \
+            target_keys, \
+            stream_key, \
+            [stream_key], \
             invalidate_cache
 
     @classmethod

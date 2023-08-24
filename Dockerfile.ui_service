@@ -1,4 +1,4 @@
-FROM python:3.11.4-slim-bookworm
+FROM python:3.11.4-bookworm
 
 ARG UI_ENABLED="1"
 ARG UI_VERSION="v1.3.3"
