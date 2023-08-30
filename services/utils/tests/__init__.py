@@ -1,6 +1,5 @@
 from services.utils import DBConfiguration
 import pytest
-import os
 
 
 def get_test_dbconf():
