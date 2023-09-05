@@ -117,7 +117,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         END) AS finished_at
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
             heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
         ),
         """
@@ -136,8 +135,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         END) AS status
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
             heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
         ),
         """
@@ -157,7 +154,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         END) AS duration
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
             cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
         ),
     ]
