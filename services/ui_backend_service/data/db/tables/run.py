@@ -111,7 +111,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN end_attempt_ok IS NOT NULL
             THEN end_attempt_ok.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_threshold}
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN NULL
             ELSE {table_name}.last_heartbeat_ts*1000
         END) AS finished_at
