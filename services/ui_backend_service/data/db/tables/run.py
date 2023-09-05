@@ -111,13 +111,12 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN end_attempt_ok IS NOT NULL
             THEN end_attempt_ok.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_threshold}
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN NULL
             ELSE {table_name}.last_heartbeat_ts*1000
         END) AS finished_at
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
             heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
         ),
         """
@@ -130,14 +129,12 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN end_attempt_ok IS NOT NULL AND end_attempt_ok.value IS FALSE
             THEN 'failed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_threshold}
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN 'running'
             ELSE 'failed'
         END) AS status
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
             heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
         ),
         """
@@ -157,7 +154,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         END) AS duration
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
             cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
         ),
     ]
