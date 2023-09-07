@@ -18,12 +18,12 @@ from services.utils import DBConfiguration
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
 
-def app(loop=None, db_conf: DBConfiguration = None, middlewares=None):
+def app(loop=None, db_conf: DBConfiguration = None, middlewares=None, path_prefix=""):
 
     loop = loop or asyncio.get_event_loop()
 
     _app = web.Application(loop=loop)
-    app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
+    app = web.Application(loop=loop) if path_prefix else _app
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))
     FlowApi(app)
@@ -34,8 +34,8 @@ def app(loop=None, db_conf: DBConfiguration = None, middlewares=None):
     ArtificatsApi(app)
     AuthApi(app)
 
-    if len(PATH_PREFIX) > 0:
-        _app.add_subapp(PATH_PREFIX, app)
+    if path_prefix:
+        _app.add_subapp(path_prefix, app)
     if middlewares:
         _app.middlewares.extend(middlewares)
     return _app
@@ -43,7 +43,7 @@ def app(loop=None, db_conf: DBConfiguration = None, middlewares=None):
 
 def main():
     loop = asyncio.get_event_loop()
-    the_app = app(loop, DBConfiguration())
+    the_app = app(loop, DBConfiguration(), path_prefix=PATH_PREFIX)
     handler = web.AppRunner(the_app)
     loop.run_until_complete(handler.setup())
 
