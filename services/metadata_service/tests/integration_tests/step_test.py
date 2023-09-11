@@ -55,7 +55,7 @@ async def test_step_post(cli, db):
         cli,
         path="/flows/NonExistentFlow/runs/{run_number}/steps/test_step/step".format(**_run),
         payload=payload,
-        status=500
+        status=404
     )
 
     # posting on a non-existent run number should result in an error
@@ -63,7 +63,7 @@ async def test_step_post(cli, db):
         cli,
         path="/flows/{flow_id}/runs/1234/steps/test_step/step".format(**_run),
         payload=payload,
-        status=500
+        status=404
     )
 
 

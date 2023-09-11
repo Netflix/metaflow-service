@@ -88,8 +88,7 @@ async def test_artifact_post(cli, db):
         cli,
         path="/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifact".format(**_task),
         payload=payload,
-        status=400,
-        expected_body={"message": "need to register run_id and task_id first"}
+        status=404,
     )
 
     # posting on a non-existent run number should result in an error
@@ -97,8 +96,7 @@ async def test_artifact_post(cli, db):
         cli,
         path="/flows/{flow_id}/runs/1234/steps/{step_name}/tasks/{task_id}/artifact".format(**_task),
         payload=payload,
-        status=400,
-        expected_body={"message": "need to register run_id and task_id first"}
+        status=404,
     )
 
     # posting on a non-existent step_name should result in an error
@@ -106,8 +104,7 @@ async def test_artifact_post(cli, db):
         cli,
         path="/flows/{flow_id}/runs/{run_number}/steps/nonexistent/tasks/{task_id}/artifact".format(**_task),
         payload=payload,
-        status=400,
-        expected_body={"message": "need to register run_id and task_id first"}
+        status=404,
     )
 
     # posting on a non-existent task_id should result in an error
@@ -115,8 +112,7 @@ async def test_artifact_post(cli, db):
         cli,
         path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/1234/artifact".format(**_task),
         payload=payload,
-        status=400,
-        expected_body={"message": "need to register run_id and task_id first"}
+        status=404,
     )
 
 
