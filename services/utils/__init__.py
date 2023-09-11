@@ -277,7 +277,7 @@ class DBConfiguration(object):
             sslkey = self._ssl_key_path
             sslrootcert = self._ssl_root_cert_path
             if (ssl_mode not in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
-                ssl_mode = 'disable'
+                ssl_mode = None
                 sslcert = None
                 sslkey = None
                 sslrootcert = None
