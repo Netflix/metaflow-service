@@ -55,12 +55,12 @@ def main():
         f'{quote(os.environ["MF_METADATA_DB_PSWD"])}@{os.environ["MF_METADATA_DB_HOST"]}:'\
         f'{os.environ["MF_METADATA_DB_PORT"]}/{os.environ["MF_METADATA_DB_NAME"]}'
 
-    ssl_mode = os.environ["MF_METADATA_DB_SSL_MODE"]
-    ssl_cert_path = os.environ["MF_METADATA_DB_SSL_CERT_PATH"]
-    ssl_key_path = os.environ["MF_METADATA_DB_SSL_KEY_PATH"]
-    ssl_root_cert_path = os.environ["MF_METADATA_DB_SSL_ROOT_CERT"]
+    ssl_mode = os.environ.get("MF_METADATA_DB_SSL_MODE")
+    ssl_cert_path = os.environ.get("MF_METADATA_DB_SSL_CERT_PATH")
+    ssl_key_path = os.environ.get("MF_METADATA_DB_SSL_KEY_PATH")
+    ssl_root_cert_path = os.environ.get("MF_METADATA_DB_SSL_ROOT_CERT")
 
-    if (ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
+    if ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']:
         ssl_query = f'ssl_mode={ssl_mode}'
         if ssl_cert_path is not None:
             ssl_query = f'{ssl_query}&sslcert={ssl_cert_path}'
