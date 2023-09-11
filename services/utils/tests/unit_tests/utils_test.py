@@ -125,7 +125,10 @@ def test_db_conf_env_dsn():
     with set_env({'MF_METADATA_DB_DSN': 'dbname=testgres user=test_user host=test_host port=1234 password=test_pwd'}):
         # valid DSN in env should set correctly.
         assert DBConfiguration().dsn == 'dbname=testgres user=test_user host=test_host port=1234 password=test_pwd'
-
+        
+    with set_env({'MF_METADATA_DB_DSN': 'dbname=testgres user=test_user host=test_host port=1234 password=test_pwd sslmode=verify-full sslrootcert=/test'}):
+        # valid DSN in env should set correctly.
+        assert DBConfiguration().dsn == 'dbname=testgres user=test_user host=test_host port=1234 password=test_pwd sslmode=verify-full sslrootcert=/test'
 
 def test_db_conf_pool_size():
     with set_env():
