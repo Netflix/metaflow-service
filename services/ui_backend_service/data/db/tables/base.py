@@ -19,9 +19,9 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(
     os.environ.get("OLD_RUN_FAILURE_CUTOFF_TIME", 60 * 60 * 24 * 1000 * 1)
 )
 # Time before a run with a heartbeat will be considered inactive (and thus failed).
-# Default to 1 day (in seconds)
+# Default to 6 minutes (in seconds)
 RUN_INACTIVE_CUTOFF_TIME = int(
-    os.environ.get("RUN_INACTIVE_CUTOFF_TIME", 60 * 60 * 24 * 1)
+    os.environ.get("RUN_INACTIVE_CUTOFF_TIME", 60 * 6)
 )
 
 

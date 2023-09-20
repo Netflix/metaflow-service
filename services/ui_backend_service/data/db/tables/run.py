@@ -3,7 +3,6 @@ import time
 from typing import List, Tuple
 from .base import (
     AsyncPostgresTable,
-    HEARTBEAT_THRESHOLD,
     OLD_RUN_FAILURE_CUTOFF_TIME,
     RUN_INACTIVE_CUTOFF_TIME,
 )
