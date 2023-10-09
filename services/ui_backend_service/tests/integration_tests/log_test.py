@@ -5,6 +5,8 @@ from .utils import (
     add_flow, add_run, add_step, add_task,
     _test_list_resources
 )
+from ...api.log import LogException
+
 pytestmark = [pytest.mark.integration_tests]
 
 
@@ -37,7 +39,10 @@ async def test_log_default_response(cli, db):
         assert page == 1
         assert reverse_order is False
         assert output_raw is False
-        return [], 1
+        if task['attempt_id'] == 0:
+            return [], 1
+        else:
+            raise LogException(id='MetaflowNotFound')
 
     with mock.patch("services.ui_backend_service.api.log.read_and_output", new=read_and_output):
         _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/logs/out".format(**_task), 200, None)

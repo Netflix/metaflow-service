@@ -1,7 +1,6 @@
 
-from typing import Optional, Tuple
 
-from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
+from services.data.db_utils import translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
 from .utils import format_response_list, get_pathspec_from_request
 
@@ -210,14 +209,35 @@ class LogApi(object):
             return db_response.body
         return None
 
+    async def _fetch_task_dict(self, request):
+        flow_id, run_number, step_name, task_id, attempt_id = \
+            get_pathspec_from_request(request)
+        if attempt_id is None:
+            task = await self.get_task_by_request(request)
+            if not task:
+                return web_response(404, {'data': []})
+        else:
+            run_key, run_value = translate_run_key(run_number)
+            task_key, task_value = translate_task_key(task_id)
+            task = {"flow_id": flow_id,
+                    "step_name": step_name,
+                    "attempt_id": int(attempt_id),
+                    run_key: run_value,
+                    task_key: task_value}
+        return task
+
     async def get_task_log(self, request, logtype=STDOUT):
-        "fetches log and emits it as a list of rows wrapped in json"
-        task = await self.get_task_by_request(request)
-        if not task:
-            return web_response(404, {'data': []})
+        """fetches log and emits it as a list of rows wrapped in json"""
+        task = await self._fetch_task_dict(request)
         limit, page, reverse_order = get_pagination_params(request)
 
-        lines, page_count = await read_and_output(self.cache, task, logtype, limit, page, reverse_order)
+        try:
+            lines, page_count = await read_and_output(self.cache, task, logtype, limit, page, reverse_order)
+        except LogException as e:
+            if e.id == 'MetaflowNotFound':
+                return web_response(404, {'data': []})
+            else:
+                raise
 
         # paginated response
         response = DBResponse(200, lines)
@@ -226,10 +246,8 @@ class LogApi(object):
         return web_response(status, body)
 
     async def get_task_log_file(self, request, logtype=STDOUT):
-        "fetches log and emits it as a single file download response"
-        task = await self.get_task_by_request(request)
-        if not task:
-            return web_response(404, {'data': []})
+        """fetches log and emits it as a single file download response"""
+        task = await self._fetch_task_dict(request)
 
         log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}-{attempt}.txt".format(
             type="stdout" if logtype == STDOUT else "stderr",
@@ -240,7 +258,13 @@ class LogApi(object):
             attempt=task['attempt_id']
         )
 
-        lines, _ = await read_and_output(self.cache, task, logtype, output_raw=True)
+        try:
+            lines, _ = await read_and_output(self.cache, task, logtype, output_raw=True)
+        except LogException as e:
+            if e.id == 'MetaflowNotFound':
+                return web_response(404, {'data': []})
+            else:
+                raise
         return file_download_response(log_filename, lines)
 
 

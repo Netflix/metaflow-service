@@ -323,14 +323,14 @@ async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_st
     return resp.status, data
 
 
-def _test_dict_approx(actual, expected, approx_keys, threshold=1000):
+def _test_dict_approx(actual, expected, approx_keys, threshold=5000):
     "Assert that two dicts are almost equal, allowing for some leeway on specified keys"
     # NOTE: This is mainly required for testing resources that produce data during query execution. For example
     # when using extract(epoch from now()) we can not accurately expect what the timestamp returned from the api should be.
     # TODO: If possible, a less error prone solution would be to somehow mock/freeze the now() on a per-test basis.
     for k, v in actual.items():
         if k in approx_keys:
-            assert v == pytest.approx(expected[k], rel=threshold)
+            assert v == pytest.approx(expected[k], abs=threshold)
         else:
             assert v == expected[k]
 
