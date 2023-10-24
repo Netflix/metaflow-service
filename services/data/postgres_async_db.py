@@ -267,7 +267,7 @@ class AsyncPostgresTable(object):
                 body, pagination = await _execute_on_cursor(cur)
                 return DBResponse(response_code=200, body=body), pagination
             else:
-                db_pool = self.db.reader_pool if USE_SEPARATE_READER_POOL else self.db.pool
+                db_pool = self.db.reader_pool  # defaults to self.db.pool if no separate reader_pool
                 with (await db_pool.cursor(
                         cursor_factory=psycopg2.extras.DictCursor
                 )) as cur:
