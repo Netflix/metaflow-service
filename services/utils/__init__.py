@@ -309,7 +309,8 @@ class DBConfiguration(object):
             }
                 
             if type == DBType.READER:
-                # we assume that everything except the hostname remains the same for a reader
+                # We assume that everything except the hostname remains the same for a reader.
+                # At the moment this is a fair assumption for Postgres read replicas.
                 kwargs.update({"host":self._read_replica_host})
 
             return psycopg2.extensions.make_dsn(**{k: v for k, v in kwargs.items() if v is not None})
