@@ -13,7 +13,7 @@ import psycopg2
 from packaging.version import Version, parse
 from importlib import metadata
 
-USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0")
+USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0") in ["True", "true", "1"]
 
 version = metadata.version("metadata_service")
 
@@ -220,7 +220,7 @@ class DBConfiguration(object):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
         self._read_replica_host = \
-            os.environ.get(prefix + "READ_REPLICA_HOST") if USE_SEPARATE_READER_POOL == "1" else self._host
+            os.environ.get(prefix + "READ_REPLICA_HOST") if USE_SEPARATE_READER_POOL else self._host
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
