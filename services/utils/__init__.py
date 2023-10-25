@@ -2,7 +2,6 @@ import json
 import sys
 import os
 import traceback
-import pkg_resources
 from multidict import MultiDict
 from urllib.parse import urlencode, quote
 from aiohttp import web
@@ -12,10 +11,11 @@ from typing import Dict
 import logging
 import psycopg2
 from packaging.version import Version, parse
+from importlib import metadata
 
-USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0")
+USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0") in ["True", "true", "1"]
 
-version = pkg_resources.require("metadata_service")[0].version
+version = metadata.version("metadata_service")
 
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
@@ -203,6 +203,10 @@ class DBConfiguration(object):
                  user: str = "postgres",
                  password: str = "postgres",
                  database_name: str = "postgres",
+                 ssl_mode: str = "disabled",
+                 ssl_cert_path: str = None,
+                 ssl_key_path: str = None,
+                 ssl_root_cert_path: str = None,
                  prefix="MF_METADATA_DB_",
                  pool_min: int = 1,
                  pool_max: int = 10,
@@ -216,11 +220,15 @@ class DBConfiguration(object):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
         self._read_replica_host = \
-            os.environ.get(prefix + "READ_REPLICA_HOST") if USE_SEPARATE_READER_POOL == "1" else self._host
+            os.environ.get(prefix + "READ_REPLICA_HOST") if USE_SEPARATE_READER_POOL else self._host
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
         self._database_name = os.environ.get(prefix + "NAME", database_name)
+        self._ssl_mode = os.environ.get(prefix + "SSL_MODE", ssl_mode)
+        self._ssl_cert_path = os.environ.get(prefix + "SSL_CERT_PATH", ssl_cert_path)
+        self._ssl_key_path = os.environ.get(prefix + "SSL_KEY_PATH", ssl_key_path),
+        self._ssl_root_cert_path = os.environ.get(prefix + "SSL_ROOT_CERT_PATH", ssl_root_cert_path)
         conn_str_required_values = [
             self._host,
             self._port,
@@ -260,29 +268,52 @@ class DBConfiguration(object):
     def connection_string_url(self, type=None):
         # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
         if type is None or type == DBType.WRITER:
-            return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}?sslmode=disable'
+            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}'
         elif type == DBType.READER:
-            return f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}?sslmode=disable'
+            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}'
+
+        if (self._ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
+            ssl_query = f'sslmode={self._ssl_mode}'
+            if self._ssl_cert_path is not None:
+                ssl_query = f'{ssl_query}&sslcert={self._ssl_cert_path}'
+            if self._ssl_key_path is not None:
+                ssl_query = f'{ssl_query}&sslkey={self._ssl_key_path}'
+            if self._ssl_root_cert_path is not None:
+                ssl_query = f'{ssl_query}&sslrootcert={self._ssl_root_cert_path}'
+        else:
+            ssl_query = f'sslmode=disable'
+
+        return f'{base_url}?{ssl_query}'
 
     def get_dsn(self, type=None):
         if self._dsn is None:
-            if type is None or type == DBType.WRITER:
-                return psycopg2.extensions.make_dsn(
-                    dbname=self._database_name,
-                    user=self._user,
-                    host=self._host,
-                    port=self._port,
-                    password=self._password
-                )
-            elif type == DBType.READER:
-                # we assume that everything except the hostname remains the same for a reader
-                return psycopg2.extensions.make_dsn(
-                    dbname=self._database_name,
-                    user=self._user,
-                    host=self._read_replica_host,
-                    port=self._port,
-                    password=self._password
-                )
+            ssl_mode = self._ssl_mode
+            sslcert = self._ssl_cert_path
+            sslkey = self._ssl_key_path
+            sslrootcert = self._ssl_root_cert_path
+            if (ssl_mode not in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
+                ssl_mode = None
+                sslcert = None
+                sslkey = None
+                sslrootcert = None
+            kwargs = {
+                'dbname': self._database_name,
+                'user': self._user,
+                'host': self._host,
+                'port': self._port,
+                'password': self._password,
+                'sslmode': ssl_mode,
+                'sslcert': sslcert,
+                'sslkey': sslkey,
+                'sslrootcert': sslrootcert
+            }
+                
+            if type == DBType.READER:
+                # We assume that everything except the hostname remains the same for a reader.
+                # At the moment this is a fair assumption for Postgres read replicas.
+                kwargs.update({"host":self._read_replica_host})
+
+            return psycopg2.extensions.make_dsn(**{k: v for k, v in kwargs.items() if v is not None})
         else:
             return self._dsn
 

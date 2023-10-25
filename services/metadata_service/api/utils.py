@@ -1,14 +1,14 @@
 import json
 from functools import wraps
 
-import pkg_resources
 import collections
 from aiohttp import web
 from multidict import MultiDict
+from importlib import metadata
 
 from services.utils import get_traceback_str
 
-version = pkg_resources.require("metadata_service")[0].version
+version = metadata.version("metadata_service")
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
 
