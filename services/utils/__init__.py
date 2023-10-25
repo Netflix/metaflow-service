@@ -13,6 +13,7 @@ import psycopg2
 from packaging.version import Version, parse
 from importlib import metadata
 
+
 USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0") in ["True", "true", "1"]
 
 version = metadata.version("metadata_service")
@@ -272,17 +273,6 @@ class DBConfiguration(object):
         elif type == DBType.READER:
             base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}'
 
-        if (self._ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
-            ssl_query = f'sslmode={self._ssl_mode}'
-            if self._ssl_cert_path is not None:
-                ssl_query = f'{ssl_query}&sslcert={self._ssl_cert_path}'
-            if self._ssl_key_path is not None:
-                ssl_query = f'{ssl_query}&sslkey={self._ssl_key_path}'
-            if self._ssl_root_cert_path is not None:
-                ssl_query = f'{ssl_query}&sslrootcert={self._ssl_root_cert_path}'
-        else:
-            ssl_query = f'sslmode=disable'
-
         return f'{base_url}?{ssl_query}'
 
     def get_dsn(self, type=None):
@@ -307,11 +297,12 @@ class DBConfiguration(object):
                 'sslkey': sslkey,
                 'sslrootcert': sslrootcert
             }
-                
+
             if type == DBType.READER:
                 # We assume that everything except the hostname remains the same for a reader.
                 # At the moment this is a fair assumption for Postgres read replicas.
                 kwargs.update({"host":self._read_replica_host})
+
 
             return psycopg2.extensions.make_dsn(**{k: v for k, v in kwargs.items() if v is not None})
         else:

@@ -130,6 +130,7 @@ def test_db_conf_env_dsn():
         # valid DSN in env should set correctly.
         assert DBConfiguration().get_dsn() == 'dbname=testgres user=test_user host=test_host port=1234 password=test_pwd sslmode=verify-full sslrootcert=/test'
 
+
 def test_db_conf_pool_size():
     with set_env():
         db_conf = DBConfiguration(pool_min=2, pool_max=4)
