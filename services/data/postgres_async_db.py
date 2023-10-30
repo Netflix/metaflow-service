@@ -258,7 +258,6 @@ class AsyncPostgresTable(object):
                 count=count,
                 page=math.floor(int(offset) / max(int(limit), 1)) + 1,
             )
-            _cur.close()
             return body, pagination
 
         try:
@@ -267,17 +266,19 @@ class AsyncPostgresTable(object):
                 body, pagination = await _execute_on_cursor(cur)
                 return DBResponse(response_code=200, body=body), pagination
             else:
-                db_pool = self.db.reader_pool  # defaults to self.db.pool if no separate reader_pool
+                db_pool = self.db.reader_pool if USE_SEPARATE_READER_POOL else self.db.pool
                 with (await db_pool.cursor(
                         cursor_factory=psycopg2.extras.DictCursor
                 )) as cur:
                     body, pagination = await _execute_on_cursor(cur)
+                    cur.close()
                     return DBResponse(response_code=200, body=body), pagination
         except IndexError as error:
             return aiopg_exception_handling(error), None
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error), None
+
 
     async def create_record(self, record_dict):
         # note: need to maintain order
