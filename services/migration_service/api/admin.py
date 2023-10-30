@@ -69,7 +69,7 @@ class AdminApi(object):
                 description: could not upgrade
         """
         goose_version_cmd = make_goose_migration_template(
-            db_conf.connection_string_url,
+            db_conf.connection_string_url(),
             "up"
         )
         p = Popen(goose_version_cmd, shell=True,

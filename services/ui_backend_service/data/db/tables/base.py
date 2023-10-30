@@ -269,56 +269,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             self.db.logger.exception("Query Benchmarking failed")
             return None
 
-    async def execute_sql(
-        self,
-        select_sql: str,
-        values=[],
-        fetch_single=False,
-        expanded=False,
-        limit: int = 0,
-        offset: int = 0,
-        serialize: bool = True,
-    ) -> Tuple[DBResponse, DBPagination]:
-        try:
-            with (
-                await self.db.pool.cursor(cursor_factory=psycopg2.extras.DictCursor)
-            ) as cur:
-                await cur.execute(select_sql, values)
-
-                rows = []
-                records = await cur.fetchall()
-                if serialize:
-                    for record in records:
-                        # pylint-initial-ignore: Lack of __init__ makes this too hard for pylint
-                        # pylint: disable=not-callable
-                        row = self._row_type(**record)
-                        rows.append(row.serialize(expanded))
-                else:
-                    rows = records
-
-                count = len(rows)
-
-                # Will raise IndexError in case fetch_single=True and there's no results
-                body = rows[0] if fetch_single else rows
-
-                pagination = DBPagination(
-                    limit=limit,
-                    offset=offset,
-                    count=count,
-                    page=math.floor(int(offset) / max(int(limit), 1)) + 1,
-                )
-
-                cur.close()
-                return DBResponse(response_code=200, body=body), pagination
-        except IndexError as error:
-            return aiopg_exception_handling(error), None
-        except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
-            return aiopg_exception_handling(error), None
-
-    async def get_tags(
-        self, conditions: List[str] = None, values=[], limit: int = 0, offset: int = 0
-    ):
+    async def get_tags(self, conditions: List[str] = None, values=[], limit: int = 0, offset: int = 0):
         sql_template = """
         SELECT DISTINCT tag
         FROM (

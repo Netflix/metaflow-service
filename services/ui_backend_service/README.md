@@ -24,7 +24,7 @@ The UI service module is `services.ui_backend_service.ui_server`:
 > $ /opt/latest/bin/python3 -m services.ui_backend_service.ui_server
 > ```
 
-Below is an Docker run command for running UI Service exposed at port 8083:
+Below is a Docker run command for running UI Service exposed at port 8083:
 
 > ```sh
 > $ docker run \
@@ -60,7 +60,7 @@ The service depends on the following Environment Variables to be set:
 - `MF_METADATA_DB_PSWD` [defaults to postgres]
 - `MF_METADATA_DB_NAME` [defaults to postgres]
 
-Optionally you can also overrider the host and port the service runs on:
+Optionally you can also override the host and port the service runs on:
 
 - `MF_UI_METADATA_PORT` [defaults to 8083]
 - `MF_UI_METADATA_HOST` [defaults to 0.0.0.0]

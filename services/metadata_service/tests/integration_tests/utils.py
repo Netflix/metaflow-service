@@ -2,6 +2,8 @@ import json
 from typing import Callable
 
 import pytest
+import psycopg2
+import psycopg2.extras
 from aiohttp import web
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils.tests import get_test_dbconf
@@ -67,8 +69,11 @@ async def clean_db(db: AsyncPostgresDB):
         db.run_table_postgres,
         db.flow_table_postgres
     ]
-    for table in tables:
-        await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name))
+    with (await db.pool.cursor(
+            cursor_factory=psycopg2.extras.DictCursor
+    )) as cur:
+        for table in tables:
+            await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name), cur=cur)
 
 
 @pytest.fixture

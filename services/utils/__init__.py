@@ -5,12 +5,16 @@ import traceback
 from multidict import MultiDict
 from urllib.parse import urlencode, quote
 from aiohttp import web
+from enum import Enum
 from functools import wraps
 from typing import Dict
 import logging
 import psycopg2
 from packaging.version import Version, parse
 from importlib import metadata
+
+
+USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0") in ["True", "true", "1"]
 
 version = metadata.version("metadata_service")
 
@@ -170,6 +174,13 @@ def has_heartbeat_capable_version_tag(system_tags):
 #
 
 
+class DBType(Enum):
+    # The DB host is a read replica
+    READER = 1
+    # The DB host is a writer instance
+    WRITER = 2
+
+
 class DBConfiguration(object):
     host: str = None
     port: int = None
@@ -209,6 +220,8 @@ class DBConfiguration(object):
             if not self._is_valid_dsn(self._dsn):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
+        self._read_replica_host = \
+            os.environ.get(prefix + "READ_REPLICA_HOST") if USE_SEPARATE_READER_POOL else self._host
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
@@ -253,9 +266,13 @@ class DBConfiguration(object):
             # This means that the DSN is unparsable.
             return None
 
-    @property
-    def connection_string_url(self):
-        base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}'
+    def connection_string_url(self, type=None):
+        # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
+        if type is None or type == DBType.WRITER:
+            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}'
+        elif type == DBType.READER:
+            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}'
+
         if (self._ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
             ssl_query = f'sslmode={self._ssl_mode}'
             if self._ssl_cert_path is not None:
@@ -269,8 +286,7 @@ class DBConfiguration(object):
 
         return f'{base_url}?{ssl_query}'
 
-    @property
-    def dsn(self):
+    def get_dsn(self, type=None):
         if self._dsn is None:
             ssl_mode = self._ssl_mode
             sslcert = self._ssl_cert_path
@@ -292,6 +308,12 @@ class DBConfiguration(object):
                 'sslkey': sslkey,
                 'sslrootcert': sslrootcert
             }
+
+            if type == DBType.READER:
+                # We assume that everything except the hostname remains the same for a reader.
+                # At the moment this is a fair assumption for Postgres read replicas.
+                kwargs.update({"host": self._read_replica_host})
+
             return psycopg2.extensions.make_dsn(**{k: v for k, v in kwargs.items() if v is not None})
         else:
             return self._dsn
@@ -315,3 +337,7 @@ class DBConfiguration(object):
     @property
     def host(self):
         return self._host
+
+    @property
+    def read_replica_host(self):
+        return self._read_replica_host

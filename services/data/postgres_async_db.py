@@ -7,13 +7,13 @@ import json
 import math
 import re
 import time
-from services.utils import logging
+from services.utils import logging, DBType
 from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
-from services.utils import DBConfiguration
+from services.utils import DBConfiguration, USE_SEPARATE_READER_POOL
 
 from services.data.service_configs import max_connection_retires, \
     connection_retry_wait_time_seconds
@@ -49,6 +49,7 @@ class _AsyncPostgresDB(object):
     metadata_table_postgres = None
 
     pool = None
+    reader_pool = None
     db_conf: DBConfiguration = None
 
     def __init__(self, name='global'):
@@ -77,21 +78,42 @@ class _AsyncPostgresDB(object):
         for i in range(retries):
             try:
                 self.pool = await aiopg.create_pool(
-                    db_conf.dsn,
+                    db_conf.get_dsn(),
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
                     timeout=db_conf.timeout,
                     pool_recycle=10 * db_conf.timeout,
                     echo=AIOPG_ECHO)
 
+                self.reader_pool = await aiopg.create_pool(
+                    db_conf.get_dsn(type=DBType.READER),
+                    minsize=db_conf.pool_min,
+                    maxsize=db_conf.pool_max,
+                    timeout=db_conf.timeout,
+                    pool_recycle=10 * db_conf.timeout,
+                    echo=AIOPG_ECHO) if USE_SEPARATE_READER_POOL else self.pool
+
                 for table in self.tables:
                     await table._init(create_triggers=create_triggers)
 
-                self.logger.info(
-                    "Connection established.\n"
-                    "   Pool min: {pool_min} max: {pool_max}\n".format(
-                        pool_min=self.pool.minsize,
-                        pool_max=self.pool.maxsize))
+                if USE_SEPARATE_READER_POOL:
+                    self.logger.info(
+                        "Writer Connection established.\n"
+                        "   Pool min: {pool_min} max: {pool_max}\n".format(
+                            pool_min=self.pool.minsize,
+                            pool_max=self.pool.maxsize))
+
+                    self.logger.info(
+                        "Reader Connection established.\n"
+                        "   Pool min: {pool_min} max: {pool_max}\n".format(
+                            pool_min=self.reader_pool.minsize,
+                            pool_max=self.reader_pool.maxsize))
+                else:
+                    self.logger.info(
+                        "Connection established.\n"
+                        "   Pool min: {pool_min} max: {pool_max}\n".format(
+                            pool_min=self.pool.minsize,
+                            pool_max=self.pool.maxsize))
 
                 break  # Break the retry loop
             except Exception as e:
@@ -211,15 +233,20 @@ class AsyncPostgresTable(object):
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0,
-                          cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
+                          cur: aiopg.Cursor = None, serialize: bool = True) -> Tuple[DBResponse, DBPagination]:
         async def _execute_on_cursor(_cur):
             await _cur.execute(select_sql, values)
 
             rows = []
             records = await _cur.fetchall()
-            for record in records:
-                row = self._row_type(**record)  # pylint: disable=not-callable
-                rows.append(row.serialize(expanded))
+            if serialize:
+                for record in records:
+                    # pylint-initial-ignore: Lack of __init__ makes this too hard for pylint
+                    # pylint: disable=not-callable
+                    row = self._row_type(**record)
+                    rows.append(row.serialize(expanded))
+            else:
+                rows = records
 
             count = len(rows)
 
@@ -232,17 +259,20 @@ class AsyncPostgresTable(object):
                 page=math.floor(int(offset) / max(int(limit), 1)) + 1,
             )
             return body, pagination
-        if cur:
-            # if we are using the passed in cursor, we allow any errors to be managed by cursor owner
-            body, pagination = await _execute_on_cursor(cur)
-            return DBResponse(response_code=200, body=body), pagination
+
         try:
-            with (await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-            )) as cur:
+            if cur:
+                # if we are using the passed in cursor, we allow any errors to be managed by cursor owner
                 body, pagination = await _execute_on_cursor(cur)
-                cur.close()  # unsure if needed, leaving in there for safety
-            return DBResponse(response_code=200, body=body), pagination
+                return DBResponse(response_code=200, body=body), pagination
+            else:
+                db_pool = self.db.reader_pool if USE_SEPARATE_READER_POOL else self.db.pool
+                with (await db_pool.cursor(
+                        cursor_factory=psycopg2.extras.DictCursor
+                )) as cur:
+                    body, pagination = await _execute_on_cursor(cur)
+                    cur.close()
+                    return DBResponse(response_code=200, body=body), pagination
         except IndexError as error:
             return aiopg_exception_handling(error), None
         except (Exception, psycopg2.DatabaseError) as error:
