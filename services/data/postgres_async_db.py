@@ -279,7 +279,6 @@ class AsyncPostgresTable(object):
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error), None
 
-
     async def create_record(self, record_dict):
         # note: need to maintain order
         cols = []
