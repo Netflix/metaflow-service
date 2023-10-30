@@ -49,11 +49,6 @@ def main():
     parser = argparse.ArgumentParser(description="Run goose migrations")
     parser.add_argument("--only-if-empty-db", default=False, action="store_true")
     parser.add_argument("--wait", type=int, default=30, help="Wait for connection for X seconds")
-    parser.add_argument("--goose-path", type=str, default="/go/bin/goose", help="Path for the goose binary")
-    parser.add_argument("--migration-files-path",
-                        type=str,
-                        default="/root/services/migration_service/migration_files/",
-                        help="Path to migration files")
     args = parser.parse_args()
 
     db_connection_string = f'postgresql://{quote(os.environ["MF_METADATA_DB_USER"])}:'\
@@ -91,9 +86,9 @@ def main():
 
     p = Popen(
         [
-            args.goose_path,
+            "goose",
             "-dir",
-            args.migration_files_path,
+            "/root/services/migration_service/migration_files/",
             "postgres",
             db_connection_string,
             "up",
