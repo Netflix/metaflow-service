@@ -22,12 +22,8 @@ RUN apt-get update -y \
 
 RUN pip3 install virtualenv requests
 
-# TODO: possibly unused virtualenv. See if it can be removed
-RUN virtualenv /opt/v_1_0_1 -p python3
 # All of the official deployment templates reference this virtualenv for launching services.
 RUN virtualenv /opt/latest -p python3
-
-RUN /opt/v_1_0_1/bin/pip install https://github.com/Netflix/metaflow-service/archive/1.0.1.zip
 
 ADD services/__init__.py /root/services/
 ADD services/data/service_configs.py /root/services/
