@@ -228,7 +228,7 @@ class DBConfiguration(object):
         self._database_name = os.environ.get(prefix + "NAME", database_name)
         self._ssl_mode = os.environ.get(prefix + "SSL_MODE", ssl_mode)
         self._ssl_cert_path = os.environ.get(prefix + "SSL_CERT_PATH", ssl_cert_path)
-        self._ssl_key_path = os.environ.get(prefix + "SSL_KEY_PATH", ssl_key_path),
+        self._ssl_key_path = os.environ.get(prefix + "SSL_KEY_PATH", ssl_key_path)
         self._ssl_root_cert_path = os.environ.get(prefix + "SSL_ROOT_CERT_PATH", ssl_root_cert_path)
         conn_str_required_values = [
             self._host,
