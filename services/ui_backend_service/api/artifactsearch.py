@@ -1,7 +1,7 @@
 from typing import Tuple
 from services.data.db_utils import translate_run_key
 from services.data.tagging_utils import apply_run_tags_to_db_response
-from services.utils import handle_exceptions
+from services.utils import handle_exceptions, logging
 from services.ui_backend_service.data.cache.utils import (
     search_result_event_msg, error_event_msg
 )
@@ -17,6 +17,7 @@ class ArtifactSearchApi(object):
         app.router.add_route(
             "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks
         )
+        logging.error("ArtifactSearchApi __init__")
         self._artifact_table = self.db.artifact_table_postgres
         self._run_table = self.db.run_table_postgres
         self._artifact_store = getattr(cache, "artifact_cache", None)
@@ -27,19 +28,28 @@ class ArtifactSearchApi(object):
         run_key = request.match_info['run_number']
         artifact_name = request.query['key']
         value = request.query.get('value', None)
+        logging.error(11111)
 
         invalidate_cache = query_param_enabled(request, "invalidate")
+        logging.error("flow_name %s" % (flow_name))
+        logging.error("run_key %s" % (run_key))
+        logging.error("artifact_name %s" % (artifact_name))
+        logging.error("value %s" % (value))
 
         meta_artifacts = await self.get_run_artifacts(flow_name, run_key, artifact_name)
-
+        logging.error("meta_artifacts %s" % (str(meta_artifacts)))
+        logging.error(222222)
         ws = web.WebSocketResponse()
         await ws.prepare(request)
+        logging.error(333333)
 
         try:
             if value is None:
                 # For empty search terms simply return the list of tasks that have artifacts by the specified name.
                 # Do not unnecessarily hit the cache.
                 results = [{**_result_format(art), "searchable": True} for art in meta_artifacts]
+                logging.error(44444)
+                logging.error(str(results))
             else:
                 operator, value = _parse_search_term(value)
                 # Search through the artifact contents using the CacheClient
@@ -62,9 +72,11 @@ class ArtifactSearchApi(object):
                 artifact_data = res.get()
 
                 results = await _search_dict_filter(meta_artifacts, artifact_data)
-
+            logging.error(55555)
             await ws.send_str(json.dumps({"event": search_result_event_msg(results)}))
+            logging.error(66666)
         except Exception as ex:
+            logging.error("Accessing cache failed: %s" % (str(ex)))
             await ws.send_str(json.dumps({"event": error_event_msg("Accessing cache failed", "cache-access-failed")}))
             await ws.close(code=1011)
         return ws
