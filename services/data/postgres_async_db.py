@@ -164,6 +164,7 @@ class AsyncPostgresTable(object):
     keys: List[str] = []
     primary_keys: List[str] = None
     trigger_keys: List[str] = None
+    trigger_operations: List[str] = ["INSERT", "UPDATE", "DELETE"]
     ordering: List[str] = None
     joins: List[str] = None
     select_columns: List[str] = keys
@@ -184,7 +185,7 @@ class AsyncPostgresTable(object):
             self.db.logger.info(
                 "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
                     table_name=self.table_name, keys=self.trigger_keys))
-            await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
+            await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys, operations=self.trigger_operations)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False,
@@ -428,12 +429,12 @@ class PostgresUtils(object):
                 cur.close()
 
     @staticmethod
-    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME):
+    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME, operations: List[str] = None ):
         if not keys:
             pass
 
         name_prefix = "notify_ui"
-        operations = ["INSERT", "UPDATE", "DELETE"]
+        operations = operations
         _commands = ["""
         CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
             LANGUAGE plpgsql
@@ -465,7 +466,6 @@ class PostgresUtils(object):
             prefix=name_prefix,
             table=table_name,
             keys=", ".join(map(lambda k: "'{0}', rec.{0}".format(k), keys)),
-            events=" OR ".join(operations)
         )]
 
         _commands += ["""
@@ -706,6 +706,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
                     "step_name", "task_id", "field_name"]
     trigger_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name", "value"]
+    trigger_operations = ["INSERT"]
     select_columns = keys
 
     async def add_metadata(
@@ -773,6 +774,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "attempt_id", "name"]
     trigger_keys = primary_keys
+    trigger_operations = ["INSERT"]
     select_columns = keys
 
     async def add_artifact(
