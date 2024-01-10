@@ -38,6 +38,8 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 
 operator_match = re.compile('([^:]*):([=><]+)$')
 
+# use a ddmmyyy timestamp as the version for triggers
+TRIGGER_VERSION = "10012024"
 
 class _AsyncPostgresDB(object):
     connection = None
@@ -185,6 +187,7 @@ class AsyncPostgresTable(object):
             self.db.logger.info(
                 "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
                     table_name=self.table_name, keys=self.trigger_keys))
+            await PostgresUtils.cleanup_triggers(db=self.db, table_name=self.table_name)
             await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys, operations=self.trigger_operations)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
@@ -427,13 +430,43 @@ class PostgresUtils(object):
                         await cur.execute(command)
             finally:
                 cur.close()
+    
+    @staticmethod
+    async def cleanup_triggers(db: _AsyncPostgresDB, table_name):
+        "Cleans up old versions of table triggers"
+        print(f"table name: {table_name}")
+        with (await db.pool.cursor()) as cur:
+            try:
+                await cur.execute(
+                    """
+                    SELECT DISTINCT trigger_name
+                    FROM information_schema.triggers
+                    WHERE event_object_table = %s
+                    """,
+                    [table_name]
+                )
+                results = await cur.fetchall()
+                if len(results)>0:
+                    triggers_to_cleanup = [
+                        res[0] for res in results
+                        if TRIGGER_VERSION not in res[0]
+                    ]
+                    logging.getLogger().info(triggers_to_cleanup)
+                    commands = []
+                    for name in triggers_to_cleanup:
+                        commands += [("DROP TRIGGER IF EXISTS %s ON %s" % (name, table_name))]
+
+                    for command in commands:
+                        await cur.execute(command)
+            finally:
+                cur.close()
 
     @staticmethod
     async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME, operations: List[str] = None ):
         if not keys:
             pass
 
-        name_prefix = "notify_ui"
+        name_prefix = "notify_ui_%s" % TRIGGER_VERSION
         operations = operations
         _commands = ["""
         CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
