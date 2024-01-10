@@ -125,6 +125,7 @@ class ListenNotify(object):
                         table.table_name == self.db.metadata_table_postgres.table_name and \
                         data["field_name"] == "attempt_ok":
 
+                    # remove heartbeat watcher for completed task
                     self.event_emitter.emit("task-heartbeat", "complete", data)
 
                     # broadcast task status as it has either completed or failed.
@@ -139,34 +140,6 @@ class ListenNotify(object):
                     # Notify updated Run status once attempt_ok metadata for end step has been received
                     if data["step_name"] == "end":
                         await _broadcast(self.event_emitter, "UPDATE", self.db.run_table_postgres, data)
-                        # And remove possible heartbeat watchers for completed runs
-                        self.event_emitter.emit("run-heartbeat", "complete", data)
-
-                # Notify related resources once new `_task_ok` artifact has been created
-                if operation == "INSERT" and \
-                        table.table_name == self.db.artifact_table_postgres.table_name and \
-                        data["name"] == "_task_ok":
-
-                    # remove heartbeat watcher for completed task
-                    self.event_emitter.emit("task-heartbeat", "complete", data)
-
-                    # Always mark task finished if '_task_ok' artifact is created
-                    # Include 'attempt_id' so we can identify which attempt this artifact related to
-                    _attempt_id = data.get("attempt_id", 0)
-                    await _broadcast(
-                        event_emitter=self.event_emitter,
-                        operation="UPDATE",
-                        table=self.db.task_table_postgres,
-                        data=data,
-                        filter_dict={"attempt_id": _attempt_id}
-                    )
-
-                    # Last step is always called 'end' and only one '_task_ok' should be present
-                    # Run is considered finished once 'end' step has '_task_ok' artifact
-                    if data["step_name"] == "end":
-                        await _broadcast(
-                            self.event_emitter, "UPDATE", self.db.run_table_postgres,
-                            data)
                         # Also trigger preload of artifacts after a run finishes.
                         self.event_emitter.emit("preload-task-statuses", data['flow_id'], data['run_number'])
                         # And remove possible heartbeat watchers for completed runs
@@ -179,6 +152,7 @@ class ListenNotify(object):
                         data["field_name"] in ["code-package-url", "code-package"]:
                     self.event_emitter.emit("preload-dag", data['flow_id'], data['run_number'])
 
+                # TODO: Can we rely on info from metadata table instead, so we could remove triggers from artifacts table completely?
                 if operation == "INSERT" and \
                         table.table_name == self.db.artifact_table_postgres.table_name and \
                         data["step_name"] == "_parameters" and \
