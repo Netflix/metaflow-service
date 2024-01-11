@@ -21,6 +21,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     keys = MetadataTaskTable.keys
     primary_keys = MetadataTaskTable.primary_keys
     trigger_keys = MetadataTaskTable.trigger_keys
+    trigger_operations = ["INSERT"]
     # NOTE: There is a lot of unfortunate backwards compatibility logic for cases where task metadata,
     # or artifacts have not been stored correctly.
     # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
