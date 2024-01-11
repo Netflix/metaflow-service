@@ -70,7 +70,7 @@ class HeartbeatMonitor(object):
         and triggering handlers in case the heartbeat is too old.
         """
         while True:
-            time_now = int(datetime.datetime.utcnow().timestamp())  # same format as the metadata heartbeat uses
+            time_now = heartbeat_time_now()
             for key, hb in list(self.watched.items()):
                 if time_now - hb > HEARTBEAT_INTERVAL:
                     self.loop.create_task(self.load_and_broadcast(key))
@@ -123,9 +123,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
     async def add_to_watch(self, run: Dict):
         if "last_heartbeat_ts" in run and "run_number" in run:
             run_number = run["run_number"]
-            heartbeat_ts = run["last_heartbeat_ts"]
-            if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
-                self.watched[run_number] = heartbeat_ts
+            heartbeat_ts = run["last_heartbeat_ts"] or heartbeat_time_now()
+            self.watched[run_number] = heartbeat_ts
 
     async def get_run(self, run_key: str) -> Optional[Dict]:
         "Fetch run with a given id or number from the DB"
@@ -136,7 +135,11 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
     async def load_and_broadcast(self, key):
         run = await self.get_run(key)
         resources = resource_list(self._run_table.table_name, run) if run else None
-        if resources and run['status'] == "failed":
+        if not resources:
+            return
+        if run['status'] == "running":
+            self.add_to_watch(run)
+        if run['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
             self.event_emitter.emit('notify', 'UPDATE', resources, run)
@@ -199,9 +202,8 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
 
         key = self.generate_dict_key(task)
         if key and "last_heartbeat_ts" in task:
-            heartbeat_ts = task["last_heartbeat_ts"]
-            if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
-                self.watched[key] = heartbeat_ts
+            heartbeat_ts = task["last_heartbeat_ts"] or heartbeat_time_now()
+            self.watched[key] = heartbeat_ts
 
     async def _get_task(self, flow_id: str, run_key: str, step_name: str, task_key: str, attempt_id: int = None, postprocess=None) -> Optional[Dict]:
         """
@@ -225,7 +227,12 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         flow_id, run_number, step_name, task_id, attempt_id = self.decode_key_ids(key)
         task = await self._get_task(flow_id, run_number, step_name, task_id, attempt_id, postprocess=self.refiner.postprocess)
         resources = resource_list(self._task_table.table_name, task) if task else None
-        if resources and task['status'] == "failed":
+        if not resources:
+            return
+        
+        if task['status'] == "running":
+            self.add_to_watch(task)
+        if task['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
             self.event_emitter.emit('notify', 'UPDATE', resources, task)
@@ -240,3 +247,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     def decode_key_ids(self, key):
         flow, run, step, task, attempt = key.split("/")
         return flow, run, step, task, attempt
+
+def heartbeat_time_now():
+    # same format as the metadata heartbeat uses
+    return int(datetime.datetime.utcnow().timestamp())
