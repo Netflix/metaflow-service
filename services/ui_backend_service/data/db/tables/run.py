@@ -31,6 +31,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = MetadataRunTable.keys
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
+    trigger_operations = ["INSERT"]
 
     # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
     # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
