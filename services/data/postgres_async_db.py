@@ -188,7 +188,8 @@ class AsyncPostgresTable(object):
                 "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
                     table_name=self.table_name, keys=self.trigger_keys))
             await PostgresUtils.cleanup_triggers(db=self.db, table_name=self.table_name)
-            await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys, operations=self.trigger_operations)
+            if self.trigger_keys and self.trigger_operations:
+                await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys, operations=self.trigger_operations)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False,
@@ -446,12 +447,13 @@ class PostgresUtils(object):
                     [table_name]
                 )
                 results = await cur.fetchall()
-                if len(results)>0:
-                    triggers_to_cleanup = [
-                        res[0] for res in results
-                        if TRIGGER_VERSION not in res[0]
-                    ]
-                    logging.getLogger().info(triggers_to_cleanup)
+
+                triggers_to_cleanup = [
+                    res[0] for res in results
+                    if TRIGGER_VERSION not in res[0]
+                ]
+                if triggers_to_cleanup:
+                    logging.getLogger("TriggerSetup").info("Cleaning up old triggers: %s" % triggers_to_cleanup)
                     commands = []
                     for name in triggers_to_cleanup:
                         commands += [("DROP TRIGGER IF EXISTS %s ON %s" % (name, table_name))]
