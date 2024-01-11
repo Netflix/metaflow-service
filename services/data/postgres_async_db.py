@@ -39,7 +39,7 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 operator_match = re.compile('([^:]*):([=><]+)$')
 
 # use a ddmmyyy timestamp as the version for triggers
-TRIGGER_VERSION = "10012024"
+TRIGGER_VERSION = "11012024"
 
 class _AsyncPostgresDB(object):
     connection = None
@@ -167,6 +167,7 @@ class AsyncPostgresTable(object):
     primary_keys: List[str] = None
     trigger_keys: List[str] = None
     trigger_operations: List[str] = ["INSERT", "UPDATE", "DELETE"]
+    trigger_conditions: List[str] = None
     ordering: List[str] = None
     joins: List[str] = None
     select_columns: List[str] = keys
@@ -189,7 +190,13 @@ class AsyncPostgresTable(object):
                     table_name=self.table_name, keys=self.trigger_keys))
             await PostgresUtils.cleanup_triggers(db=self.db, table_name=self.table_name)
             if self.trigger_keys and self.trigger_operations:
-                await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys, operations=self.trigger_operations)
+                await PostgresUtils.setup_trigger_notify(
+                    db=self.db,
+                    table_name=self.table_name,
+                    keys=self.trigger_keys,
+                    operations=self.trigger_operations,
+                    conditions=self.trigger_conditions
+                )
 
     async def get_records(self, filter_dict={}, fetch_single=False,
                           ordering: List[str] = None, limit: int = 0, expanded=False,
@@ -464,7 +471,7 @@ class PostgresUtils(object):
                 cur.close()
 
     @staticmethod
-    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME, operations: List[str] = None ):
+    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME, operations: List[str] = None, conditions: List[str] = None):
         if not keys:
             pass
 
@@ -505,12 +512,13 @@ class PostgresUtils(object):
 
         _commands += ["""
             CREATE TRIGGER {prefix}_{table} AFTER {events} ON {schema}.{table}
-                FOR EACH ROW EXECUTE PROCEDURE {schema}.{prefix}_{table}();
+                FOR EACH ROW {conditions} EXECUTE PROCEDURE {schema}.{prefix}_{table}();
             """.format(
             schema=schema,
             prefix=name_prefix,
             table=table_name,
-            events=" OR ".join(operations)
+            events=" OR ".join(operations),
+            conditions="WHEN (%s)" % " OR ".join(conditions) if conditions else ""
         )]
 
         # This enables trigger on both replica and non-replica mode
