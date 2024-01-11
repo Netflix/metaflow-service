@@ -442,7 +442,6 @@ class PostgresUtils(object):
     @staticmethod
     async def cleanup_triggers(db: _AsyncPostgresDB, table_name):
         "Cleans up old versions of table triggers"
-        print(f"table name: {table_name}")
         with (await db.pool.cursor()) as cur:
             try:
                 await cur.execute(
