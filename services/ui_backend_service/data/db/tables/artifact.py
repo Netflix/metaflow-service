@@ -14,7 +14,8 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     ordering = ["attempt_id DESC"]
     keys = MetadataArtifactTable.keys
     primary_keys = MetadataArtifactTable.primary_keys
-    trigger_keys = MetadataArtifactTable.trigger_keys
+    trigger_keys = None
+    trigger_operations = None
     select_columns = keys
 
     async def get_run_parameter_artifacts(self, flow_name, run_number, postprocess=None, invalidate_cache=False):
