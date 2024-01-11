@@ -10,9 +10,9 @@ from metaflow.plugins.cards.exception import CardNotPresentException
 import os
 
 
-class GetCards(GetData):
+class GetCardData(GetData):
     @classmethod
-    def format_request(cls, pathspecs: List[str], invalidate_cache=False):
+    def format_request(cls, pathspec: str, card_hash: str, invalidate_cache=False):
         """
         Cache Action to fetch Cards HTML content for a pathspec
 
@@ -21,23 +21,27 @@ class GetCards(GetData):
         pathspec : str
             Task pathspec:
                 ["FlowId/RunNumber/StepName/TaskId"]
-        invalidate_cache : bool
-            Force cache invalidation, defaults to False
+        card_hash : str
+            Card hash
         """
+        targets = "{}/{}".format(pathspec, card_hash)
+        # We set the targets to have the card hash so that we can find the card data for a particular hash
         return super().format_request(
-            targets=pathspecs, invalidate_cache=invalidate_cache
+            targets=[targets], invalidate_cache=invalidate_cache
         )
 
     @classmethod
-    def fetch_data(cls, pathspec: str, stream_output: Callable[[str], None]):
+    def fetch_data(
+        cls, pathspec_with_card_hash: str, stream_output: Callable[[str], None]
+    ):
         """
         Fetch data using Metaflow Client.
 
         Parameters
         ----------
-        pathspec : str
-            Task pathspec
-                "FlowId/RunNumber/StepName/TaskId"
+        pathspec_with_card_hash : str
+            Task pathspec with card hash
+                "FlowId/RunNumber/StepName/TaskId/CardHash"
         stream_output : Callable[[object], None]
             Stream output callable from execute() that accepts a JSON serializable object.
             Used for generic messaging.
@@ -51,51 +55,31 @@ class GetCards(GetData):
             stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str()))
         """
 
-        def _card_item(card, card_idx):
+        def _card_item(card):
             card_load_policy = os.environ.get("MF_CARD_LOAD_POLICY", "full")
+            card_data = None
             if card_load_policy == "full":
-                card_html = card.get()
-            elif card_load_policy == "blurb_only":
-                card_html = f"""<html>
-                <body>
-Your organization has disabled cards viewing from the Metaflow UI. Here is a code snippet to retrieve cards using the Metaflow client library:
-
-<pre>
-<code>
-from metaflow import Task, namespace
-from metaflow.cards import get_cards
-
-namespace(None)
-task = Task("{pathspec}")
-card = get_cards(task)[{card_idx}]
-
-# Uncomment block below to view card in a web browser.
-# import tempfile
-# import webbrowser
-# html_file = tempfile.mktemp(".html")
-# with open(html_file, 'w') as f:
-#    f.write(card.get())
-# webbrowser.open_new('file://' + html_file)
-
-</code>
-</pre>
-
-Please visit <a href="https://docs.metaflow.org/api/client" target="_blank">https://docs.metaflow.org/api/client</a> for detailed documentation.
-                </body>
-                </html>"""
-            else:
-                raise ValueError(
-                    f"Invalid value for MF_CARD_LOAD_POLICY ({card_load_policy}) - must be 'full' or 'blurb_only'"
-                )
-            return {"id": card.id, "type": card.type, "html": card_html}
+                card_data = card.get_data()
+            if card_data is None:
+                return None
+            return {"id": card.id, "data": card_data, "hash": card.hash}
 
         try:
+            pathspec = "/".join(pathspec_with_card_hash.split("/")[:-1])
+            card_hash = pathspec_with_card_hash.split("/")[-1]
             with streamed_errors(stream_output):
                 task = Task("{}".format(pathspec))
-                cards = {
-                    card.hash: _card_item(card, i)
-                    for i, card in enumerate(get_cards(task))
-                }
+                cards_datas = [
+                    _card_item(card)
+                    for card in get_cards(task)
+                    if card.hash == card_hash
+                ]
+                if len(cards_datas) == 0:
+                    # This means there is no card with the given hash
+                    return [True, None]
+                elif cards_datas[0] is None:
+                    # This means the card data is not available
+                    return [True, None]
         except CardNotPresentException as e:
             return [False, "card-not-present", str(e)]
         except AttributeError as e:
@@ -108,4 +92,4 @@ Please visit <a href="https://docs.metaflow.org/api/client" target="_blank">http
             # since parameters might be available later
             return False
 
-        return [True, cards]
+        return [True, cards_datas[0]]
