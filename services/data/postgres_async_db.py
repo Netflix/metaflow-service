@@ -759,7 +759,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name"]
     trigger_keys = ["flow_id", "run_number",
-                    "step_name", "task_id", "field_name", "value"]
+                    "step_name", "task_id", "field_name", "value", "tags"]
     trigger_operations = ["INSERT"]
     select_columns = keys
 
