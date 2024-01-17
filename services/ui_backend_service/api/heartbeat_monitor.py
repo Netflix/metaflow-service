@@ -138,7 +138,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
         if not resources:
             return
         if run['status'] == "running":
-            self.add_to_watch(run)
+            await self.add_to_watch(run)
         if run['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
@@ -231,7 +231,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             return
         
         if task['status'] == "running":
-            self.add_to_watch(task)
+            await self.add_to_watch(task)
         if task['status'] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
