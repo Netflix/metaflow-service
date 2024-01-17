@@ -39,7 +39,7 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 operator_match = re.compile('([^:]*):([=><]+)$')
 
 # use a ddmmyyy timestamp as the version for triggers
-TRIGGER_VERSION = "11012024"
+TRIGGER_VERSION = "18012024"
 
 class _AsyncPostgresDB(object):
     connection = None
@@ -747,7 +747,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name"]
     trigger_keys = ["flow_id", "run_number",
-                    "step_name", "task_id", "field_name", "value"]
+                    "step_name", "task_id", "field_name", "value", "tags"]
     trigger_operations = ["INSERT"]
     select_columns = keys
 
