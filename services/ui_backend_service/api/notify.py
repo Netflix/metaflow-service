@@ -124,6 +124,13 @@ class ListenNotify(object):
                 if operation == "INSERT" and \
                         table.table_name == self.db.metadata_table_postgres.table_name and \
                         data["field_name"] == "attempt_ok":
+                    attempt_id=None
+                    try:
+                        attempt_tag=[t for t in data['tags'] if t.startswith('attempt_id')][0]
+                        attempt_id=attempt_tag.split(":")[1]
+                    except Exception:
+                        self.logger.exception("Failed to load attempt_id from attempt_ok metadata")
+                        pass
 
                     # remove heartbeat watcher for completed task
                     self.event_emitter.emit("task-heartbeat", "complete", data)
@@ -134,7 +141,8 @@ class ListenNotify(object):
                         event_emitter=self.event_emitter,
                         operation="UPDATE",
                         table=self.db.task_table_postgres,
-                        data=data
+                        data=data,
+                        filter_dict={"attempt_id": attempt_id} if attempt_id else {}
                     )
 
                     # Notify updated Run status once attempt_ok metadata for end step has been received
