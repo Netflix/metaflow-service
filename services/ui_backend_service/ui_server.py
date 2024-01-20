@@ -10,9 +10,9 @@ from services.utils import DBConfiguration, logging, ORIGIN_TO_ALLOW_CORS_FROM
 from services.metadata_service.server import app as metadata_service_app
 
 # service processes and routes
-from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
+from .api import (AdminApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
-                  MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
+                  MetadataApi, RunApi, RunHeartbeatMonitor, SearchApi, StepApi, TagApi,
                   TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi, CardsApi)
 from .api.utils import allow_get_requests_only
 from .data.cache import CacheStore
@@ -75,7 +75,6 @@ def app(loop=None, db_conf: DBConfiguration = None):
         loop.run_until_complete(async_db_ws._init(db_conf))
         Websocket(app, db=async_db_ws, event_emitter=event_emitter, cache=cache_store)
 
-    logging.info("initialize")
     AutoCompleteApi(app, async_db)
     FlowApi(app, async_db)
     RunApi(app, async_db, cache_store)
@@ -84,7 +83,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     MetadataApi(app, async_db)
     ArtificatsApi(app, async_db, cache_store)
     TagApi(app, async_db)
-    ArtifactSearchApi(app, async_db, cache_store)
+    SearchApi(app, async_db, cache_store)
     DagApi(app, async_db, cache_store)
     FeaturesApi(app)
     ConfigApi(app)
