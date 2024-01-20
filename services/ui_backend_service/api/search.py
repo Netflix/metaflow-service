@@ -1,3 +1,4 @@
+import asyncio
 from typing import Tuple
 from services.data.db_utils import translate_run_key
 from services.data.tagging_utils import apply_run_tags_to_db_response
@@ -6,80 +7,115 @@ from services.ui_backend_service.data.cache.utils import (
     search_result_event_msg, error_event_msg
 )
 from .utils import query_param_enabled
+from urllib.parse import unquote_plus
 
 from aiohttp import web
 import json
 
+SCOPE_ARTIFACT = 'ARTIFACT'
+SCOPE_FOREACH_VARIABLE = 'FOREACH_VARIABLE'
 
-class ArtifactSearchApi(object):
+class SearchApi(object):
     def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
-            "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks
+            "GET", "/search/flows/{flow_id}/runs/{run_number}", self.get_run_tasks
         )
-        logging.error("ArtifactSearchApi __init__")
         self._artifact_table = self.db.artifact_table_postgres
+        self._metadata_table = self.db.metadata_table_postgres
         self._run_table = self.db.run_table_postgres
         self._artifact_store = getattr(cache, "artifact_cache", None)
 
+        self.search_results = list()
+        self.search_result_keyset = set()
+
     @handle_exceptions
     async def get_run_tasks(self, request):
-        flow_name = request.match_info['flow_id']
-        run_key = request.match_info['run_number']
-        artifact_name = request.query['key']
-        value = request.query.get('value', None)
-        logging.error(11111)
+        self.search_results = list()
+        self.search_result_keyset = set()
 
-        invalidate_cache = query_param_enabled(request, "invalidate")
-        logging.error("flow_name %s" % (flow_name))
-        logging.error("run_key %s" % (run_key))
-        logging.error("artifact_name %s" % (artifact_name))
-        logging.error("value %s" % (value))
-
-        meta_artifacts = await self.get_run_artifacts(flow_name, run_key, artifact_name)
-        logging.error("meta_artifacts %s" % (str(meta_artifacts)))
-        logging.error(222222)
+        scope_list = _decode_url_param_value(request.query.get('scope', '')).split(',')
         ws = web.WebSocketResponse()
         await ws.prepare(request)
-        logging.error(333333)
 
+        tasks = []
         try:
-            if value is None:
-                # For empty search terms simply return the list of tasks that have artifacts by the specified name.
-                # Do not unnecessarily hit the cache.
-                results = [{**_result_format(art), "searchable": True} for art in meta_artifacts]
-                logging.error(44444)
-                logging.error(str(results))
-            else:
-                operator, value = _parse_search_term(value)
-                # Search through the artifact contents using the CacheClient
-                # Prefer run_id over run_number and task_name over task_id
-                pathspecs = ["{flow_id}/{run_id}/{step_name}/{task_name}/{name}/{attempt_id}".format(
-                    flow_id=art['flow_id'],
-                    run_id=art.get('run_id') or art['run_number'],
-                    step_name=art['step_name'],
-                    task_name=art.get('task_name') or art['task_id'],
-                    name=art['name'],
-                    attempt_id=art['attempt_id']) for art in meta_artifacts]
-                res = await self._artifact_store.cache.SearchArtifacts(
-                    pathspecs, value, operator,
-                    invalidate_cache=invalidate_cache)
+            if SCOPE_ARTIFACT in scope_list:
+                tasks.append(self.search_artifacts(request, ws))
 
-                if res.has_pending_request():
-                    async for event in res.stream():
-                        await ws.send_str(json.dumps(event))
-                    await res.wait()
-                artifact_data = res.get()
+            if SCOPE_FOREACH_VARIABLE in scope_list:
+                tasks.append(self.search_foreach_variable(request, ws))
 
-                results = await _search_dict_filter(meta_artifacts, artifact_data)
-            logging.error(55555)
-            await ws.send_str(json.dumps({"event": search_result_event_msg(results)}))
-            logging.error(66666)
+            await asyncio.gather(*tasks)
+
         except Exception as ex:
-            logging.error("Accessing cache failed: %s" % (str(ex)))
-            await ws.send_str(json.dumps({"event": error_event_msg("Accessing cache failed", "cache-access-failed")}))
+            logging.error("Filter tasks failed: %s" % (str(ex)))
+            await ws.send_str(json.dumps({"event": error_event_msg("Filter tasks failed", "filter-tasks-failed")}))
             await ws.close(code=1011)
+
         return ws
+
+    async def search_foreach_variable(self, request, ws):
+        """
+        Search over the foreach variables for a given run. This searches over the metadata table, and updates results with all tasks
+        that have the specified variable name in their foreach stack.
+        """
+        flow_name = request.match_info['flow_id']
+        run_key = request.match_info['run_number']
+        key = request.query['key']
+        value = _decode_url_param_value(request.query.get('value', None))
+
+        metadata_key = key + "=" + value if value else key
+        metadata_items = await self.get_run_metadata(flow_name, run_key, "foreach-stack")
+        results = []
+        for item in metadata_items:
+            if metadata_key in str(item['value']):
+                results.append({**_metadata_result_format(item), "searchable": True})
+        self.union_results(results)
+        await ws.send_str(json.dumps({"event": search_result_event_msg(self.search_results)}))
+
+    async def search_artifacts(self, request, ws):
+        """
+        Search over the artifacts for a given run. This search is handled by subprocesses of CacheStore. This updates results with
+        all tasks that have the specified artifact name.
+        """
+        flow_name = request.match_info['flow_id']
+        run_key = request.match_info['run_number']
+        key = request.query['key']
+        value = request.query.get('value', None)
+        invalidate_cache = query_param_enabled(request, "invalidate")
+        meta_artifacts = await self.get_run_artifacts(flow_name, run_key, key)
+
+        if value is None:
+            # For empty search terms simply return the list of tasks that have artifacts by the specified name.
+            # Do not unnecessarily hit the cache.
+            results = [{**_artifact_result_format(art), "searchable": True} for art in meta_artifacts]
+        else:
+            operator, value = _parse_search_term(value)
+            # Search through the artifact contents using the CacheClient
+            # Prefer run_id over run_number and task_name over task_id
+            pathspecs = ["{flow_id}/{run_id}/{step_name}/{task_name}/{name}/{attempt_id}".format(
+                flow_id=art['flow_id'],
+                run_id=art.get('run_id') or art['run_number'],
+                step_name=art['step_name'],
+                task_name=art.get('task_name') or art['task_id'],
+                name=art['name'],
+                attempt_id=art['attempt_id']) for art in meta_artifacts]
+            res = await self._artifact_store.cache.SearchArtifacts(
+                pathspecs, value, operator,
+                invalidate_cache=invalidate_cache)
+
+            if res.has_pending_request():
+                async for event in res.stream():
+                    await ws.send_str(json.dumps(event))
+                await res.wait()
+            artifact_data = res.get()
+
+            results = await _search_dict_filter(meta_artifacts, artifact_data)
+        self.union_results(results)
+
+        await ws.send_str(json.dumps({"event": search_result_event_msg(self.search_results)}))
+
 
     async def get_run_artifacts(self, flow_name, run_key, artifact_name):
         """
@@ -96,7 +132,36 @@ class ArtifactSearchApi(object):
         )
         db_response = await apply_run_tags_to_db_response(flow_name, run_key, self._run_table, db_response)
         return db_response.body
+    
+    async def get_run_metadata(self, flow_name, run_key, metadata_name):
+        """
+        Find a set of artifacts to perform the search over.
+        Includes localstore artifacts as well, as we want to return that these could not be searched over.
+        """
+        run_id_key, run_id_value = translate_run_key(run_key)
+        db_response = await self._metadata_table.get_records(
+            filter_dict={
+                "flow_id": flow_name,
+                run_id_key: run_id_value,
+                "field_name": metadata_name
+            }
+        )
+        return db_response.body
 
+    def union_results(self, new_results: dict):
+        """
+        Union new results with existing results, and update the keyset to prevent duplicate results.
+        Key is determined by step_name and task_id.
+        """
+        for result in new_results:
+            key = result['step_name'] + '/' + result['task_id']
+            if key in self.search_result_keyset:
+                continue 
+
+            self.search_result_keyset.add(key)
+            self.search_results.append(result)
+
+        
 # Utilities
 
 
@@ -157,7 +222,7 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
             match_data = artifact_match_dict[pathspec]
             if match_data['matches'] or not match_data['included']:
                 results.append({
-                    **_result_format(artifact),
+                    **_artifact_result_format(artifact),
                     "searchable": match_data['included'],
                     "error": match_data['error']
                 })
@@ -165,11 +230,17 @@ async def _search_dict_filter(artifacts, artifact_match_dict={}):
     return results
 
 
-def _result_format(art):
+def _artifact_result_format(art):
     return dict(
         [key, val] for key, val in art.items()
-        if key in ['flow_id', 'run_number', 'step_name', 'task_id']
+        if key in ['flow_id', 'run_number', 'step_name', 'task_id', '_foreach_stack']
     )
+
+def _metadata_result_format(meta):
+    return dict(
+        [key, val] for key, val in meta.items()
+        if key in ['flow_id', 'run_number', 'step_name', 'task_id', 'value']
+    )    
 
 
 def _parse_search_term(term: str) -> Tuple[str, str]:
@@ -184,3 +255,14 @@ def _parse_search_term(term: str) -> Tuple[str, str]:
         return "co", term
     else:
         return "eq", term[1:len(term) - 1]
+
+def _decode_url_param_value(value):
+    """
+    Decode url param value that is encoded multiple times.
+    """
+    if not value:
+        return None    
+    DECODE_ROUND = 3
+    for _ in range(DECODE_ROUND):
+        value = unquote_plus(value)
+    return value
