@@ -2,7 +2,14 @@ from typing import Dict, Optional
 from services.data.db_utils import translate_run_key, translate_task_key
 from services.ui_backend_service.data import unpack_processed_value
 from services.utils import handle_exceptions
-from .utils import format_response_list, get_pathspec_from_request, query_param_enabled, web_response, DBPagination, DBResponse
+from .utils import (
+    format_response_list,
+    get_pathspec_from_request,
+    query_param_enabled,
+    web_response,
+    DBPagination,
+    DBResponse,
+)
 from aiohttp import web
 
 
@@ -10,6 +17,7 @@ class CardsApi(object):
     def __init__(self, app, db, cache=None):
         self.db = db
         self.cache = getattr(cache, "artifact_cache", None)
+
         app.router.add_route(
             "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards",
@@ -20,10 +28,14 @@ class CardsApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards/{hash}",
             self.get_card_content_by_hash,
         )
+        app.router.add_route(
+            "GET",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards/{hash}/data",
+            self.get_card_data_by_hash,
+        )
 
     async def get_task_by_request(self, request):
-        flow_id, run_number, step_name, task_id, _ = \
-            get_pathspec_from_request(request)
+        flow_id, run_number, step_name, task_id, _ = get_pathspec_from_request(request)
 
         run_id_key, run_id_value = translate_run_key(run_number)
         task_id_key, task_id_value = translate_task_key(task_id)
@@ -32,14 +44,14 @@ class CardsApi(object):
             "flow_id = %s",
             "{run_id_key} = %s".format(run_id_key=run_id_key),
             "step_name = %s",
-            "{task_id_key} = %s".format(task_id_key=task_id_key)
+            "{task_id_key} = %s".format(task_id_key=task_id_key),
         ]
         values = [flow_id, run_id_value, step_name, task_id_value]
         db_response, *_ = await self.db.task_table_postgres.find_records(
             fetch_single=True,
             conditions=conditions,
             values=values,
-            expanded=True
+            expanded=True,
         )
         if db_response.response_code == 200:
             return db_response.body
@@ -77,7 +89,7 @@ class CardsApi(object):
 
         task = await self.get_task_by_request(request)
         if not task:
-            return web_response(404, {'data': []})
+            return web_response(404, {"data": []})
 
         invalidate_cache = query_param_enabled(request, "invalidate")
         cards = await get_cards_for_task(self.cache, task, invalidate_cache)
@@ -86,7 +98,7 @@ class CardsApi(object):
             # Handle edge: Cache failed to return anything, even errors.
             # NOTE: choice of status 200 here is quite arbitrary, as the cache returning None is usually
             # caused by a premature request, and cards are not permanently missing.
-            return web_response(200, {'data': []})
+            return web_response(200, {"data": []})
 
         card_hashes = [
             {"id": data["id"], "hash": hash, "type": data["type"]}
@@ -133,20 +145,119 @@ class CardsApi(object):
         hash = request.match_info.get("hash")
         task = await self.get_task_by_request(request)
         if not task:
-            return web.Response(content_type="text/html", status=404, body="Task not found.")
+            return web.Response(
+                content_type="text/html", status=404, body="Task not found."
+            )
+        invalidate_cache = query_param_enabled(request, "invalidate")
 
-        cards = await get_cards_for_task(self.cache, task)
+        cards = await get_cards_for_task(
+            self.cache, task, invalidate_cache=invalidate_cache
+        )
 
         if cards is None:
-            return web.Response(content_type="text/html", status=404, body="Card not found for task. Possibly still being processed.")
+            return web.Response(
+                content_type="text/html",
+                status=404,
+                body="Card not found for task. Possibly still being processed.",
+            )
 
         if cards and hash in cards:
             return web.Response(content_type="text/html", body=cards[hash]["html"])
         else:
-            return web.Response(content_type="text/html", status=404, body="Card not found for task.")
+            return web.Response(
+                content_type="text/html", status=404, body="Card not found for task."
+            )
+
+    @handle_exceptions
+    async def get_card_data_by_hash(self, request):
+        """
+        ---
+        description: Get the data of a card created for a task. Contains any additional updates needed by the card.
+        tags:
+        - Card
+        parameters:
+          - $ref: '#/definitions/Params/Path/flow_id'
+          - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/definitions/Params/Path/step_name'
+          - $ref: '#/definitions/Params/Path/task_id'
+          - $ref: '#/definitions/Params/Path/hash'
+
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Returns the data object created by the realtime card with the specific hash
+            "404":
+                description: Card data was not found.
+            "405":
+                description: invalid HTTP Method
+                schema:
+                  $ref: '#/definitions/ResponsesError405'
+        """
+
+        _hash = request.match_info.get("hash")
+        task = await self.get_task_by_request(request)
+        if not task:
+            return web.Response(
+                content_type="text/html", status=404, body="Task not found."
+            )
+        invalidate_cache = query_param_enabled(request, "invalidate")
+        data = await get_card_data_for_task(
+            self.cache, task, _hash, invalidate_cache=invalidate_cache
+        )
+
+        if data is None:
+            return web_response(404, {"error": "Card data not found for task"})
+        else:
+            return web_response(200, data)
 
 
-async def get_cards_for_task(cache_client, task, invalidate_cache=False) -> Optional[Dict[str, Dict]]:
+async def get_card_data_for_task(
+    cache_client, task, card_hash, invalidate_cache=False
+) -> Optional[Dict[str, Dict]]:
+    """
+    Return the card-data from the cache, or nothing.
+
+    Example:
+    --------
+    {
+        "id": 1,
+        "hash": "abc123",
+        "data": {}
+    }
+    """
+    pathspec = "{flow_id}/{run_id}/{step_name}/{task_id}".format(
+        flow_id=task.get("flow_id"),
+        run_id=task.get("run_id") or task.get("run_number"),
+        step_name=task.get("step_name"),
+        task_id=task.get("task_name") or task.get("task_id"),
+    )
+    pathspec_with_hash = "{pathspec}/{card_hash}".format(
+        pathspec=pathspec, card_hash=card_hash
+    )
+    res = await cache_client.cache.GetCardData(pathspec, card_hash, invalidate_cache)
+
+    if res.has_pending_request():
+        async for event in res.stream():
+            if event["type"] == "error":
+                # raise error, there was an exception during fetching.
+                raise CardException(event["message"], event["id"], event["traceback"])
+        await res.wait()  # wait until results are ready
+    data = res.get()
+    if data and pathspec_with_hash in data:
+        success, value, detail, trace = unpack_processed_value(data[pathspec_with_hash])
+        if success:
+            return value
+        else:
+            if value in ["card-not-present", "cannot-fetch-card"]:
+                return None
+            raise CardException(detail, value, trace)
+    return None
+
+
+async def get_cards_for_task(
+    cache_client, task, invalidate_cache=False
+) -> Optional[Dict[str, Dict]]:
     """
     Return a dictionary of cards from the cache, or nothing.
 
@@ -180,14 +291,15 @@ async def get_cards_for_task(cache_client, task, invalidate_cache=False) -> Opti
         if success:
             return value
         else:
+            if value in ["card-not-present", "cannot-fetch-card"]:
+                return None
             raise CardException(detail, value, trace)
 
     return None
 
 
 def get_pagination_params(request):
-    """extract pagination params from request
-    """
+    """extract pagination params from request"""
     # Page
     page = max(int(request.query.get("_page", 1)), 1)
 
@@ -202,7 +314,9 @@ def get_pagination_params(request):
 
 
 class CardException(Exception):
-    def __init__(self, msg='Failed to read card contents', id='card-error', traceback_str=None):
+    def __init__(
+        self, msg="Failed to read card contents", id="card-error", traceback_str=None
+    ):
         self.message = msg
         self.id = id
         self.traceback_str = traceback_str

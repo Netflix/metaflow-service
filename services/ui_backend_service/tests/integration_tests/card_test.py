@@ -30,7 +30,6 @@ async def test_card_not_returned(cli, db):
                             run_id=_step.get("run_id"))).body
 
     async def get_cards_for_task(cache_client, task, invalidate_cache=False):
-        assert invalidate_cache is False
         return None
 
     with mock.patch("services.ui_backend_service.api.card.get_cards_for_task", new=get_cards_for_task):

@@ -8,8 +8,10 @@ from services.data.db_utils import DBResponse
 from .client import CacheAsyncClient
 from pyee import AsyncIOEventEmitter
 from services.ui_backend_service.data.db.utils import get_run_dag_data
-from services.ui_backend_service.features import (FEATURE_CACHE_ENABLE,
-                                                  FEATURE_PREFETCH_ENABLE)
+from services.ui_backend_service.features import (
+    FEATURE_CACHE_ENABLE,
+    FEATURE_PREFETCH_ENABLE,
+)
 from services.utils import logging
 
 from ..refiner import ParameterRefiner, TaskRefiner
@@ -21,6 +23,7 @@ from .get_data_action import GetData
 from .get_parameters_action import GetParameters
 from .get_task_action import GetTask
 from .get_cards_action import GetCards
+from .get_card_data_action import GetCardData
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -28,7 +31,9 @@ logger = logging.getLogger("CacheStore")
 DISK_SIZE = shutil.disk_usage("/").total
 
 CACHE_ARTIFACT_MAX_ACTIONS = int(os.environ.get("CACHE_ARTIFACT_MAX_ACTIONS", 16))
-CACHE_ARTIFACT_STORAGE_LIMIT = int(os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", DISK_SIZE // 2))
+CACHE_ARTIFACT_STORAGE_LIMIT = int(
+    os.environ.get("CACHE_ARTIFACT_STORAGE_LIMIT", DISK_SIZE // 2)
+)
 CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
 CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", DISK_SIZE // 4))
 CACHE_LOG_MAX_ACTIONS = int(os.environ.get("CACHE_LOG_MAX_ACTIONS", 8))
@@ -67,13 +72,12 @@ class CacheStore(object):
         await self.dag_cache.start_cache()
         await self.log_cache.start_cache()
 
-        asyncio.gather(
-            self._monitor_restart_requests()
-        )
+        asyncio.gather(self._monitor_restart_requests())
 
         if FEATURE_PREFETCH_ENABLE:
             asyncio.run_coroutine_threadsafe(
-                self.preload_initial_data(), asyncio.get_event_loop())
+                self.preload_initial_data(), asyncio.get_event_loop()
+            )
 
     async def _monitor_restart_requests(self):
         while True:
@@ -94,7 +98,7 @@ class CacheStore(object):
         logger.info("Preloading {} runs".format(len(recent_runs)))
         await asyncio.gather(
             self.artifact_cache.preload_data_for_runs(recent_runs),
-            self.dag_cache.preload_dags(recent_runs)
+            self.dag_cache.preload_dags(recent_runs),
         )
 
     async def stop_caches(self, app):
@@ -137,19 +141,33 @@ class ArtifactCacheStore(object):
         # Bind an event handler for when we want to preload artifacts for
         # newly inserted content.
         if FEATURE_PREFETCH_ENABLE:
-            self.event_emitter.on("preload-task-statuses", self.preload_task_statuses_event_handler)
-            self.event_emitter.on("preload-run-parameters", self.preload_run_parameters_event_handler)
+            self.event_emitter.on(
+                "preload-task-statuses", self.preload_task_statuses_event_handler
+            )
+            self.event_emitter.on(
+                "preload-run-parameters", self.preload_run_parameters_event_handler
+            )
 
     async def restart_requested(self):
         return self.cache._restart_requested if self.cache else False
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for artifact caching"
-        actions = [GetData, SearchArtifacts, GetTask, GetArtifacts, GetParameters, GetCards]
-        self.cache = CacheAsyncClient('cache_data/artifact_search',
-                                      actions,
-                                      max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
-                                      max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
+        actions = [
+            GetData,
+            SearchArtifacts,
+            GetTask,
+            GetArtifacts,
+            GetParameters,
+            GetCards,
+            GetCardData,
+        ]
+        self.cache = CacheAsyncClient(
+            "cache_data/artifact_search",
+            actions,
+            max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
+            max_actions=CACHE_ARTIFACT_MAX_ACTIONS,
+        )
         if FEATURE_CACHE_ENABLE:
             await self.cache.start()
 
@@ -164,16 +182,25 @@ class ArtifactCacheStore(object):
             A list of run numbers to preload data for.
         """
         for run in runs:
-            logger.debug("  - Preload parameters and task statuses for {flow_id}/{run_number}".format(**run))
+            logger.debug(
+                "  - Preload parameters and task statuses for {flow_id}/{run_number}".format(
+                    **run
+                )
+            )
             asyncio.gather(
                 # Preload run parameters
-                await self.get_run_parameters(run['flow_id'], run['run_number']),
+                await self.get_run_parameters(run["flow_id"], run["run_number"]),
                 # Preload task statuses
                 await self._task_table.get_tasks_for_run(
-                    run['flow_id'], run['run_number'], postprocess=self.task_refiner.postprocess)
+                    run["flow_id"],
+                    run["run_number"],
+                    postprocess=self.task_refiner.postprocess,
+                ),
             )
 
-    async def get_run_parameters(self, flow_id: str, run_key: str, invalidate_cache=False) -> Optional[Dict]:
+    async def get_run_parameters(
+        self, flow_id: str, run_key: str, invalidate_cache=False
+    ) -> Optional[Dict]:
         """
         Fetches run parameter artifact locations, fetches the artifact content from S3, parses it, and returns
         a formatted dict of names&values
@@ -201,7 +228,9 @@ class ArtifactCacheStore(object):
         if not db_response.response_code == 200:
             return None
 
-        response = await self.parameter_refiner.postprocess(db_response, invalidate_cache=invalidate_cache)
+        response = await self.parameter_refiner.postprocess(
+            db_response, invalidate_cache=invalidate_cache
+        )
 
         return response.body
 
@@ -222,7 +251,7 @@ class ArtifactCacheStore(object):
                 "notify",
                 "UPDATE",
                 [f"/flows/{flow_id}/runs/{run_number}/parameters"],
-                parameters
+                parameters,
             )
         except Exception:
             logger.error("Run parameter fetching failed")
@@ -238,7 +267,12 @@ class ArtifactCacheStore(object):
         run_number : int
             Run number to preload data for.
         """
-        asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([{"flow_id": flow_id, "run_number": run_number}]), self.loop)
+        asyncio.run_coroutine_threadsafe(
+            self.preload_data_for_runs(
+                [{"flow_id": flow_id, "run_number": run_number}]
+            ),
+            self.loop,
+        )
 
     async def stop_cache(self):
         await self.cache.stop()
@@ -274,10 +308,12 @@ class DAGCacheStore(object):
     async def start_cache(self):
         "Initialize the CacheAsyncClient for DAG caching"
         actions = [GenerateDag]
-        self.cache = CacheAsyncClient('cache_data/dag',
-                                      actions,
-                                      max_size=CACHE_DAG_STORAGE_LIMIT,
-                                      max_actions=CACHE_DAG_MAX_ACTIONS)
+        self.cache = CacheAsyncClient(
+            "cache_data/dag",
+            actions,
+            max_size=CACHE_DAG_STORAGE_LIMIT,
+            max_actions=CACHE_DAG_MAX_ACTIONS,
+        )
         if FEATURE_CACHE_ENABLE:
             await self.cache.start()
 
@@ -295,11 +331,13 @@ class DAGCacheStore(object):
         run_number : str
             Run number
         """
-        asyncio.run_coroutine_threadsafe(self.preload_dag(flow_name, run_number), self.loop)
+        asyncio.run_coroutine_threadsafe(
+            self.preload_dag(flow_name, run_number), self.loop
+        )
 
     async def preload_dags(self, runs: List[Dict]):
         for run in runs:
-            await self.preload_dag(run['flow_id'], run['run_number'])
+            await self.preload_dag(run["flow_id"], run["run_number"])
 
     async def preload_dag(self, flow_name: str, run_number: str):
         """
@@ -322,7 +360,7 @@ class DAGCacheStore(object):
             return  # No reason to trigger the cache action when a DAG can not be generated.
 
         # Prefer run_id over run_number
-        run_id = db_response.body.get('run_id') or db_response.body['run_number']
+        run_id = db_response.body.get("run_id") or db_response.body["run_number"]
 
         # pylint-initial-ignore: Not sure where GenerateDag comes from
         # pylint: disable=no-member
@@ -355,10 +393,12 @@ class LogCacheStore(object):
     async def start_cache(self):
         "Initialize the CacheAsyncClient for Log caching"
         actions = [GetLogFile]
-        self.cache = CacheAsyncClient('cache_data/log',
-                                      actions,
-                                      max_size=CACHE_LOG_STORAGE_LIMIT,
-                                      max_actions=CACHE_LOG_MAX_ACTIONS)
+        self.cache = CacheAsyncClient(
+            "cache_data/log",
+            actions,
+            max_size=CACHE_LOG_STORAGE_LIMIT,
+            max_actions=CACHE_LOG_MAX_ACTIONS,
+        )
         if FEATURE_CACHE_ENABLE:
             await self.cache.start()
 
