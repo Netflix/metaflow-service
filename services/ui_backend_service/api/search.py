@@ -15,6 +15,7 @@ import json
 SCOPE_ARTIFACT = 'ARTIFACT'
 SCOPE_FOREACH_VARIABLE = 'FOREACH_VARIABLE'
 
+
 class SearchApi(object):
     def __init__(self, app, db, cache=None):
         self.db = db
@@ -116,7 +117,6 @@ class SearchApi(object):
 
         await ws.send_str(json.dumps({"event": search_result_event_msg(self.search_results)}))
 
-
     async def get_run_artifacts(self, flow_name, run_key, artifact_name):
         """
         Find a set of artifacts to perform the search over.
@@ -132,7 +132,7 @@ class SearchApi(object):
         )
         db_response = await apply_run_tags_to_db_response(flow_name, run_key, self._run_table, db_response)
         return db_response.body
-    
+
     async def get_run_metadata(self, flow_name, run_key, metadata_name):
         """
         Find a set of artifacts to perform the search over.
@@ -156,15 +156,13 @@ class SearchApi(object):
         for result in new_results:
             key = result['step_name'] + '/' + result['task_id']
             if key in self.search_result_keyset:
-                continue 
+                continue
 
             self.search_result_keyset.add(key)
             self.search_results.append(result)
 
-        
+
 # Utilities
-
-
 async def _search_dict_filter(artifacts, artifact_match_dict={}):
     """
     Combines search match data dict with a list of artifacts to create actual search results.
@@ -236,11 +234,12 @@ def _artifact_result_format(art):
         if key in ['flow_id', 'run_number', 'step_name', 'task_id', '_foreach_stack']
     )
 
+
 def _metadata_result_format(meta):
     return dict(
         [key, val] for key, val in meta.items()
         if key in ['flow_id', 'run_number', 'step_name', 'task_id', 'value']
-    )    
+    )
 
 
 def _parse_search_term(term: str) -> Tuple[str, str]:
@@ -256,12 +255,13 @@ def _parse_search_term(term: str) -> Tuple[str, str]:
     else:
         return "eq", term[1:len(term) - 1]
 
+
 def _decode_url_param_value(value):
     """
     Decode url param value that is encoded multiple times.
     """
     if not value:
-        return None    
+        return None
     DECODE_ROUND = 3
     for _ in range(DECODE_ROUND):
         value = unquote_plus(value)

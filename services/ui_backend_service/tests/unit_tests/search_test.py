@@ -1,6 +1,6 @@
 import pytest
 
-from services.ui_backend_service.api.artifactsearch import _parse_search_term
+from services.ui_backend_service.api.search import _parse_search_term
 
 pytestmark = [pytest.mark.unit_tests]
 
