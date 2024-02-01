@@ -20,7 +20,7 @@ class SearchApi(object):
     def __init__(self, app, db, cache=None):
         self.db = db
         app.router.add_route(
-            "GET", "/search/flows/{flow_id}/runs/{run_number}", self.get_run_tasks
+            "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks
         )
         self._artifact_table = self.db.artifact_table_postgres
         self._metadata_table = self.db.metadata_table_postgres
@@ -49,8 +49,8 @@ class SearchApi(object):
 
             await asyncio.gather(*tasks)
 
-        except Exception as ex:
-            logging.error("Filter tasks failed: %s" % (str(ex)))
+        except Exception:
+            logging.exception("Filter tasks failed")
             await ws.send_str(json.dumps({"event": error_event_msg("Filter tasks failed", "filter-tasks-failed")}))
             await ws.close(code=1011)
 
