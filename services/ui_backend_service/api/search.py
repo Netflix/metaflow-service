@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 from typing import Tuple
 from services.data.db_utils import translate_run_key
 from services.data.tagging_utils import apply_run_tags_to_db_response
@@ -26,15 +27,11 @@ class SearchApi(object):
         self._metadata_table = self.db.metadata_table_postgres
         self._run_table = self.db.run_table_postgres
         self._artifact_store = getattr(cache, "artifact_cache", None)
-
-        self.search_results = list()
-        self.search_result_keyset = set()
+        self.search_results = defaultdict(list)
+        self.search_result_keyset = defaultdict(set)
 
     @handle_exceptions
     async def get_run_tasks(self, request):
-        self.search_results = list()
-        self.search_result_keyset = set()
-
         scope_list = _decode_url_param_value(request.query.get('scope', '')).split(',')
         ws = web.WebSocketResponse()
         await ws.prepare(request)
@@ -50,9 +47,16 @@ class SearchApi(object):
             await asyncio.gather(*tasks)
 
         except Exception as ex:
-            logging.error("Filter tasks failed: %s" % (str(ex)))
+            logging.exception("Filter tasks failed.")
             await ws.send_str(json.dumps({"event": error_event_msg("Filter tasks failed", "filter-tasks-failed")}))
             await ws.close(code=1011)
+
+        # Clean up the search results so that results dict won't grow indefinitely.
+        request_identifier = _construct_requset_identifier(request)
+        if request_identifier in self.search_results:
+            del self.search_results[request_identifier]
+        if request_identifier in self.search_result_keyset:
+            del self.search_result_keyset[request_identifier]
 
         return ws
 
@@ -72,8 +76,9 @@ class SearchApi(object):
         for item in metadata_items:
             if metadata_key in str(item['value']):
                 results.append({**_metadata_result_format(item), "searchable": True})
-        self.union_results(results)
-        await ws.send_str(json.dumps({"event": search_result_event_msg(self.search_results)}))
+        request_identifier = _construct_requset_identifier(request)
+        self.union_results(results, request_identifier)
+        await ws.send_str(json.dumps({"event": search_result_event_msg(self.search_results[request_identifier])}))
 
     async def search_artifacts(self, request, ws):
         """
@@ -113,9 +118,10 @@ class SearchApi(object):
             artifact_data = res.get()
 
             results = await _search_dict_filter(meta_artifacts, artifact_data)
-        self.union_results(results)
+        request_identifier = _construct_requset_identifier(request)
+        self.union_results(results, request_identifier)
 
-        await ws.send_str(json.dumps({"event": search_result_event_msg(self.search_results)}))
+        await ws.send_str(json.dumps({"event": search_result_event_msg(self.search_results[request_identifier])}))
 
     async def get_run_artifacts(self, flow_name, run_key, artifact_name):
         """
@@ -148,7 +154,7 @@ class SearchApi(object):
         )
         return db_response.body
 
-    def union_results(self, new_results: dict):
+    def union_results(self, new_results: dict, request_identifier: str):
         """
         Union new results with existing results, and update the keyset to prevent duplicate results.
         Key is determined by step_name and task_id.
@@ -158,8 +164,8 @@ class SearchApi(object):
             if key in self.search_result_keyset:
                 continue
 
-            self.search_result_keyset.add(key)
-            self.search_results.append(result)
+            self.search_result_keyset[request_identifier].add(key)
+            self.search_results[request_identifier].append(result)
 
 
 # Utilities
@@ -266,3 +272,15 @@ def _decode_url_param_value(value):
     for _ in range(DECODE_ROUND):
         value = unquote_plus(value)
     return value
+
+def _construct_requset_identifier(request):
+    """
+    Extracts the flow_name, run_key, key and value from the request to construct a
+    unique key for the search result.
+    """
+    flow_name = request.match_info['flow_id']
+    run_key = request.match_info['run_number']
+    key = request.query['key']
+    value = _decode_url_param_value(request.query.get('value', None))
+
+    return f"{flow_name}/{run_key} {key}:{value}"
