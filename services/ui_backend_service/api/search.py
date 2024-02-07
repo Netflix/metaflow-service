@@ -20,6 +20,10 @@ SCOPE_FOREACH_VARIABLE = 'FOREACH_VARIABLE'
 class SearchApi(object):
     def __init__(self, app, db, cache=None):
         self.db = db
+        # Old search route kept for backwards compatibility
+        app.router.add_route(
+            "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks
+        )
         app.router.add_route(
             "GET", "/search/flows/{flow_id}/runs/{run_number}", self.get_run_tasks
         )
@@ -32,7 +36,7 @@ class SearchApi(object):
 
     @handle_exceptions
     async def get_run_tasks(self, request):
-        scope_list = _decode_url_param_value(request.query.get('scope', '')).split(',')
+        scope_list = _decode_url_param_value(request.query.get('scope', SCOPE_ARTIFACT)).split(',')
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
