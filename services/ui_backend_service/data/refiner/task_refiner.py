@@ -40,7 +40,7 @@ class TaskRefiner(Refinery):
         if values.get('_foreach_stack'):
             value = values['_foreach_stack']
             if len(value) > 0 and len(value[0]) >= 4:
-                _, _name, _, _index = value[0]
-                record['foreach_label'] = "{}[{}]".format(record['task_id'], _index)
+                # The third one in the tuple is the foreach index. We access this way for backwards compatibility.
+                record['foreach_label'] = "{}[{}]".format(record['task_id'], value[0][3])
 
         return record
