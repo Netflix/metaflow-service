@@ -218,26 +218,30 @@ def test_tail_log_provider(m_get_log_size, m_get_log_content):
     for case in [
         {
             "max_tail_chars": 10000,
+            "max_total_size": 200*1024,
             "expected_tail_lines": 1000,
             "expect_to_truncate": False,
         },
         {
             "max_tail_chars": 1000,
+            "max_total_size": 200*1024,
             "expected_tail_lines": 333,
             "expect_to_truncate": True,
         },
         {
             "max_tail_chars": 100,
+            "max_total_size": 200*1024,
             "expected_tail_lines": 33,
             "expect_to_truncate": True,
         },
         {
             "max_tail_chars": 0,
+            "max_total_size": 200*1024,
             "expected_tail_lines": 0,
             "expect_to_truncate": True,
         },
     ]:
-        provider = TailLogProvider(case["max_tail_chars"])
+        provider = TailLogProvider(case["max_tail_chars"], max_log_size_in_kb=case["max_total_size"])
         # Log size should still report full log size (even if only partial content returned)
         assert provider.get_log_hash(mock_task, STDOUT) == mock_log_size
         tail_log_content = provider.get_log_content(mock_task, STDOUT)

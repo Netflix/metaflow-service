@@ -56,7 +56,7 @@ class CacheAsyncClient(CacheClient):
 
             if self.logger.isEnabledFor(logging.INFO):
                 self.logger.info(
-                    "Pending stream keys: {}".format(list(self.pending_requests))
+                    "Pending stream keys: {}".format(len(list(self.pending_requests)))
                 )
         except JSONDecodeError as ex:
             if self.logger.isEnabledFor(logging.INFO):
@@ -73,6 +73,7 @@ class CacheAsyncClient(CacheClient):
         if self._is_alive:
             self._is_alive = False
             self._proc.terminate()
+            self.logger.info("Waiting for cache server to terminate")
             await self._proc.wait()
 
     async def send_request(self, blob):
