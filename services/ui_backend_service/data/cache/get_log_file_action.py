@@ -163,14 +163,33 @@ def get_log_provider():
     if log_file_policy == 'full':
         return FullLogProvider()
     elif log_file_policy == 'tail':
+        # MF_LOG_LOAD_MAX_SIZE: `kilobytes`
+        max_log_size = int(os.environ.get('MF_LOG_LOAD_MAX_SIZE', 20 * 1024))
         # In number of characters (UTF-8)
         tail_max_size = int(os.environ.get('MF_LOG_LOAD_TAIL_SIZE', 100 * 1024))
-        return TailLogProvider(tail_max_size=tail_max_size)
+        return TailLogProvider(tail_max_size=tail_max_size, max_log_size_in_kb=max_log_size)
     elif log_file_policy == 'blurb_only':
         return BlurbOnlyLogProvider()
     else:
         raise ValueError("Unknown log value for MF_LOG_LOAD_POLICY (%s). "
                          "Must be 'full', 'tail', or 'blurb_only'" % log_file_policy)
+
+
+def log_size_exceeded_blurb(task: Task, logtype: str, max_size: int):
+    stream_name = 'stderr' if logtype == STDERR else 'stdout'
+    blurb = f"""# The size of the log is greater than {int(max_size/1024)}MB which makes it unavailable for viewing on the browser.
+
+Here is a code snippet to get logs using the Metaflow client library:
+```
+from metaflow import Task, namespace
+
+namespace(None)
+task = Task("{task.pathspec}", attempt={task.current_attempt})
+{stream_name} = task.{stream_name}
+```
+
+# Please visit https://docs.metaflow.org/api/client for detailed documentation."""
+    return blurb
 
 
 def get_log_size(task: Task, logtype: str):
@@ -206,16 +225,22 @@ class LogProviderBase:
 
 
 class TailLogProvider(LogProviderBase):
-    def __init__(self, tail_max_size: int):
+    def __init__(self, tail_max_size: int, max_log_size_in_kb: int):
         super().__init__()
         self._tail_max_size = tail_max_size
+        self._max_log_size_in_kb = max_log_size_in_kb
 
     def get_log_hash(self, task: Task, logtype: str) -> int:
         # We can still use the true log size as a hash - still valid way to detect log growth
         return get_log_size(task, logtype)
 
     def get_log_content(self, task: Task, logtype: str):
-
+        log_size_in_bytes = get_log_size(task, logtype)
+        log_size = log_size_in_bytes / 1024
+        if log_size > self._max_log_size_in_kb:
+            return [(
+                None, log_size_exceeded_blurb(task, logtype, self._max_log_size_in_kb)
+            ), ]
         # Note this is inefficient - we will load a 1GB log even if we only want last 100 bytes.
         # Doing this efficiently is a step change in complexity and effort - we can do it when justified in future.
         raw_content = get_log_content(task, logtype)
