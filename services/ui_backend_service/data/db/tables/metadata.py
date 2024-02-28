@@ -13,6 +13,11 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     keys = MetaserviceMetadataTable.keys
     primary_keys = MetaserviceMetadataTable.primary_keys
     trigger_keys = MetaserviceMetadataTable.trigger_keys
+    trigger_operations = ["INSERT"]
+    trigger_conditions = [
+        "NEW.field_name = 'attempt'",
+        "NEW.field_name = 'attempt_ok'"
+    ]
 
     @property
     def select_columns(self):
