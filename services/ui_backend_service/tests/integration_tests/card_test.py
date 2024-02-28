@@ -29,13 +29,17 @@ async def test_card_not_returned(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
-    async def get_cards_for_task(cache_client, task, invalidate_cache=False):
+    async def get_cards_for_task(cache_client, task, hash):
         return None
 
-    with mock.patch("services.ui_backend_service.api.card.get_cards_for_task", new=get_cards_for_task):
+    async def get_card_list(cache_client, task, max_wait_time=0.5):
+        return None
+
+    with mock.patch("services.ui_backend_service.api.card.get_card_list", new=get_card_list):
         _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards".format(**_task), 200, None)
         assert data == []
 
+    with mock.patch("services.ui_backend_service.api.card.get_card_html_for_task_async", new=get_cards_for_task):
         resp = await cli.get("/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards/abcd1234".format(**_task))
         body = await resp.text()
         assert resp.status == 404
@@ -52,13 +56,13 @@ async def test_cards_list_paginated_response(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
-    async def get_cards_for_task(cache_client, task, invalidate_cache=False):
+    async def get_card_list(cache_client, task, max_wait_time=0.5):
         return {
-            "abc": {"id": 1, "type": "default", "html": "content"},
-            "def": {"id": 2, "type": "default", "html": "content2"}
+            "abc": {"id": 1, "type": "default"},
+            "def": {"id": 2, "type": "default"}
         }
 
-    with mock.patch("services.ui_backend_service.api.card.get_cards_for_task", new=get_cards_for_task):
+    with mock.patch("services.ui_backend_service.api.card.get_card_list", new=get_card_list):
         _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards".format(**_task), 200, None)
         assert data == [
             {"id": 1, "type": "default", "hash": "abc"},
@@ -82,13 +86,18 @@ async def test_card_content_for_task(cli, db):
                             run_number=_step.get("run_number"),
                             run_id=_step.get("run_id"))).body
 
-    async def get_cards_for_task(cache_client, task, invalidate_cache=False):
-        return {
+    async def get_cards_for_task(cache_client, task, hash):
+        data = {
             "abc": {"id": 1, "type": "default", "html": "content"},
             "def": {"id": 2, "type": "default", "html": "content2"}
         }
+        if hash in data:
+            return {
+                hash:data[hash]
+            }
+        return None
 
-    with mock.patch("services.ui_backend_service.api.card.get_cards_for_task", new=get_cards_for_task):
+    with mock.patch("services.ui_backend_service.api.card.get_card_html_for_task_async", new=get_cards_for_task):
         resp = await cli.get("/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards/hij123".format(**_task))
         assert resp.status == 404
 

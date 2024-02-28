@@ -22,8 +22,7 @@ from .get_log_file_action import GetLogFile
 from .get_data_action import GetData
 from .get_parameters_action import GetParameters
 from .get_task_action import GetTask
-from .get_cards_action import GetCards
-from .get_card_data_action import GetCardData
+from .card_cache_manager import CardCacheManager
 
 # Tagged logger
 logger = logging.getLogger("CacheStore")
@@ -38,6 +37,7 @@ CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
 CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", DISK_SIZE // 4))
 CACHE_LOG_MAX_ACTIONS = int(os.environ.get("CACHE_LOG_MAX_ACTIONS", 8))
 CACHE_LOG_STORAGE_LIMIT = int(os.environ.get("CACHE_LOG_STORAGE_LIMIT", DISK_SIZE // 5))
+CARD_CACHE_DISK_CLEANUP_INTERVAL = int(os.environ.get("CARD_CACHE_DISK_CLEANUP_INTERVAL", 60 * 60 * 4))
 
 
 class CacheStore(object):
@@ -60,6 +60,7 @@ class CacheStore(object):
         self.artifact_cache = ArtifactCacheStore(event_emitter, db)
         self.dag_cache = DAGCacheStore(event_emitter, db)
         self.log_cache = LogCacheStore(event_emitter)
+        self.card_cache = CardCacheStore(event_emitter)
 
         # bind setup and teardown helpers.
         if app:
@@ -71,6 +72,7 @@ class CacheStore(object):
         await self.artifact_cache.start_cache()
         await self.dag_cache.start_cache()
         await self.log_cache.start_cache()
+        await self.card_cache.start_cache()
 
         asyncio.gather(self._monitor_restart_requests())
 
@@ -106,6 +108,33 @@ class CacheStore(object):
         await self.artifact_cache.stop_cache()
         await self.dag_cache.stop_cache()
         await self.log_cache.stop_cache()
+        await self.card_cache.stop_cache()
+
+
+class CardCacheStore(object):
+    """
+    Cache class responsible for fetching, storing and searching Cards.
+    """
+
+    def __init__(self, event_emitter):
+        self.event_emitter = event_emitter or AsyncIOEventEmitter()
+        self.cache = None
+        self.loop = asyncio.get_event_loop()
+        self.cache_manager = CardCacheManager()
+
+    async def start_cache(self):
+        self._cleanup_coroutine = asyncio.create_task(
+            self.cache_manager.start_process_cleanup_routine(120)
+        )
+        self._disk_cleanup_coroutine = asyncio.create_task(
+            self.cache_manager.cleanup_disk_routine(CARD_CACHE_DISK_CLEANUP_INTERVAL)
+        )
+
+    async def stop_cache(self):
+        self._cleanup_coroutine.cancel()
+        await self._cleanup_coroutine
+        self._disk_cleanup_coroutine.cancel()
+        await self._disk_cleanup_coroutine
 
 
 class ArtifactCacheStore(object):
@@ -159,8 +188,6 @@ class ArtifactCacheStore(object):
             GetTask,
             GetArtifacts,
             GetParameters,
-            GetCards,
-            GetCardData,
         ]
         self.cache = CacheAsyncClient(
             "cache_data/artifact_search",
