@@ -1,18 +1,19 @@
 import psycopg2
 import psycopg2.extras
+from psycopg2.extensions import QuotedString
 import os
 import aiopg
 import json
 import math
 import re
 import time
-from services.utils import logging
+from services.utils import logging, DBType
 from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
-from services.utils import DBConfiguration
+from services.utils import DBConfiguration, USE_SEPARATE_READER_POOL
 
 from services.data.service_configs import max_connection_retires, \
     connection_retry_wait_time_seconds
@@ -33,6 +34,7 @@ STEP_TABLE_NAME = os.environ.get("DB_TABLE_NAME_STEPS", "steps_v3")
 TASK_TABLE_NAME = os.environ.get("DB_TABLE_NAME_TASKS", "tasks_v3")
 METADATA_TABLE_NAME = os.environ.get("DB_TABLE_NAME_METADATA", "metadata_v3")
 ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
+DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 
 operator_match = re.compile('([^:]*):([=><]+)$')
 
@@ -47,6 +49,7 @@ class _AsyncPostgresDB(object):
     metadata_table_postgres = None
 
     pool = None
+    reader_pool = None
     db_conf: DBConfiguration = None
 
     def __init__(self, name='global'):
@@ -68,27 +71,49 @@ class _AsyncPostgresDB(object):
         tables.append(self.metadata_table_postgres)
         self.tables = tables
 
-    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE, create_tables=True):
+    async def _init(self, db_conf: DBConfiguration, create_triggers=DB_TRIGGER_CREATE):
         # todo make poolsize min and max configurable as well as timeout
         # todo add retry and better error message
         retries = max_connection_retires
         for i in range(retries):
             try:
                 self.pool = await aiopg.create_pool(
-                    db_conf.dsn,
+                    db_conf.get_dsn(),
                     minsize=db_conf.pool_min,
                     maxsize=db_conf.pool_max,
                     timeout=db_conf.timeout,
+                    pool_recycle=10 * db_conf.timeout,
                     echo=AIOPG_ECHO)
 
-                for table in self.tables:
-                    await table._init(create_tables=create_tables, create_triggers=create_triggers)
+                self.reader_pool = await aiopg.create_pool(
+                    db_conf.get_dsn(type=DBType.READER),
+                    minsize=db_conf.pool_min,
+                    maxsize=db_conf.pool_max,
+                    timeout=db_conf.timeout,
+                    pool_recycle=10 * db_conf.timeout,
+                    echo=AIOPG_ECHO) if USE_SEPARATE_READER_POOL else self.pool
 
-                self.logger.info(
-                    "Connection established.\n"
-                    "   Pool min: {pool_min} max: {pool_max}\n".format(
-                        pool_min=self.pool.minsize,
-                        pool_max=self.pool.maxsize))
+                for table in self.tables:
+                    await table._init(create_triggers=create_triggers)
+
+                if USE_SEPARATE_READER_POOL:
+                    self.logger.info(
+                        "Writer Connection established.\n"
+                        "   Pool min: {pool_min} max: {pool_max}\n".format(
+                            pool_min=self.pool.minsize,
+                            pool_max=self.pool.maxsize))
+
+                    self.logger.info(
+                        "Reader Connection established.\n"
+                        "   Pool min: {pool_min} max: {pool_max}\n".format(
+                            pool_min=self.reader_pool.minsize,
+                            pool_max=self.reader_pool.maxsize))
+                else:
+                    self.logger.info(
+                        "Connection established.\n"
+                        "   Pool min: {pool_min} max: {pool_max}\n".format(
+                            pool_min=self.pool.minsize,
+                            pool_max=self.pool.maxsize))
 
                 break  # Break the retry loop
             except Exception as e:
@@ -143,7 +168,6 @@ class AsyncPostgresTable(object):
     joins: List[str] = None
     select_columns: List[str] = keys
     join_columns: List[str] = None
-    _command = None
     _insert_command = None
     _filters = None
     _base_query = "SELECT {0} from"
@@ -151,13 +175,11 @@ class AsyncPostgresTable(object):
 
     def __init__(self, db: _AsyncPostgresDB = None):
         self.db = db
-        if self.table_name is None or self._command is None:
+        if self.table_name is None:
             raise NotImplementedError(
-                "need to specify table name and create command")
+                "need to specify table name")
 
-    async def _init(self, create_tables: bool, create_triggers: bool):
-        if create_tables:
-            await PostgresUtils.create_if_missing(self.db, self.table_name, self._command)
+    async def _init(self, create_triggers: bool):
         if create_triggers:
             self.db.logger.info(
                 "Setting up notify trigger for {table_name}\n   Keys: {keys}".format(
@@ -165,7 +187,8 @@ class AsyncPostgresTable(object):
             await PostgresUtils.setup_trigger_notify(db=self.db, table_name=self.table_name, keys=self.trigger_keys)
 
     async def get_records(self, filter_dict={}, fetch_single=False,
-                          ordering: List[str] = None, limit: int = 0, expanded=False) -> DBResponse:
+                          ordering: List[str] = None, limit: int = 0, expanded=False,
+                          cur: aiopg.Cursor = None) -> DBResponse:
         conditions = []
         values = []
         for col_name, col_val in filter_dict.items():
@@ -174,13 +197,13 @@ class AsyncPostgresTable(object):
 
         response, _ = await self.find_records(
             conditions=conditions, values=values, fetch_single=fetch_single,
-            order=ordering, limit=limit, expanded=expanded
+            order=ordering, limit=limit, expanded=expanded, cur=cur
         )
         return response
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
-                           enable_joins=False) -> Tuple[DBResponse, DBPagination]:
+                           enable_joins=False, cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
         sql_template = """
         SELECT * FROM (
             SELECT
@@ -206,42 +229,54 @@ class AsyncPostgresTable(object):
         ).strip()
 
         return await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                      expanded=expanded, limit=limit, offset=offset)
+                                      expanded=expanded, limit=limit, offset=offset, cur=cur)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
-                          expanded=False, limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
-        try:
-            with (
-                await self.db.pool.cursor(
-                    cursor_factory=psycopg2.extras.DictCursor
-                )
-            ) as cur:
-                await cur.execute(select_sql, values)
+                          expanded=False, limit: int = 0, offset: int = 0,
+                          cur: aiopg.Cursor = None, serialize: bool = True) -> Tuple[DBResponse, DBPagination]:
+        async def _execute_on_cursor(_cur):
+            await _cur.execute(select_sql, values)
 
-                rows = []
-                records = await cur.fetchall()
+            rows = []
+            records = await _cur.fetchall()
+            if serialize:
                 for record in records:
-                    row = self._row_type(**record)  # pylint: disable=not-callable
+                    # pylint-initial-ignore: Lack of __init__ makes this too hard for pylint
+                    # pylint: disable=not-callable
+                    row = self._row_type(**record)
                     rows.append(row.serialize(expanded))
+            else:
+                rows = records
 
-                count = len(rows)
+            count = len(rows)
 
-                # Will raise IndexError in case fetch_single=True and there's no results
-                body = rows[0] if fetch_single else rows
+            # Will raise IndexError in case fetch_single=True and there's no results
+            body = rows[0] if fetch_single else rows
+            pagination = DBPagination(
+                limit=limit,
+                offset=offset,
+                count=count,
+                page=math.floor(int(offset) / max(int(limit), 1)) + 1,
+            )
+            return body, pagination
 
-                pagination = DBPagination(
-                    limit=limit,
-                    offset=offset,
-                    count=count,
-                    page=math.floor(int(offset) / max(int(limit), 1)) + 1,
-                )
-
-                cur.close()
+        try:
+            if cur:
+                # if we are using the passed in cursor, we allow any errors to be managed by cursor owner
+                body, pagination = await _execute_on_cursor(cur)
                 return DBResponse(response_code=200, body=body), pagination
+            else:
+                db_pool = self.db.reader_pool if USE_SEPARATE_READER_POOL else self.db.pool
+                with (await db_pool.cursor(
+                        cursor_factory=psycopg2.extras.DictCursor
+                )) as cur:
+                    body, pagination = await _execute_on_cursor(cur)
+                    cur.close()
+                    return DBResponse(response_code=200, body=body), pagination
         except IndexError as error:
             return aiopg_exception_handling(error), None
         except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
+            self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error), None
 
     async def create_record(self, record_dict):
@@ -289,10 +324,29 @@ class AsyncPostgresTable(object):
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
         except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
+            self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
 
-    async def update_row(self, filter_dict={}, update_dict={}):
+    async def run_in_transaction_with_serializable_isolation_level(self, fun):
+        try:
+            with (
+                    await self.db.pool.cursor(
+                        cursor_factory=psycopg2.extras.DictCursor,
+                    )
+            ) as cur:
+                async with cur.begin():
+                    await cur.execute('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+                    res = await fun(cur)
+                cur.close()  # is this really needed? TODO
+                return res
+        except psycopg2.errors.SerializationFailure:
+            # See https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409
+            return DBResponse(response_code=409, body="Conflicting concurrent tag mutation, please retry")
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occurred")
+            return aiopg_exception_handling(error)
+
+    async def update_row(self, filter_dict={}, update_dict={}, cur: aiopg.Cursor = None):
         # generate where clause
         filters = []
         for col_name, col_val in filter_dict.items():
@@ -325,44 +379,33 @@ class AsyncPostgresTable(object):
         update_sql = """
                 UPDATE {0} SET {1} WHERE {2};
         """.format(self.table_name, set_clause, where_clause)
+
+        async def _execute_update_on_cursor(_cur):
+            await _cur.execute(update_sql)
+            if _cur.rowcount < 1:
+                return DBResponse(response_code=404,
+                                  body={"msg": "could not find row"})
+            if _cur.rowcount > 1:
+                return DBResponse(response_code=500,
+                                  body={"msg": "duplicate rows"})
+            return DBResponse(response_code=200, body={"rowcount": _cur.rowcount})
+        if cur:
+            return await _execute_update_on_cursor(cur)
         try:
             with (
                 await self.db.pool.cursor(
                     cursor_factory=psycopg2.extras.DictCursor
                 )
             ) as cur:
-                await cur.execute(update_sql)
-                if cur.rowcount < 1:
-                    return DBResponse(response_code=404,
-                                      body={"msg": "could not find row"})
-                if cur.rowcount > 1:
-                    return DBResponse(response_code=500,
-                                      body={"msg": "duplicate rows"})
-                body = {"rowcount": cur.rowcount}
-                # todo make sure connection is closed even with error
+                db_response = await _execute_update_on_cursor(cur)
                 cur.close()
-                return DBResponse(response_code=200, body=body)
+                return db_response
         except (Exception, psycopg2.DatabaseError) as error:
-            self.db.logger.exception("Exception occured")
+            self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
 
 
 class PostgresUtils(object):
-    @staticmethod
-    async def create_if_missing(db: _AsyncPostgresDB, table_name, command):
-        with (await db.pool.cursor()) as cur:
-            try:
-                await cur.execute(
-                    "select * from information_schema.tables where table_name=%s",
-                    (table_name,),
-                )
-                table_exist = bool(cur.rowcount)
-                if not table_exist:
-                    await cur.execute(command)
-            finally:
-                cur.close()
-    # todo add method to check schema version
-
     @staticmethod
     async def create_trigger_if_missing(db: _AsyncPostgresDB, table_name, trigger_name, commands=[]):
         "executes the commands only if a trigger with the given name does not already exist on the table"
@@ -385,7 +428,7 @@ class PostgresUtils(object):
                 cur.close()
 
     @staticmethod
-    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema="public"):
+    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME):
         if not keys:
             pass
 
@@ -459,17 +502,6 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id"]
     trigger_keys = primary_keys
     select_columns = keys
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) PRIMARY KEY,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB
-    )
-    """.format(
-        table_name
-    )
     _row_type = FlowRow
 
     async def add_flow(self, flow: FlowRow):
@@ -501,23 +533,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys + ["last_heartbeat_ts"]
     select_columns = keys
     flow_table_name = AsyncFlowTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number SERIAL NOT NULL,
-        run_id VARCHAR(255),
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        last_heartbeat_ts BIGINT,
-        PRIMARY KEY(flow_id, run_number),
-        FOREIGN KEY(flow_id) REFERENCES {1} (flow_id),
-        UNIQUE (flow_id, run_id)
-    )
-    """.format(
-        table_name, flow_table_name
-    )
 
     async def add_run(self, run: RunRow, fill_heartbeat: bool = False):
         dict = {
@@ -530,11 +545,11 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_run(self, flow_id: str, run_id: str, expanded: bool = False):
+    async def get_run(self, flow_id: str, run_id: str, expanded: bool = False, cur: aiopg.Cursor = None):
         key, value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id, key: str(value)}
         return await self.get_records(filter_dict=filter_dict,
-                                      fetch_single=True, expanded=expanded)
+                                      fetch_single=True, expanded=expanded, cur=cur)
 
     async def get_all_runs(self, flow_id: str):
         filter_dict = {"flow_id": flow_id}
@@ -556,6 +571,16 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return DBResponse(response_code=result.response_code,
                           body=json.dumps(body))
 
+    async def update_run_tags(self, flow_id: str, run_id: str, run_tags: list, cur: aiopg.Cursor = None):
+        run_key, run_value = translate_run_key(run_id)
+        filter_dict = {"flow_id": flow_id,
+                       run_key: str(run_value)}
+
+        set_dict = {"tags": QuotedString(json.dumps(run_tags)).getquoted().decode()}
+        return await self.update_row(filter_dict=filter_dict,
+                                     update_dict=set_dict,
+                                     cur=cur)
+
 
 class AsyncStepTablePostgres(AsyncPostgresTable):
     step_dict = {}
@@ -568,23 +593,6 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(flow_id, run_number, step_name),
-        FOREIGN KEY(flow_id, run_number) REFERENCES {1} (flow_id, run_number),
-        UNIQUE(flow_id, run_id, step_name)
-    )
-    """.format(
-        table_name, run_table_name
-    )
 
     async def add_step(self, step_object: StepRow):
         dict = {
@@ -626,25 +634,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys
     select_columns = keys
     step_table_name = AsyncStepTablePostgres.table_name
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_id BIGSERIAL PRIMARY KEY,
-        task_name VARCHAR(255),
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        last_heartbeat_ts BIGINT,
-        FOREIGN KEY(flow_id, run_number, step_name) REFERENCES {1} (flow_id, run_number, step_name),
-        UNIQUE (flow_id, run_number, step_name, task_name)
-    )
-    """.format(
-        table_name, step_table_name
-    )
 
     async def add_task(self, task: TaskRow, fill_heartbeat=False):
         # todo backfill run_number if missing?
@@ -718,25 +707,6 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     trigger_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name", "value"]
     select_columns = keys
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255),
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_name VARCHAR(255),
-        task_id BIGINT NOT NULL,
-        id BIGSERIAL NOT NULL,
-        field_name VARCHAR(255) NOT NULL,
-        value TEXT NOT NULL,
-        type VARCHAR(255) NOT NULL,
-        user_name VARCHAR(255),
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(id, flow_id, run_number, step_name, task_id, field_name)
-    )
-    """.format(table_name)
 
     async def add_metadata(
         self,
@@ -804,30 +774,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
                     "step_name", "task_id", "attempt_id", "name"]
     trigger_keys = primary_keys
     select_columns = keys
-    _command = """
-    CREATE TABLE {0} (
-        flow_id VARCHAR(255) NOT NULL,
-        run_number BIGINT NOT NULL,
-        run_id VARCHAR(255),
-        step_name VARCHAR(255) NOT NULL,
-        task_id BIGINT NOT NULL,
-        task_name VARCHAR(255),
-        name VARCHAR(255) NOT NULL,
-        location VARCHAR(255) NOT NULL,
-        ds_type VARCHAR(255) NOT NULL,
-        sha VARCHAR(255),
-        type VARCHAR(255),
-        content_type VARCHAR(255),
-        user_name VARCHAR(255),
-        attempt_id SMALLINT NOT NULL,
-        ts_epoch BIGINT NOT NULL,
-        tags JSONB,
-        system_tags JSONB,
-        PRIMARY KEY(flow_id, run_number, step_name, task_id, attempt_id, name)
-    )
-    """.format(
-        table_name
-    )
 
     async def add_artifact(
         self,

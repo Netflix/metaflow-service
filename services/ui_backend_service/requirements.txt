@@ -1,8 +1,13 @@
 aiohttp >= 3.8.1, < 4
-aiohttp-swagger >= 1.0.13, < 2
 pyee==8.0.1
 throttler==1.2.0
+packaging
 psycopg2
 aiopg
-pygit2==1.6.1
-metaflow>=2.5.0
+pygit2==1.12.1
+aiohttp_cors==0.7.0
+metaflow>=2.11.0
+click==8.0.3
+azure-storage-blob==12.13.1
+azure-identity==1.10.0
+google-cloud-storage~=2.10.0

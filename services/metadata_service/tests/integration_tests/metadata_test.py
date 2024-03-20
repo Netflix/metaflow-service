@@ -112,7 +112,8 @@ async def test_run_metadata_get(cli, db):
     _second_metadata = (await add_metadata(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], metadata=METADATA_B)).body
 
     # try to get all the created metadata
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task), data=[_first_metadata, _second_metadata])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+                                  data=[_first_metadata, _second_metadata], data_is_unordered_list_of_dicts=True)
 
     # getting metadata for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/metadata".format(**_task), status=200, data=[])
@@ -133,7 +134,8 @@ async def test_task_metadata_get(cli, db):
     _second_metadata = (await add_metadata(db, flow_id=_task["flow_id"], run_number=_task["run_number"], step_name=_task["step_name"], task_id=_task["task_id"], metadata=METADATA_B)).body
 
     # try to get all the created metadata
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task), data=[_first_metadata, _second_metadata])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task),
+                                  data=[_first_metadata, _second_metadata], data_is_unordered_list_of_dicts=True)
 
     # getting metadata for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(**_task), status=200, data=[])

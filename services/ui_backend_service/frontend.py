@@ -30,11 +30,11 @@ class Frontend(object):
         for filepath in static_files:
             filename = filepath[len(static_ui_path) + 1:]
             app.router.add_route(
-                '*', f'/{filename}', self.serve_file(filename))
+                'GET', f'/{filename}', self.serve_file(filename))
 
         # catch-all route that unfortunately messes with root static file serving.
         # Refreshing SPA pages won't work without the tail.
-        app.router.add_route('*', '/{tail:.*}', self.serve_index_html)
+        app.router.add_route('GET', '/{tail:.*}', self.serve_index_html)
 
     def serve_file(self, filename: str):
         "Generator for single static file serving handlers"

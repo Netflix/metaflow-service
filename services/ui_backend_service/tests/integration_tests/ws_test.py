@@ -50,7 +50,7 @@ async def _unsubscribe(ws, uuid="123"):
         "uuid": uuid})
 
 
-async def test_subscription(cli, db, loop):
+async def test_subscription(cli, db):
     ws = await cli.ws_connect("/ws")
 
     await _subscribe(ws, "/flows")
@@ -64,7 +64,7 @@ async def test_subscription(cli, db, loop):
     await ws.close()
 
 
-async def test_subscription_queue(cli, db, loop):
+async def test_subscription_queue(cli, db):
     ws = await cli.ws_connect("/ws")
 
     now = int(math.floor(time.time()))
@@ -90,7 +90,7 @@ async def test_subscription_queue(cli, db, loop):
     await ws.close()
 
 
-async def test_subscription_queue_without_since(cli, db, loop):
+async def test_subscription_queue_without_since(cli, db):
     ws = await cli.ws_connect("/ws")
 
     # At this point we have not subscribed to any resources
@@ -117,7 +117,7 @@ async def test_subscription_queue_without_since(cli, db, loop):
     await ws.close()
 
 
-async def test_subscription_queue_ttl_expired(cli_short_ttl, db, loop):
+async def test_subscription_queue_ttl_expired(cli_short_ttl, db):
     ws = await cli_short_ttl.ws_connect("/ws")
 
     now = int(math.floor(time.time()))
@@ -149,7 +149,7 @@ async def test_subscription_queue_ttl_expired(cli_short_ttl, db, loop):
     await ws.close()
 
 
-async def test_no_subscription(cli, db, loop):
+async def test_no_subscription(cli, db):
     ws = await cli.ws_connect("/ws")
 
     (await add_flow(db, flow_id="HelloFlow")).body
@@ -164,7 +164,7 @@ async def test_no_subscription(cli, db, loop):
     await ws.close()
 
 
-async def test_unubscribe(cli, db, loop):
+async def test_unubscribe(cli, db):
     ws = await cli.ws_connect("/ws")
 
     await _subscribe(ws, "/flows")
@@ -189,7 +189,7 @@ async def test_unubscribe(cli, db, loop):
     await ws.close()
 
 
-async def test_subscription_filters(cli, db, loop):
+async def test_subscription_filters(cli, db):
     ws = await cli.ws_connect("/ws")
 
     await _subscribe(ws, "/flows?_tags=custom:tag")

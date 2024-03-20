@@ -9,19 +9,22 @@ import multiprocessing
 from datetime import datetime
 from collections import deque
 from itertools import chain
+import time
 
 from .cache_worker import execute_action
 from .cache_async_client import OP_WORKER_CREATE, OP_WORKER_TERMINATE
 
+import sys
+
 import click
 
-from .cache_action import CacheAction,\
-    LO_PRIO,\
-    HI_PRIO,\
+from .cache_action import CacheAction, \
+    LO_PRIO, \
+    HI_PRIO, \
     import_action_class
 
-from .cache_store import CacheStore,\
-    key_filename,\
+from .cache_store import CacheStore, \
+    key_filename, \
     is_safely_readable
 
 
@@ -30,6 +33,10 @@ def send_message(op: str, data: dict):
         'op': op,
         **data
     }), flush=True)
+
+
+CACHE_PROCESS_POOL_REFRESH_DURATION = int(os.environ.get("CACHE_PROCESS_POOL_REFRESH_DURATION", 20 * 60))
+CACHE_PROCESS_POOL_FORCE_REFRESH_DURATION = int(os.environ.get("CACHE_PROCESS_POOL_FORCE_REFRESH_DURATION", 2 * 60))
 
 
 class CacheServerException(Exception):
@@ -101,6 +108,7 @@ class Worker(object):
         self.pool = pool
         self.callback = callback
         self.error_callback = error_callback
+        self.created_on = time.time()
 
         try:
             self.tempdir = self.filestore.open_tempdir(
@@ -198,6 +206,7 @@ class Scheduler(object):
             initializer=self.init_process,
             maxtasksperchild=512,  # Recycle each worker once 512 tasks have been completed
         )
+        self._pool_started_on = time.time()
 
     def init_process(self):
         echo("Init process %s pid: %s" % (multiprocessing.current_process().name, os.getpid()))
@@ -257,16 +266,64 @@ class Scheduler(object):
             send_message(OP_WORKER_TERMINATE, worker._worker_details())
             return None
 
+    def verify_stale_workers(self):
+        time_to_pool_refresh = CACHE_PROCESS_POOL_REFRESH_DURATION - (time.time() - self._pool_started_on)
+        # active_pids = ",".join([f"{c.name}[{c.pid}]" for c in multiprocessing.active_children()])
+        echo(
+            "number of workers: %d, number of pending requests: %d; Pool Refresh in : %d" % (
+                len(self.workers), len(self.pending_requests), time_to_pool_refresh)
+        )
+
+    def cleanup_if_necessary(self):
+        time_to_pool_refresh = CACHE_PROCESS_POOL_REFRESH_DURATION - (time.time() - self._pool_started_on)
+        if time_to_pool_refresh > 0:
+            return
+        # if workers are still running 30 seconds after the pool refresh timeout, then cleanup
+        no_workers_are_running = len(self.workers) == 0 and len(self.pending_requests) == 1
+        pool_needs_refresh = time_to_pool_refresh <= 0
+        pool_force_refresh = time_to_pool_refresh < - CACHE_PROCESS_POOL_FORCE_REFRESH_DURATION
+        if pool_force_refresh:
+            echo("Refreshing the pool as no workers are running and no pending requests are there.")
+            self.cleanup_workers()
+        elif no_workers_are_running and pool_needs_refresh:
+            echo("Refreshing the pool as no workers are running and no pending requests are there.")
+            self.cleanup_workers()
+
+    def cleanup_workers(self):
+        for worker in self.workers:
+            worker.echo("Terminating worker")
+            worker.terminate()
+            self.pending_requests.remove(worker.request['idempotency_token'])
+        self.workers = []
+        self.cleanup_pool()
+
+    def cleanup_pool(self):
+        self.pool.terminate()
+        self.pool.join()
+        del self.pool
+        self.pool = multiprocessing.Pool(
+            processes=self.max_workers,
+            initializer=self.init_process,
+            maxtasksperchild=512,  # Recycle each worker once 512 tasks have been completed
+        )
+        self._pool_started_on = time.time()
+
     def loop(self):
         def new_worker_from_request():
             worker = self.schedule()
             if worker:
                 self.workers.append(worker)
                 return worker
+        _counter = time.time()
 
         while True:
             self.process_incoming_request()
             new_worker_from_request()
+            if time.time() - _counter > 30:
+                self.verify_stale_workers()
+                _counter = time.time()
+
+            self.cleanup_if_necessary()
             time.sleep(0.1)
 
     def _callback(self, worker, res):
@@ -294,9 +351,14 @@ class Scheduler(object):
 def cli(root=None,
         max_actions=None,
         max_size=None):
+    # NOTE: The store will only be accessed by this process. The processes
+    # in the pool never touch the store itself. This is done in the __init__ and
+    # terminate methods in Worker which all happen in this process.
     store = CacheStore(root, max_size, echo)
     Scheduler(store, max_actions).loop()
 
 
 if __name__ == '__main__':
+    # Click magic
+    # pylint: disable=unexpected-keyword-arg
     cli(auto_envvar_prefix='MFCACHE')

@@ -7,12 +7,15 @@ import collections
 from aiohttp import web, WSMsgType
 from typing import List, Dict, Any, Callable
 
-from .utils import resource_conditions, TTLQueue
+from .utils import resource_conditions, TTLQueue, postprocess_chain
 from services.utils import logging
 from pyee import AsyncIOEventEmitter
 from ..data.refiner import TaskRefiner, ArtifactRefiner
 
 from throttler import throttle_simultaneous
+
+from services.data.db_utils import DBResponse
+from services.data.tagging_utils import apply_run_tags_to_db_response
 
 WS_QUEUE_TTL_SECONDS = os.environ.get("WS_QUEUE_TTL_SECONDS", 60 * 5)  # 5 minute TTL by default
 WS_POSTPROCESS_CONCURRENCY_LIMIT = int(os.environ.get("WS_POSTPROCESS_CONCURRENCY_LIMIT", 8))
@@ -207,12 +210,25 @@ class Websocket(object):
 
     @throttle_simultaneous(count=8)
     async def get_table_postprocessor(self, table_name):
+        refiner_postprocess = None
+        table = None
         if table_name == self.db.task_table_postgres.table_name:
-            return self.task_refiner.postprocess
+            table = self.db.run_table_postgres
+            refiner_postprocess = self.task_refiner.postprocess
         elif table_name == self.db.artifact_table_postgres.table_name:
-            return self.artifact_refiner.postprocess
-        else:
-            return None
+            table = self.db.run_table_postgres
+            refiner_postprocess = self.artifact_refiner.postprocess
+
+        if table:
+            async def _tags_postprocess(db_response: DBResponse, invalidate_cache=False):
+                flow_id = db_response.body.get('flow_id')
+                run_id = db_response.body.get('run_id') or db_response.body.get('run_number')
+                if not flow_id or not run_id:
+                    self.logger.warning("Missing flow_id or run_id (or run_number) for a record from table {}".format(table.table_name))
+                    return db_response
+                return await apply_run_tags_to_db_response(flow_id, run_id, table, db_response)
+            return postprocess_chain([_tags_postprocess, refiner_postprocess])
+        return refiner_postprocess
 
 
 async def load_data_from_db(table, data: Dict[str, Any],

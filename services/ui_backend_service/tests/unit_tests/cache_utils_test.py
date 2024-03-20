@@ -78,7 +78,7 @@ def test_streamed_errors_exception_output():
         assert str(ex) == "Custom exception"
 
 
-def test_streamed_errors_exception_output():
+def test_streamed_errors_exception_output_no_re_raise():
     # should not raise any exception with re_raise set to false.
     def _re_raise(output):
         pass
@@ -91,20 +91,22 @@ def test_streamed_errors_exception_output():
     
 
 def test_cacheable_artifact_value():
-    artifact = TestArtifact("pathspec/to", 1, "test")
-    big_artifact = TestArtifact("pathspec/to", 123456789, "test")
+    artifact = MockArtifact("pathspec/to", 1, "test")
+    big_artifact = MockArtifact("pathspec/to", 123456789, "test")
 
     assert cacheable_artifact_value(artifact) == '[true, "test"]'
     assert cacheable_artifact_value(big_artifact) == '[false, "artifact-too-large", "pathspec/to: 123456789 bytes"]'
 
+
 def test_artifact_value():
-    artifact = TestArtifact("pathspec/to", 1, "test")
-    big_artifact = TestArtifact("pathspec/to", 123456789, "test")
+    artifact = MockArtifact("pathspec/to", 1, "test")
+    big_artifact = MockArtifact("pathspec/to", 123456789, "test")
 
     assert artifact_value(artifact) == (True, "test")
     assert artifact_value(big_artifact) == (False, "artifact-too-large", "pathspec/to: 123456789 bytes")
 
-class TestArtifact():
+
+class MockArtifact():
     def __init__(self, pathspec, size, data):
         self.pathspec = pathspec
         self.size = size

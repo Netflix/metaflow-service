@@ -1,14 +1,16 @@
 # Optional environment variable configuration for the UI Service
 
-The following are optional environment variables that can be used to fine-tune the behavior of specific components of the UI service if necessary. 
+The following are optional environment variables that can be used to fine-tune the behavior of specific components of the UI service if necessary.
 
-  - [Web socket message retention](#web-socket-message-retention)
-  - [Cache and data preload limits](#cache-and-data-preload-limits)
-  - [Feature flags](#feature-flags)
-  - [Heartbeat intervals](#heartbeat-intervals)
-  - [Baseurl configuration](#baseurl-configuration)
-  - [Custom navigation links for UI](#custom-navigation-links-for-ui)
-  - [System notifications for UI](#system-notifications-for-ui)
+- [Web socket message retention](#web-socket-message-retention)
+- [Cache and data preload limits](#cache-and-data-preload-limits)
+- [Feature flags](#feature-flags)
+- [Heartbeat intervals](#heartbeat-intervals)
+- [Baseurl configuration](#baseurl-configuration)
+- [Custom navigation links for UI](#custom-navigation-links-for-ui)
+- [System notifications for UI](#system-notifications-for-ui)
+- [Log content restriction options](#log-content-restriction-options)
+- [Card content restriction](#card-content-restriction)
 
 ## Web socket message retention
 
@@ -16,7 +18,7 @@ Configure amount of seconds realtime events are kept in queue (delivered to UI i
 
 - `WS_QUEUE_TTL_SECONDS` [defaults to 300 (5 minutes)]
 
-## Cache and data limits 
+## Cache and data limits
 
 Configure amount of runs to prefetch during server startup (artifact cache):
 
@@ -69,9 +71,9 @@ The threshold parameters for heartbeat checks can also be configured when necess
 
 `HEARTBEAT_THRESHOLD` [controls at what point a heartbeat is considered expired. Default is `WAIT_TIME * 6`]
 
-`OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 6 days (in milliseconds)]
+`OLD_RUN_FAILURE_CUTOFF_TIME` [ for runs that do not have a heartbeat, controls at what point a running status run should be considered failed. Default is 1 day (in milliseconds)]
 
-`RUN_INACTIVE_CUTOFF_TIME` [ for runs that have a heartbeat, controls how long a run with a failed heartbeat should wait for possibly queued tasks to start and resume heartbeat updates. Default is 6 days (in seconds)]
+`RUN_INACTIVE_CUTOFF_TIME` [ for runs that have a heartbeat, controls how long a run with a failed heartbeat should wait for possibly queued tasks to start and resume heartbeat updates. Default is 6 minutes (in seconds)]
 
 ## Baseurl configuration
 
@@ -170,3 +172,42 @@ Plaintext example:
   }
 ]
 ```
+
+## Log content restriction options
+
+The `MF_LOG_LOAD_POLICY` environment variable restricts the amount of log content loaded by the UI. These values are supported:
+
+- `full` (default): loads entire log.
+- `tail`: loads the tail of the log only (up to a fixed size by number of characters. See `MF_LOG_LOAD_TAIL_SIZE` below.
+- `blurb_only`: does not load the log at all. Instead return Python code snippet to access logs using Metaflow client.
+
+`MF_LOG_LOAD_TAIL_SIZE` may be used when `MF_LOG_LOAD_POLICY=tail`. Returns the last N lines of the log file, where N is maximized without returning more than MF_LOG_LOAD_TAIL_SIZE number of characters. Defaults to `100*1024` characters.
+
+## Card content restriction
+
+The `MF_CARD_LOAD_POLICY` (default `full`) environment variable can be set to `blurb_only` to return a Python code snippet to access card using Metaflow client, instead of loading actual HTML card payload.
+
+
+## Scaling reads using read replicas
+
+Databases such as [Amazon Aurora](https://aws.amazon.com/rds/aurora/) provide 
+[read replicas](https://aws.amazon.com/rds/features/read-replicas/) that make it easy to elastically scale beyond
+the capacity constraints of single database instance for heavy read workloads. You are able to separate out the reads
+and the writes of this application by setting the following two environment variables:
+
+>```
+> USE_SEPARATE_READER_POOL = 1                               
+> MF_METADATA_DB_READ_REPLICA_HOST = <READ_REPLICA_ENDPOINT>
+>```
+
+As the name suggests, the `USE_SEPARATE_READER_POOL` variable creates a separate read pool with the same 
+min/max pool size as the writer pool. It is also required to set this variable `MF_METADATA_DB_READ_REPLICA_HOST` to 
+point to the read replica endpoint that is typically a load balancer in front of all the database's read replicas.
+
+### Accounting for eventual consistency
+
+When a read replica is created, there is a lag between the time a transaction is committed to the writer instance and
+the time when the newly written data is available in the read replica. In Amazon Aurora, this [lag is usually much less
+than 100ms](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/Aurora.Replication.html) because the replicas
+share the same underlying storage layer as the writer instance thereby avoiding the need to copy data into the replica
+nodes. This Metaflow UI service application is read heavy and hence is a great candidate for scaling reads using this model.

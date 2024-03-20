@@ -1,8 +1,11 @@
-FROM golang:1.16.3 AS goose
-RUN go get -u github.com/pressly/goose/cmd/goose
+FROM golang:1.20.2 AS goose
+RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
-FROM python:3.7
+FROM python:3.11.6-bookworm
 COPY --from=goose /go/bin/goose /usr/local/bin/
+
+RUN apt-get update -y \
+    && apt-get -y install libpq-dev gcc
 
 RUN pip install tox
 

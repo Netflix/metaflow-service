@@ -1,20 +1,25 @@
 import os
 import time
 from typing import List, Tuple
-from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, OLD_RUN_FAILURE_CUTOFF_TIME, RUN_INACTIVE_CUTOFF_TIME
+from .base import (
+    AsyncPostgresTable,
+    OLD_RUN_FAILURE_CUTOFF_TIME,
+    RUN_INACTIVE_CUTOFF_TIME,
+)
 from ..models import RunRow
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
+
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
     AsyncMetadataTablePostgres as MetaMetadataTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable,
-    AsyncTaskTablePostgres as MetadataTaskTable
+    AsyncTaskTablePostgres as MetadataTaskTable,
 )
 
 # Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
-METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE = os.environ.get('PREFETCH_RUNS_SINCE', 86400 * 2)
-METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get('PREFETCH_RUNS_LIMIT', 50)
+METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE = os.environ.get("PREFETCH_RUNS_SINCE", 86400 * 2)
+METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT = os.environ.get("PREFETCH_RUNS_LIMIT", 50)
 
 
 class AsyncRunTablePostgres(AsyncPostgresTable):
@@ -49,8 +54,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             LIMIT 1
         ) as end_attempt_ok ON true
         """.format(
-            table_name=table_name,
-            metadata_table=metadata_table
+            table_name=table_name, metadata_table=metadata_table
         ),
         """
         LEFT JOIN LATERAL (
@@ -66,47 +70,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             LIMIT 1
         ) as end_attempt ON true
         """.format(
-            table_name=table_name,
-            metadata_table=metadata_table
-        ),
-        """
-        LEFT JOIN LATERAL (
-            SELECT 1
-            FROM
-            {task_table} as task
-            LEFT JOIN LATERAL (
-                SELECT
-                    (CASE
-                        WHEN pg_typeof(value)='jsonb'::regtype
-                        THEN value::jsonb->>0
-                        ELSE value::text
-                    END)::boolean as is_ok,
-                    ts_epoch
-                FROM {metadata_table} as attempt_ok
-                WHERE
-                    task.flow_id=attempt_ok.flow_id AND
-                    task.run_number=attempt_ok.run_number AND
-                    task.step_name=attempt_ok.step_name AND
-                    task.task_id=attempt_ok.task_id AND
-                    attempt_ok.field_name='attempt_ok'
-            ) AS attempt_ok ON true
-            WHERE
-                {table_name}.flow_id = task.flow_id
-                AND {table_name}.run_number = task.run_number
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-                AND end_attempt_ok IS NULL
-                AND end_attempt is NULL
-                AND attempt_ok.is_ok IS NOT TRUE
-                AND @(extract(epoch from now())-task.last_heartbeat_ts)>{heartbeat_threshold}
-            GROUP BY task.flow_id, task.run_number, task.step_name, task.task_id, attempt_ok.ts_epoch
-            ORDER BY attempt_ok.ts_epoch DESC
-            LIMIT 1
-        ) as latest_failed_task ON true
-        """.format(
-            table_name=table_name,
-            task_table=task_table,
-            metadata_table=metadata_table,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD
+            table_name=table_name, metadata_table=metadata_table
         ),
     ]
 
@@ -115,16 +79,27 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
         # User should be considered NULL when 'user:*' tag is missing
         # This is usually the case with AWS Step Functions
-        return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys] \
-            + ["""
+        return (
+            [
+                "{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k)
+                for k in self.keys
+            ]
+            + [
+                """
                 (CASE
                     WHEN system_tags ? ('user:' || user_name)
                     THEN user_name
                     ELSE NULL
-                END) AS user"""] \
-            + ["""
+                END) AS user"""
+            ]
+            + [
+                """
                 COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
-                """.format(table_name=self.table_name)]
+                """.format(
+                    table_name=self.table_name
+                )
+            ]
+        )
 
     join_columns = [
         """
@@ -135,57 +110,39 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN end_attempt_ok IS NOT NULL
             THEN end_attempt_ok.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND latest_failed_task IS NOT NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-            THEN {table_name}.last_heartbeat_ts*1000
-            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND latest_failed_task IS NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_cutoff}
-            THEN {table_name}.last_heartbeat_ts*1000
-            ELSE NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
+            THEN NULL
+            ELSE {table_name}.last_heartbeat_ts*1000
         END) AS finished_at
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME
+            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
         ),
         """
         (CASE
-            WHEN end_attempt_ok.value IS TRUE
-            THEN 'completed'
-            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND latest_failed_task IS NOT NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
-            THEN 'failed'
-            WHEN end_attempt_ok.value IS FALSE
-                AND end_attempt.ts_epoch > end_attempt_ok.ts_epoch
+            WHEN end_attempt IS NOT NULL
+                AND end_attempt_ok.ts_epoch < end_attempt.ts_epoch
             THEN 'running'
-            WHEN end_attempt_ok.value IS FALSE
-            THEN 'failed'
-            WHEN {table_name}.last_heartbeat_ts IS NULL
-                AND @(extract(epoch from now())*1000-{table_name}.ts_epoch)>{cutoff}
+            WHEN end_attempt_ok IS NOT NULL AND end_attempt_ok.value IS TRUE
+            THEN 'completed'
+            WHEN end_attempt_ok IS NOT NULL AND end_attempt_ok.value IS FALSE
             THEN 'failed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
-                AND latest_failed_task IS NULL
-                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_cutoff}
-            THEN 'failed'
-            ELSE 'running'
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
+            THEN 'running'
+            ELSE 'failed'
         END) AS status
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
-            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME
+            heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
         ),
         """
         (CASE
-            WHEN end_attempt_ok.value IS TRUE
-            THEN end_attempt_ok.ts_epoch - {table_name}.ts_epoch
             WHEN end_attempt IS NOT NULL
-                AND end_attempt.ts_epoch > end_attempt_ok.ts_epoch
+                AND end_attempt_ok.ts_epoch < end_attempt.ts_epoch
                 AND {table_name}.last_heartbeat_ts IS NOT NULL
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
-            WHEN end_attempt IS NOT NULL
+            WHEN end_attempt_ok IS NOT NULL
             THEN end_attempt_ok.ts_epoch - {table_name}.ts_epoch
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
             THEN {table_name}.last_heartbeat_ts*1000-{table_name}.ts_epoch
@@ -196,19 +153,20 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         END) AS duration
         """.format(
             table_name=table_name,
-            heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
-        )
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
+        ),
     ]
-    _command = MetadataRunTable._command
 
     async def get_recent_runs(self):
         _records, *_ = await self.find_records(
             conditions=["ts_epoch >= %s"],
-            values=[int(round(time.time() * 1000)) - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)],
-            order=['ts_epoch DESC'],
+            values=[
+                int(round(time.time() * 1000))
+                - (int(METAFLOW_ARTIFACT_PREFETCH_RUNS_SINCE) * 1000)
+            ],
+            order=["ts_epoch DESC"],
             limit=METAFLOW_ARTIFACT_PREFETCH_RUNS_LIMIT,
-            expanded=True
+            expanded=True,
         )
 
         return _records.body
@@ -237,7 +195,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             ],
             values=[flow_id, run_id_value],
             fetch_single=True,
-            enable_joins=True)
+            enable_joins=True,
+        )
         return result
 
     async def get_expanded_run(self, run_key: str) -> DBResponse:
@@ -260,12 +219,17 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             values=[run_id_value],
             fetch_single=True,
             enable_joins=True,
-            expanded=True
+            expanded=True,
         )
         return result
 
-    async def get_run_keys(self, conditions: List[str] = [],
-                           values: List[str] = [], limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
+    async def get_run_keys(
+        self,
+        conditions: List[str] = [],
+        values: List[str] = [],
+        limit: int = 0,
+        offset: int = 0,
+    ) -> Tuple[DBResponse, DBPagination]:
         """
         Get a paginated set of run keys.
 
@@ -296,14 +260,22 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         select_sql = sql_template.format(
             table_name=self.table_name,
             keys=",".join(self.select_columns),
-            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else ""),
+            conditions=(
+                "WHERE {}".format(" AND ".join(conditions)) if conditions else ""
+            ),
             limit="LIMIT {}".format(limit) if limit else "",
-            offset="OFFSET {}".format(offset) if offset else ""
+            offset="OFFSET {}".format(offset) if offset else "",
         )
 
-        res, pag = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=False,
-                                          expanded=False,
-                                          limit=limit, offset=offset, serialize=False)
+        res, pag = await self.execute_sql(
+            select_sql=select_sql,
+            values=values,
+            fetch_single=False,
+            expanded=False,
+            limit=limit,
+            offset=offset,
+            serialize=False,
+        )
         # process the unserialized DBResponse
         _body = [row[0] for row in res.body]
 

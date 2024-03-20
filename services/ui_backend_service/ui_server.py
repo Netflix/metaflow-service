@@ -4,16 +4,15 @@ import signal
 import concurrent
 
 from aiohttp import web
-from aiohttp_swagger import setup_swagger
 from pyee import AsyncIOEventEmitter
-from services.utils import DBConfiguration, logging
+from services.utils import DBConfiguration, logging, ORIGIN_TO_ALLOW_CORS_FROM
 
 from services.metadata_service.server import app as metadata_service_app
 
 # service processes and routes
-from .api import (AdminApi, ArtifactSearchApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
+from .api import (AdminApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
                   DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
-                  MetadataApi, RunApi, RunHeartbeatMonitor, StepApi, TagApi,
+                  MetadataApi, RunApi, RunHeartbeatMonitor, SearchApi, StepApi, TagApi,
                   TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi, CardsApi)
 from .api.utils import allow_get_requests_only
 from .data.cache import CacheStore
@@ -84,7 +83,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
     MetadataApi(app, async_db)
     ArtificatsApi(app, async_db, cache_store)
     TagApi(app, async_db)
-    ArtifactSearchApi(app, async_db, cache_store)
+    SearchApi(app, async_db, cache_store)
     DagApi(app, async_db, cache_store)
     FeaturesApi(app)
     ConfigApi(app)
@@ -94,9 +93,6 @@ def app(loop=None, db_conf: DBConfiguration = None):
     LogApi(app, async_db, cache_store)
     AdminApi(app, cache_store)
 
-    setup_swagger(app,
-                  description=swagger_description,
-                  definitions=swagger_definitions)
     # Add Metadata Service as a sub application so that Metaflow Client
     # can use it as a service backend in case none provided via METAFLOW_SERVICE_URL
     #
@@ -112,6 +108,21 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     if len(PATH_PREFIX) > 0:
         _app.add_subapp(PATH_PREFIX, app)
+
+    if ORIGIN_TO_ALLOW_CORS_FROM:
+        import aiohttp_cors
+        logging.info("We will allows CORS from the origin %s" % ORIGIN_TO_ALLOW_CORS_FROM)
+        cors = aiohttp_cors.setup(_app, defaults={
+            ORIGIN_TO_ALLOW_CORS_FROM: aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers="*",
+                allow_headers="*",
+                allow_methods="*",
+            )
+        })
+        # Configure CORS on all routes.
+        for route in list(_app.router.routes()):
+            cors.add(route)
 
     logging.info("Metadata service available at {}".format(DEFAULT_METADATA_SERVICE_URL))
 

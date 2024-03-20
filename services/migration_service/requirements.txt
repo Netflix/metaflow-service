@@ -1,4 +1,4 @@
 aiohttp >= 3.8.1, < 4
-aiohttp-swagger >= 1.0.13, < 2
+packaging
 psycopg2
 aiopg

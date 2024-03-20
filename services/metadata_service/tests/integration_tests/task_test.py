@@ -1,7 +1,9 @@
+import copy
+
 from .utils import (
     cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
-    add_flow, add_run, add_step, add_task
+    add_flow, add_run, add_step, add_task, update_objects_with_run_tags
 )
 import pytest
 
@@ -19,11 +21,21 @@ async def test_task_post(cli, db):
         "tags": ["a_tag", "b_tag"],
         "system_tags": ["runtime:test"]
     }
+
+    # Check all fields from payload match what we get back from POST,
+    # except for tags, which should match run tags instead.
+    def _check_response_body(body):
+        payload_cp = copy.deepcopy(payload)
+        payload_cp["tags"] = _run["tags"]
+        payload_cp["system_tags"] = _run["system_tags"]
+        compare_partial(body, payload_cp)
+
     _task = await assert_api_post_response(
         cli,
         path="/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task".format(**_step),
         payload=payload,
-        status=200  # why 200 instead of 201?
+        status=200,  # why 200 instead of 201?
+        check_fn=_check_response_body
     )
 
     # Record should be found in DB
@@ -157,8 +169,12 @@ async def test_tasks_get(cli, db):
     _first_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
     _second_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
 
+    # expect tasks' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('task', [_first_task, _second_task], _run)
+
     # try to get all the created tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_first_task), data=[_second_task, _first_task])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_first_task),
+                                  data=[_second_task, _first_task], data_is_unordered_list_of_dicts=True)
 
     # getting tasks for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/tasks".format(**_first_task), status=200, data=[])
@@ -173,11 +189,14 @@ async def test_tasks_get(cli, db):
 async def test_task_get(cli, db):
     # create flow, run and step for test
     _flow = (await add_flow(db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])).body
-    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body  # set run-level tags
     _step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="first_step")).body
 
     # add task to run for testing
     _task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
+
+    # expect task's tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('task', [_task], _run)
 
     # try to get created task
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}".format(**_task), data=_task)

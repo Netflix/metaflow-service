@@ -3,7 +3,8 @@ import time
 from .utils import (
     cli, db,
     add_flow, add_run, add_step, add_task, add_artifact,
-    _test_list_resources, _test_single_resource, add_metadata, get_heartbeat_ts
+    _test_list_resources, _test_single_resource, add_metadata, get_heartbeat_ts,
+    update_objects_with_run_tags
 )
 pytestmark = [pytest.mark.integration_tests]
 
@@ -16,9 +17,11 @@ async def test_list_tasks(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_step), 200, [])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_step), 200, [])
 
-    _task = await create_task(db, step=_step)
+    _task = await create_task_with_step(db, _step)
     _task['duration'] = None
     _task['status'] = 'pending'
+
+    update_objects_with_run_tags('task', [_task], _run)
 
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, [_task])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, [_task])
@@ -32,7 +35,7 @@ async def test_list_tasks_non_numerical(cli, db):
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_step), 200, [])
     await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_step), 200, [])
 
-    _task = await create_task(db, step=_step, task_name="bar")
+    _task = await create_task_with_step(db, _step, task_name="bar")
 
     _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/tasks".format(**_task), 200, None)
     _, data = await _test_list_resources(cli, db, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(**_task), 200, None)
@@ -494,17 +497,32 @@ async def create_ok_artifact_for_task(db, task, attempt=0):
     return _task
 
 
-async def create_task(db, step=None, status="running", task_id=None, task_name=None, last_heartbeat_ts=None):
-    "Creates and returns a task with specific status. Optionally creates the task for a specific step if provided."
-    if not step:
-        _flow = (await add_flow(db, flow_id="HelloFlow")).body
-        _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
-        step = (await add_step(
-            db,
-            flow_id=_run.get("flow_id"),
-            run_number=_run.get("run_number"),
-            step_name="step")
-        ).body
+async def create_task_with_step(db, step, status="running", task_id=None, task_name=None, last_heartbeat_ts=None):
+    "Creates and returns a task with specific status. Step must be provided"
+    _task = (await add_task(
+        db,
+        flow_id=step.get("flow_id"),
+        run_number=step.get("run_number"),
+        step_name=step.get("step_name"),
+        task_id=task_id,
+        task_name=task_name,
+        last_heartbeat_ts=last_heartbeat_ts)
+             ).body
+    _task['status'] = status
+
+    return _task
+
+
+async def create_task(db, status="running", task_id=None, task_name=None, last_heartbeat_ts=None):
+    "Creates and returns a task with specific status. Ancestor objects are autocreated"
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    step = (await add_step(
+        db,
+        flow_id=_run.get("flow_id"),
+        run_number=_run.get("run_number"),
+        step_name="step")
+    ).body
     _task = (await add_task(
         db,
         flow_id=step.get("flow_id"),
@@ -515,6 +533,7 @@ async def create_task(db, step=None, status="running", task_id=None, task_name=N
         last_heartbeat_ts=last_heartbeat_ts)
     ).body
     _task['status'] = status
+    update_objects_with_run_tags('task', [_task], _run)
 
     return _task
 
