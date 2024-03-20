@@ -31,8 +31,9 @@ services:
       - PREFETCH_RUNS_SINCE=2592000 # 30 days in seconds
       - PREFETCH_RUNS_LIMIT=1 # Prefetch only one run
       - S3_NUM_WORKERS=2
-      - CACHE_ARTIFACT_MAX_ACTIONS=4
-      - CACHE_DAG_MAX_ACTIONS=4
+      - CACHE_ARTIFACT_MAX_ACTIONS=1
+      - CACHE_DAG_MAX_ACTIONS=1
+      - CACHE_LOG_MAX_ACTIONS=1
       - CACHE_ARTIFACT_STORAGE_LIMIT=16000000
       - CACHE_DAG_STORAGE_LIMIT=16000000
       - WS_POSTPROCESS_CONCURRENCY_LIMIT=8
@@ -62,6 +63,7 @@ services:
     volumes:
       - ./services:/root/services
     environment:
+      - LOGLEVEL=WARNING
       - MF_METADATA_DB_HOST=db
       - MF_METADATA_DB_PORT=5432
       - MF_METADATA_DB_USER=postgres

@@ -347,7 +347,7 @@ class Scheduler(object):
               help="Maximum number of concurrent cache actions.")
 @click.option("--max-size",
               default=10000,
-              help="Maximum amount of disk space to use in MB.")
+              help="Maximum amount of disk space to use in bytes.")
 def cli(root=None,
         max_actions=None,
         max_size=None):
