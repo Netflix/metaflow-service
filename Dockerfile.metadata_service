@@ -1,4 +1,4 @@
-FROM python:3.11.6-bookworm
+FROM python:3.11.7-bookworm
 
 RUN apt-get update -y \
     && apt-get -y install libpq-dev gcc
