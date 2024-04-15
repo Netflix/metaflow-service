@@ -57,13 +57,13 @@ def _make_hash(_str):
     return hashlib.md5(_str.encode()).hexdigest()
 
 
-def cleanup_non_running_caches(cache_path, cache_dir, pathspecs):
-    task_dirs = os.listdir(os.path.join(cache_path, cache_dir))
-    task_dir_names = [_make_hash(p) for p in pathspecs]
-    for task_dir in task_dirs:
-        if task_dir in task_dir_names:
-            continue
-        shutil.rmtree(os.path.join(cache_path, cache_dir, task_dir), ignore_errors=True)
+def safe_wipe_dir(path):
+    try:
+        if os.path.exists(path):
+            shutil.rmtree(path, ignore_errors=True)
+        return None
+    except Exception as e:
+        return e
 
 
 class CardCache:
@@ -312,17 +312,30 @@ class TaskCardCacheService:
             return ResolvedCards([], True,)  # On other errors fail away too!
 
     def refresh_loop(self):
-        timings = {"data": None, "html": None, "list": None}
+        timings = {"card_info": {}, "list": None}
         start_time = time.time()
         self.logger.info("Starting cache refresh loop for %s" % self._task_pathspec)
         cards_are_unresolvable = False
         _sleep_time = 0.25
+
+        def _update_timings(card_hash, update_type):
+            if card_hash not in timings["card_info"]:
+                timings["card_info"][card_hash] = {
+                    "html": None,
+                    "data": None,
+                }
+            timings["card_info"][card_hash][update_type] = time.time()
+
+        def _get_timings(card_hash):
+            return timings["card_info"].get(card_hash, {"html": None, "data": None})
+
         while True:
             if time.time() - start_time > self._uptime_seconds:  # exit condition
                 break
             if _eligible_for_refresh(timings["list"], self.LIST_FREQUENCY_SECONDS):
                 list_status, cards_are_unresolvable = self.load_all_cards()
                 if list_status:
+                    timings["list"] = time.time()
                     self.write_available_cards()
 
             cache_is_empty = len(self._cache) == 0
@@ -338,11 +351,13 @@ class TaskCardCacheService:
                 break
 
             for card_hash in self._cache:
-                if _eligible_for_refresh(timings["html"], self.HTML_UPDATE_FREQUENCY):
+                if _eligible_for_refresh(_get_timings(card_hash).get("html", None), self.HTML_UPDATE_FREQUENCY):
                     self.update_card_cache(card_hash, "html")
+                    _update_timings(card_hash, "html")
 
-                if _eligible_for_refresh(timings["data"], self.DATA_UPDATE_FREQUENCY):
+                if _eligible_for_refresh(_get_timings(card_hash).get("data", None), self.DATA_UPDATE_FREQUENCY):
                     self.update_card_cache(card_hash, "data")
+                    _update_timings(card_hash, "data")
 
             time.sleep(_sleep_time)
 
