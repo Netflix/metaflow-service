@@ -16,7 +16,7 @@ ARG CUSTOM_QUICKLINKS
 ENV CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
 
 RUN apt-get update -y \
-    && apt-get -y install libpq-dev unzip gcc curl
+    && apt-get -y install libpq-dev unzip gcc curl git
 
 ADD services/__init__.py /root/services/__init__.py
 ADD services/data /root/services/data

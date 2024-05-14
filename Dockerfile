@@ -18,7 +18,7 @@ ENV FEATURE_RUN_GROUPS=0
 ENV FEATURE_DEBUG_VIEW=1
 
 RUN apt-get update -y \
-    && apt-get -y install libpq-dev unzip gcc curl
+    && apt-get -y install libpq-dev unzip gcc curl git
 
 RUN pip3 install virtualenv requests
 
