@@ -25,6 +25,7 @@ services:
       - MF_UI_METADATA_HOST=${MF_UI_METADATA_HOST:-0.0.0.0}
       - MF_METADATA_DB_POOL_MIN=1
       - MF_METADATA_DB_POOL_MAX=10
+      - METAFLOW_S3_RETRY_COUNT=0
       - LOGLEVEL=INFO
       - AIOPG_ECHO=0
       - UI_ENABLED=0
@@ -51,6 +52,7 @@ services:
       - NOTIFICATIONS=$NOTIFICATIONS
       - GA_TRACKING_ID=none
       - PLUGINS=$PLUGINS
+      - AWS_PROFILE=$AWS_PROFILE
     depends_on:
       - migration
   metadata:
