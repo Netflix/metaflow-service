@@ -303,10 +303,11 @@ def paginated_result(content: List[Tuple[Optional[int], str]], page: int = 1, li
     if not output_raw:
         loglines, total_pages = format_loglines(content, page, limit, reverse_order)
     else:
+        _offset = limit * (page - 1)
+        total_pages = max(len(content) // limit, 1) if limit else 1
         loglines = ""
-        if page == 1:
-            loglines = "\n".join(line for _, line in content)
-        total_pages = 1
+        if page <= total_pages:
+            loglines = "\n".join(line for _, line in content[_offset:][:limit])
 
     return {
         "content": loglines,
