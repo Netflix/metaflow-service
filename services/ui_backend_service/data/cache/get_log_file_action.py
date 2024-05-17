@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from .client import CacheAction
 from .utils import streamed_errors
 import os
@@ -137,15 +137,18 @@ class GetLogFile(CacheAction):
             log_hash_changed = previous_log_hash is None or previous_log_hash != current_hash
 
             if log_hash_changed:
-                content = log_provider.get_log_content(task, logtype)
-                results[log_key] = json.dumps({"log_hash": current_hash, "content": content})
+                # log_provider.get_log_content(task, logtype)
+                results[log_key] = json.dumps({"log_hash": current_hash})
             else:
                 results = {**existing_keys}
 
         if log_hash_changed or result_key not in existing_keys:
+            def content_iter():
+                return log_provider.get_log_content(task, logtype)
+ 
             results[result_key] = json.dumps(
                 paginated_result(
-                    json.loads(results[log_key])["content"],
+                    content_iter,
                     page,
                     limit,
                     reverse,
@@ -204,15 +207,11 @@ def get_log_content(task: Task, logtype: str):
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
     if log_location:
-        return [
-            (None, line)
-            for line in task._load_log_legacy(log_location, stream).split("\n")
-        ]
+        for line in task._load_log_legacy(log_location, stream).split("\n"):
+            yield (None, line)
     else:
-        return [
-            (_datetime_to_epoch(datetime), line)
-            for datetime, line in task.loglines(stream)
-        ]
+        for datetime, line in task.stream_loglines(stream):
+            yield (_datetime_to_epoch(datetime), line)
 
 
 class LogProviderBase:
@@ -298,16 +297,23 @@ class FullLogProvider(LogProviderBase):
         return get_log_content(task, logtype)
 
 
-def paginated_result(content: List[Tuple[Optional[int], str]], page: int = 1, limit: int = 0,
+def paginated_result(content_iterator: Callable, page: int = 1, limit: int = 0,
                      reverse_order: bool = False, output_raw=False):
     if not output_raw:
+        content = [(ts, line) for ts, line in content_iterator()]
         loglines, total_pages = format_loglines(content, page, limit, reverse_order)
     else:
         _offset = limit * (page - 1)
-        total_pages = max(len(content) // limit, 1) if limit else 1
-        loglines = ""
-        if page <= total_pages:
-            loglines = "\n".join(line for _, line in content[_offset:][:limit])
+        total_pages = -1
+        loglines = []
+        for lineno, item in enumerate(content_iterator()):
+            _ts, line = item
+            if limit and lineno>(_offset+limit):
+                break
+            if _offset and lineno<_offset:
+                continue
+            loglines.append(line)
+        loglines = "\n".join(loglines)
 
     return {
         "content": loglines,
