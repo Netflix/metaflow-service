@@ -300,6 +300,8 @@ class FullLogProvider(LogProviderBase):
 def paginated_result(content_iterator: Callable, page: int = 1, limit: int = 0,
                      reverse_order: bool = False, output_raw=False):
     if not output_raw:
+        # TODO: support line iteration for this case as well.
+        # Currently unsupported due to the need to offer 'reverse_order'
         loglines, total_pages = format_loglines(content_iterator(), page, limit, reverse_order)
     else:
         _offset = limit * (page - 1)
