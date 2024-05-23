@@ -297,8 +297,9 @@ async def file_download_response(request, filename, async_line_iterator):
         headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
     )
     await response.prepare(request)
-    async for line in async_line_iterator():
-        await response.write(line.encode("utf-8"))
+    # NOTE: this can not handle errors thrown by the cache, as status cannot be changed after .prepare() has been called.
+    async for lines in async_line_iterator():
+        await response.write(lines.encode("utf-8"))
 
     await response.write_eof() 
     return response
