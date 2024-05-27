@@ -145,7 +145,7 @@ class GetLogFile(CacheAction):
         if log_hash_changed or result_key not in existing_keys:
             def content_iter():
                 return log_provider.get_log_content(task, logtype)
- 
+
             results[result_key] = json.dumps(
                 paginated_result(
                     content_iter,
@@ -309,9 +309,9 @@ def paginated_result(content_iterator: Callable, page: int = 1, limit: int = 0,
         loglines = []
         for lineno, item in enumerate(content_iterator()):
             _ts, line = item
-            if limit and lineno>(_offset+limit):
+            if limit and lineno > (_offset + limit):
                 break
-            if _offset and lineno<_offset:
+            if _offset and lineno < _offset:
                 continue
             loglines.append(line)
         loglines = "\n".join(loglines)

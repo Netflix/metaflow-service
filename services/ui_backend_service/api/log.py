@@ -265,6 +265,7 @@ async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_
 
     return log_response["content"], log_response["pages"]
 
+
 async def stream_pages(cache_client, task, logtype, output_raw):
     page = 1
     while True:
@@ -301,8 +302,9 @@ async def file_download_response(request, filename, async_line_iterator):
     async for lines in async_line_iterator():
         await response.write(lines.encode("utf-8"))
 
-    await response.write_eof() 
+    await response.write_eof()
     return response
+
 
 class LogException(Exception):
     def __init__(self, msg='Failed to read log', id='log-error', traceback_str=None):
