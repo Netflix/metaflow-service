@@ -137,8 +137,8 @@ class GetLogFile(CacheAction):
             log_hash_changed = previous_log_hash is None or previous_log_hash != current_hash
 
             if log_hash_changed:
-                content = log_provider.get_log_content(task, logtype)
-                results[log_key] = json.dumps({"log_hash": current_hash, "content": content})
+                paths = fetch_logs(task, logtype)
+                results[log_key] = json.dumps({"log_hash": current_hash, "content_paths": [paths]})
             else:
                 results = {**existing_keys}
 
@@ -191,6 +191,24 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
 # Please visit https://docs.metaflow.org/api/client for detailed documentation."""
     return blurb
 
+def fetch_logs(task: Task, logtype: str):
+    paths = []
+    stream = 'stderr' if logtype == STDERR else 'stdout'
+    log_location = task.metadata_dict.get('log_location_%s' % stream)
+    if log_location:
+        pass
+    else:
+        paths = dict(
+            map(
+                lambda s: (
+                    self._metadata_name_for_attempt(
+                        self._get_log_location(s, stream),
+                    s,
+                ),
+                logsources,
+            )
+        )
+    return paths
 
 def get_log_size(task: Task, logtype: str):
     return task.stderr_size if logtype == STDERR else task.stdout_size
@@ -204,10 +222,8 @@ def get_log_content(task: Task, logtype: str):
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
     if log_location:
-        return [
-            (None, line)
-            for line in task._load_log_legacy(log_location, stream).split("\n")
-        ]
+        for line in task._load_log_legacy(log_location, stream).split("\n"):
+            yield (None, line)
     else:
         return [
             (_datetime_to_epoch(datetime), line)
