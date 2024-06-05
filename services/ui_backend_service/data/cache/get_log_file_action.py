@@ -207,8 +207,8 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
     
-    # TODO: move this into the cache_data directory and introduce some GC
-    log_tmp_path = os.path.join(".", "log_temp", log_hash)
+    # TODO: Check that this is also under GC
+    log_tmp_path = os.path.join("cache_data", "log", "blobs" , log_hash)
     os.makedirs(log_tmp_path, exist_ok=True)
     log_paths = {}
     
