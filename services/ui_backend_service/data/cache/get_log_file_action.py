@@ -141,9 +141,8 @@ class GetLogFile(CacheAction):
             current_hash = log_provider.get_log_hash(task, logtype)
             log_hash_changed = previous_log_hash is None or previous_log_hash != current_hash
 
-            # TODO: fetch logs also if they are not on disk.
+            local_paths = fetch_logs(task, log_key, logtype, log_hash_changed)
             if log_hash_changed:
-                local_paths = fetch_logs(task, log_key, logtype)
                 total_lines = count_total_lines(local_paths)
                 results[log_key] = json.dumps({"log_hash": current_hash, "content_paths": local_paths, "line_count": total_lines})
             else:
@@ -202,15 +201,20 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
 # Please visit https://docs.metaflow.org/api/client for detailed documentation."""
     return blurb
 
-def fetch_logs(task: Task, log_hash: str, logtype: str):
+def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = False):
     # TODO: This could theoretically be a part of the Metaflow client instead.
     paths = []
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
-    log_paths = []
+    
+    # TODO: move this into the cache_data directory and introduce some GC
+    log_tmp_path = os.path.join(".", "log_temp", log_hash)
+    os.makedirs(log_tmp_path, exist_ok=True)
+    log_paths = {}
+    
     if log_location:
         # TODO: implement support for the legacy logs case as well.
-        pass
+        to_load = []
     else:
         meta_dict = task.metadata_dict
         ds_type = meta_dict.get("ds-type")
@@ -245,21 +249,21 @@ def fetch_logs(task: Task, log_hash: str, logtype: str):
         for name in paths.keys():
             path = ds._storage_impl.path_join(ds._path, name)
             to_load.append(path)
+            log_paths[name]=os.path.join(log_tmp_path, name)
 
-        # TODO: move this into the cache_data directory and introduce some GC
-        log_tmp_path = os.path.join(".", "log_temp", log_hash)
-        os.makedirs(log_tmp_path, exist_ok=True)
+        # skip downloading as all files are on disk.
+        skip_dl = not force_reload and all(os.path.exists(path) for path in log_paths.values())
+    if not skip_dl:
+        # Load the log files to disk
         with ds._storage_impl.load_bytes(to_load) as load_results:
             for key, path, meta in load_results:
                 name = ds._storage_impl.basename(key)
                 if path is None:
                     # no log file existed in the location. Usually not an error.
-                    pass
+                    log_paths[name]=None
                 else:
-                    moved_path = os.path.join(log_tmp_path, name)
-                    shutil.move(path, moved_path)
-                    log_paths.append(moved_path)
-    return log_paths
+                    shutil.move(path, log_paths[name])
+    return [val for val in log_paths.values() if val is not None]
 
 def count_total_lines(paths):
     linecount = 0
