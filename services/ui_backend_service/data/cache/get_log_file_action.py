@@ -269,12 +269,11 @@ def count_total_lines(paths):
     return linecount
 
 def stream_sorted_logs(paths):
-    def _gen(path):
-        # TODO: implement reversing of read
+    def _file_line_iter(path):
         with open(path, "r") as f:
             yield from f
 
-    iterators = {path: _gen(path) for path in paths}
+    iterators = {path: _file_line_iter(path) for path in paths}
     line_buffer = {path: None for path in paths}
 
     def _keysort(item):
@@ -428,9 +427,8 @@ class FullLogProvider(LogProviderBase):
 
 def paginated_result(content_iterator: Callable, page: int = 1, line_total: int = 0, limit: int = 0,
                      reverse_order: bool = False, output_raw=False):
-    # TODO: implement log reversing for tailing running logs.
-    _offset = limit * (page - 1)
     total_pages = max(line_total // limit, 1) if limit else 1
+    _offset = limit * (total_pages - page) if reverse_order else limit * (page - 1)
     loglines = []
     for lineno, item in enumerate(content_iterator()):
         ts, line = item
@@ -438,10 +436,11 @@ def paginated_result(content_iterator: Callable, page: int = 1, line_total: int 
             break
         if _offset and lineno < _offset:
             continue
-        if not output_raw:
-            loglines.append({"row": lineno, "timestamp": ts, "line": line})
+        l = line if output_raw else {"row": lineno, "timestamp": ts, "line": line}
+        if reverse_order:
+            loglines.insert(0, l)
         else:
-            loglines.append(line)
+            loglines.append(l)
 
     return {
         "content": "\n".join(loglines) if output_raw else loglines,
