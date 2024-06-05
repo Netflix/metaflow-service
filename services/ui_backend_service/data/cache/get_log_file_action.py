@@ -212,16 +212,32 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
     os.makedirs(log_tmp_path, exist_ok=True)
     log_paths = {}
     
+    filecache = FileCache()
     if log_location:
-        # TODO: implement support for the legacy logs case as well.
-        to_load = []
+        # Legacy log case
+        log_info = json.loads(log_location)
+        location = log_info["location"]
+        ds_type = log_info["ds_type"]
+        attempt = log_info["attempt"]
+        ds_cls = filecache._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
+
+        ds = filecache._get_task_datastore(
+            ds_type,
+            ds_root,
+            *task.path_components,
+            attempt
+        )
+        name = ds._metadata_name_for_attempt("%s.log" % stream)
+        to_load = [ds._storage_impl.path_join(ds._path, name)]
+        log_paths[name]=os.path.join(log_tmp_path, name)
     else:
+        # MFLog support
         meta_dict = task.metadata_dict
         ds_type = meta_dict.get("ds-type")
         ds_root = meta_dict.get("ds-root")
         if ds_type is None or ds_root is None:
             return
-        filecache = FileCache()    
 
         attempt = task.current_attempt
 
@@ -231,8 +247,6 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
             *task.path_components,
             attempt
         )
-
-        logsources = LOG_SOURCES
         paths = dict(
                 map(
                     lambda s: (
@@ -242,7 +256,7 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
                         ),
                         s,
                     ),
-                    logsources,
+                    LOG_SOURCES,
                 )
             )
         to_load = []
@@ -251,8 +265,8 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
             to_load.append(path)
             log_paths[name]=os.path.join(log_tmp_path, name)
 
-        # skip downloading as all files are on disk.
-        skip_dl = not force_reload and all(os.path.exists(path) for path in log_paths.values())
+    # skip downloading as all files are on disk.
+    skip_dl = not force_reload and all(os.path.exists(path) for path in log_paths.values())
     if not skip_dl:
         # Load the log files to disk
         with ds._storage_impl.load_bytes(to_load) as load_results:
