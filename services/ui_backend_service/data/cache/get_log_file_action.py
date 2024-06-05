@@ -1,9 +1,14 @@
 import hashlib
 import json
 
-from typing import Dict, List, Optional, Tuple
+import shutil
+from typing import Callable, Dict, List, Optional, Tuple
 from .client import CacheAction
 from .utils import streamed_errors
+from metaflow.client.filecache import FileCache
+from metaflow.mflog import LOG_SOURCES
+from metaflow.mflog.mflog import MFLogline, parse, MISSING_TIMESTAMP_STR, MISSING_TIMESTAMP
+from metaflow.util import to_unicode
 import os
 
 # New imports
@@ -136,22 +141,28 @@ class GetLogFile(CacheAction):
             current_hash = log_provider.get_log_hash(task, logtype)
             log_hash_changed = previous_log_hash is None or previous_log_hash != current_hash
 
+            # TODO: fetch logs also if they are not on disk.
             if log_hash_changed:
-                paths = fetch_logs(task, logtype)
-                results[log_key] = json.dumps({"log_hash": current_hash, "content_paths": [paths]})
+                local_paths = fetch_logs(task, log_key, logtype)
+                total_lines = count_total_lines(local_paths)
+                results[log_key] = json.dumps({"log_hash": current_hash, "content_paths": local_paths, "line_count": total_lines})
             else:
                 results = {**existing_keys}
+        
+            def _gen():
+                return stream_sorted_logs(json.loads(results[log_key])["content_paths"])
 
-        if log_hash_changed or result_key not in existing_keys:
-            results[result_key] = json.dumps(
-                paginated_result(
-                    json.loads(results[log_key])["content"],
-                    page,
-                    limit,
-                    reverse,
-                    output_raw
+            if log_hash_changed or result_key not in existing_keys:
+                results[result_key] = json.dumps(
+                    paginated_result(
+                        _gen,
+                        page,
+                        json.loads(results[log_key])["line_count"],
+                        limit,
+                        reverse,
+                        output_raw
+                    )
                 )
-            )
 
         return results
 
@@ -191,24 +202,125 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
 # Please visit https://docs.metaflow.org/api/client for detailed documentation."""
     return blurb
 
-def fetch_logs(task: Task, logtype: str):
+def fetch_logs(task: Task, log_hash: str, logtype: str):
+    # TODO: This could theoretically be a part of the Metaflow client instead.
     paths = []
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
+    log_paths = []
     if log_location:
+        # TODO: implement support for the legacy logs case as well.
         pass
     else:
-        paths = dict(
-            map(
-                lambda s: (
-                    self._metadata_name_for_attempt(
-                        self._get_log_location(s, stream),
-                    s,
-                ),
-                logsources,
-            )
+        meta_dict = task.metadata_dict
+        ds_type = meta_dict.get("ds-type")
+        ds_root = meta_dict.get("ds-root")
+        if ds_type is None or ds_root is None:
+            return
+        filecache = FileCache()    
+
+        attempt = task.current_attempt
+
+        ds = filecache._get_task_datastore(
+            ds_type,
+            ds_root,
+            *task.path_components,
+            attempt
         )
-    return paths
+
+        logsources = LOG_SOURCES
+        paths = dict(
+                map(
+                    lambda s: (
+                        ds._metadata_name_for_attempt(
+                            ds._get_log_location(s, stream),
+                            attempt_override=False,
+                        ),
+                        s,
+                    ),
+                    logsources,
+                )
+            )
+        to_load = []
+        for name in paths.keys():
+            path = ds._storage_impl.path_join(ds._path, name)
+            to_load.append(path)
+
+        # TODO: move this into the cache_data directory and introduce some GC
+        log_tmp_path = os.path.join(".", "log_temp", log_hash)
+        os.makedirs(log_tmp_path, exist_ok=True)
+        with ds._storage_impl.load_bytes(to_load) as load_results:
+            for key, path, meta in load_results:
+                name = ds._storage_impl.basename(key)
+                if path is None:
+                    # no log file existed in the location. Usually not an error.
+                    pass
+                else:
+                    moved_path = os.path.join(log_tmp_path, name)
+                    shutil.move(path, moved_path)
+                    log_paths.append(moved_path)
+    return log_paths
+
+def count_total_lines(paths):
+    linecount = 0
+    for path in paths:
+        with open(path, "r") as f:
+            linecount += sum(1 for _ in f)
+    return linecount
+
+def stream_sorted_logs(paths):
+    def _gen(path):
+        # TODO: implement reversing of read
+        with open(path, "r") as f:
+            yield from f
+
+    iterators = {path: _gen(path) for path in paths}
+    line_buffer = {path: None for path in paths}
+
+    def _keysort(item):
+        # yield the oldest line and only that line.
+        return item[1]
+
+    while True:
+        if not iterators:
+            # all log sources exhausted
+            break
+        # fill buffer with one line from each file
+        empty_buffers = [k for k,v in line_buffer.items() if v is None and k in iterators]
+        for it in empty_buffers:
+            val = next(iterators[it], None)
+            if val is None:
+                # remove iterator as it is empty
+                del iterators[it]
+            else:
+                res = parse(val)
+                if not res:
+                    res = MFLogline(
+                        False,
+                        None,
+                        MISSING_TIMESTAMP_STR.encode("utf-8"),
+                        None,
+                        None,
+                        val,
+                        MISSING_TIMESTAMP,
+                    )
+                line_buffer[it]=res
+
+        sorted_lines = sorted(
+            [
+                (source, line)
+                for source, line in line_buffer.items()
+                if line
+            ],
+            key=_keysort,
+        )
+        if not sorted_lines:
+            break
+        
+        first_source, line = sorted_lines[0]
+        yield _datetime_to_epoch(line.utc_tstamp), to_unicode(line.msg)
+        # cleanup after yielding.
+        line_buffer[first_source] = None
 
 def get_log_size(task: Task, logtype: str):
     return task.stderr_size if logtype == STDERR else task.stdout_size
@@ -314,16 +426,25 @@ class FullLogProvider(LogProviderBase):
         return get_log_content(task, logtype)
 
 
-def paginated_result(content: List[Tuple[Optional[int], str]], page: int = 1, limit: int = 0,
+def paginated_result(content_iterator: Callable, page: int = 1, line_total: int = 0, limit: int = 0,
                      reverse_order: bool = False, output_raw=False):
-    if not output_raw:
-        loglines, total_pages = format_loglines(content, page, limit, reverse_order)
-    else:
-        loglines = "\n".join(line for _, line in content)
-        total_pages = 1
+    # TODO: implement log reversing for tailing running logs.
+    _offset = limit * (page - 1)
+    total_pages = max(line_total // limit, 1) if limit else 1
+    loglines = []
+    for lineno, item in enumerate(content_iterator()):
+        ts, line = item
+        if limit and lineno > (_offset + limit):
+            break
+        if _offset and lineno < _offset:
+            continue
+        if not output_raw:
+            loglines.append({"row": lineno, "timestamp": ts, "line": line})
+        else:
+            loglines.append(line)
 
     return {
-        "content": loglines,
+        "content": "\n".join(loglines) if output_raw else loglines,
         "pages": total_pages
     }
 
