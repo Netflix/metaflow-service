@@ -445,7 +445,8 @@ class FullLogProvider(LogProviderBase):
 
 def paginated_result(content_iterator: Callable, page: int = 1, line_total: int = 0, limit: int = 0,
                      reverse_order: bool = False, output_raw=False):
-    total_pages = max(line_total // limit, 1) if limit else 1
+    # take the ceil for the number of pages so we dont end up with discarded lines
+    total_pages = max(-(line_total // -limit), 1) if limit else 1
     _offset = limit * (total_pages - page) if reverse_order else limit * (page - 1)
     loglines = []
     for lineno, item in enumerate(content_iterator()):
