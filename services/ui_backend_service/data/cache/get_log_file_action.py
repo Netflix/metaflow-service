@@ -147,7 +147,7 @@ class GetLogFile(CacheAction):
                 results[log_key] = json.dumps({"log_hash": current_hash, "content_paths": local_paths, "line_count": total_lines})
             else:
                 results = {**existing_keys}
-        
+
             def _gen():
                 return stream_sorted_logs(json.loads(results[log_key])["content_paths"])
 
@@ -201,17 +201,18 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
 # Please visit https://docs.metaflow.org/api/client for detailed documentation."""
     return blurb
 
+
 def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = False):
     # TODO: This could theoretically be a part of the Metaflow client instead.
     paths = []
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
-    
+
     # TODO: Check that this is also under GC
-    log_tmp_path = os.path.join("cache_data", "log", "blobs" , log_hash)
+    log_tmp_path = os.path.join("cache_data", "log", "blobs", log_hash)
     os.makedirs(log_tmp_path, exist_ok=True)
     log_paths = {}
-    
+
     filecache = FileCache()
     if log_location:
         # Legacy log case
@@ -230,7 +231,7 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
         )
         name = ds._metadata_name_for_attempt("%s.log" % stream)
         to_load = [ds._storage_impl.path_join(ds._path, name)]
-        log_paths[name]=os.path.join(log_tmp_path, name)
+        log_paths[name] = os.path.join(log_tmp_path, name)
     else:
         # MFLog support
         meta_dict = task.metadata_dict
@@ -248,22 +249,22 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
             attempt
         )
         paths = dict(
-                map(
-                    lambda s: (
-                        ds._metadata_name_for_attempt(
-                            ds._get_log_location(s, stream),
-                            attempt_override=False,
-                        ),
-                        s,
+            map(
+                lambda s: (
+                    ds._metadata_name_for_attempt(
+                        ds._get_log_location(s, stream),
+                        attempt_override=False,
                     ),
-                    LOG_SOURCES,
-                )
+                    s,
+                ),
+                LOG_SOURCES,
             )
+        )
         to_load = []
         for name in paths.keys():
             path = ds._storage_impl.path_join(ds._path, name)
             to_load.append(path)
-            log_paths[name]=os.path.join(log_tmp_path, name)
+            log_paths[name] = os.path.join(log_tmp_path, name)
 
     # skip downloading as all files are on disk.
     skip_dl = not force_reload and all(os.path.exists(path) for path in log_paths.values())
@@ -274,10 +275,11 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
                 name = ds._storage_impl.basename(key)
                 if path is None:
                     # no log file existed in the location. Usually not an error.
-                    log_paths[name]=None
+                    log_paths[name] = None
                 else:
                     shutil.move(path, log_paths[name])
     return [val for val in log_paths.values() if val is not None]
+
 
 def count_total_lines(paths):
     linecount = 0
@@ -285,6 +287,7 @@ def count_total_lines(paths):
         with open(path, "r") as f:
             linecount += sum(1 for _ in f)
     return linecount
+
 
 def stream_sorted_logs(paths):
     def _file_line_iter(path):
@@ -303,7 +306,7 @@ def stream_sorted_logs(paths):
             # all log sources exhausted
             break
         # fill buffer with one line from each file
-        empty_buffers = [k for k,v in line_buffer.items() if v is None and k in iterators]
+        empty_buffers = [k for k, v in line_buffer.items() if v is None and k in iterators]
         for it in empty_buffers:
             val = next(iterators[it], None)
             if val is None:
@@ -321,7 +324,7 @@ def stream_sorted_logs(paths):
                         val,
                         MISSING_TIMESTAMP,
                     )
-                line_buffer[it]=res
+                line_buffer[it] = res
 
         sorted_lines = sorted(
             [
@@ -333,11 +336,12 @@ def stream_sorted_logs(paths):
         )
         if not sorted_lines:
             break
-        
+
         first_source, line = sorted_lines[0]
         yield _datetime_to_epoch(line.utc_tstamp), to_unicode(line.msg)
         # cleanup after yielding.
         line_buffer[first_source] = None
+
 
 def get_log_size(task: Task, logtype: str):
     return task.stderr_size if logtype == STDERR else task.stdout_size
@@ -456,12 +460,12 @@ def paginated_result(content_iterator: Callable, page: int = 1, line_total: int 
             break
         if _offset and lineno <= _offset:
             continue
-        l = line if output_raw else {"row": lineno, "timestamp": ts, "line": line}
+        line = line if output_raw else {"row": lineno, "timestamp": ts, "line": line}
         if reverse_order:
-            loglines.insert(0, l)
+            loglines.insert(0, line)
         else:
-            loglines.append(l)
-        
+            loglines.append(line)
+
     if page != total_pages and loglines and output_raw:
         # we want a trailing newline so raw logs get pieced together correctly
         loglines.append("")
