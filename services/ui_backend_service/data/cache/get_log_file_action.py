@@ -453,12 +453,16 @@ def paginated_result(content_iterator: Callable, page: int = 1, line_total: int 
     total_pages = max(-(line_total // -limit), 1) if limit else 1
     _offset = limit * (total_pages - page) if reverse_order else limit * (page - 1)
     loglines = []
+
     # lines included in the page should be [start, end[
     for lineno, item in enumerate(content_iterator()):
-        ts, line = item
-        if limit and lineno > (_offset + limit):
+        # OOB guard
+        if page > total_pages:
             break
-        if _offset and lineno <= _offset:
+        ts, line = item
+        if limit and lineno >= (_offset + limit):
+            break
+        if _offset and lineno < _offset:
             continue
         line = line if output_raw else {"row": lineno, "timestamp": ts, "line": line}
         if reverse_order:
