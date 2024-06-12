@@ -22,7 +22,7 @@ long_description = open_and_read_if_exists("README.md")
 
 setup(
     name="metadata_service",
-    version="2.4.10",
+    version="2.4.11",
     license="Apache License 2.0",
     description="Metadata Service: backend service for Metaflow",
     long_description=long_description,
