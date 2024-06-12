@@ -216,6 +216,7 @@ def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = Fals
     log_paths = {}
 
     filecache = FileCache()
+    flow_name, run_id, step_name, task_id = task.path_components
     if log_location:
         # Legacy log case
         log_info = json.loads(log_location)
@@ -225,11 +226,13 @@ def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = Fals
         ds_cls = filecache._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
 
-        ds = filecache._get_task_datastore(
-            ds_type,
-            ds_root,
-            *task.path_components,
-            attempt
+        flow_ds = filecache._get_flow_datastore(ds_type, ds_root, flow_name)
+        ds = flow_ds.get_task_datastore(
+            run_id,
+            step_name,
+            task_id,
+            attempt,
+            allow_not_done=True
         )
         name = ds._metadata_name_for_attempt("%s.log" % stream)
         to_load = [ds._storage_impl.path_join(ds._path, name)]
@@ -244,18 +247,20 @@ def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = Fals
 
         attempt = task.current_attempt
 
-        ds = filecache._get_task_datastore(
-            ds_type,
-            ds_root,
-            *task.path_components,
-            attempt
+        flow_ds = filecache._get_flow_datastore(ds_type, ds_root, flow_name)
+        ds = flow_ds.get_task_datastore(
+            run_id,
+            step_name,
+            task_id,
+            attempt,
+            allow_not_done=True
         )
         paths = dict(
             map(
                 lambda s: (
                     ds._metadata_name_for_attempt(
                         ds._get_log_location(s, stream),
-                        attempt_override=False,
+                        attempt_override=attempt,
                     ),
                     s,
                 ),
