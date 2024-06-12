@@ -153,11 +153,12 @@ class CardsApi(object):
             task,
             hash,
         )
+        html_reload_script = "<script>window.needsReload = true;</script><body></body>"
         if cards is None:
             return web.Response(
                 content_type="text/html",
                 status=404,
-                body="Card not found for task. Possibly still being processed. Please refresh page to check again.",
+                body=html_reload_script,
             )
 
         if cards and hash in cards:
@@ -275,7 +276,7 @@ async def get_card_data_for_task_async(
         step_name=task.get("step_name"),
         task_id=task.get("task_name") or task.get("task_id"),
     )
-    await cache_client.cache_manager.register(pathspec)
+    await cache_client.cache_manager.register(pathspec, lock_timeout=0.2)
     _local_cache = cache_client.cache_manager.get_local_cache(pathspec, card_hash)
     if not _local_cache.read_ready():
         # Since this is a data update call we can return a 404 and the client
