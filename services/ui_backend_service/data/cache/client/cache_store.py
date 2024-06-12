@@ -248,7 +248,7 @@ class CacheStore(object):
             self.safe_fileop(os.unlink, stream)
         self.safe_fileop(shutil.rmtree, tempdir)
 
-    def commit(self, tempdir, keys, stream_key, disposable_keys):
+    def commit(self, tempdir, keys, stream_key, disposable_keys, ephemeral_path=None):
         def _insert(queue, key, value):
             # we want to update the object's location in the
             # OrderedDict, so we will need to delete any possible
@@ -292,6 +292,23 @@ class CacheStore(object):
                     self.total_size += sz
             else:
                 missing.append(key)
+        
+        # Additionally, if the ephemeral path contains anything,
+        # we want to make sure that these objects are tracked for GC as well.
+        if ephemeral_path is not None and os.path.exists(ephemeral_path):
+            for dirpath, dirnames, files in os.walk(ephemeral_path):
+                for file in files:
+                    p = os.path.join(dirpath, file)
+                    sz = filesize(p)
+                    if sz is None:
+                        continue
+                    if p in self.objects_queue:
+                        # cover possible file size changes
+                        old_size = self.objects_queue[p]
+                        sz = (sz - old_size)
+                    self.total_size += sz
+                    _insert(self.objects_queue, p, sz)
+
 
         self._gc_objects()
         return missing

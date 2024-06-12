@@ -86,11 +86,14 @@ class GetLogFile(CacheAction):
         result_key = log_result_id(task, logtype, limit, page, reverse_order, raw_log)
         stream_key = 'log:stream:%s' % lookup_id(task, logtype, limit, page, reverse_order, raw_log)
 
+        # location to store raw logs temporarily over multiple cache action invocations.
+        # we return the path so this can be picked up by GC
+        blob_path = os.path.join(".", "cache_data", "log", "BLOBS", log_key)
         return (msg,
                 [log_key, result_key],
                 stream_key,
                 [stream_key, result_key],
-                invalidate_cache)
+                invalidate_cache, blob_path)
 
     @classmethod
     def response(cls, keys_objs):
@@ -140,8 +143,9 @@ class GetLogFile(CacheAction):
             # check if log has grown since last time.
             current_hash = log_provider.get_log_hash(task, logtype)
             log_hash_changed = previous_log_hash is None or previous_log_hash != current_hash
-
-            local_paths = fetch_logs(task, log_key, logtype, log_hash_changed)
+            
+            log_path = os.path.join(".", "cache_data", "log", "BLOBS", log_key)
+            local_paths = fetch_logs(task, log_path, logtype, log_hash_changed)
             if log_hash_changed:
                 total_lines = count_total_lines(local_paths)
                 results[log_key] = json.dumps({"log_hash": current_hash, "content_paths": local_paths, "line_count": total_lines})
@@ -202,15 +206,13 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
     return blurb
 
 
-def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = False):
+def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = False):
     # TODO: This could theoretically be a part of the Metaflow client instead.
     paths = []
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
 
-    # TODO: Check that this is also under GC
-    log_tmp_path = os.path.join("cache_data", "log", "blobs", log_hash)
-    os.makedirs(log_tmp_path, exist_ok=True)
+    os.makedirs(to_path, exist_ok=True)
     log_paths = {}
 
     filecache = FileCache()
@@ -231,7 +233,7 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
         )
         name = ds._metadata_name_for_attempt("%s.log" % stream)
         to_load = [ds._storage_impl.path_join(ds._path, name)]
-        log_paths[name] = os.path.join(log_tmp_path, name)
+        log_paths[name] = os.path.join(to_path, name)
     else:
         # MFLog support
         meta_dict = task.metadata_dict
@@ -264,7 +266,7 @@ def fetch_logs(task: Task, log_hash: str, logtype: str, force_reload: bool = Fal
         for name in paths.keys():
             path = ds._storage_impl.path_join(ds._path, name)
             to_load.append(path)
-            log_paths[name] = os.path.join(log_tmp_path, name)
+            log_paths[name] = os.path.join(to_path, name)
 
     # skip downloading as all files are on disk.
     skip_dl = not force_reload and all(os.path.exists(path) for path in log_paths.values())

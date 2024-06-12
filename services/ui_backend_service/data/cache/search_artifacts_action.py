@@ -62,7 +62,8 @@ class SearchArtifacts(CacheAction):
             [result_key, *artifact_keys], \
             stream_key, \
             [stream_key, result_key], \
-            invalidate_cache
+            invalidate_cache, \
+            None
 
     @classmethod
     def response(cls, keys_objs):

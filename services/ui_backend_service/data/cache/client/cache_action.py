@@ -31,7 +31,7 @@ class CacheAction(object):
         is proxied by `cache_client` as a client-facing API
         of the action.
 
-        Function returns a four-tuple:
+        Function returns a tuple:
         1. `message`: an arbitrary JSON-encodable payload that
            is passed to `execute`.
         2. `obj_keys`: a list of keys that the action promises
@@ -43,8 +43,9 @@ class CacheAction(object):
            be purged from the cache before other objects.
         5. `invalidate_cache`: boolean to indicate if existing
            cache keys should be invalidated.
+        6. `ephemeral_storage_path` : optional path for persisting files across cache action invocations
         """
-        # return message, obj_keys, stream_key, disposable_keys, invalidate_cache
+        # return message, obj_keys, stream_key, disposable_keys, invalidate_cache, ephemeral_storage_path
         raise NotImplementedError
 
     @classmethod
@@ -106,7 +107,7 @@ class Check(CacheAction):
     @classmethod
     def format_request(cls, *args, **kwargs):
         key = 'check-%s' % uuid.uuid4()
-        return None, [key], None, [key], False
+        return None, [key], None, [key], False, None
 
     @classmethod
     def response(cls, keys_objs):
