@@ -170,7 +170,8 @@ class Worker(object):
         missing = self.filestore.commit(self.tempdir,
                                         self.request['keys'],
                                         self.request['stream_key'],
-                                        self.request['disposable_keys'])
+                                        self.request['disposable_keys'],
+                                        self.request['ephemeral_path'])
         if missing:
             self.echo("failed to produce the following keys: %s"
                       % ','.join(missing))

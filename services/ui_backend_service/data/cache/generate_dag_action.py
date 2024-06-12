@@ -58,7 +58,8 @@ class GenerateDag(CacheAction):
             [result_key], \
             stream_key, \
             [stream_key], \
-            invalidate_cache
+            invalidate_cache, \
+            None
 
     @classmethod
     def response(cls, keys_objs):

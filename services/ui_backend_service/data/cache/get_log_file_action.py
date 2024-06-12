@@ -1,9 +1,14 @@
 import hashlib
 import json
 
-from typing import Dict, List, Optional, Tuple
+import shutil
+from typing import Callable, Dict, List, Optional, Tuple
 from .client import CacheAction
 from .utils import streamed_errors
+from metaflow.client.filecache import FileCache
+from metaflow.mflog import LOG_SOURCES
+from metaflow.mflog.mflog import MFLogline, parse, MISSING_TIMESTAMP_STR, MISSING_TIMESTAMP
+from metaflow.util import to_unicode
 import os
 
 # New imports
@@ -81,11 +86,14 @@ class GetLogFile(CacheAction):
         result_key = log_result_id(task, logtype, limit, page, reverse_order, raw_log)
         stream_key = 'log:stream:%s' % lookup_id(task, logtype, limit, page, reverse_order, raw_log)
 
+        # location to store raw logs temporarily over multiple cache action invocations.
+        # we return the path so this can be picked up by GC
+        blob_path = os.path.join(".", "cache_data", "log", "BLOBS", log_key)
         return (msg,
                 [log_key, result_key],
                 stream_key,
                 [stream_key, result_key],
-                invalidate_cache)
+                invalidate_cache, blob_path)
 
     @classmethod
     def response(cls, keys_objs):
@@ -136,22 +144,28 @@ class GetLogFile(CacheAction):
             current_hash = log_provider.get_log_hash(task, logtype)
             log_hash_changed = previous_log_hash is None or previous_log_hash != current_hash
 
+            log_path = os.path.join(".", "cache_data", "log", "BLOBS", log_key)
+            local_paths = fetch_logs(task, log_path, logtype, log_hash_changed)
             if log_hash_changed:
-                content = log_provider.get_log_content(task, logtype)
-                results[log_key] = json.dumps({"log_hash": current_hash, "content": content})
+                total_lines = count_total_lines(local_paths)
+                results[log_key] = json.dumps({"log_hash": current_hash, "content_paths": local_paths, "line_count": total_lines})
             else:
                 results = {**existing_keys}
 
-        if log_hash_changed or result_key not in existing_keys:
-            results[result_key] = json.dumps(
-                paginated_result(
-                    json.loads(results[log_key])["content"],
-                    page,
-                    limit,
-                    reverse,
-                    output_raw
+            def _gen():
+                return stream_sorted_logs(json.loads(results[log_key])["content_paths"])
+
+            if log_hash_changed or result_key not in existing_keys:
+                results[result_key] = json.dumps(
+                    paginated_result(
+                        _gen,
+                        page,
+                        json.loads(results[log_key])["line_count"],
+                        limit,
+                        reverse,
+                        output_raw
+                    )
                 )
-            )
 
         return results
 
@@ -192,6 +206,150 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
     return blurb
 
 
+def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = False):
+    # TODO: This could theoretically be a part of the Metaflow client instead.
+    paths = []
+    stream = 'stderr' if logtype == STDERR else 'stdout'
+    meta_dict = task.metadata_dict
+    log_location = meta_dict.get('log_location_%s' % stream)
+
+    os.makedirs(to_path, exist_ok=True)
+    log_paths = {}
+
+    filecache = FileCache()
+    flow_name, run_id, step_name, task_id = task.path_components
+    if log_location:
+        # Legacy log case
+        log_info = json.loads(log_location)
+        location = log_info["location"]
+        ds_type = log_info["ds_type"]
+        attempt = log_info["attempt"]
+        ds_cls = filecache._get_datastore_storage_impl(ds_type)
+        ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
+
+        flow_ds = filecache._get_flow_datastore(ds_type, ds_root, flow_name)
+        ds = flow_ds.get_task_datastore(
+            run_id,
+            step_name,
+            task_id,
+            attempt,
+            allow_not_done=True
+        )
+        name = ds._metadata_name_for_attempt("%s.log" % stream)
+        to_load = [ds._storage_impl.path_join(ds._path, name)]
+        log_paths[name] = os.path.join(to_path, name)
+    else:
+        # MFLog support
+        ds_type = meta_dict.get("ds-type")
+        ds_root = meta_dict.get("ds-root")
+        if ds_type is None or ds_root is None:
+            return
+
+        attempt = task.current_attempt
+
+        flow_ds = filecache._get_flow_datastore(ds_type, ds_root, flow_name)
+        ds = flow_ds.get_task_datastore(
+            run_id,
+            step_name,
+            task_id,
+            attempt,
+            allow_not_done=True
+        )
+        paths = dict(
+            map(
+                lambda s: (
+                    ds._metadata_name_for_attempt(
+                        ds._get_log_location(s, stream),
+                        attempt_override=attempt,
+                    ),
+                    s,
+                ),
+                LOG_SOURCES,
+            )
+        )
+        to_load = []
+        for name in paths.keys():
+            path = ds._storage_impl.path_join(ds._path, name)
+            to_load.append(path)
+            log_paths[name] = os.path.join(to_path, name)
+
+    # skip downloading as all files are on disk.
+    skip_dl = not force_reload and all(os.path.exists(path) for path in log_paths.values())
+    if not skip_dl:
+        # Load the log files to disk
+        with ds._storage_impl.load_bytes(to_load) as load_results:
+            for key, path, meta in load_results:
+                name = ds._storage_impl.basename(key)
+                if path is None:
+                    # no log file existed in the location. Usually not an error.
+                    log_paths[name] = None
+                else:
+                    shutil.move(path, log_paths[name])
+    return [val for val in log_paths.values() if val is not None]
+
+
+def count_total_lines(paths):
+    linecount = 0
+    for path in paths:
+        with open(path, "r") as f:
+            linecount += sum(1 for _ in f)
+    return linecount
+
+
+def stream_sorted_logs(paths):
+    def _file_line_iter(path):
+        with open(path, "r") as f:
+            yield from f
+
+    iterators = {path: _file_line_iter(path) for path in paths}
+    line_buffer = {path: None for path in paths}
+
+    def _keysort(item):
+        # yield the oldest line and only that line.
+        return item[1]
+
+    while True:
+        if not iterators:
+            # all log sources exhausted
+            break
+        # fill buffer with one line from each file
+        empty_buffers = [k for k, v in line_buffer.items() if v is None and k in iterators]
+        for it in empty_buffers:
+            val = next(iterators[it], None)
+            if val is None:
+                # remove iterator as it is empty
+                del iterators[it]
+            else:
+                res = parse(val)
+                if not res:
+                    res = MFLogline(
+                        False,
+                        None,
+                        MISSING_TIMESTAMP_STR.encode("utf-8"),
+                        None,
+                        None,
+                        val,
+                        MISSING_TIMESTAMP,
+                    )
+                line_buffer[it] = res
+
+        sorted_lines = sorted(
+            [
+                (source, line)
+                for source, line in line_buffer.items()
+                if line
+            ],
+            key=_keysort,
+        )
+        if not sorted_lines:
+            break
+
+        first_source, line = sorted_lines[0]
+        yield _datetime_to_epoch(line.utc_tstamp), to_unicode(line.msg)
+        # cleanup after yielding.
+        line_buffer[first_source] = None
+
+
 def get_log_size(task: Task, logtype: str):
     return task.stderr_size if logtype == STDERR else task.stdout_size
 
@@ -204,10 +362,8 @@ def get_log_content(task: Task, logtype: str):
     stream = 'stderr' if logtype == STDERR else 'stdout'
     log_location = task.metadata_dict.get('log_location_%s' % stream)
     if log_location:
-        return [
-            (None, line)
-            for line in task._load_log_legacy(log_location, stream).split("\n")
-        ]
+        for line in task._load_log_legacy(log_location, stream).split("\n"):
+            yield (None, line)
     else:
         return [
             (_datetime_to_epoch(datetime), line)
@@ -298,16 +454,35 @@ class FullLogProvider(LogProviderBase):
         return get_log_content(task, logtype)
 
 
-def paginated_result(content: List[Tuple[Optional[int], str]], page: int = 1, limit: int = 0,
+def paginated_result(content_iterator: Callable, page: int = 1, line_total: int = 0, limit: int = 0,
                      reverse_order: bool = False, output_raw=False):
-    if not output_raw:
-        loglines, total_pages = format_loglines(content, page, limit, reverse_order)
-    else:
-        loglines = "\n".join(line for _, line in content)
-        total_pages = 1
+    # take the ceil for the number of pages so we dont end up with discarded lines
+    total_pages = max(-(line_total // -limit), 1) if limit else 1
+    _offset = limit * (total_pages - page) if reverse_order else limit * (page - 1)
+    loglines = []
+
+    # lines included in the page should be [start, end[
+    for lineno, item in enumerate(content_iterator()):
+        # OOB guard
+        if page > total_pages:
+            break
+        ts, line = item
+        if limit and lineno >= (_offset + limit):
+            break
+        if _offset and lineno < _offset:
+            continue
+        line = line if output_raw else {"row": lineno, "timestamp": ts, "line": line}
+        if reverse_order:
+            loglines.insert(0, line)
+        else:
+            loglines.append(line)
+
+    if page != total_pages and loglines and output_raw:
+        # we want a trailing newline so raw logs get pieced together correctly
+        loglines.append("")
 
     return {
-        "content": loglines,
+        "content": "\n".join(loglines) if output_raw else loglines,
         "pages": total_pages
     }
 

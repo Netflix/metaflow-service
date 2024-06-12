@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
 from services.utils import handle_exceptions, web_response
-from .utils import format_response_list, get_pathspec_from_request
+from .utils import format_response_list, get_pathspec_from_request, logger
 
 from aiohttp import web
 from multidict import MultiDict
@@ -240,8 +240,10 @@ class LogApi(object):
             attempt=task['attempt_id']
         )
 
-        lines, _ = await read_and_output(self.cache, task, logtype, output_raw=True)
-        return file_download_response(log_filename, lines)
+        def _gen():
+            return stream_pages(self.cache, task, logtype, output_raw=True)
+
+        return await file_download_response(request, log_filename, _gen)
 
 
 async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
@@ -264,6 +266,16 @@ async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_
     return log_response["content"], log_response["pages"]
 
 
+async def stream_pages(cache_client, task, logtype, output_raw):
+    page = 1
+    while True:
+        logs, _ = await read_and_output(cache_client, task, logtype, limit=1000, page=page, output_raw=output_raw)
+        if not logs:
+            break
+        yield logs
+        page += 1
+
+
 def get_pagination_params(request):
     """extract pagination params from request
     """
@@ -281,11 +293,17 @@ def get_pagination_params(request):
     return limit, page, reverse_order
 
 
-def file_download_response(filename, body):
-    return web.Response(
+async def file_download_response(request, filename, async_line_iterator):
+    response = web.StreamResponse(
         headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
-        body=body
     )
+    await response.prepare(request)
+    # NOTE: this can not handle errors thrown by the cache, as status cannot be changed after .prepare() has been called.
+    async for lines in async_line_iterator():
+        await response.write(lines.encode("utf-8"))
+
+    await response.write_eof()
+    return response
 
 
 class LogException(Exception):

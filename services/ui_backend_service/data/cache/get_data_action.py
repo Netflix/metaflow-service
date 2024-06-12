@@ -49,7 +49,8 @@ class GetData(CacheAction):
             target_keys, \
             stream_key, \
             [stream_key], \
-            invalidate_cache
+            invalidate_cache, \
+            None
 
     @classmethod
     def response(cls, keys_objs):

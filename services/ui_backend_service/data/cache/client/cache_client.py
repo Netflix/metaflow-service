@@ -198,7 +198,7 @@ class CacheClient(object):
     def _action(self, cls):
 
         def _call(*args, **kwargs):
-            msg, keys, stream_key, disposable_keys, invalidate_cache =\
+            msg, keys, stream_key, disposable_keys, invalidate_cache, ephemeral_path =\
                 cls.format_request(*args, **kwargs)
             future = CacheFuture(keys, stream_key, self, cls, self._root)
             if future.key_paths_ready() and not invalidate_cache:
@@ -217,7 +217,8 @@ class CacheClient(object):
                                  stream_key=stream_key,
                                  message=msg,
                                  disposable_keys=disposable_keys,
-                                 invalidate_cache=invalidate_cache)
+                                 invalidate_cache=invalidate_cache,
+                                 ephemeral_path=ephemeral_path)
 
             return self.request_and_return([req] if req else [], future)
 
@@ -292,7 +293,8 @@ def server_request(op,
                    message=None,
                    disposable_keys=None,
                    idempotency_token=None,
-                   invalidate_cache=False):
+                   invalidate_cache=False,
+                   ephemeral_path=None):
 
     if idempotency_token is None:
         fields = [op]
@@ -315,5 +317,6 @@ def server_request(op,
         'message': message,
         'idempotency_token': token,
         'disposable_keys': disposable_keys,
-        'invalidate_cache': invalidate_cache
+        'invalidate_cache': invalidate_cache,
+        'ephemeral_path': ephemeral_path
     }

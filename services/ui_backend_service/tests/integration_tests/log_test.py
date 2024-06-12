@@ -94,6 +94,8 @@ async def test_log_download_response(cli, db):
 
     async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
         assert output_raw is True
+        if page>1:
+            return "", 1
         return "some logs", 1
 
     with mock.patch("services.ui_backend_service.api.log.read_and_output", new=read_and_output):
