@@ -210,7 +210,8 @@ def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = Fals
     # TODO: This could theoretically be a part of the Metaflow client instead.
     paths = []
     stream = 'stderr' if logtype == STDERR else 'stdout'
-    log_location = task.metadata_dict.get('log_location_%s' % stream)
+    meta_dict = task.metadata_dict
+    log_location = meta_dict.get('log_location_%s' % stream)
 
     os.makedirs(to_path, exist_ok=True)
     log_paths = {}
@@ -239,7 +240,6 @@ def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = Fals
         log_paths[name] = os.path.join(to_path, name)
     else:
         # MFLog support
-        meta_dict = task.metadata_dict
         ds_type = meta_dict.get("ds-type")
         ds_root = meta_dict.get("ds-root")
         if ds_type is None or ds_root is None:
