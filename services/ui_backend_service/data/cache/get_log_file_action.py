@@ -143,7 +143,7 @@ class GetLogFile(CacheAction):
             # check if log has grown since last time.
             current_hash = log_provider.get_log_hash(task, logtype)
             log_hash_changed = previous_log_hash is None or previous_log_hash != current_hash
-            
+
             log_path = os.path.join(".", "cache_data", "log", "BLOBS", log_key)
             local_paths = fetch_logs(task, log_path, logtype, log_hash_changed)
             if log_hash_changed:

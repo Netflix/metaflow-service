@@ -292,7 +292,7 @@ class CacheStore(object):
                     self.total_size += sz
             else:
                 missing.append(key)
-        
+
         # Additionally, if the ephemeral path contains anything,
         # we want to make sure that these objects are tracked for GC as well.
         if ephemeral_path is not None and os.path.exists(ephemeral_path):
@@ -308,7 +308,6 @@ class CacheStore(object):
                         sz = (sz - old_size)
                     self.total_size += sz
                     _insert(self.objects_queue, p, sz)
-
 
         self._gc_objects()
         return missing
