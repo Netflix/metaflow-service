@@ -206,7 +206,7 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
     return blurb
 
 
-def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = False):
+def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = False) -> List[str]:
     # TODO: This could theoretically be a part of the Metaflow client instead.
     paths = []
     stream = 'stderr' if logtype == STDERR else 'stdout'
@@ -243,7 +243,7 @@ def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = Fals
         ds_type = meta_dict.get("ds-type")
         ds_root = meta_dict.get("ds-root")
         if ds_type is None or ds_root is None:
-            return
+            return []
 
         attempt = task.current_attempt
 
@@ -305,8 +305,10 @@ def stream_sorted_logs(paths):
     line_buffer = {path: None for path in paths}
 
     def _keysort(item):
-        # yield the oldest line and only that line.
-        return item[1]
+        # Handle None values by providing a fallback (e.g., a large timestamp for None to push it to the end).
+        if item[1] is None:
+            return float('inf')
+        return item[1].utc_tstamp
 
     while True:
         if not iterators:
