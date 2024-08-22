@@ -447,7 +447,7 @@ class PostgresUtils(object):
             try:
                 await cur.execute(
                     """
-                    SELECT DISTINCT trigger_name
+                    SELECT DISTINCT trigger_name, trigger_schema
                     FROM information_schema.triggers
                     WHERE event_object_table = %s
                     """,
@@ -456,14 +456,17 @@ class PostgresUtils(object):
                 results = await cur.fetchall()
 
                 triggers_to_cleanup = [
-                    res[0] for res in results
+                    (res[0], res[1]) for res in results
                     if res[0].startswith(TRIGGER_NAME_PREFIX) and TRIGGER_VERSION not in res[0]
                 ]
                 if triggers_to_cleanup:
                     logging.getLogger("TriggerSetup").info("Cleaning up old triggers: %s" % triggers_to_cleanup)
                     commands = []
-                    for name in triggers_to_cleanup:
-                        commands += [("DROP TRIGGER IF EXISTS %s ON %s" % (name, table_name))]
+                    for trigger_name, schema in triggers_to_cleanup:
+                        commands += [
+                            (f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name}"),
+                            (f"DROP FUNCTION IF EXISTS {schema}.{trigger_name}")
+                        ]
 
                     for command in commands:
                         await cur.execute(command)
