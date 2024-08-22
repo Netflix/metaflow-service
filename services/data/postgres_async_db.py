@@ -40,6 +40,7 @@ operator_match = re.compile('([^:]*):([=><]+)$')
 
 # use a ddmmyyy timestamp as the version for triggers
 TRIGGER_VERSION = "18012024"
+TRIGGER_NAME_PREFIX = "notify_ui"
 
 class _AsyncPostgresDB(object):
     connection = None
@@ -456,7 +457,7 @@ class PostgresUtils(object):
 
                 triggers_to_cleanup = [
                     res[0] for res in results
-                    if TRIGGER_VERSION not in res[0]
+                    if res[0].startswith(TRIGGER_NAME_PREFIX) and TRIGGER_VERSION not in res[0]
                 ]
                 if triggers_to_cleanup:
                     logging.getLogger("TriggerSetup").info("Cleaning up old triggers: %s" % triggers_to_cleanup)
@@ -474,7 +475,7 @@ class PostgresUtils(object):
         if not keys:
             pass
 
-        name_prefix = "notify_ui_%s" % TRIGGER_VERSION
+        name_prefix = "%s_%s" % (TRIGGER_NAME_PREFIX, TRIGGER_VERSION)
         operations = operations
         _commands = ["""
         CREATE OR REPLACE FUNCTION {schema}.{prefix}_{table}() RETURNS trigger
