@@ -42,6 +42,7 @@ operator_match = re.compile('([^:]*):([=><]+)$')
 TRIGGER_VERSION = "18012024"
 TRIGGER_NAME_PREFIX = "notify_ui"
 
+
 class _AsyncPostgresDB(object):
     connection = None
     flow_table_postgres = None
@@ -439,7 +440,7 @@ class PostgresUtils(object):
                         await cur.execute(command)
             finally:
                 cur.close()
-    
+
     @staticmethod
     async def cleanup_triggers(db: _AsyncPostgresDB, table_name):
         "Cleans up old versions of table triggers"
@@ -474,7 +475,14 @@ class PostgresUtils(object):
                 cur.close()
 
     @staticmethod
-    async def setup_trigger_notify(db: _AsyncPostgresDB, table_name, keys: List[str] = None, schema=DB_SCHEMA_NAME, operations: List[str] = None, conditions: List[str] = None):
+    async def setup_trigger_notify(
+        db: _AsyncPostgresDB,
+        table_name,
+        keys: List[str] = None,
+        schema=DB_SCHEMA_NAME,
+        operations: List[str] = None,
+        conditions: List[str] = None
+    ):
         if not keys:
             pass
 
