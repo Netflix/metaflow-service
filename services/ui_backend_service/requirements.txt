@@ -9,5 +9,5 @@ aiohttp_cors==0.7.0
 metaflow>=2.11.4
 click==8.0.3
 azure-storage-blob==12.13.1
-azure-identity==1.10.0
+azure-identity==1.16.1
 google-cloud-storage~=2.10.0
