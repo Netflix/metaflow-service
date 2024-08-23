@@ -399,7 +399,7 @@ class TailLogProvider(LogProviderBase):
             ), ]
         # Note this is inefficient - we will load a 1GB log even if we only want last 100 bytes.
         # Doing this efficiently is a step change in complexity and effort - we can do it when justified in future.
-        raw_content = get_log_content(task, logtype)
+        raw_content = list(get_log_content(task, logtype))
         if len(raw_content) == 0:
             return raw_content  # empty list
 

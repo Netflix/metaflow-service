@@ -272,6 +272,8 @@ class DBConfiguration(object):
             base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}'
         elif type == DBType.READER:
             base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}'
+        else:
+            raise Exception("Unsupported DBType %s" % type)
 
         if (self._ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
             ssl_query = f'sslmode={self._ssl_mode}'
