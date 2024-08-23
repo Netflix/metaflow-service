@@ -142,7 +142,7 @@ class SearchArtifacts(CacheAction):
             if key in results:
                 load_success, value, detail, trace = unpack_processed_value(json.loads(results[key]))
             else:
-                load_success, value, _ = False, None, None
+                load_success, value, detail, trace = False, None, None, None
             # keep the matching case-insensitive
             matches = filter_fn(str(value).lower(), searchterm.lower())
 
