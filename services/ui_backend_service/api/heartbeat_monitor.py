@@ -229,7 +229,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         resources = resource_list(self._task_table.table_name, task) if task else None
         if not resources:
             return
-        
+
         if task['status'] == "running":
             await self.add_to_watch(task)
         if task['status'] == "failed":
@@ -247,6 +247,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     def decode_key_ids(self, key):
         flow, run, step, task, attempt = key.split("/")
         return flow, run, step, task, attempt
+
 
 def heartbeat_time_now():
     # same format as the metadata heartbeat uses

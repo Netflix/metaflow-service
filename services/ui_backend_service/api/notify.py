@@ -124,10 +124,10 @@ class ListenNotify(object):
                 if operation == "INSERT" and \
                         table.table_name == self.db.metadata_table_postgres.table_name and \
                         data["field_name"] == "attempt_ok":
-                    attempt_id=None
+                    attempt_id = None
                     try:
-                        attempt_tag=[t for t in data['tags'] if t.startswith('attempt_id')][0]
-                        attempt_id=attempt_tag.split(":")[1]
+                        attempt_tag = [t for t in data['tags'] if t.startswith('attempt_id')][0]
+                        attempt_id = attempt_tag.split(":")[1]
                     except Exception:
                         self.logger.exception("Failed to load attempt_id from attempt_ok metadata")
                         pass
