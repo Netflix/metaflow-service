@@ -39,7 +39,7 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 operator_match = re.compile('([^:]*):([=><]+)$')
 
 # use a ddmmyyy timestamp as the version for triggers
-TRIGGER_VERSION = "18012024"
+TRIGGER_VERSION = "23082024"
 TRIGGER_NAME_PREFIX = "notify_ui"
 
 

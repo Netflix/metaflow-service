@@ -16,7 +16,9 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     trigger_operations = ["INSERT"]
     trigger_conditions = [
         "NEW.field_name = 'attempt'",
-        "NEW.field_name = 'attempt_ok'"
+        "NEW.field_name = 'attempt_ok'",
+        "NEW.field_name = 'code-package'",
+        "NEW.field_name = 'code-package-url'",
     ]
 
     @property
