@@ -206,7 +206,7 @@ task = Task("{task.pathspec}", attempt={task.current_attempt})
     return blurb
 
 
-def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = False):
+def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = False) -> List[str]:
     # TODO: This could theoretically be a part of the Metaflow client instead.
     paths = []
     stream = 'stderr' if logtype == STDERR else 'stdout'
@@ -243,7 +243,7 @@ def fetch_logs(task: Task, to_path: str, logtype: str, force_reload: bool = Fals
         ds_type = meta_dict.get("ds-type")
         ds_root = meta_dict.get("ds-root")
         if ds_type is None or ds_root is None:
-            return
+            return []
 
         attempt = task.current_attempt
 
