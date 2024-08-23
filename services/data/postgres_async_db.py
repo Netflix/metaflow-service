@@ -759,8 +759,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name"]
     trigger_keys = ["flow_id", "run_number",
-                    "step_name", "task_id", "field_name", "value", "tags"]
-    trigger_operations = ["INSERT"]
+                    "step_name", "task_id", "field_name", "value"]
     select_columns = keys
 
     async def add_metadata(
@@ -828,7 +827,6 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "attempt_id", "name"]
     trigger_keys = primary_keys
-    trigger_operations = ["INSERT"]
     select_columns = keys
 
     async def add_artifact(
