@@ -39,7 +39,7 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 operator_match = re.compile('([^:]*):([=><]+)$')
 
 # use a ddmmyyy timestamp as the version for triggers
-TRIGGER_VERSION = "18012024"
+TRIGGER_VERSION = "23082024"
 TRIGGER_NAME_PREFIX = "notify_ui"
 
 
@@ -759,7 +759,8 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "field_name"]
     trigger_keys = ["flow_id", "run_number",
-                    "step_name", "task_id", "field_name", "value"]
+                    "step_name", "task_id", "field_name", "value", "tags"]
+    trigger_operations = ["INSERT"]
     select_columns = keys
 
     async def add_metadata(
@@ -827,6 +828,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
     primary_keys = ["flow_id", "run_number",
                     "step_name", "task_id", "attempt_id", "name"]
     trigger_keys = primary_keys
+    trigger_operations = ["INSERT"]
     select_columns = keys
 
     async def add_artifact(
