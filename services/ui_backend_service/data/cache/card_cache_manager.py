@@ -1,5 +1,4 @@
 import time
-from subprocess import Popen
 import os
 import sys
 from services.utils import logging
@@ -135,10 +134,6 @@ class AsyncCardCacheProcessManager:
                 CARD_CACHE_PROCESS_MAX_UPTIME,
                 "--list-frequency",
                 CARD_LIST_POLLING_FREQUENCY,
-                "--data-update-frequency",
-                DATA_UPDATE_POLLING_FREQUENCY,
-                "--html-update-frequency",
-                CARD_UPDATE_POLLING_FREQUENCY,
                 "--cache-path",
                 self.current_write_directory,
                 "--max-no-card-wait-time",
@@ -275,45 +270,6 @@ async def verify_process_has_crashed(cache_manager: CardCacheManager, pathspec):
         return True
     return False
 
-
-def _get_html_or_refresh(local_cache: CardCache):
-    if local_cache.read_ready():
-        _html = local_cache.read_html()
-        if _html is not None:
-            return {
-                local_cache.card_hash: {
-                    "html": _html,
-                }
-            }
-    else:
-        local_cache.refresh()
-    return None
-
-
-async def wait_until_card_is_ready(
-    cache_manager: CardCacheManager,
-    local_cache: CardCache,
-    max_wait_time=3,
-    frequency=0.1,
-):
-    html = None
-    start_time = time.time()
-    await cache_manager.register(local_cache.pathspec, lock_timeout=min(0.5, max_wait_time - 1))
-    # At this point in the function the process should aleady be running
-    while time.time() - start_time < max_wait_time:
-        html = _get_html_or_refresh(local_cache)
-        if html is not None:
-            break
-        process_failed = await verify_process_has_crashed(
-            cache_manager, local_cache.pathspec
-        )
-        if process_failed:
-            cache_manager.logger.error(
-                f"Card {local_cache.card_hash} has crashed for {local_cache.pathspec}"
-            )
-            break
-        await asyncio.sleep(frequency)
-    return html  # We ONLY return None if the card is not found after max_wait_time; This is because cards may not be ready
 
 
 async def list_cards(cache_manager: CardCacheManager, pathspec, max_wait_time=3):

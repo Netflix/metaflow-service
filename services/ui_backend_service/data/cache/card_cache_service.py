@@ -172,19 +172,6 @@ def _eligible_for_refresh(update_timings, update_frequency):
     return False
 
 
-def _update_card_cache(cache: CardCache, update_type: str, card: Card):
-    if update_type == "data":
-        data = card.get_data()
-        cache._write_data(data)
-    elif update_type == "html":
-        card._html = None
-        html = card.get()
-        cache._write_html(html)
-    else:
-        raise Exception(f"Invalid update type {update_type}")
-    # def update_cache(self, card_hash, update_type):
-
-
 class PeriodicLogger:
     def __init__(self, logger, n_seconds=5, log_level=logging.INFO):
         self.logger = logger
@@ -204,18 +191,12 @@ class TaskCardCacheService:
 
     LIST_FREQUENCY_SECONDS = 5
 
-    DATA_UPDATE_FREQUENCY = 0.2
-
-    HTML_UPDATE_FREQUENCY = 2
-
     def __init__(
         self,
         task_pathspec,
         cache_path="./",
         uptime_seconds=600,
         list_frequency_seconds=5,
-        data_update_frequency=0.2,
-        html_update_frequency=2,
         max_no_card_wait_time=10
     ) -> None:
         self._task_pathspec = task_pathspec
@@ -233,8 +214,6 @@ class TaskCardCacheService:
             raise MetaflowNotFound(f"Task with pathspec {task_pathspec} not found")
 
         self.LIST_FREQUENCY_SECONDS = list_frequency_seconds
-        self.DATA_UPDATE_FREQUENCY = data_update_frequency
-        self.HTML_UPDATE_FREQUENCY = html_update_frequency
         self._max_no_card_wait_time = max_no_card_wait_time
 
     @property
@@ -269,15 +248,6 @@ class TaskCardCacheService:
             status = True
 
         return status, resolved_cards.unresolvable
-
-    def update_card_cache(self, card_hash, update_type):
-        if card_hash not in self._cache:
-            raise Exception(
-                f"Card with hash {card_hash} not found for task {self._task_pathspec}"
-            )
-        cache = self._cache[card_hash]
-        card = self._cards[card_hash]
-        _update_card_cache(cache, update_type, card)
 
     def write_available_cards(self):
         _cardinfo = {}
@@ -317,18 +287,7 @@ class TaskCardCacheService:
         self.logger.info("Starting cache refresh loop for %s" % self._task_pathspec)
         cards_are_unresolvable = False
         _sleep_time = 0.25
-
-        def _update_timings(card_hash, update_type):
-            if card_hash not in timings["card_info"]:
-                timings["card_info"][card_hash] = {
-                    "html": None,
-                    "data": None,
-                }
-            timings["card_info"][card_hash][update_type] = time.time()
-
-        def _get_timings(card_hash):
-            return timings["card_info"].get(card_hash, {"html": None, "data": None})
-
+        
         while True:
             if time.time() - start_time > self._uptime_seconds:  # exit condition
                 break
@@ -350,15 +309,6 @@ class TaskCardCacheService:
                 self.logger.error(f"Cache is empty for {self._task_pathspec} and no cards were unresolvable")
                 break
 
-            for card_hash in self._cache:
-                if _eligible_for_refresh(_get_timings(card_hash).get("html", None), self.HTML_UPDATE_FREQUENCY):
-                    self.update_card_cache(card_hash, "html")
-                    _update_timings(card_hash, "html")
-
-                if _eligible_for_refresh(_get_timings(card_hash).get("data", None), self.DATA_UPDATE_FREQUENCY):
-                    self.update_card_cache(card_hash, "data")
-                    _update_timings(card_hash, "data")
-
             time.sleep(_sleep_time)
 
 
@@ -372,16 +322,12 @@ def cli():
 @click.option("--cache-path", default="./", help="Path to the cache")
 @click.option("--uptime-seconds", default=600, help="Timeout for the cache service")
 @click.option("--list-frequency", default=5, help="Frequency for the listing cards to populate the cache")
-@click.option("--data-update-frequency", default=0.2, help="Frequency for the data update")
-@click.option("--html-update-frequency", default=2, help="Frequency for the html update")
 @click.option("--max-no-card-wait-time", default=10, help="Maximum time to wait a card to be present")
 def task_updates(
     pathspec,
     cache_path,
     uptime_seconds,
     list_frequency,
-    data_update_frequency,
-    html_update_frequency,
     max_no_card_wait_time,
 ):
     cache_service = TaskCardCacheService(
@@ -389,8 +335,6 @@ def task_updates(
         cache_path=cache_path,
         uptime_seconds=uptime_seconds,
         list_frequency_seconds=list_frequency,
-        data_update_frequency=data_update_frequency,
-        html_update_frequency=html_update_frequency,
         max_no_card_wait_time=max_no_card_wait_time,
     )
     cache_service.refresh_loop()
