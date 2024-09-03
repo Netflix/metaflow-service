@@ -1,8 +1,9 @@
 import pytest
 import datetime
-
+import os
+from tempfile import TemporaryDirectory
 from services.ui_backend_service.data.cache.get_log_file_action import paginated_result, log_cache_id, lookup_id, \
-    _datetime_to_epoch, FullLogProvider, STDOUT, TailLogProvider, BlurbOnlyLogProvider
+    _datetime_to_epoch, FullLogProvider, STDOUT, TailLogProvider, BlurbOnlyLogProvider, stream_sorted_logs
 
 from unittest.mock import MagicMock, patch
 
@@ -285,3 +286,54 @@ def _list_iter(list):
     def _gen():
         yield from list
     return _gen
+
+# template for mflog format lines
+def _logline_bytes(ts: datetime.datetime, source, msg):
+    MFLOG_LINE_TEMPLATE = "[MFLOG|0|{ts}|{source}|123-abc]{msg}"
+    ISOFORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+    ts = ts.strftime(ISOFORMAT)
+    return MFLOG_LINE_TEMPLATE.format(ts=ts, source=source, msg=msg).encode("utf-8")
+
+
+def test_stream_sorted_logs_consecutively():
+    start_a_ts = datetime.datetime(2021, 10, 27, 0, 0, tzinfo=datetime.timezone.utc)
+    raw_stream_a = [(start_a_ts + datetime.timedelta(seconds=i), f"A line {i}") for i in range(0,10)]
+    
+    start_b_ts = datetime.datetime(2021, 10, 27, 0, 10, tzinfo=datetime.timezone.utc)
+    raw_stream_b = [(start_b_ts + datetime.timedelta(seconds=i), f"B line {i}") for i in range(0,10)]
+    with TemporaryDirectory() as d:
+        a_path = os.path.join(d, "log_a")
+        b_path = os.path.join(d, "log_b")
+        with open(a_path, "wb+") as f:
+            f.write(b"\n".join(_logline_bytes(ts, "A", line) for ts, line in raw_stream_a))
+        with open(b_path, "wb+") as f:
+            f.write(b"\n".join(_logline_bytes(ts, "B", line) for ts, line in raw_stream_b))
+        
+        results = stream_sorted_logs([a_path, b_path])
+
+        assert [line for _ts, line in results] == [line for _ts, line in (raw_stream_a + raw_stream_b)]
+
+
+def test_stream_sorted_logs_sandwiched():
+    start_b_start_ts = datetime.datetime(2021, 10, 27, 0, 0, tzinfo=datetime.timezone.utc)
+    raw_stream_b_start = [(start_b_start_ts + datetime.timedelta(seconds=i), f"B line {i}") for i in range(0,10)]
+    
+    start_a_ts = datetime.datetime(2021, 10, 27, 0, 0, 10, tzinfo=datetime.timezone.utc)
+    raw_stream_a = [(start_a_ts + datetime.timedelta(seconds=i), f"A line {i}") for i in range(0,10)]
+    
+    start_b_end_ts = datetime.datetime(2021, 10, 27, 0, 0, 20, tzinfo=datetime.timezone.utc)
+    raw_stream_b_end = [(start_b_end_ts + datetime.timedelta(seconds=i), f"B line {i}") for i in range(11,20)]
+
+    raw_stream_b = (raw_stream_b_start + raw_stream_b_end)
+    with TemporaryDirectory() as d:
+        a_path = os.path.join(d, "log_a")
+        b_path = os.path.join(d, "log_b")
+        with open(a_path, "wb+") as f:
+            f.write(b"\n".join(_logline_bytes(ts, "A", line) for ts, line in raw_stream_a))
+        with open(b_path, "wb+") as f:
+            f.write(b"\n".join(_logline_bytes(ts, "B", line) for ts, line in raw_stream_b))
+        
+        results = stream_sorted_logs([a_path, b_path])
+
+        assert [line for _ts, line in results] == [line for _ts, line in (raw_stream_b_start + raw_stream_a + raw_stream_b_end)]

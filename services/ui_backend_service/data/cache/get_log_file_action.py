@@ -304,9 +304,9 @@ def stream_sorted_logs(paths):
     iterators = {path: _file_line_iter(path) for path in paths}
     line_buffer = {path: None for path in paths}
 
-    def _keysort(item):
+    def _keysort(item: Tuple[str, MFLogline]):
         # yield the oldest line and only that line.
-        return item[1]
+        return item[1].utc_tstamp
 
     while True:
         if not iterators:
