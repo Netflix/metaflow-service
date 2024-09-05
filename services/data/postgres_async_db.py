@@ -39,7 +39,7 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 operator_match = re.compile('([^:]*):([=><]+)$')
 
 # use a ddmmyyy timestamp as the version for triggers
-TRIGGER_VERSION = "23082024"
+TRIGGER_VERSION = "05092024"
 TRIGGER_NAME_PREFIX = "notify_ui"
 
 
@@ -442,30 +442,31 @@ class PostgresUtils(object):
                 cur.close()
 
     @staticmethod
-    async def cleanup_triggers(db: _AsyncPostgresDB, table_name):
+    async def cleanup_triggers(db: _AsyncPostgresDB, table_name, schema=DB_SCHEMA_NAME):
         "Cleans up old versions of table triggers"
         with (await db.pool.cursor()) as cur:
             try:
                 await cur.execute(
                     """
-                    SELECT DISTINCT trigger_name, trigger_schema
+                    SELECT DISTINCT trigger_name
                     FROM information_schema.triggers
                     WHERE event_object_table = %s
+                    AND trigger_schema = %s
                     """,
-                    [table_name]
+                    [table_name, schema]
                 )
                 results = await cur.fetchall()
 
                 triggers_to_cleanup = [
-                    (res[0], res[1]) for res in results
+                    res[0] for res in results
                     if res[0].startswith(TRIGGER_NAME_PREFIX) and TRIGGER_VERSION not in res[0]
                 ]
                 if triggers_to_cleanup:
                     logging.getLogger("TriggerSetup").info("Cleaning up old triggers: %s" % triggers_to_cleanup)
                     commands = []
-                    for trigger_name, schema in triggers_to_cleanup:
+                    for trigger_name in triggers_to_cleanup:
                         commands += [
-                            (f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name}"),
+                            (f"DROP TRIGGER IF EXISTS {trigger_name} ON {schema}.{table_name}"),
                             (f"DROP FUNCTION IF EXISTS {schema}.{trigger_name}")
                         ]
 
