@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import os
 import traceback
@@ -12,7 +13,6 @@ import logging
 import psycopg2
 from packaging.version import Version, parse
 from importlib import metadata
-
 
 USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0") in ["True", "true", "1"]
 
@@ -149,8 +149,12 @@ def format_baseurl(request: web.BaseRequest):
 def has_heartbeat_capable_version_tag(system_tags):
     """Check client version tag whether it is known to support heartbeats or not"""
     try:
-        version_tags = [tag for tag in system_tags if tag.startswith('metaflow_version:')]
-        version = parse(version_tags[0][17:])
+        # only parse for the major.minor.patch version and disregard any trailing bits that might cause issues with comparison.
+        version_tag = [tag for tag in system_tags if tag.startswith('metaflow_version:')][0]
+        # match versions: major | major.minor | major.minor.patch
+        ver_string = re.match(r"(0|\d+)(\.(0|\d+))*", version_tag[len("metaflow_version:"):])[0]
+        print(ver_string)
+        version = parse(ver_string)
 
         if version >= Version("1") and version < Version("2"):
             return version >= Version("1.14.0")
