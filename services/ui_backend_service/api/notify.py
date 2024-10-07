@@ -95,6 +95,10 @@ class ListenNotify(object):
                 # Heartbeat watcher for Tasks.
                 if table.table_name == self.db.task_table_postgres.table_name:
                     self.event_emitter.emit('task-heartbeat', 'update', data)
+                    # also keepalive for run heartbeats.
+                    self.event_emitter.emit('run-heartbeat', 'update', data)
+                    # also broadcast as a run heartbeat update, as otherwise these receive no updates
+                    await _broadcast(self.event_emitter, "UPDATE", self.db.run_table_postgres.table_name, data)
 
                 # Notify when Run parameters are ready.
                 if operation == "INSERT" and \
