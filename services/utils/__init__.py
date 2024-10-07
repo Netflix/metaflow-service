@@ -150,10 +150,11 @@ def has_heartbeat_capable_version_tag(system_tags):
     """Check client version tag whether it is known to support heartbeats or not"""
     try:
         # only parse for the major.minor.patch version and disregard any trailing bits that might cause issues with comparison.
-        version_tag = [tag for tag in system_tags if tag.startswith('metaflow_version:')][0]
+        version_tags = [tag for tag in system_tags if tag.startswith('metaflow_version:')]
+        if not version_tags:
+            return False
         # match versions: major | major.minor | major.minor.patch
-        ver_string = re.match(r"(0|\d+)(\.(0|\d+))*", version_tag[len("metaflow_version:"):])[0]
-        print(ver_string)
+        ver_string = re.match(r"(0|\d+)(\.(0|\d+))*", version_tags[0].lstrip("metaflow_version:"))[0]
         version = parse(ver_string)
 
         if version >= Version("1") and version < Version("2"):
@@ -161,7 +162,8 @@ def has_heartbeat_capable_version_tag(system_tags):
 
         return version >= Version("2.2.12")
     except Exception:
-        return False
+        # Treat non-standard versions as heartbeat-enabled by default
+        return True
 
 # Database configuration helper
 # Prioritizes DSN string over individual connection arguments (host,user,...)

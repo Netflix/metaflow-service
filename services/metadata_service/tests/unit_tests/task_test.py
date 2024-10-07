@@ -25,6 +25,7 @@ expectations = [
     (["metaflow_version:2.12.24+inconsequential+trailing-string"], True),
     (["metaflow_version:2.12.24.break"], True),
     (["metaflow_version:3"], True),
+    (["metaflow_version:custom-1"], True),
 ]
 
 
