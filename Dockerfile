@@ -46,5 +46,9 @@ RUN /root/services/ui_backend_service/download_ui.sh
 ADD services/migration_service /root/services/migration_service
 RUN pip3 install -r /root/services/migration_service/requirements.txt
 
+# The program uses `print` to log messages, so disable buffering to output the messages as soon as
+# they are written.
+ENV PYTHONUNBUFFERED=1
+
 RUN chmod 777 /root/services/migration_service/run_script.py
 CMD python3  services/migration_service/run_script.py
