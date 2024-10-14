@@ -1,7 +1,7 @@
 FROM golang:1.20.2-buster as goose
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
-FROM python:3.11.6-slim-bookworm
+FROM python:3.12.6-slim-bookworm
 COPY --from=goose /go/bin/goose /usr/local/bin/
 
 ARG BUILD_TIMESTAMP
