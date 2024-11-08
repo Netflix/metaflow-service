@@ -1,7 +1,7 @@
 FROM golang:1.20.2 AS goose
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
-FROM python:3.12.6-bookworm
+FROM python:3.12.7-bookworm
 COPY --from=goose /go/bin/goose /usr/local/bin/
 
 RUN apt-get update -y \
