@@ -689,7 +689,28 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys
     select_columns = keys
     step_table_name = AsyncStepTablePostgres.table_name
+    metadata_table_name = METADATA_TABLE_NAME
 
+    joins = [
+        """
+        LEFT JOIN LATERAL (
+            SELECT field_name, value
+            FROM {metadata_table} as metadata
+            WHERE
+                {table_name}.flow_id = metadata.flow_id AND
+                {table_name}.run_number = metadata.run_number AND
+                {table_name}.step_name = metadata.step_name AND
+                {table_name}.task_id = metadata.task_id AND
+        ) as metadata
+        """.format(
+            metadata_table=metadata_table_name,
+            table_name=table_name
+        )
+    ]
+    join_columns = [
+        "metadata.field_name as metadata_field_name",
+        "metadata.value as metadata_value"
+    ]
     async def add_task(self, task: TaskRow, fill_heartbeat=False):
         # todo backfill run_number if missing?
         dict = {

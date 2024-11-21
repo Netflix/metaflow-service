@@ -3,7 +3,7 @@ import copy
 from .utils import (
     cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
-    add_flow, add_run, add_step, add_task, update_objects_with_run_tags
+    add_flow, add_run, add_step, add_task, add_metadata, update_objects_with_run_tags
 )
 import pytest
 
@@ -184,6 +184,38 @@ async def test_tasks_get(cli, db):
 
     # getting tasks for non-existent step should return empty list
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/nonexistent/tasks".format(**_first_task), status=200, data=[])
+
+async def test_filtered_tasks_get(cli, db):
+    # create a flow, run and step for the test
+    _flow = (await add_flow(db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="first_step")).body
+
+    # add tasks to the step
+    _first_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
+    _second_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
+    _third_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
+
+    # add metadata to filter on
+    (await add_metadata(db, flow_id=_first_task["flow_id"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_a": "value_a", "field_b": "value_b"}))
+    (await add_metadata(db, flow_id=_second_task["flow_id"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_a": "not_value_a", "field_b": "value_b"}))
+
+    # filtering with a shared key should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field=field_a".format(**_first_task),
+                                  data=[_second_task, _first_task], data_is_unordered_list_of_dicts=True)
+
+    # filtering with a shared value should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_value=value_b".format(**_first_task),
+                                  data=[_first_task], data_is_unordered_list_of_dicts=True)
+
+    # filtering with a shared key&value should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field=field_b&metadata_value=value_b".format(**_first_task),
+                                  data=[_first_task], data_is_unordered_list_of_dicts=True)
+    
+    # filtering with a shared value should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field=field_a&metadata_value=not_value_a".format(**_first_task),
+                                  data=[_second_task], data_is_unordered_list_of_dicts=True)
+
 
 
 async def test_task_get(cli, db):
