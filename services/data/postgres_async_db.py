@@ -700,17 +700,24 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 {table_name}.flow_id = metadata.flow_id AND
                 {table_name}.run_number = metadata.run_number AND
                 {table_name}.step_name = metadata.step_name AND
-                {table_name}.task_id = metadata.task_id AND
-        ) as metadata
+                {table_name}.task_id = metadata.task_id
+        ) as metadata on true
         """.format(
             metadata_table=metadata_table_name,
             table_name=table_name
         )
     ]
+
+    @property
+    def select_columns(self):
+        # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
+        return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys]
+
     join_columns = [
         "metadata.field_name as metadata_field_name",
         "metadata.value as metadata_value"
     ]
+
     async def add_task(self, task: TaskRow, fill_heartbeat=False):
         # todo backfill run_number if missing?
         dict = {

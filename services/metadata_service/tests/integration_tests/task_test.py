@@ -195,26 +195,35 @@ async def test_filtered_tasks_get(cli, db):
     _first_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
     _second_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
     _third_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
+    # expect tasks' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags('task', [_first_task, _second_task, _third_task], _run)
 
     # add metadata to filter on
-    (await add_metadata(db, flow_id=_first_task["flow_id"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_a": "value_a", "field_b": "value_b"}))
-    (await add_metadata(db, flow_id=_second_task["flow_id"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_a": "not_value_a", "field_b": "value_b"}))
+    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_name":"field_a", "value": "value_a"}))
+    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_name":"field_b", "value": "value_b"}))
+
+    (await add_metadata(db, flow_id=_second_task["flow_id"], run_number=_second_task["run_number"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_name": "field_a", "value": "not_value_a"}))
+    (await add_metadata(db, flow_id=_second_task["flow_id"], run_number=_second_task["run_number"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_name": "field_b", "value": "value_b"}))
 
     # filtering with a shared key should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field=field_a".format(**_first_task),
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field_name=field_a".format(**_first_task),
                                   data=[_second_task, _first_task], data_is_unordered_list_of_dicts=True)
 
     # filtering with a shared value should return all relevant tasks
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_value=value_b".format(**_first_task),
-                                  data=[_first_task], data_is_unordered_list_of_dicts=True)
+                                  data=[_first_task, _second_task], data_is_unordered_list_of_dicts=True)
 
     # filtering with a shared key&value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field=field_b&metadata_value=value_b".format(**_first_task),
-                                  data=[_first_task], data_is_unordered_list_of_dicts=True)
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field_name=field_b&metadata_value=value_b".format(**_first_task),
+                                  data=[_first_task, _second_task], data_is_unordered_list_of_dicts=True)
     
     # filtering with a shared value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field=field_a&metadata_value=not_value_a".format(**_first_task),
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field_name=field_a&metadata_value=not_value_a".format(**_first_task),
                                   data=[_second_task], data_is_unordered_list_of_dicts=True)
+    
+    # filtering with a mixed key&value should not return results
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?metadata_field_name=field_a&metadata_value=value_b".format(**_first_task),
+                                  data=[], data_is_unordered_list_of_dicts=True)
 
 
 

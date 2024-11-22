@@ -166,6 +166,8 @@ class TaskRow(object):
         tags=None,
         system_tags=None,
         last_heartbeat_ts=None,
+        metadata_field_name=None,  # Unused but required for serialization
+        metadata_value=None,  # Unused but required for serialization
     ):
         self.flow_id = flow_id
         self.run_number = run_number

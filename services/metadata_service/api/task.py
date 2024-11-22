@@ -1,6 +1,7 @@
 from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.tagging_utils import apply_run_tags_to_db_response
+from services.data.db_utils import translate_run_key
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
@@ -72,7 +73,26 @@ class TaskApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
 
-        db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
+        # possible filters
+        metadata_field = request.query.get("metadata_field_name", None)
+        metadata_value = request.query.get("metadata_value", None)
+
+        if metadata_field or metadata_value:
+            run_id_key, run_id_value = translate_run_key(run_number)
+            filter_dict = {
+                "flow_id": flow_id,
+                run_id_key: run_id_value,
+                "step_name": step_name,
+                "metadata_field_name": metadata_field,
+                "metadata_value": metadata_value
+            }
+            db_response, _ = await self._async_table.find_records(
+                conditions=[f"{k} = %s" for k, v in filter_dict.items() if v is not None],
+                values=[v for k, v in filter_dict.items() if v is not None],
+                enable_joins=True
+            )
+        else:
+            db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
         db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
