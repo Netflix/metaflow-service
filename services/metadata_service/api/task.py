@@ -22,6 +22,11 @@ class TaskApi(object):
         )
         app.router.add_route(
             "GET",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks",
+            self.get_filtered_tasks,
+        )
+        app.router.add_route(
+            "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}",
             self.get_task,
         )
@@ -73,27 +78,63 @@ class TaskApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
 
+        db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
+        db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
+        return db_response
+
+    @format_response
+    @handle_exceptions
+    async def get_filtered_tasks(self, request):
+        """
+        ---
+        description: get all task ids that match the provided metadata field name and/or value.
+        tags:
+        - Tasks
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "step_name"
+          in: "path"
+          description: "step_name"
+          required: true
+          type: "string"
+        - name: "metadata_field_name"
+          in: "query"
+          description: "Metadata field name to filter with"
+          type: "string"
+        - name: "metadata_value"
+          in: "query"
+          description: "Value for the metadata field to filter on"
+          type: "string"
+        produces:
+        - text/plain
+        responses:
+            "200":
+                description: successful operation. Return tasks
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_id = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        step_name = request.match_info.get("step_name")
+
         # possible filters
         metadata_field = request.query.get("metadata_field_name", None)
         metadata_value = request.query.get("metadata_value", None)
 
-        if metadata_field or metadata_value:
-            run_id_key, run_id_value = translate_run_key(run_number)
-            filter_dict = {
-                "flow_id": flow_id,
-                run_id_key: run_id_value,
-                "step_name": step_name,
-                "metadata_field_name": metadata_field,
-                "metadata_value": metadata_value
-            }
-            db_response, _ = await self._async_table.find_records(
-                conditions=[f"{k} = %s" for k, v in filter_dict.items() if v is not None],
-                values=[v for k, v in filter_dict.items() if v is not None],
-                enable_joins=True
-            )
-        else:
-            db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
-        db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
+        # We cannot do anything without filter values
+        if metadata_field is None and metadata_value is None:
+            raise web.HTTPBadRequest(reason="A metadata_field_name or metadata_value are required for filtering.")
+
+        db_response, _ = await self._async_table.get_filtered_task_ids(flow_id, run_number, step_name, metadata_field, metadata_value)
         return db_response
 
     @format_response

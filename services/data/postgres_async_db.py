@@ -217,9 +217,9 @@ class AsyncPostgresTable(object):
 
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
-                           enable_joins=False, cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
+                           enable_joins=False, cur: aiopg.Cursor = None, select_columns: List[str] = None) -> Tuple[DBResponse, DBPagination]:
         sql_template = """
-        SELECT * FROM (
+        SELECT {select_columns} FROM (
             SELECT
                 {keys}
             FROM {table_name}
@@ -239,11 +239,14 @@ class AsyncPostgresTable(object):
             where="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
             order_by="ORDER BY {}".format(", ".join(order)) if order else "",
             limit="LIMIT {}".format(limit) if limit else "",
-            offset="OFFSET {}".format(offset) if offset else ""
+            offset="OFFSET {}".format(offset) if offset else "",
+            select_columns="*" if select_columns is None else ",".join(select_columns)
         ).strip()
 
+        # We should serialize the response if no custom select columns were provided, otherwise we return the raw result.
+        should_serialize = select_columns is None
         return await self.execute_sql(select_sql=select_sql, values=values, fetch_single=fetch_single,
-                                      expanded=expanded, limit=limit, offset=offset, cur=cur)
+                                      expanded=expanded, limit=limit, offset=offset, cur=cur, serialize=should_serialize)
 
     async def execute_sql(self, select_sql: str, values=[], fetch_single=False,
                           expanded=False, limit: int = 0, offset: int = 0,
@@ -736,6 +739,27 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "step_name": step_name,
         }
         return await self.get_records(filter_dict=filter_dict)
+
+    async def get_filtered_task_ids(self, flow_id: str, run_id: str, step_name: str, metadata_field: str, metadata_value: str):
+        if metadata_field or metadata_value:
+            run_id_key, run_id_value = translate_run_key(run_id)
+            filter_dict = {
+                "flow_id": flow_id,
+                run_id_key: run_id_value,
+                "step_name": step_name,
+                "metadata_field_name": metadata_field,
+                "metadata_value": metadata_value
+            }
+            db_response, pagination = await self.find_records(
+                conditions=[f"{k} = %s" for k, v in filter_dict.items() if v is not None],
+                values=[v for k, v in filter_dict.items() if v is not None],
+                order=["task_id"],
+                enable_joins=True,
+                select_columns=["task_id"]
+            )
+            # flatten the ids in the response
+            flattened_response = DBResponse(body=[id for row in db_response.body for id in row], response_code=db_response.response_code)
+            return flattened_response, pagination
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,
                        task_id: str, expanded: bool = False):
