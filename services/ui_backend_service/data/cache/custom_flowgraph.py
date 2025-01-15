@@ -5,6 +5,7 @@ import re
 # which can parse a graph out of a flow_name and a source code string, instead of relying on
 # importing the source code as a module.
 
+
 def deindent_docstring(doc):
     if doc:
         # Find the indent to remove from the docstring. We consider the following possibilities:
@@ -42,6 +43,7 @@ def deindent_docstring(doc):
     else:
         return ""
 
+
 class StepVisitor(ast.NodeVisitor):
 
     def __init__(self, nodes):
@@ -54,6 +56,7 @@ class StepVisitor(ast.NodeVisitor):
         if 'step' in decos:
             doc = ast.get_docstring(node)
             self.nodes[node.name] = DAGNode(node, decos, doc if doc else '')
+
 
 class DAGNode(object):
     def __init__(self, func_ast, decos, doc):
@@ -140,6 +143,7 @@ class DAGNode(object):
                     self.invalid_tail_next = False
         except AttributeError:
             return
+
 
 class FlowGraph(object):
     # NOTE: This implementation relies on passing in the name of the FlowSpec class
