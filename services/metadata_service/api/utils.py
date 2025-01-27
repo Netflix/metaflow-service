@@ -59,6 +59,8 @@ def handle_exceptions(func):
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
+        except web.HTTPClientError as ex:
+            return ServiceResponse(ex.status_code, ex.reason)
         except Exception as err:
             return http_500(str(err))
 
