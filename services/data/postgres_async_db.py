@@ -755,10 +755,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 values=[v for k, v in filter_dict.items() if v is not None],
                 order=["task_id"],
                 enable_joins=True,
-                select_columns=["task_id"]
+                select_columns=["task_name, task_id"]
             )
             # flatten the ids in the response
-            flattened_response = DBResponse(body=[id for row in db_response.body for id in row], response_code=db_response.response_code)
+            def _format_id(row):
+                # pick the task_name over task_id
+                return row[0] or row[1]
+            flattened_response = DBResponse(body=[_format_id(row) for row in db_response.body], response_code=db_response.response_code)
             return flattened_response, pagination
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,

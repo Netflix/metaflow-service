@@ -227,6 +227,50 @@ async def test_filtered_tasks_get(cli, db):
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks".format(**_first_task), status=400)
 
 
+async def test_filtered_tasks_mixed_ids_get(cli, db):
+    # create a flow, run and step for the test
+    _flow = (await add_flow(db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="first_step")).body
+
+    # add tasks to the step
+    first_task_name = "first-task-1"
+    _first_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"], task_name=first_task_name)).body
+    # we need to refetch the task as the return does not contain the internal task ID we need for further record creation.
+    _first_task = (await db.task_table_postgres.get_task(flow_id=_step["flow_id"], run_id=_step["run_number"], step_name=_step["step_name"], task_id=first_task_name, expanded=True)).body
+    _second_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
+
+    # add metadata to filter on
+    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_name":"field_a", "value": "value_a"}))
+    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_name":"field_b", "value": "value_b"}))
+
+    (await add_metadata(db, flow_id=_second_task["flow_id"], run_number=_second_task["run_number"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_name": "field_a", "value": "not_value_a"}))
+    (await add_metadata(db, flow_id=_second_task["flow_id"], run_number=_second_task["run_number"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_name": "field_b", "value": "value_b"}))
+
+    # filtering with a shared key should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a".format(**_first_task),
+                                  data=[first_task_name, _second_task["task_id"]])
+
+    # filtering with a shared value should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_value=value_b".format(**_first_task),
+                                  data=[first_task_name, _second_task["task_id"]])
+
+    # filtering with a shared key&value should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_b&metadata_value=value_b".format(**_first_task),
+                                  data=[first_task_name, _second_task["task_id"]])
+    
+    # filtering with a shared value should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&metadata_value=not_value_a".format(**_first_task),
+                                  data=[_second_task["task_id"]])
+    
+    # filtering with a mixed key&value should not return results
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&metadata_value=value_b".format(**_first_task),
+                                  data=[])
+    
+    # not providing filters should result in error
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks".format(**_first_task), status=400)
+
+
 
 async def test_task_get(cli, db):
     # create flow, run and step for test
