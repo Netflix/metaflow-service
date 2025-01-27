@@ -757,6 +757,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 enable_joins=True,
                 select_columns=["task_name, task_id"]
             )
+
             # flatten the ids in the response
             def _format_id(row):
                 # pick the task_name over task_id
