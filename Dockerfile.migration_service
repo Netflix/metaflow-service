@@ -13,4 +13,9 @@ ADD services/migration_service /root/services/migration_service
 ADD setup.py setup.cfg run_goose.py /root/
 WORKDIR /root
 RUN pip install --editable .
+
+# The program uses `print` to log messages, so disable buffering to output the messages as soon as
+# they are written.
+ENV PYTHONUNBUFFERED=1
+
 CMD migration_service
