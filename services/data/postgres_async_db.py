@@ -135,15 +135,20 @@ class _AsyncPostgresDB(object):
     async def get_run_ids(self, flow_id: str, run_id: str):
         run = await self.run_table_postgres.get_run(flow_id, run_id,
                                                     expanded=True)
-        return run.body['run_number'], run.body['run_id']
+        if run.response_code != 200:
+            return run
+        body = {'run_number': run.body['run_number'], 'run_id': run.body['run_id']}
+        return DBResponse(response_code=run.response_code, body=body)
 
     async def get_task_ids(self, flow_id: str, run_id: str,
                            step_name: str, task_name: str):
-
         task = await self.task_table_postgres.get_task(flow_id, run_id,
                                                        step_name, task_name,
                                                        expanded=True)
-        return task.body['task_id'], task.body['task_name']
+        if task.response_code != 200:
+            return task
+        body = {'task_id': task.body['task_id'], 'task_name': task.body['task_name']}
+        return DBResponse(response_code=task.response_code, body=body)
 
 
 class AsyncPostgresDB(object):
