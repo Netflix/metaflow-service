@@ -1,0 +1,8 @@
+{
+    "METAFLOW_SERVICE_URL": "http://localhost:8080",
+    "METAFLOW_DEFAULT_METADATA": "service",
+    "METAFLOW_DEFAULT_DATASTORE": "s3",
+    "METAFLOW_DATASTORE_SYSROOT_S3": "s3://your-bucket",
+    "METAFLOW_DATATOOLS_S3ROOT": "s3://your-bucket",
+    "METAFLOW_KUBERNETES_NAMESPACE": "argo"
+}
