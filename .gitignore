@@ -31,3 +31,6 @@ __pycache__/
 
 # jetbrains
 .idea
+
+# development tools
+.devtools
