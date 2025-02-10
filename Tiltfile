@@ -1,4 +1,9 @@
 
+# This is a default but still explicitly stating it for clarity.
+# ref: https://docs.tilt.dev/api.html
+# 'Tilt will only push to clusters that have been allowed for local development.'
+allow_k8s_contexts('minikube')
+
 # version_settings() enforces a minimum Tilt version
 # https://docs.tilt.dev/api.html#api.version_settings
 version_settings(constraint='>=0.22.2')
@@ -8,9 +13,9 @@ version_settings(constraint='>=0.22.2')
 # https://docs.tilt.dev/api.html#api.docker_build
 # https://docs.tilt.dev/live_update_reference.html
 docker_build(
-    'metadata_service:latest',
+    'public.ecr.aws/outerbounds/metaflow_metadata_service',
     context='.',
-    dockerfile='./Dockerfile.metadata_service',
+    dockerfile='./Dockerfile',
     # only=['./services/'],
     live_update=[
         sync('./services/', '/root/services/'),
@@ -21,11 +26,12 @@ docker_build(
     ]
 )
 
-docker_compose("docker-compose.yml")
-# k8s_yaml automatically creates resources in Tilt for the entities
-# and will inject any images referenced in the Tiltfile when deploying
+# use the helm extension for charts
+load('ext://helm_resource', 'helm_resource', 'helm_repo')
+
+# Apply the Metaflow helm charts with the locally built image to our local cluster
 # https://docs.tilt.dev/api.html#api.k8s_yaml
-# k8s_yaml('deploy/api.yaml')
+k8s_yaml(helm('.devtools/metaflow-tools/charts/metaflow'))
 
 # k8s_resource allows customization where necessary such as adding port forwards and labels
 # https://docs.tilt.dev/api.html#api.k8s_resource

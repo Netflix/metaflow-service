@@ -6,7 +6,7 @@ $(charts) :
 	@echo "Fetching metaflow-tools charts"
 	git clone git@github.com:outerbounds/metaflow-tools.git -b publish-helm-chart .devtools/metaflow-tools
 
-$(kubernetes):
+$(kubernetes) :
 	@echo "MINIKUBE INSTALL"
 	@mkdir -p .devtools/minikube
 	curl -L https://github.com/kubernetes/minikube/releases/latest/download/minikube-darwin-amd64 -o $(kubernetes)
@@ -25,8 +25,10 @@ charts : $(charts)
 kubernetes : $(kubernetes)
 
 # convenience
-kubernetes-dev : kubernetes
+
+kubernetes-dev : kubernetes charts
 	$(kubernetes) start --cpus 2 --memory 2048
+	tilt up
 
 clean :
 	$(kubernetes) stop
