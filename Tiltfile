@@ -8,6 +8,43 @@ allow_k8s_contexts('minikube')
 # https://docs.tilt.dev/api.html#api.version_settings
 version_settings(constraint='>=0.22.2')
 
+# use the helm extension for charts
+load('ext://helm_resource', 'helm_resource', 'helm_repo')
+load('ext://helm_remote', 'helm_remote')
+
+# MinIO chart
+# helm_remote(
+#     "minio",
+#     repo_name='minio',
+#)     repo_url="https://helm.min.io/",
+#     set=[
+#         "resources.requests.memory=512Mi",
+#         "persistence.enabled=false",
+#         "replicas=1",
+#         "mode=standalone",
+#         "rootUser=rootuser,rootPassword=rootpass123",
+#         "buckets[0].name=metaflow-test,buckets[0].policy=none,buckets[0].purge=false"
+#     ]
+# 
+
+# Argo workflows chart
+# TODO: create and specify namespace
+helm_remote(
+    "argo-workflows",
+    repo_name="argo-workflows",
+    repo_url="https://argoproj.github.io/argo-helm",
+    # namespace="argo"
+)
+
+# Argo events
+helm_remote(
+    "argo-events",
+    repo_name="argo-events",
+    repo_url="https://argoproj.github.io/argo-helm",
+    # namespace="argo"
+)
+
+
 # live_update syncs changed source code files to the correct place for the Flask dev server
 # and runs pip (python package manager) to update dependencies when changed
 # https://docs.tilt.dev/api.html#api.docker_build
@@ -26,8 +63,7 @@ docker_build(
     ]
 )
 
-# use the helm extension for charts
-load('ext://helm_resource', 'helm_resource', 'helm_repo')
+
 
 # Apply the Metaflow helm charts with the locally built image to our local cluster
 # https://docs.tilt.dev/api.html#api.k8s_yaml
