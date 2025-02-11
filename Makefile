@@ -24,6 +24,8 @@ $(kubernetes) :
 	@mkdir -p .devtools/minikube
 	curl -L https://github.com/kubernetes/minikube/releases/latest/download/minikube-$(os)-$(arch) -o $(kubernetes)
 	chmod +x $(kubernetes)
+	@echo "Enabling ingress for minikube..."
+	$(kubernetes) addons enable ingress
 
 minio : charts kubernetes
 	echo "MINIO INSTALL"
