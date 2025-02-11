@@ -69,13 +69,11 @@ docker_build(
 # https://docs.tilt.dev/api.html#api.k8s_yaml
 k8s_yaml(helm('.devtools/metaflow-tools/charts/metaflow'))
 
-# k8s_resource allows customization where necessary such as adding port forwards and labels
-# https://docs.tilt.dev/api.html#api.k8s_resource
-# k8s_resource(
-#     'api',
-#     port_forwards='5734:5000',
-#     labels=['backend']
-# )
+# Port forward direct to the metadata service
+k8s_resource(
+    'chart-metaflow-service',
+    port_forwards='8080:8080',
+)
 
 
 # tilt-avatar-web is the frontend (ReactJS/vite app)

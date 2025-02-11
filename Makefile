@@ -33,7 +33,7 @@ minio : charts kubernetes
 argo : charts minio kubernetes
 	echo "ARGO INSTALL"
 
-.PHONY : clean kubernetes-dev charts kubernetes
+.PHONY : clean kubernetes-dev charts kubernetes tunnel
 
 # aliases
 charts : $(charts)
@@ -43,6 +43,9 @@ kubernetes : $(kubernetes)
 kubernetes-dev : kubernetes charts
 	$(kubernetes) start --cpus 2 --memory 2048
 	tilt up
+
+tunnel : kubernetes
+	$(kubernetes) tunnel
 
 clean :
 	$(kubernetes) stop
