@@ -30,14 +30,11 @@ helm_remote(
         "tenant.configSecret.accessKey=rootuser",
         "tenant.configSecret.secretKey=rootpass123",
         "tenant.buckets[0].name=metaflow-test,tenant.buckets[0].policy=none,tenant.buckets[0].purge=false",
-        "tenant.exposeServices.minio=true",
         "tenant.pools[0].servers=1,tenant.pools[0].name=pool-0,tenant.pools[0].volumesPerServer=1,tenant.pools[0].size=1Gi"
     ],
 )
-# k8s_resource(
-#     "myminio-hl",
-#     port_forwards=["9000:9000"],
-# )
+# workaround for port forwarding to MinIO API
+local_resource('minio-port-forward', serve_cmd='kubectl port-forward svc/myminio-hl 9000:9000')
 
 # Argo workflows chart
 # TODO: create and specify namespace
