@@ -13,19 +13,31 @@ load('ext://helm_resource', 'helm_resource', 'helm_repo')
 load('ext://helm_remote', 'helm_remote')
 
 # MinIO chart
-# helm_remote(
-#     "minio",
-#     repo_name='minio',
-#)     repo_url="https://helm.min.io/",
-#     set=[
-#         "resources.requests.memory=512Mi",
-#         "persistence.enabled=false",
-#         "replicas=1",
-#         "mode=standalone",
-#         "rootUser=rootuser,rootPassword=rootpass123",
-#         "buckets[0].name=metaflow-test,buckets[0].policy=none,buckets[0].purge=false"
-#     ]
-# 
+helm_remote(
+    "operator",
+    repo_name='minio-operator',
+    repo_url="https://operator.min.io",
+)
+
+# MinIO tenant
+helm_remote(
+    "tenant",
+    repo_name='minio-operator',
+    repo_url="https://operator.min.io",
+    set=[
+        "tenant.configuration.name=minio-secret",
+        "tenant.configSecret.name=minio-secret",
+        "tenant.configSecret.accessKey=rootuser",
+        "tenant.configSecret.secretKey=rootpass123",
+        "tenant.buckets[0].name=metaflow-test,tenant.buckets[0].policy=none,tenant.buckets[0].purge=false",
+        "tenant.exposeServices.minio=true",
+        "tenant.pools[0].servers=1,tenant.pools[0].name=pool-0,tenant.pools[0].volumesPerServer=1,tenant.pools[0].size=1Gi"
+    ],
+)
+# k8s_resource(
+#     "myminio-hl",
+#     port_forwards=["9000:9000"],
+# )
 
 # Argo workflows chart
 # TODO: create and specify namespace
@@ -42,6 +54,36 @@ helm_remote(
     repo_name="argo-events",
     repo_url="https://argoproj.github.io/argo-helm",
     # namespace="argo"
+)
+
+# Argo roles
+k8s_yaml(
+blob("""
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-workflowtaskresults-role
+  namespace: default
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflowtaskresults"]
+    verbs: ["create", "patch", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: default-argo-workflowtaskresults-binding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+roleRef:
+  kind: Role
+  name: argo-workflowtaskresults-role
+  apiGroup: rbac.authorization.k8s.io
+""")
 )
 
 
@@ -64,7 +106,6 @@ docker_build(
 )
 
 
-
 # Apply the Metaflow helm charts with the locally built image to our local cluster
 # https://docs.tilt.dev/api.html#api.k8s_yaml
 k8s_yaml(helm('.devtools/metaflow-tools/charts/metaflow'))
@@ -75,42 +116,6 @@ k8s_resource(
     port_forwards='8080:8080',
 )
 
-
-# tilt-avatar-web is the frontend (ReactJS/vite app)
-# live_update syncs changed source files to the correct place for vite to pick up
-# and runs yarn (JS dependency manager) to update dependencies when changed
-# if vite.config.js changes, a full rebuild is performed because it cannot be
-# changed dynamically at runtime
-# https://docs.tilt.dev/api.html#api.docker_build
-# https://docs.tilt.dev/live_update_reference.html
-# docker_build(
-#     'tilt-avatar-web',
-#     context='.',
-#     dockerfile='./deploy/web.dockerfile',
-#     only=['./web/'],
-#     ignore=['./web/dist/'],
-#     live_update=[
-#         fall_back_on('./web/vite.config.js'),
-#         sync('./web/', '/app/'),
-#         run(
-#             'yarn install',
-#             trigger=['./web/package.json', './web/yarn.lock']
-#         )
-#     ]
-# )
-
-# k8s_yaml automatically creates resources in Tilt for the entities
-# and will inject any images referenced in the Tiltfile when deploying
-# https://docs.tilt.dev/api.html#api.k8s_yaml
-# k8s_yaml('deploy/web.yaml')
-
-# k8s_resource allows customization where necessary such as adding port forwards and labels
-# https://docs.tilt.dev/api.html#api.k8s_resource
-# k8s_resource(
-#     'web',
-#     port_forwards='5735:5173', # 5173 is the port Vite listens on in the container
-#     labels=['frontend']
-# )
 
 # config.main_path is the absolute path to the Tiltfile being run
 # there are many Tilt-specific built-ins for manipulating paths, environment variables, parsing JSON/YAML, and more!
