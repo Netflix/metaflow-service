@@ -49,4 +49,5 @@ tunnel : kubernetes
 
 clean :
 	$(kubernetes) stop
+	$(kubernetes) delete --all --purge
 	rm -rf .tox .devtools
