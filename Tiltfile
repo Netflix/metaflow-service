@@ -29,6 +29,7 @@ helm_remote(
         "tenant.configSecret.name=minio-secret",
         "tenant.configSecret.accessKey=rootuser",
         "tenant.configSecret.secretKey=rootpass123",
+        "tenant.certificate.requestAutoCert=false",
         "tenant.buckets[0].name=metaflow-test,tenant.buckets[0].policy=none,tenant.buckets[0].purge=false",
         "tenant.pools[0].servers=1,tenant.pools[0].name=pool-0,tenant.pools[0].volumesPerServer=1,tenant.pools[0].size=1Gi"
     ],
