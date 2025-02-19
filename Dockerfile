@@ -8,9 +8,8 @@ ENV CGO_ENABLED=0
 
 WORKDIR /tmp/goose-src
 RUN go mod init goose-tmp
-
-# Fetch goose 3.9.0, then build a static binary at /go/bin/goose
 RUN go get github.com/pressly/goose/v3@v3.9.0
+RUN go mod tidy
 RUN go build -o /go/bin/goose github.com/pressly/goose/v3/cmd/goose
 
 
