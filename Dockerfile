@@ -1,5 +1,10 @@
-FROM golang:1.20.2-buster as goose
-RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
+FROM --platform=$BUILDPLATFORM golang:1.20.2-buster AS goose
+ARG TARGETOS
+ARG TARGETARCH
+
+ENV GOOS=$TARGETOS
+ENV GOARCH=$TARGETARCH
+ENV CGO_ENABLED=0
 
 FROM python:3.11.6-slim-bookworm
 COPY --from=goose /go/bin/goose /usr/local/bin/
