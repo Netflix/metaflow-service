@@ -7,10 +7,12 @@ ENV GOARCH=$TARGETARCH
 ENV CGO_ENABLED=0
 
 WORKDIR /tmp/goose-src
-RUN go mod init goose-tmp
-RUN go get github.com/pressly/goose/v3/cmd/goose@v3.9.0
-RUN go mod tidy
-RUN go build -o /go/bin/goose github.com/pressly/goose/v3/cmd/goose
+RUN set -ex; \
+    go mod init goose-tmp; \
+    go get github.com/pressly/goose/v3/cmd/goose@v3.9.0; \
+    go mod tidy; \
+    go build -o /go/bin/goose github.com/pressly/goose/v3/cmd/goose
+
 
 
 FROM python:3.11.6-slim-bookworm
