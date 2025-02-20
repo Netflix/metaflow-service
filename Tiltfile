@@ -37,6 +37,20 @@ helm_remote(
 # workaround for port forwarding to MinIO API
 local_resource('minio-port-forward', serve_cmd='kubectl port-forward svc/myminio-hl 9000:9000')
 
+# Kubernetes secret for accessing MinIO
+k8s_yaml(
+    blob("""
+apiVersion: v1
+kind: Secret
+metadata:
+  name: k8s-minio-access
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: rootuser
+  AWS_SECRET_ACCESS_KEY: rootpass123
+""")
+)
+
 # Argo workflows chart
 # TODO: create and specify namespace
 helm_remote(
