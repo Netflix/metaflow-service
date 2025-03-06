@@ -1,4 +1,7 @@
-FROM golang:1.20.2-buster as goose
+FROM golang:1.20.2-buster as amd64-golang
+FROM arm64v8/golang:1.20.2-buster as arm64-golang
+
+FROM ${TARGETARCH}-golang as goose
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
 FROM python:3.11.6-slim-bookworm
