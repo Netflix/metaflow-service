@@ -186,6 +186,8 @@ class AdminApi(object):
                 description: Return system status information, such as cache
             "405":
                 description: invalid HTTP Method
+            "500":
+                description: cache is unhealthy
         """
 
         cache_status = {}
@@ -258,7 +260,8 @@ class AdminApi(object):
                 "workers": worker_list
             }
 
-        return web_response(status=200, body={
+        status_code = 200 if all([store["is_alive"] for store in cache_status.values()]) else 500
+        return web_response(status=status_code, body={
             "cache": cache_status
         })
 
