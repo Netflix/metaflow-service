@@ -227,8 +227,8 @@ async def test_filtered_tasks_get(cli, db):
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&pattern=value_b".format(**_first_task),
                                   data=[])
     
-    # not providing filters should result in error
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks".format(**_first_task), status=400)
+    # not providing filters should return all
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks".format(**_first_task), data=[task_pathspec(_first_task), task_pathspec(_second_task)])
 
 
 async def test_filtered_tasks_mixed_ids_get(cli, db):
@@ -274,8 +274,8 @@ async def test_filtered_tasks_mixed_ids_get(cli, db):
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&pattern=value_b".format(**_first_task),
                                   data=[])
     
-    # not providing filters should result in error
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks".format(**_first_task), status=400)
+    # not providing filters should return all
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks".format(**_first_task), data=[task_pathspec(_first_task), task_pathspec(_second_task)])
 
 
 

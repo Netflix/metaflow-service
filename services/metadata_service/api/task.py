@@ -130,10 +130,6 @@ class TaskApi(object):
         metadata_field = request.query.get("metadata_field_name", None)
         pattern = request.query.get("pattern", None)
 
-        # We cannot do anything without filter values
-        if metadata_field is None and pattern is None:
-            raise web.HTTPBadRequest(reason="A metadata_field_name or metadata_value are required for filtering.")
-
         db_response, _ = await self._async_metadata_table.get_filtered_task_pathspecs(flow_id, run_number, step_name, metadata_field, pattern)
         return db_response
 
