@@ -109,9 +109,9 @@ class TaskApi(object):
           in: "query"
           description: "Metadata field name to filter with"
           type: "string"
-        - name: "metadata_value"
+        - name: "pattern"
           in: "query"
-          description: "Value for the metadata field to filter on"
+          description: "A regexp pattern to filter the metadata values on"
           type: "string"
         produces:
         - text/plain
@@ -127,13 +127,13 @@ class TaskApi(object):
 
         # possible filters
         metadata_field = request.query.get("metadata_field_name", None)
-        metadata_value = request.query.get("metadata_value", None)
+        pattern = request.query.get("pattern", None)
 
         # We cannot do anything without filter values
-        if metadata_field is None and metadata_value is None:
+        if metadata_field is None and pattern is None:
             raise web.HTTPBadRequest(reason="A metadata_field_name or metadata_value are required for filtering.")
 
-        db_response, _ = await self._async_table.get_filtered_task_ids(flow_id, run_number, step_name, metadata_field, metadata_value)
+        db_response, _ = await self._async_table.get_filtered_task_pathspecs(flow_id, run_number, step_name, metadata_field, pattern)
         return db_response
 
     @format_response
