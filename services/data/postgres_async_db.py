@@ -689,7 +689,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     trigger_keys = primary_keys
     select_columns = keys
     step_table_name = AsyncStepTablePostgres.table_name
-    metadata_table_name = METADATA_TABLE_NAME
 
     async def add_task(self, task: TaskRow, fill_heartbeat=False):
         # todo backfill run_number if missing?
