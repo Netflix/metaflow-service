@@ -830,7 +830,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         }
         conditions = [f"{k} = %s" for k, v in filter_dict.items() if v is not None]
         values = [v for k, v in filter_dict.items() if v is not None]
-        
+
         if field_name:
             conditions.append("field_name = %s")
             values.append(field_name)
