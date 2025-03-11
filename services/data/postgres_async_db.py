@@ -741,37 +741,39 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict)
 
     async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, metadata_field: str, pattern: str):
+        run_id_key, run_id_value = translate_run_key(run_id)
+        filter_dict = {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+        }
+        conditions = [f"{k} = %s" for k, v in filter_dict.items() if v is not None]
+        values = [v for k, v in filter_dict.items() if v is not None]
+        
         if metadata_field:
-            run_id_key, run_id_value = translate_run_key(run_id)
-            filter_dict = {
-                "flow_id": flow_id,
-                run_id_key: run_id_value,
-                "step_name": step_name,
-                "metadata_field_name": metadata_field
-            }
-            conditions = [f"{k} = %s" for k, v in filter_dict.items() if v is not None]
-            values = [v for k, v in filter_dict.items() if v is not None]
+            conditions.append("metadata_field_name = %s")
+            values.append(metadata_field)
 
-            if pattern:
-                conditions.append("regexp_match(metadata_value, %s) IS NOT NULL")
-                values.append(pattern)
+        if pattern:
+            conditions.append("regexp_match(metadata_value, %s) IS NOT NULL")
+            values.append(pattern)
 
-            db_response, pagination = await self.find_records(
-                conditions=conditions,
-                values=values,
-                order=["task_id"],
-                enable_joins=True,
-                select_columns=["flow_id, run_number, run_id, step_name, task_name, task_id"]
-            )
+        db_response, pagination = await self.find_records(
+            conditions=conditions,
+            values=values,
+            order=["task_id"],
+            enable_joins=True,
+            select_columns=["flow_id, run_number, run_id, step_name, task_name, task_id"]
+        )
 
-            # flatten the ids in the response
-            def _format_id(row):
-                flow_id, run_number, run_id, step_name, task_name, task_id = row
-                # pathspec
-                return f"{flow_id}/{run_id or run_number}/{step_name}/{task_id or task_name}"
+        # flatten the ids in the response
+        def _format_id(row):
+            flow_id, run_number, run_id, step_name, task_name, task_id = row
+            # pathspec
+            return f"{flow_id}/{run_id or run_number}/{step_name}/{task_name or task_id}"
 
-            flattened_response = DBResponse(body=[_format_id(row) for row in db_response.body], response_code=db_response.response_code)
-            return flattened_response, pagination
+        flattened_response = DBResponse(body=[_format_id(row) for row in db_response.body], response_code=db_response.response_code)
+        return flattened_response, pagination
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,
                        task_id: str, expanded: bool = False):

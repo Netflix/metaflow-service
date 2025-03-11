@@ -205,22 +205,26 @@ async def test_filtered_tasks_get(cli, db):
 
     # filtering with a shared key should return all relevant tasks
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a".format(**_first_task),
-                                  data=[ _first_task["task_id"], _second_task["task_id"]])
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
 
     # filtering with a shared value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_value=value_b".format(**_first_task),
-                                  data=[_first_task["task_id"], _second_task["task_id"]])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?pattern=value_b".format(**_first_task),
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
+    
+    # filtering with a regexp should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?pattern=value_.*".format(**_first_task),
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
 
     # filtering with a shared key&value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_b&metadata_value=value_b".format(**_first_task),
-                                  data=[_first_task["task_id"], _second_task["task_id"]])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_b&pattern=value_b".format(**_first_task),
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
     
     # filtering with a shared value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&metadata_value=not_value_a".format(**_first_task),
-                                  data=[_second_task["task_id"]])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&pattern=not_value_a".format(**_first_task),
+                                  data=[task_pathspec(_second_task)])
     
     # filtering with a mixed key&value should not return results
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&metadata_value=value_b".format(**_first_task),
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&pattern=value_b".format(**_first_task),
                                   data=[])
     
     # not providing filters should result in error
@@ -234,10 +238,9 @@ async def test_filtered_tasks_mixed_ids_get(cli, db):
     _step = (await add_step(db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="first_step")).body
 
     # add tasks to the step
-    first_task_name = "first-task-1"
-    _first_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"], task_name=first_task_name)).body
+    _first_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"], task_name="first-task-1")).body
     # we need to refetch the task as the return does not contain the internal task ID we need for further record creation.
-    _first_task = (await db.task_table_postgres.get_task(flow_id=_step["flow_id"], run_id=_step["run_number"], step_name=_step["step_name"], task_id=first_task_name, expanded=True)).body
+    _first_task = (await db.task_table_postgres.get_task(flow_id=_step["flow_id"], run_id=_step["run_number"], step_name=_step["step_name"], task_id="first-task-1", expanded=True)).body
     _second_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
 
     # add metadata to filter on
@@ -249,22 +252,26 @@ async def test_filtered_tasks_mixed_ids_get(cli, db):
 
     # filtering with a shared key should return all relevant tasks
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a".format(**_first_task),
-                                  data=[first_task_name, _second_task["task_id"]])
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
 
     # filtering with a shared value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_value=value_b".format(**_first_task),
-                                  data=[first_task_name, _second_task["task_id"]])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?pattern=value_b".format(**_first_task),
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
+    
+    # filtering with a regexp should return all relevant tasks
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?pattern=value_.*".format(**_first_task),
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
 
     # filtering with a shared key&value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_b&metadata_value=value_b".format(**_first_task),
-                                  data=[first_task_name, _second_task["task_id"]])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_b&pattern=value_b".format(**_first_task),
+                                  data=[task_pathspec(_first_task), task_pathspec(_second_task)])
     
     # filtering with a shared value should return all relevant tasks
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&metadata_value=not_value_a".format(**_first_task),
-                                  data=[_second_task["task_id"]])
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&pattern=not_value_a".format(**_first_task),
+                                  data=[task_pathspec(_second_task)])
     
     # filtering with a mixed key&value should not return results
-    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&metadata_value=value_b".format(**_first_task),
+    await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?metadata_field_name=field_a&pattern=value_b".format(**_first_task),
                                   data=[])
     
     # not providing filters should result in error
@@ -292,3 +299,9 @@ async def test_task_get(cli, db):
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/1234/steps/{step_name}/tasks/{task_id}".format(**_task), status=404)
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/nonexistent_step/tasks/{task_id}".format(**_task), status=404)
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/1234".format(**_task), status=404)
+
+
+# Helpers
+
+def task_pathspec(task_dict):
+    return f"{task_dict['flow_id']}/{task_dict['run_number']}/{task_dict['step_name']}/{task_dict.get('task_name', task_dict['task_id'])}"
