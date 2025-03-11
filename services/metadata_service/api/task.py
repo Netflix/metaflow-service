@@ -39,6 +39,7 @@ class TaskApi(object):
                              self.tasks_heartbeat)
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
         self._async_run_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._async_metadata_table = AsyncPostgresDB.get_instance().metadata_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
     @format_response
@@ -133,7 +134,7 @@ class TaskApi(object):
         if metadata_field is None and pattern is None:
             raise web.HTTPBadRequest(reason="A metadata_field_name or metadata_value are required for filtering.")
 
-        db_response, _ = await self._async_table.get_filtered_task_pathspecs(flow_id, run_number, step_name, metadata_field, pattern)
+        db_response, _ = await self._async_metadata_table.get_filtered_task_pathspecs(flow_id, run_number, step_name, metadata_field, pattern)
         return db_response
 
     @format_response

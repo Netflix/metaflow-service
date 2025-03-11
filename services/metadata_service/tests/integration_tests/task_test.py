@@ -244,8 +244,8 @@ async def test_filtered_tasks_mixed_ids_get(cli, db):
     _second_task = (await add_task(db, flow_id=_step["flow_id"], run_number=_step["run_number"], step_name=_step["step_name"])).body
 
     # add metadata to filter on
-    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_name":"field_a", "value": "value_a"}))
-    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task["task_id"], metadata={"field_name":"field_b", "value": "value_b"}))
+    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task['task_id'], task_name=_first_task["task_name"], metadata={"field_name":"field_a", "value": "value_a"}))
+    (await add_metadata(db, flow_id=_first_task["flow_id"], run_number=_first_task["run_number"], step_name=_first_task["step_name"], task_id=_first_task['task_id'], task_name=_first_task["task_name"], metadata={"field_name":"field_b", "value": "value_b"}))
 
     (await add_metadata(db, flow_id=_second_task["flow_id"], run_number=_second_task["run_number"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_name": "field_a", "value": "not_value_a"}))
     (await add_metadata(db, flow_id=_second_task["flow_id"], run_number=_second_task["run_number"], step_name=_second_task["step_name"], task_id=_second_task["task_id"], metadata={"field_name": "field_b", "value": "value_b"}))
@@ -258,7 +258,7 @@ async def test_filtered_tasks_mixed_ids_get(cli, db):
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?pattern=value_b".format(**_first_task),
                                   data=[task_pathspec(_first_task), task_pathspec(_second_task)])
     
-    # filtering with a regexp should return all relevant tasks
+    # # filtering with a regexp should return all relevant tasks
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks?pattern=value_.*".format(**_first_task),
                                   data=[task_pathspec(_first_task), task_pathspec(_second_task)])
 

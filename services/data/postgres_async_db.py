@@ -694,28 +694,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     step_table_name = AsyncStepTablePostgres.table_name
     metadata_table_name = METADATA_TABLE_NAME
 
-    joins = [
-        """
-        LEFT JOIN LATERAL (
-            SELECT field_name, value
-            FROM {metadata_table} as metadata
-            WHERE
-                {table_name}.flow_id = metadata.flow_id AND
-                {table_name}.run_number = metadata.run_number AND
-                {table_name}.step_name = metadata.step_name AND
-                {table_name}.task_id = metadata.task_id
-        ) as metadata on true
-        """.format(
-            metadata_table=metadata_table_name,
-            table_name=table_name
-        )
-    ]
-
-    join_columns = [
-        "metadata.field_name as metadata_field_name",
-        "metadata.value as metadata_value"
-    ]
-
     async def add_task(self, task: TaskRow, fill_heartbeat=False):
         # todo backfill run_number if missing?
         dict = {
@@ -739,41 +717,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "step_name": step_name,
         }
         return await self.get_records(filter_dict=filter_dict)
-
-    async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, metadata_field: str, pattern: str):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-        }
-        conditions = [f"{k} = %s" for k, v in filter_dict.items() if v is not None]
-        values = [v for k, v in filter_dict.items() if v is not None]
-        
-        if metadata_field:
-            conditions.append("metadata_field_name = %s")
-            values.append(metadata_field)
-
-        if pattern:
-            conditions.append("regexp_match(metadata_value, %s) IS NOT NULL")
-            values.append(pattern)
-
-        db_response, pagination = await self.find_records(
-            conditions=conditions,
-            values=values,
-            order=["task_id"],
-            enable_joins=True,
-            select_columns=["flow_id, run_number, run_id, step_name, task_name, task_id"]
-        )
-
-        # flatten the ids in the response
-        def _format_id(row):
-            flow_id, run_number, run_id, step_name, task_name, task_id = row
-            # pathspec
-            return f"{flow_id}/{run_id or run_number}/{step_name}/{task_name or task_id}"
-
-        flattened_response = DBResponse(body=[_format_id(row) for row in db_response.body], response_code=db_response.response_code)
-        return flattened_response, pagination
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,
                        task_id: str, expanded: bool = False):
@@ -874,6 +817,57 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             task_id_key: task_id_value,
         }
         return await self.get_records(filter_dict=filter_dict)
+
+    async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, field_name: str, pattern: str):
+        """
+        Returns a list of task pathspecs that match the given field_name and regexp pattern for the value
+        """
+        run_id_key, run_id_value = translate_run_key(run_id)
+        filter_dict = {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+        }
+        conditions = [f"{k} = %s" for k, v in filter_dict.items() if v is not None]
+        values = [v for k, v in filter_dict.items() if v is not None]
+        
+        if field_name:
+            conditions.append("field_name = %s")
+            values.append(field_name)
+
+        if pattern:
+            conditions.append("regexp_match(value, %s) IS NOT NULL")
+            values.append(pattern)
+
+        # We must return distinct task pathspecs, so we construct the select statement by hand
+        sql_template = """
+        SELECT DISTINCT {select_columns} FROM (
+            SELECT
+                {keys}
+            FROM {table_name}
+        ) T
+        {where}
+        {order_by}
+        """
+
+        select_sql = sql_template.format(
+            keys=",".join(self.select_columns),
+            table_name=self.table_name,
+            where="WHERE {}".format(" AND ".join(conditions)),
+            order_by="ORDER BY task_id",
+            select_columns=",".join(["flow_id, run_number, run_id, step_name, task_name, task_id"])
+        ).strip()
+
+        db_response, pagination = await self.execute_sql(select_sql=select_sql, values=values, serialize=False)
+
+        # flatten the ids in the response
+        def _format_id(row):
+            flow_id, run_number, run_id, step_name, task_name, task_id = row
+            # pathspec
+            return f"{flow_id}/{run_id or run_number}/{step_name}/{task_name or task_id}"
+
+        flattened_response = DBResponse(body=[_format_id(row) for row in db_response.body], response_code=db_response.response_code)
+        return flattened_response, pagination
 
 
 class AsyncArtifactTablePostgres(AsyncPostgresTable):
