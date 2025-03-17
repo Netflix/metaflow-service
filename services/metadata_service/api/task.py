@@ -21,6 +21,11 @@ class TaskApi(object):
         )
         app.router.add_route(
             "GET",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/filtered_tasks",
+            self.get_filtered_tasks,
+        )
+        app.router.add_route(
+            "GET",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}",
             self.get_task,
         )
@@ -34,6 +39,7 @@ class TaskApi(object):
                              self.tasks_heartbeat)
         self._async_table = AsyncPostgresDB.get_instance().task_table_postgres
         self._async_run_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._async_metadata_table = AsyncPostgresDB.get_instance().metadata_table_postgres
         self._db = AsyncPostgresDB.get_instance()
 
     @format_response
@@ -74,6 +80,57 @@ class TaskApi(object):
 
         db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
         db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
+        return db_response
+
+    @format_response
+    @handle_exceptions
+    async def get_filtered_tasks(self, request):
+        """
+        ---
+        description: get all task ids that match the provided metadata field name and/or value.
+        tags:
+        - Tasks
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "step_name"
+          in: "path"
+          description: "step_name"
+          required: true
+          type: "string"
+        - name: "metadata_field_name"
+          in: "query"
+          description: "Metadata field name to filter with"
+          type: "string"
+        - name: "pattern"
+          in: "query"
+          description: "A regexp pattern to filter the metadata values on"
+          type: "string"
+        produces:
+        - text/plain
+        responses:
+            "200":
+                description: successful operation. Return tasks
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_id = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        step_name = request.match_info.get("step_name")
+
+        # possible filters
+        metadata_field = request.query.get("metadata_field_name", None)
+        pattern = request.query.get("pattern", None)
+
+        db_response, _ = await self._async_metadata_table.get_filtered_task_pathspecs(flow_id, run_number, step_name, metadata_field, pattern)
         return db_response
 
     @format_response

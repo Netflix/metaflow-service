@@ -814,6 +814,57 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         }
         return await self.get_records(filter_dict=filter_dict)
 
+    async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, field_name: str, pattern: str):
+        """
+        Returns a list of task pathspecs that match the given field_name and regexp pattern for the value
+        """
+        run_id_key, run_id_value = translate_run_key(run_id)
+        filter_dict = {
+            "flow_id": flow_id,
+            run_id_key: run_id_value,
+            "step_name": step_name,
+        }
+        conditions = [f"{k} = %s" for k, v in filter_dict.items() if v is not None]
+        values = [v for k, v in filter_dict.items() if v is not None]
+
+        if field_name:
+            conditions.append("field_name = %s")
+            values.append(field_name)
+
+        if pattern:
+            conditions.append("regexp_match(value, %s) IS NOT NULL")
+            values.append(pattern)
+
+        # We must return distinct task pathspecs, so we construct the select statement by hand
+        sql_template = """
+        SELECT DISTINCT {select_columns} FROM (
+            SELECT
+                {keys}
+            FROM {table_name}
+        ) T
+        {where}
+        {order_by}
+        """
+
+        select_sql = sql_template.format(
+            keys=",".join(self.select_columns),
+            table_name=self.table_name,
+            where="WHERE {}".format(" AND ".join(conditions)),
+            order_by="ORDER BY task_id",
+            select_columns=",".join(["flow_id, run_number, run_id, step_name, task_name, task_id"])
+        ).strip()
+
+        db_response, pagination = await self.execute_sql(select_sql=select_sql, values=values, serialize=False)
+
+        # flatten the ids in the response
+        def _format_id(row):
+            flow_id, run_number, run_id, step_name, task_name, task_id = row
+            # pathspec
+            return f"{flow_id}/{run_id or run_number}/{step_name}/{task_name or task_id}"
+
+        flattened_response = DBResponse(body=[_format_id(row) for row in db_response.body], response_code=db_response.response_code)
+        return flattened_response, pagination
+
 
 class AsyncArtifactTablePostgres(AsyncPostgresTable):
     artifact_dict = {}
