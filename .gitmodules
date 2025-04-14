@@ -1,0 +1,3 @@
+[submodule "metaflow-ui"]
+	path = metaflow-ui
+	url = https://github.com/Netflix/metaflow-ui
