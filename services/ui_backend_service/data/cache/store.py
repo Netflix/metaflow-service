@@ -37,7 +37,9 @@ CACHE_DAG_MAX_ACTIONS = int(os.environ.get("CACHE_DAG_MAX_ACTIONS", 16))
 CACHE_DAG_STORAGE_LIMIT = int(os.environ.get("CACHE_DAG_STORAGE_LIMIT", DISK_SIZE // 4))
 CACHE_LOG_MAX_ACTIONS = int(os.environ.get("CACHE_LOG_MAX_ACTIONS", 8))
 CACHE_LOG_STORAGE_LIMIT = int(os.environ.get("CACHE_LOG_STORAGE_LIMIT", DISK_SIZE // 5))
-CARD_CACHE_DISK_CLEANUP_INTERVAL = int(os.environ.get("CARD_CACHE_DISK_CLEANUP_INTERVAL", 60 * 60 * 4))
+CARD_CACHE_REGULAR_CLEANUP_INTERVAL = int(
+    os.environ.get("CARD_CACHE_PROCESS_CLEANUP_INTERVAL", 60 * 60 * 24 * 5)
+)  # 5 Days
 
 
 class CacheStore(object):
@@ -123,18 +125,15 @@ class CardCacheStore(object):
         self.cache_manager = CardCacheManager()
 
     async def start_cache(self):
-        self._cleanup_coroutine = asyncio.create_task(
-            self.cache_manager.start_process_cleanup_routine(120)
-        )
-        self._disk_cleanup_coroutine = asyncio.create_task(
-            self.cache_manager.cleanup_disk_routine(CARD_CACHE_DISK_CLEANUP_INTERVAL)
+        self._regualar_cleanup_routine = asyncio.create_task(
+            self.cache_manager.regular_cleanup_routine(
+                CARD_CACHE_REGULAR_CLEANUP_INTERVAL
+            )
         )
 
     async def stop_cache(self):
-        self._cleanup_coroutine.cancel()
-        await self._cleanup_coroutine
-        self._disk_cleanup_coroutine.cancel()
-        await self._disk_cleanup_coroutine
+        self._regualar_cleanup_routine.cancel()
+        await self._regualar_cleanup_routine
 
 
 class ArtifactCacheStore(object):
