@@ -5,7 +5,6 @@ from services.metadata_service.api.utils import format_response, \
     handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
 
-
 class StepApi(object):
     _step_table = None
 
@@ -157,7 +156,10 @@ class StepApi(object):
         tags = body.get("tags")
         system_tags = body.get("system_tags")
 
-        run_number, run_id = await self._db.get_run_ids(flow_id, run_number)
+        db_response = await self._db.get_run_ids(flow_id, run_number)
+        if db_response.response_code != 200:
+            return db_response
+        run_number, run_id = db_response.body["run_number"], db_response.body["run_id"]
 
         step_row = StepRow(
             flow_id, run_number, run_id, user, step_name, tags=tags,

@@ -248,7 +248,10 @@ class TaskApi(object):
             return web.Response(status=400, body=json.dumps(
                 {"message": "provided task_name may not be a numeric"}))
 
-        run_number, run_id = await self._db.get_run_ids(flow_id, run_number)
+        db_response = await self._db.get_run_ids(flow_id, run_number)
+        if db_response.response_code != 200:
+            return db_response
+        run_number, run_id = db_response.body["run_number"], db_response.body["run_id"]
 
         task = TaskRow(
             flow_id=flow_id,
