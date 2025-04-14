@@ -35,15 +35,18 @@ class AsyncPostgresDB(object):
         AsyncPostgresDB.__instance = self
 
     async def _init(self, db_conf: DBConfiguration):
-        # todo make poolsize min and max configurable as well as timeout
-        # todo add retry and better error message
-        retries = 3
-        for i in range(retries):
+        # todo make poolsize min and max configurable
+        max_attempts = 3
+        while max_attempts > 0:
             try:
                 self.pool = await aiopg.create_pool(db_conf.get_dsn(), timeout=db_conf.timeout)
+                break
             except Exception as e:
                 print("printing connection exception: " + str(e))
-                if retries - i < 1:
+
+                max_attempts -= 1
+                if max_attempts == 0:
                     raise e
+
                 time.sleep(1)
                 continue
