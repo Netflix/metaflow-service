@@ -201,7 +201,7 @@ class AsyncPostgresTable(object):
                 )
 
     async def get_records(self, filter_dict={}, fetch_single=False,
-                          ordering: List[str] = None, limit: int = 0, expanded=False,
+                          ordering: List[str] = None, limit: int = 0, offset: int = 0, expanded=False,
                           cur: aiopg.Cursor = None) -> DBResponse:
         conditions = []
         values = []
@@ -211,7 +211,7 @@ class AsyncPostgresTable(object):
 
         response, _ = await self.find_records(
             conditions=conditions, values=values, fetch_single=fetch_single,
-            order=ordering, limit=limit, expanded=expanded, cur=cur
+            order=ordering, limit=limit, offset=offset, expanded=expanded, cur=cur
         )
         return response
 
@@ -572,8 +572,8 @@ class AsyncFlowTablePostgres(AsyncPostgresTable):
         filter_dict = {"flow_id": flow_id}
         return await self.get_records(filter_dict=filter_dict, fetch_single=True)
 
-    async def get_all_flows(self):
-        return await self.get_records()
+    async def get_all_flows(self, limit:int = 0, offset: int = 0):
+        return await self.get_records(limit=limit, offset=offset)
 
 
 class AsyncRunTablePostgres(AsyncPostgresTable):
@@ -606,9 +606,9 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, expanded=expanded, cur=cur)
 
-    async def get_all_runs(self, flow_id: str):
+    async def get_all_runs(self, flow_id: str, limit:int=0, offset:int=0):
         filter_dict = {"flow_id": flow_id}
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict, limit=limit, offset=offset)
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
         run_key, run_value = translate_run_key(run_id)
@@ -661,11 +661,11 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_steps(self, flow_id: str, run_id: str):
+    async def get_steps(self, flow_id: str, run_id: str, limit:int=0, offset:int=0):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,
                        run_id_key: run_id_value}
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict, limit=limit, offset=offset)
 
     async def get_step(self, flow_id: str, run_id: str, step_name: str):
         run_id_key, run_id_value = translate_run_key(run_id)
@@ -705,14 +705,14 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
+    async def get_tasks(self, flow_id: str, run_id: str, step_name: str, limit:int=0, offset:int=0):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
             run_id_key: run_id_value,
             "step_name": step_name,
         }
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict, limit=limit, offset=offset)
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,
                        task_id: str, expanded: bool = False):
@@ -795,14 +795,14 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_metadata_in_runs(self, flow_id: str, run_id: str):
+    async def get_metadata_in_runs(self, flow_id: str, run_id: str, limit:int=0, offset:int=0):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {"flow_id": flow_id,
                        run_id_key: run_id_value}
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict, limit=limit, offset=offset)
 
     async def get_metadata(
-        self, flow_id: str, run_id: int, step_name: str, task_id: str
+        self, flow_id: str, run_id: int, step_name: str, task_id: str, limit: int = 0, offset: int = 0
     ):
         run_id_key, run_id_value = translate_run_key(run_id)
         task_id_key, task_id_value = translate_task_key(task_id)
@@ -812,9 +812,9 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             "step_name": step_name,
             task_id_key: task_id_value,
         }
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict, limit=limit, offset=offset)
 
-    async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, field_name: str, pattern: str):
+    async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, field_name: str, pattern: str, limit:int = 0, offset: int = 0):
         """
         Returns a list of task pathspecs that match the given field_name and regexp pattern for the value
         """
@@ -844,6 +844,8 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         ) T
         {where}
         {order_by}
+        {limit}
+        {offset}
         """
 
         select_sql = sql_template.format(
@@ -851,7 +853,9 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             table_name=self.table_name,
             where="WHERE {}".format(" AND ".join(conditions)),
             order_by="ORDER BY task_id",
-            select_columns=",".join(["flow_id, run_number, run_id, step_name, task_name, task_id"])
+            select_columns=",".join(["flow_id, run_number, run_id, step_name, task_name, task_id"]),
+            limit="LIMIT {}".format(limit) if limit else "",
+            offset= "OFFSET {}".format(offset) if offset else ""
         ).strip()
 
         db_response, pagination = await self.execute_sql(select_sql=select_sql, values=values, serialize=False)
@@ -922,16 +926,16 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         }
         return await self.create_record(dict)
 
-    async def get_artifacts_in_runs(self, flow_id: str, run_id: int):
+    async def get_artifacts_in_runs(self, flow_id: str, run_id: int, limit:int=0, offset:int=0):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
             run_id_key: run_id_value,
         }
         return await self.get_records(filter_dict=filter_dict,
-                                      ordering=self.ordering)
+                                      ordering=self.ordering, limit=limit,offset=offset)
 
-    async def get_artifact_in_steps(self, flow_id: str, run_id: int, step_name: str):
+    async def get_artifact_in_steps(self, flow_id: str, run_id: int, step_name: str, limit:int=0, offset:int=0):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
@@ -939,10 +943,10 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             "step_name": step_name,
         }
         return await self.get_records(filter_dict=filter_dict,
-                                      ordering=self.ordering)
+                                      ordering=self.ordering, limit=limit,offset=offset)
 
     async def get_artifact_in_task(
-        self, flow_id: str, run_id: int, step_name: str, task_id: int
+        self, flow_id: str, run_id: int, step_name: str, task_id: int, limit:int=0, offset:int=0
     ):
         run_id_key, run_id_value = translate_run_key(run_id)
         task_id_key, task_id_value = translate_task_key(task_id)
@@ -953,7 +957,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
             task_id_key: task_id_value,
         }
         return await self.get_records(filter_dict=filter_dict,
-                                      ordering=self.ordering)
+                                      ordering=self.ordering, limit=limit,offset=offset)
 
     async def get_artifact(
         self, flow_id: str, run_id: int, step_name: str, task_id: int, name: str

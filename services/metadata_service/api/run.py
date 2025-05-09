@@ -5,7 +5,7 @@ from services.data.db_utils import DBResponse
 from services.data.models import RunRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+    handle_exceptions, parse_pagination_params
 from services.data.postgres_async_db import AsyncPostgresDB
 
 
@@ -82,7 +82,9 @@ class RunApi(object):
                 description: invalid HTTP Method
         """
         flow_name = request.match_info.get("flow_id")
-        return await self._async_table.get_all_runs(flow_name)
+        limit, offset = parse_pagination_params(request)
+
+        return await self._async_table.get_all_runs(flow_id=flow_name, limit=limit, offset=offset)
 
     @format_response
     @handle_exceptions

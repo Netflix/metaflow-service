@@ -2,7 +2,7 @@ from services.data import FlowRow
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+    handle_exceptions, parse_pagination_params
 import asyncio
 
 
@@ -77,6 +77,16 @@ class FlowApi(object):
           description: "flow_id"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "Limit for the number of results"
+          required: false
+          type: "integer"
+        - name: "_page"
+          in: "query"
+          description: "Page of results to return"
+          required: false
+          type: "integer"
         produces:
         - text/plain
         responses:
@@ -107,4 +117,6 @@ class FlowApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        return await self._async_table.get_all_flows()
+        limit, offset = parse_pagination_params(request)
+
+        return await self._async_table.get_all_flows(limit=limit, offset=offset)

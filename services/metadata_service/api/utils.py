@@ -65,3 +65,11 @@ def handle_exceptions(func):
             return http_500(str(err))
 
     return wrapper
+
+
+def parse_pagination_params(request):
+    page = int(request.query.get("_page", 1))
+    limit = int(request.query.get("_limit", 0))
+
+    offset = limit * (page - 1)
+    return limit, offset

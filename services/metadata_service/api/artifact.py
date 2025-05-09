@@ -10,6 +10,7 @@ from services.metadata_service.api.utils import (
     format_response,
     handle_exceptions,
     http_500,
+    parse_pagination_params
 )
 import json
 
@@ -216,9 +217,10 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
+        limit, offset = parse_pagination_params(request)
 
         db_response = await self._async_table.get_artifact_in_task(
-            flow_id, run_number, step_name, task_id
+            flow_id, run_number, step_name, task_id, limit, offset
         )
         if db_response.response_code == 200:
             db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
@@ -277,9 +279,10 @@ class ArtificatsApi(object):
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
         attempt_id = request.match_info.get("attempt_id")
+        limit, offset = parse_pagination_params(request)
 
         db_response = await self._async_table.get_artifact_in_task(
-            flow_id, run_number, step_name, task_id
+            flow_id, run_number, step_name, task_id, limit, offset
         )
         if db_response.response_code == 200:
             db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
@@ -333,9 +336,10 @@ class ArtificatsApi(object):
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
+        limit, offset = parse_pagination_params(request)
 
         db_response = await self._async_table.get_artifact_in_steps(
-            flow_id, run_number, step_name
+            flow_id, run_number, step_name, limit, offset
         )
         if db_response.response_code == 200:
             db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
@@ -376,8 +380,9 @@ class ArtificatsApi(object):
         """
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
+        limit, offset = parse_pagination_params(request)
 
-        db_response = await self._async_table.get_artifacts_in_runs(flow_id, run_number)
+        db_response = await self._async_table.get_artifacts_in_runs(flow_id, run_number, limit, offset)
         if db_response.response_code == 200:
             db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
             filtered_body = filter_artifacts_for_latest_attempt(db_response.body)

@@ -2,7 +2,7 @@ from aiohttp import web
 import json
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+    handle_exceptions, parse_pagination_params
 import asyncio
 from services.data.postgres_async_db import AsyncPostgresDB
 
@@ -73,8 +73,10 @@ class MetadataApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
+        limit, offset = parse_pagination_params(request)
+
         return await self._async_table.get_metadata(
-            flow_name, run_number, step_name, task_id
+            flow_name, run_number, step_name, task_id, limit, offset
         )
 
     @format_response
@@ -106,8 +108,10 @@ class MetadataApi(object):
         """
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
+        limit, offset = parse_pagination_params(request)
+
         return await self._async_table.get_metadata_in_runs(
-            flow_name, run_number
+            flow_name, run_number, limit, offset
         )
 
     async def create_metadata(self, request):

@@ -2,7 +2,7 @@ from services.data import StepRow
 from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+    handle_exceptions, parse_pagination_params
 from services.data.postgres_async_db import AsyncPostgresDB
 
 
@@ -55,7 +55,9 @@ class StepApi(object):
         """
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        db_response = await self._async_table.get_steps(flow_id, run_number)
+        limit, offset = parse_pagination_params(request)
+
+        db_response = await self._async_table.get_steps(flow_id=flow_id, run_id=run_number, limit=limit, offset=offset)
         db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 

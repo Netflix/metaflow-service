@@ -3,7 +3,7 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+    handle_exceptions, parse_pagination_params
 import json
 from aiohttp import web
 import asyncio
@@ -77,8 +77,9 @@ class TaskApi(object):
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
+        limit, offset = parse_pagination_params(request)
 
-        db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
+        db_response = await self._async_table.get_tasks(flow_id, run_number, step_name, limit, offset)
         db_response = await apply_run_tags_to_db_response(flow_id, run_number, self._async_run_table, db_response)
         return db_response
 
@@ -125,12 +126,13 @@ class TaskApi(object):
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
+        limit, offset = parse_pagination_params(request)
 
         # possible filters
         metadata_field = request.query.get("metadata_field_name", None)
         pattern = request.query.get("pattern", None)
 
-        db_response, _ = await self._async_metadata_table.get_filtered_task_pathspecs(flow_id, run_number, step_name, metadata_field, pattern)
+        db_response, _ = await self._async_metadata_table.get_filtered_task_pathspecs(flow_id, run_number, step_name, metadata_field, pattern, limit, offset)
         return db_response
 
     @format_response
