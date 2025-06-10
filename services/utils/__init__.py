@@ -38,6 +38,7 @@ ORIGIN_TO_ALLOW_CORS_FROM = os.environ.get('ORIGIN_TO_ALLOW_CORS_FROM', None)
 # Set safe="" to percent-encode everything.
 quote_all = partial(quote, safe="")
 
+
 async def read_body(request_content):
     byte_array = bytearray()
     while not request_content.at_eof():

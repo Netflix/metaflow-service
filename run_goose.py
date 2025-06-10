@@ -15,6 +15,7 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 # Set safe="" to percent-encode everything.
 quote_all = partial(quote, safe="")
 
+
 def check_if_goose_table_exists(db_connection_string: str):
     conn = psycopg2.connect(db_connection_string)
     cur = conn.cursor()
