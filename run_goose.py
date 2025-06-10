@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import argparse
+from functools import partial
 from subprocess import Popen
 from urllib.parse import quote
 import psycopg2
@@ -10,6 +11,9 @@ import psycopg2.errorcodes
 
 DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 
+# By default, urllib.parse.quote does NOT percent-encode "/"
+# Set safe="" to percent-encode everything.
+quote_all = partial(quote, safe="")
 
 def check_if_goose_table_exists(db_connection_string: str):
     conn = psycopg2.connect(db_connection_string)
@@ -51,8 +55,8 @@ def main():
     parser.add_argument("--wait", type=int, default=30, help="Wait for connection for X seconds")
     args = parser.parse_args()
 
-    db_connection_string = f'postgresql://{quote(os.environ["MF_METADATA_DB_USER"])}:'\
-        f'{quote(os.environ["MF_METADATA_DB_PSWD"])}@{os.environ["MF_METADATA_DB_HOST"]}:'\
+    db_connection_string = f'postgresql://{quote_all(os.environ["MF_METADATA_DB_USER"])}:'\
+        f'{quote_all(os.environ["MF_METADATA_DB_PSWD"])}@{os.environ["MF_METADATA_DB_HOST"]}:'\
         f'{os.environ["MF_METADATA_DB_PORT"]}/{os.environ["MF_METADATA_DB_NAME"]}'
 
     ssl_mode = os.environ.get("MF_METADATA_DB_SSL_MODE")

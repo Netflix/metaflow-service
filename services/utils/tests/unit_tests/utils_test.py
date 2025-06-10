@@ -143,6 +143,21 @@ def test_db_conf_timeout():
         db_conf = DBConfiguration(timeout=5)
         assert db_conf.timeout == 5
 
+
+def test_db_conf_connection_str_escaping():
+    with set_env():
+        db_conf = DBConfiguration(
+            host="testhost",
+            user="test$?/user",
+            password="test$?/password",
+            port=5432,
+        )
+        assert (
+            db_conf.connection_string_url()
+            == "postgresql://test%24%3F%2Fuser:test%24%3F%2Fpassword@testhost:5432/postgres?sslmode=disable"
+        )
+
+
 async def test_handle_exceptions():
     class FakeException(Exception):
         def __init__(self, id, trace):

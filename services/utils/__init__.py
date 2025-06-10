@@ -7,7 +7,7 @@ from multidict import MultiDict
 from urllib.parse import urlencode, quote
 from aiohttp import web
 from enum import Enum
-from functools import wraps
+from functools import partial, wraps
 from typing import Dict
 import logging
 import psycopg2
@@ -34,6 +34,9 @@ logging.basicConfig(level=log_level)
 # Setting to '*' to be maximally loose.
 ORIGIN_TO_ALLOW_CORS_FROM = os.environ.get('ORIGIN_TO_ALLOW_CORS_FROM', None)
 
+# By default, urllib.parse.quote does NOT percent-encode "/"
+# Set safe="" to percent-encode everything.
+quote_all = partial(quote, safe="")
 
 async def read_body(request_content):
     byte_array = bytearray()
@@ -275,9 +278,9 @@ class DBConfiguration(object):
     def connection_string_url(self, type=None):
         # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
         if type is None or type == DBType.WRITER:
-            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}'
+            base_url = f'postgresql://{quote_all(self._user)}:{quote_all(self._password)}@{self._host}:{self._port}/{self._database_name}'
         elif type == DBType.READER:
-            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}'
+            base_url = f'postgresql://{quote_all(self._user)}:{quote_all(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}'
         else:
             raise Exception("Unsupported DBType %s" % type)
 
