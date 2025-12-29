@@ -32,22 +32,26 @@ RUN virtualenv /opt/latest -p python3
 
 RUN /opt/v_1_0_1/bin/pip install https://github.com/Netflix/metaflow-service/archive/1.0.1.zip
 
-ADD services/__init__.py /root/services/
-ADD services/data/service_configs.py /root/services/
-ADD services/data /root/services/data
-ADD services/metadata_service /root/services/metadata_service
-ADD services/ui_backend_service /root/services/ui_backend_service
-ADD services/utils /root/services/utils
-ADD setup.py setup.cfg run_goose.py /root/
-WORKDIR /root
+ADD services/__init__.py /src/services/
+ADD services/data/service_configs.py /src/services/
+ADD services/data /src/services/data
+ADD services/metadata_service /src/services/metadata_service
+ADD services/ui_backend_service /src/services/ui_backend_service
+ADD services/utils /src/services/utils
+ADD setup.py setup.cfg run_goose.py /src/
+WORKDIR /src
 RUN /opt/latest/bin/pip install .
 
 # Install Netflix/metaflow-ui release artifact
-RUN /root/services/ui_backend_service/download_ui.sh
+RUN /src/services/ui_backend_service/download_ui.sh
 
 # Migration Service
-ADD services/migration_service /root/services/migration_service
-RUN pip3 install -r /root/services/migration_service/requirements.txt
+ADD services/migration_service /src/services/migration_service
+RUN pip3 install -r /src/services/migration_service/requirements.txt
 
-RUN chmod 777 /root/services/migration_service/run_script.py
+RUN chmod 777 /src/services/migration_service/run_script.py
+
+WORKDIR /tmp
+USER 1001
+
 CMD python3  services/migration_service/run_script.py
