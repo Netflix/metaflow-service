@@ -129,6 +129,18 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 (attempt.attempt_id + 1) = (next_attempt_start.value::jsonb->>0)::int
             LIMIT 1
         ) as next_attempt_start ON true
+        LEFT JOIN LATERAL (
+            SELECT value
+            FROM {metadata_table} as attempt_status
+            WHERE
+                {table_name}.flow_id = attempt_status.flow_id AND
+                {table_name}.run_number = attempt_status.run_number AND
+                {table_name}.step_name = attempt_status.step_name AND
+                {table_name}.task_id = attempt_status.task_id AND
+                attempt_status.field_name = '_status' AND
+                attempt_status.tags @> CONCAT('"', 'attempt_id:', attempt.attempt_id, '"')::jsonb
+            LIMIT 1
+        ) as status_metadata ON true
         """.format(
             table_name=table_name,
             metadata_table=metadata_table,
@@ -170,6 +182,10 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """,
         """
         (CASE
+            WHEN status_metadata IS NOT NULL
+            THEN status_metadata.value
+            WHEN status_metadata IS NULL
+            THEN 'debug-status-metadata-missing'
             WHEN attempt.attempt_ok IS TRUE
             THEN 'completed'
             WHEN attempt.attempt_ok IS FALSE

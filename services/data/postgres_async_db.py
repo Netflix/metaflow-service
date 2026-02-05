@@ -417,6 +417,68 @@ class AsyncPostgresTable(object):
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
+    
+    # TODO: Cleanup. Placeholder for experimentation
+    async def update_row_with_attempt(self, filter_dict={}, update_dict={}, attempt_id: int = 0, cur: aiopg.Cursor = None):
+        # generate where clause
+        filters = []
+        for col_name, col_val in filter_dict.items():
+            operator = '='
+            v = str(col_val).strip("'")
+            if not v.isnumeric():
+                v = "'" + v + "'"
+            find_operator = operator_match.match(col_name)
+            if find_operator:
+                col_name = find_operator.group(1)
+                operator = find_operator.group(2)
+                filters.append('(%s IS NULL or %s %s %s)' %
+                               (col_name, col_name, operator, str(v)))
+            else:
+                filters.append(col_name + operator + str(v))
+
+        seperator = " and "
+        # always include attempt matching. Assume that attempt number is recorded in tags.
+        filters.append("tags @> '\"attempt_id:%i\"'" % attempt_id)
+        
+        where_clause = ""
+        if bool(filter_dict):
+            where_clause = seperator.join(filters)
+
+        sets = []
+        for col_name, col_val in update_dict.items():
+            sets.append(col_name + " = " + str(col_val))
+
+        set_seperator = ", "
+        set_clause = ""
+        if bool(filter_dict):
+            set_clause = set_seperator.join(sets)
+        update_sql = """
+                UPDATE {0} SET {1} WHERE {2};
+        """.format(self.table_name, set_clause, where_clause)
+
+        async def _execute_update_on_cursor(_cur):
+            await _cur.execute(update_sql)
+            if _cur.rowcount < 1:
+                return DBResponse(response_code=404,
+                                  body={"msg": "could not find row"})
+            if _cur.rowcount > 1:
+                return DBResponse(response_code=500,
+                                  body={"msg": "duplicate rows"})
+            return DBResponse(response_code=200, body={"rowcount": _cur.rowcount})
+        if cur:
+            return await _execute_update_on_cursor(cur)
+        try:
+            with (
+                await self.db.pool.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor
+                )
+            ) as cur:
+                db_response = await _execute_update_on_cursor(cur)
+                cur.close()
+                return db_response
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occurred")
+            return aiopg_exception_handling(error)
 
 
 class PostgresUtils(object):
