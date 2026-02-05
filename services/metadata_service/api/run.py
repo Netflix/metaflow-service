@@ -24,7 +24,11 @@ class RunApi(object):
         app.router.add_route("PATCH",
                              "/flows/{flow_id}/runs/{run_number}/tag/mutate",
                              self.mutate_user_tags)
+        app.router.add_route("PATCH",
+                             "/flows/{flow_id}/runs/{run_number}/status",
+                             self.update_status)
         self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
+        self._metadata_table = AsyncPostgresDB.get_instance().metadata_table_postgres
 
     @format_response
     @handle_exceptions
@@ -278,3 +282,62 @@ class RunApi(object):
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         return await self._async_table.update_heartbeat(flow_name, run_number)
+    
+    @format_response
+    @handle_exceptions
+    async def update_status(self, request):
+        """
+        ---
+        description: update run status
+        tags:
+        - Run
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "body"
+          in: "body"
+          description: "body"
+          required: true
+          schema:
+            type: object
+            properties:
+                status:
+                    type: string
+        produces:
+        - 'text/plain'
+        responses:
+            "200":
+                description: successful operation.
+            "400":
+                description: invalid HTTP Request
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_name = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+
+        body = await read_body(request.content)
+        new_status = body.get("status", None)
+        if new_status is None:
+            raise Exception("Can not update without a valid 'status'")
+        
+        # TODO: This might not be performant without providing a task_id as part of the query.
+        return await self._metadata_table.update_row(
+            filter_dict={
+                "flow_id": flow_name,
+                "run_number": run_number,
+                "step_name": "_run_metadata",
+                "field_name": "_status",
+            },
+            update_dict={
+                "value": "'%s'" % new_status
+            }
+        )

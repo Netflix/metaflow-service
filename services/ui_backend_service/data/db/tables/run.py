@@ -59,6 +59,22 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         ),
         """
         LEFT JOIN LATERAL (
+            SELECT
+                value
+            FROM {metadata_table} as status
+            WHERE
+                {table_name}.flow_id = status.flow_id AND
+                {table_name}.run_number = status.run_number AND
+                status.step_name = '_run_metadata' AND
+                status.field_name = '_status'
+            ORDER BY ts_epoch DESC
+            LIMIT 1
+        ) as status_metadata ON true
+        """.format(
+            table_name=table_name, metadata_table=metadata_table
+        ),
+        """
+        LEFT JOIN LATERAL (
             SELECT ts_epoch
             FROM {metadata_table} as attempt
             WHERE
@@ -128,6 +144,8 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             THEN 'completed'
             WHEN end_attempt_ok IS NOT NULL AND end_attempt_ok.value IS FALSE
             THEN 'failed'
+            WHEN status_metadata IS NOT NULL
+            THEN status_metadata.value
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN 'running'
