@@ -351,7 +351,7 @@ class RunApi(object):
         run_response = await self._async_table.get_run(flow_name, run_number, expanded=True)
         
         if run_response.response_code != 200:
-            raise Exception("Run not found.")
+            return run_response
         
         run_row = run_response.body
         
