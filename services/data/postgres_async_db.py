@@ -876,15 +876,6 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         }
         return await self.get_records(filter_dict=filter_dict)
 
-    async def update_or_add_metadata(self, flow_id: str, run_id: str):
-        # requires step and task to be registered.
-        values = {
-            "flow_id": flow_id,
-            "run_id": run_id,
-            "step_name": "_run_metadata",
-        }
-        return await self.add_metadata(**values)
-
     async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, field_name: str, pattern: str):
         """
         Returns a list of task pathspecs that match the given field_name and regexp pattern for the value
