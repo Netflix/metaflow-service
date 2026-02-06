@@ -293,7 +293,7 @@ class AsyncPostgresTable(object):
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error), None
 
-    async def create_record(self, record_dict):
+    async def create_record(self, record_dict, expanded=False):
         # note: need to maintain order
         cols = []
         values = []
@@ -333,7 +333,7 @@ class AsyncPostgresTable(object):
                 for key, value in record.items():
                     if key in self.keys:
                         filtered_record[key] = value
-                response_body = self._row_type(**filtered_record).serialize()  # pylint: disable=not-callable
+                response_body = self._row_type(**filtered_record).serialize(expanded)  # pylint: disable=not-callable
                 # todo make sure connection is closed even with error
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
@@ -711,7 +711,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
 
-    async def add_step(self, step_object: StepRow):
+    async def add_step(self, step_object: StepRow, expanded=False):
         dict = {
             "flow_id": step_object.flow_id,
             "run_number": str(step_object.run_number),
@@ -721,7 +721,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             "tags": json.dumps(step_object.tags),
             "system_tags": json.dumps(step_object.system_tags),
         }
-        return await self.create_record(dict)
+        return await self.create_record(dict, expanded)
 
     async def get_steps(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)
@@ -729,14 +729,14 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
                        run_id_key: run_id_value}
         return await self.get_records(filter_dict=filter_dict)
 
-    async def get_step(self, flow_id: str, run_id: str, step_name: str):
+    async def get_step(self, flow_id: str, run_id: str, step_name: str, expanded: bool=False):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
             run_id_key: run_id_value,
             "step_name": step_name,
         }
-        return await self.get_records(filter_dict=filter_dict, fetch_single=True)
+        return await self.get_records(filter_dict=filter_dict, fetch_single=True, expanded=expanded)
 
 
 class AsyncTaskTablePostgres(AsyncPostgresTable):
@@ -752,7 +752,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     select_columns = keys
     step_table_name = AsyncStepTablePostgres.table_name
 
-    async def add_task(self, task: TaskRow, fill_heartbeat=False):
+    async def add_task(self, task: TaskRow, fill_heartbeat=False, expanded=False):
         # todo backfill run_number if missing?
         dict = {
             "flow_id": task.flow_id,
@@ -765,16 +765,16 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "system_tags": json.dumps(task.system_tags),
             "last_heartbeat_ts": str(new_heartbeat_ts()) if fill_heartbeat else None
         }
-        return await self.create_record(dict)
+        return await self.create_record(dict, expanded)
 
-    async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
+    async def get_tasks(self, flow_id: str, run_id: str, step_name: str, expanded: bool = False):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
             run_id_key: run_id_value,
             "step_name": step_name,
         }
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict, expanded=expanded)
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,
                        task_id: str, expanded: bool = False):
@@ -875,6 +875,15 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             task_id_key: task_id_value,
         }
         return await self.get_records(filter_dict=filter_dict)
+
+    async def update_or_add_metadata(self, flow_id: str, run_id: str):
+        # requires step and task to be registered.
+        values = {
+            "flow_id": flow_id,
+            "run_id": run_id,
+            "step_name": "_run_metadata",
+        }
+        return await self.add_metadata(**values)
 
     async def get_filtered_task_pathspecs(self, flow_id: str, run_id: str, step_name: str, field_name: str, pattern: str):
         """
