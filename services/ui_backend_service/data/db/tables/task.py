@@ -184,8 +184,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         (CASE
             WHEN status_metadata IS NOT NULL
             THEN status_metadata.value
-            WHEN status_metadata IS NULL
-            THEN 'debug-status-metadata-missing'
             WHEN attempt.attempt_ok IS TRUE
             THEN 'completed'
             WHEN attempt.attempt_ok IS FALSE
