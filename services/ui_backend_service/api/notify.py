@@ -125,11 +125,10 @@ class ListenNotify(object):
                     )
 
                 # Notify related resources on _status updates.
-                if table.table_name == self.db.metadata_table_postgres.table_name \
-                    and data["field_name"] == "_status":
+                if table.table_name == self.db.metadata_table_postgres.table_name and data["field_name"] == "_status":
 
                     # Run level status.
-                    if data["step_name"]=="_run_metadata":
+                    if data["step_name"] == "_run_metadata":
                         await _broadcast(
                             event_emitter=self.event_emitter,
                             operation="UPDATE",

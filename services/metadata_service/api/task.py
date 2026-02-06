@@ -385,7 +385,7 @@ class TaskApi(object):
         attempt = body.get("attempt", 0)
         if new_status is None:
             raise Exception("Can not update without a valid 'status'")
-       
+
         # TODO: This might not be performant without providing a task_id as part of the query.
         res = await self._async_metadata_table.update_row_with_attempt(
             filter_dict={
@@ -403,7 +403,7 @@ class TaskApi(object):
 
         if res.response_code == 200:
             return res
-        
+
         # Status Metadata missing, so we need to register the metadata for the task.
 
         task = await self._async_table.get_task(
@@ -416,7 +416,7 @@ class TaskApi(object):
 
         if task.response_code != 200:
             return task
-        
+
         task = task.body
         return await self._async_metadata_table.add_metadata(
             flow_id=task["flow_id"],
@@ -429,6 +429,6 @@ class TaskApi(object):
             tags=task["tags"] + ["attempt_id:%i" % attempt],
             system_tags=task["system_tags"],
             field_name="_status",
-            type= "_status",
+            type="_status",
             value=new_status
         )

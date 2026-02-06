@@ -2,7 +2,7 @@ import asyncio
 from itertools import chain
 
 from services.data.db_utils import DBResponse
-from services.data.models import RunRow, StepRow, TaskRow 
+from services.data.models import RunRow, StepRow, TaskRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
     handle_exceptions
@@ -284,7 +284,7 @@ class RunApi(object):
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         return await self._async_table.update_heartbeat(flow_name, run_number)
-    
+
     @format_response
     @handle_exceptions
     async def update_status(self, request):
@@ -345,18 +345,18 @@ class RunApi(object):
         )
         if res.response_code == 200:
             return res
-        
+
         # Slow path requiring registering additional resources.
         # metadata record missing, create it. Using the parent elements ensures that all relevant info carries over (e.g. tags / system tags / username).
         run_response = await self._async_table.get_run(flow_name, run_number, expanded=True)
-        
+
         if run_response.response_code != 200:
             return run_response
-        
+
         run_row = run_response.body
-        
+
         step = await self._step_table.get_step(
-            flow_id= run_row["flow_id"],
+            flow_id=run_row["flow_id"],
             run_id=run_row["run_number"],
             step_name="_run_metadata",
             expanded=True
@@ -364,7 +364,7 @@ class RunApi(object):
         if step.response_code != 200:
             step = await self._step_table.add_step(
                 StepRow(
-                    flow_id= run_row["flow_id"],
+                    flow_id=run_row["flow_id"],
                     run_number=run_row["run_number"],
                     run_id=run_row["run_id"],
                     user_name=run_row["user_name"],
@@ -411,6 +411,6 @@ class RunApi(object):
             tags=task["tags"],
             system_tags=task["system_tags"],
             field_name="_status",
-            type= "_status",
+            type="_status",
             value="new_status"
         )

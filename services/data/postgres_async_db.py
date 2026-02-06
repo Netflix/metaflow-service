@@ -417,7 +417,7 @@ class AsyncPostgresTable(object):
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error)
-    
+
     # TODO: Cleanup. Placeholder for experimentation
     async def update_row_with_attempt(self, filter_dict={}, update_dict={}, attempt_id: int = 0, cur: aiopg.Cursor = None):
         # generate where clause
@@ -439,7 +439,7 @@ class AsyncPostgresTable(object):
         seperator = " and "
         # always include attempt matching. Assume that attempt number is recorded in tags.
         filters.append("tags @> '\"attempt_id:%i\"'" % attempt_id)
-        
+
         where_clause = ""
         if bool(filter_dict):
             where_clause = seperator.join(filters)
@@ -729,7 +729,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
                        run_id_key: run_id_value}
         return await self.get_records(filter_dict=filter_dict)
 
-    async def get_step(self, flow_id: str, run_id: str, step_name: str, expanded: bool=False):
+    async def get_step(self, flow_id: str, run_id: str, step_name: str, expanded: bool = False):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
