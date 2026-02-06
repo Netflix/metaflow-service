@@ -385,11 +385,9 @@ class TaskApi(object):
         attempt = body.get("attempt", 0)
         if new_status is None:
             raise Exception("Can not update without a valid 'status'")
-        
-        from psycopg2.extensions import QuotedString
-        tags = QuotedString(json.dumps(["attempt_id:%i" % attempt]))
+       
         # TODO: This might not be performant without providing a task_id as part of the query.
-        return await self._async_metadata_table.update_row_with_attempt(
+        res = await self._async_metadata_table.update_row_with_attempt(
             filter_dict={
                 "flow_id": flow_name,
                 "run_number": run_number,
@@ -399,7 +397,38 @@ class TaskApi(object):
             },
             update_dict={
                 "value": "'%s'" % new_status,
-                "tags": tags
             },
             attempt_id=attempt
+        )
+
+        if res.response_code == 200:
+            return res
+        
+        # Status Metadata missing, so we need to register the metadata for the task.
+
+        task = await self._async_table.get_task(
+            flow_id=flow_name,
+            run_id=run_number,
+            step_name=step_name,
+            task_id=task_id,
+            expanded=True
+        )
+
+        if task.response_code != 200:
+            return task
+        
+        task = task.body
+        return await self._async_metadata_table.add_metadata(
+            flow_id=task["flow_id"],
+            run_id=task["run_id"],
+            run_number=task["run_number"],
+            step_name=task["step_name"],
+            task_id=task["task_id"],
+            task_name=task["task_name"],
+            user_name=task["user_name"],
+            tags=task["tags"] + ["attempt_id:%i" % attempt],
+            system_tags=task["system_tags"],
+            field_name="_status",
+            type= "_status",
+            value=new_status
         )
