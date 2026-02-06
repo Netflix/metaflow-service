@@ -412,5 +412,5 @@ class RunApi(object):
             system_tags=task["system_tags"],
             field_name="_status",
             type="_status",
-            value="new_status"
+            value=new_status
         )
