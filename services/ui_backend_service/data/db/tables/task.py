@@ -182,12 +182,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """,
         """
         (CASE
-            WHEN status_metadata IS NOT NULL
-            THEN status_metadata.value
             WHEN attempt.attempt_ok IS TRUE
             THEN 'completed'
             WHEN attempt.attempt_ok IS FALSE
             THEN 'failed'
+            WHEN status_metadata IS NOT NULL
+            THEN status_metadata.value
             WHEN COALESCE(attempt.attempt_finished_at, attempt.task_ok_finished_at) IS NOT NULL
                 AND attempt_ok IS NULL
             THEN 'unknown'
