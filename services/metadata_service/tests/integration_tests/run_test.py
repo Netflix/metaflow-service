@@ -141,6 +141,124 @@ async def test_runs_get(cli, db):
     # getting runs for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs", status=200, data=[])
 
+async def test_runs_get_paginated(cli, db):
+    """
+    Verify cursor-based pagination for GET /flows/{flow_id}/runs.
+
+    Layout: 5 runs created, then exercised as three pages of size 2
+    (page 1: runs[4]+[3], page 2: runs[2]+[1], page 3: runs[0]).
+    Ensures:
+    - Pagination headers present and correct.
+    - Link: next absent on under-full last page.
+    - Following Link headers iterates all runs without duplication.
+    - _limit=0 preserves legacy unbounded behavior (no pagination headers).
+    - Invalid params return 400.
+    """
+    import re
+    from urllib.parse import urlparse, parse_qs
+
+    _flow = (
+        await add_flow(db, "PaginationTestFlow", "test_user", [], ["runtime:test"])
+    ).body
+    flow_id = _flow["flow_id"]
+
+    # Create 5 runs — run_numbers increase sequentially
+    runs = []
+    for _ in range(5):
+        runs.append((await add_run(db, flow_id=flow_id)).body)
+    all_run_numbers = {r["run_number"] for r in runs}
+
+    # ------------------------------------------------------------------
+    # Case 1: Default limit (200) — all 5 runs fit on one page
+    # ------------------------------------------------------------------
+    resp = await cli.get("/flows/{}/runs".format(flow_id))
+    assert resp.status == 200, await resp.text()
+    data = json.loads(await resp.text())
+    assert len(data) == 5
+    assert resp.headers.get("X-Total-Count") == "5"
+    assert resp.headers.get("X-Pagination-Limit") == "200"
+    # Under-full page → no Link header
+    assert "Link" not in resp.headers
+
+    # ------------------------------------------------------------------
+    # Case 2: _limit=2 — iterates all 5 runs across 3 pages
+    # ------------------------------------------------------------------
+    seen_run_numbers = []
+    next_path = "/flows/{}/runs?_limit=2".format(flow_id)
+
+    for expected_page_size in [2, 2, 1]:
+        resp = await cli.get(next_path)
+        assert resp.status == 200, "Page fetch failed: {}".format(await resp.text())
+        page = json.loads(await resp.text())
+        assert len(page) == expected_page_size
+
+        assert resp.headers.get("X-Total-Count") == "5"
+        assert resp.headers.get("X-Pagination-Limit") == "2"
+
+        seen_run_numbers.extend(r["run_number"] for r in page)
+
+        if expected_page_size == 2:
+            # Full page — Link: next must be present
+            assert "Link" in resp.headers, "Expected Link header on full page"
+            assert 'rel="next"' in resp.headers["Link"]
+            # Extract path from Link header: </flows/.../runs?_after=X&_limit=2>; rel="next"
+            match = re.search(r"<([^>]+)>", resp.headers["Link"])
+            assert match, "Malformed Link header: {}".format(resp.headers["Link"])
+            next_path = match.group(1)
+            # Verify cursor param is present and is an integer
+            parsed = urlparse(next_path)
+            qs = parse_qs(parsed.query)
+            assert "_after" in qs, "Link next URL missing _after param"
+            assert qs["_after"][0].isdigit(), "_after must be a run_number integer"
+        else:
+            # Under-full last page — no Link header
+            assert "Link" not in resp.headers, "Unexpected Link on last page"
+
+    # All 5 run_numbers seen exactly once, no duplicates
+    assert len(seen_run_numbers) == 5
+    assert set(seen_run_numbers) == all_run_numbers
+
+    # Runs are returned newest-first (run_number DESC)
+    assert seen_run_numbers == sorted(seen_run_numbers, reverse=True)
+
+    # ------------------------------------------------------------------
+    # Case 3: _limit=0 — legacy opt-out, all runs, no pagination headers
+    # ------------------------------------------------------------------
+    resp = await cli.get("/flows/{}/runs?_limit=0".format(flow_id))
+    assert resp.status == 200
+    data = json.loads(await resp.text())
+    assert len(data) == 5
+    assert "X-Total-Count" not in resp.headers
+    assert "X-Pagination-Limit" not in resp.headers
+    assert "Link" not in resp.headers
+
+    # ------------------------------------------------------------------
+    # Case 4: Invalid params → 400
+    # ------------------------------------------------------------------
+    resp = await cli.get("/flows/{}/runs?_limit=abc".format(flow_id))
+    assert resp.status == 400
+
+    resp = await cli.get("/flows/{}/runs?_after=notanumber".format(flow_id))
+    assert resp.status == 400
+
+    resp = await cli.get("/flows/{}/runs?_limit=-1".format(flow_id))
+    assert resp.status == 400
+
+    resp = await cli.get("/flows/{}/runs?_after=-5".format(flow_id))
+    assert resp.status == 400
+
+    resp = await cli.get("/flows/{}/runs?_after=0".format(flow_id))
+    assert resp.status == 400
+
+    # ------------------------------------------------------------------
+    # Case 5: Non-existent flow → 200, empty list, no Link header
+    # ------------------------------------------------------------------
+    resp = await cli.get("/flows/NonExistentFlow/runs?_limit=2")
+    assert resp.status == 200
+    assert json.loads(await resp.text()) == []
+    assert "Link" not in resp.headers
+    assert resp.headers.get("X-Total-Count") == "0"
+
 
 async def test_run_get(cli, db):
     # create flow for test

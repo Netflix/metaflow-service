@@ -215,6 +215,48 @@ class AsyncPostgresTable(object):
         )
         return response
 
+    async def count_records(self, filter_dict=None) -> int:
+        """
+        Return the total count of rows matching filter_dict.
+        Used for X-Total-Count pagination header without fetching all rows.
+        Uses reader pool when available (read-only query).
+        Returns 0 on any DB error rather than propagating — callers treat
+        X-Total-Count as a best-effort hint, not a guarantee.
+        """
+        if filter_dict is None:
+            filter_dict = {}
+        conditions = []
+        values = []
+        for col_name, col_val in filter_dict.items():
+            # Validate column name against known keys to prevent SQL injection
+            if col_name not in self.keys:
+                self.db.logger.warning("count_records: unknown column %s", col_name)
+                continue
+            conditions.append("{} = %s".format(col_name))
+            values.append(col_val)
+
+        where = (
+            "WHERE {}".format(" AND ".join(conditions)) if conditions else ""
+        )
+        sql = "SELECT COUNT(*) FROM {} {}".format(self.table_name, where)
+
+        try:
+            db_pool = (
+                self.db.reader_pool if USE_SEPARATE_READER_POOL else self.db.pool
+            )
+            with (
+                await db_pool.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor
+                )
+            ) as cur:
+                await cur.execute(sql, values)
+                row = await cur.fetchone()
+                cur.close()
+                return int(row[0]) if row else 0
+        except (Exception, psycopg2.DatabaseError):
+            self.db.logger.exception("Exception occurred in count_records")
+            return 0
+
     async def find_records(self, conditions: List[str] = None, values=[], fetch_single=False,
                            limit: int = 0, offset: int = 0, order: List[str] = None, expanded=False,
                            enable_joins=False, cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
@@ -609,6 +651,49 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     async def get_all_runs(self, flow_id: str):
         filter_dict = {"flow_id": flow_id}
         return await self.get_records(filter_dict=filter_dict)
+
+    async def get_all_runs_paginated(
+        self,
+        flow_id: str,
+        limit: int = 200,
+        after_run_number: int = None,
+    ) -> Tuple["DBResponse", int]:
+        """
+        Fetch runs for a flow using cursor-based pagination.
+
+        Uses run_number as the cursor (monotonically increasing PK).
+        Returns runs ordered by run_number DESC so the most recent run
+        is always on the first page.
+
+        Returns
+        -------
+        (DBResponse, total_count)
+            DBResponse.body is a flat list of run dicts (unchanged schema).
+            total_count is the full run count for the flow (for X-Total-Count
+            header) — computed independently of the cursor.
+        """
+        conditions = ["flow_id = %s"]
+        values = [flow_id]
+
+        if after_run_number is not None:
+            conditions.append("run_number < %s")
+            values.append(after_run_number)
+
+        # NOTE: total_count and paginated results are fetched in separate queries
+        # without transaction isolation. Concurrent run creation/deletion may cause
+        # X-Total-Count to be inconsistent with the actual number of items returned
+        # across all pages. This is acceptable for pagination UX and matches the
+        # behavior of GitHub/Stripe APIs (best-effort hint, not a guarantee).
+        total_count = await self.count_records(filter_dict={"flow_id": flow_id})
+
+        db_response, _ = await self.find_records(
+            conditions=conditions,
+            values=values,
+            order=["run_number DESC"],
+            limit=limit,
+        )
+
+        return db_response, total_count
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
         run_key, run_value = translate_run_key(run_id)

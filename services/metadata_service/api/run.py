@@ -5,7 +5,7 @@ from services.data.db_utils import DBResponse
 from services.data.models import RunRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+    handle_exceptions, PAGINATION_LIMIT_HEADER, TOTAL_COUNT_HEADER
 from services.data.postgres_async_db import AsyncPostgresDB
 
 
@@ -64,7 +64,7 @@ class RunApi(object):
     async def get_all_runs(self, request):
         """
         ---
-        description: Get all runs
+        description: Get all runs for a flow, with optional cursor-based pagination.
         tags:
         - Run
         parameters:
@@ -73,16 +73,92 @@ class RunApi(object):
           description: "flow_id"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: >
+            Maximum runs to return per page. Default: 200.
+            Pass _limit=0 to disable pagination and return all runs (legacy
+            behavior — may cause 10MB API Gateway failures on large flows).
+          required: false
+          type: "integer"
+        - name: "_after"
+          in: "query"
+          description: >
+            Cursor for the next page. Set to the run_number of the last item
+            from the previous response. Provided automatically in the
+            Link: <url>; rel="next" response header.
+          required: false
+          type: "integer"
         produces:
         - text/plain
         responses:
             "200":
-                description: Returned all runs of specified flow
+                description: >
+                  Flat array of run objects (schema unchanged).
+                  When paginated, includes X-Total-Count, X-Pagination-Limit,
+                  and Link headers for RFC 5988 navigation.
+            "400":
+                description: Invalid pagination parameters (_limit or _after non-integer)
             "405":
                 description: invalid HTTP Method
         """
         flow_name = request.match_info.get("flow_id")
-        return await self._async_table.get_all_runs(flow_name)
+
+        # --- Parse pagination query params --------------------------------
+        raw_limit = request.rel_url.query.get("_limit", "200")
+        raw_after = request.rel_url.query.get("_after", None)
+
+        try:
+            limit = int(raw_limit)
+        except (ValueError, TypeError):
+            return DBResponse(response_code=400, body="Invalid _limit: must be a non-negative integer")
+
+        if limit < 0:
+            return DBResponse(response_code=400, body="Invalid _limit: must be a non-negative integer")
+
+        if raw_after is not None:
+            try:
+                after_run_number = int(raw_after)
+                if after_run_number <= 0:
+                    return DBResponse(response_code=400, body="Invalid _after: must be a positive run_number")
+            except (ValueError, TypeError):
+                return DBResponse(response_code=400, body="Invalid _after: must be an integer run_number")
+        else:
+            after_run_number = None
+
+        # --- Legacy opt-out (_limit=0): unbounded query, no headers -------
+        if limit == 0:
+            return await self._async_table.get_all_runs(flow_name)
+
+        # --- Paginated path -----------------------------------------------
+        db_response, total_count = await self._async_table.get_all_runs_paginated(
+            flow_name,
+            limit=limit,
+            after_run_number=after_run_number,
+        )
+
+        if db_response.response_code != 200:
+            return db_response
+
+        runs = db_response.body
+        extra_headers = {
+            PAGINATION_LIMIT_HEADER: str(limit),
+            TOTAL_COUNT_HEADER: str(total_count),
+        }
+
+        # Emit Link: next only when the page is full (there may be more rows).
+        if len(runs) == limit:
+            last_run_number = runs[-1]["run_number"]
+            next_path = (
+                "{path}?_after={cursor}&_limit={limit}".format(
+                    path=request.rel_url.path,
+                    cursor=last_run_number,
+                    limit=limit,
+                )
+            )
+            extra_headers["Link"] = '<{}>; rel="next"'.format(next_path)
+
+        return db_response, extra_headers
 
     @format_response
     @handle_exceptions
