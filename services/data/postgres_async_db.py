@@ -200,9 +200,11 @@ class AsyncPostgresTable(object):
                     conditions=self.trigger_conditions
                 )
 
-    async def get_records(self, filter_dict={}, fetch_single=False,
-                          ordering: List[str] = None, limit: int = 0, expanded=False,
+    async def get_records(self, filter_dict=None, fetch_single=False,
+                          ordering: List[str] = None, limit: int = 0, offset: int = 0, expanded=False,
                           cur: aiopg.Cursor = None) -> DBResponse:
+        if filter_dict is None:
+            filter_dict = {}
         conditions = []
         values = []
         for col_name, col_val in filter_dict.items():
@@ -210,8 +212,9 @@ class AsyncPostgresTable(object):
             values.append(col_val)
 
         response, _ = await self.find_records(
-            conditions=conditions, values=values, fetch_single=fetch_single,
-            order=ordering, limit=limit, expanded=expanded, cur=cur
+            conditions=conditions, values=values, fetch_single=fetch_single, order=ordering,
+            limit=limit, offset=offset, 
+            expanded=expanded, cur=cur
         )
         return response
 
@@ -606,9 +609,20 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         return await self.get_records(filter_dict=filter_dict,
                                       fetch_single=True, expanded=expanded, cur=cur)
 
-    async def get_all_runs(self, flow_id: str):
+    async def get_all_runs(
+        self,
+        flow_id: str,
+        limit: int = 0,
+        offset: int = 0
+    ):
         filter_dict = {"flow_id": flow_id}
-        return await self.get_records(filter_dict=filter_dict)
+
+        return await self.get_records(
+            filter_dict=filter_dict,
+            ordering=["ts_epoch DESC"],
+            limit=limit,
+            offset=offset
+        )
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
         run_key, run_value = translate_run_key(run_id)
