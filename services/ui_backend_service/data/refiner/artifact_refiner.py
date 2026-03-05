@@ -17,7 +17,13 @@ class ArtifactRefiner(Refinery):
         super().__init__(cache=cache)
 
     def _action(self):
-        return self.cache_store.cache.GetArtifacts
+        if self.cache_store and self.cache_store.cache:
+            return self.cache_store.cache.GetArtifacts
+        return None
+
+    def _direct_action_class(self):
+        from services.ui_backend_service.data.cache.get_artifacts_action import GetArtifacts
+        return GetArtifacts
 
     def _record_to_action_input(self, record):
         # Prefer run_id over run_number

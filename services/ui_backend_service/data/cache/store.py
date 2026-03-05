@@ -63,11 +63,18 @@ class CacheStore(object):
 
     async def start_caches(self, app):
         "Starts all caches as part of app startup"
-        await self.artifact_cache.start_cache()
-        await self.dag_cache.start_cache()
-        await self.log_cache.start_cache()
+        # Start each cache independently so one failure doesn't block the others
+        for name, cache in [("artifact", self.artifact_cache),
+                            ("dag", self.dag_cache),
+                            ("log", self.log_cache)]:
+            try:
+                await cache.start_cache()
+                logger.info("Cache '%s' started successfully.", name)
+            except Exception as e:
+                logger.error("Failed to start '%s' cache: %s. "
+                             "Server will continue without it.", name, e)
 
-        asyncio.gather(
+        self._monitor_task = asyncio.ensure_future(
             self._monitor_restart_requests()
         )
 
@@ -99,9 +106,11 @@ class CacheStore(object):
 
     async def stop_caches(self, app):
         "Stops all caches as part of app teardown"
-        await self.artifact_cache.stop_cache()
-        await self.dag_cache.stop_cache()
-        await self.log_cache.stop_cache()
+        for cache in [self.artifact_cache, self.dag_cache, self.log_cache]:
+            try:
+                await cache.stop_cache()
+            except Exception as e:
+                logger.warning("Error stopping cache: %s", e)
 
 
 class ArtifactCacheStore(object):
@@ -145,13 +154,14 @@ class ArtifactCacheStore(object):
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for artifact caching"
+        if not FEATURE_CACHE_ENABLE:
+            return  # self.cache stays None; direct S3 fetching will be used
         actions = [GetData, SearchArtifacts, GetTask, GetArtifacts, GetParameters, GetCards]
         self.cache = CacheAsyncClient('cache_data/artifact_search',
                                       actions,
                                       max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
                                       max_actions=CACHE_ARTIFACT_MAX_ACTIONS)
-        if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
+        await self.cache.start()
 
     async def preload_data_for_runs(self, runs: List[Dict]):
         """
@@ -241,7 +251,8 @@ class ArtifactCacheStore(object):
         asyncio.run_coroutine_threadsafe(self.preload_data_for_runs([{"flow_id": flow_id, "run_number": run_number}]), self.loop)
 
     async def stop_cache(self):
-        await self.cache.stop()
+        if self.cache:
+            await self.cache.stop()
 
 
 class DAGCacheStore(object):
@@ -273,16 +284,18 @@ class DAGCacheStore(object):
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for DAG caching"
+        if not FEATURE_CACHE_ENABLE:
+            return  # self.cache stays None; direct DAG generation will be used
         actions = [GenerateDag]
         self.cache = CacheAsyncClient('cache_data/dag',
                                       actions,
                                       max_size=CACHE_DAG_STORAGE_LIMIT,
                                       max_actions=CACHE_DAG_MAX_ACTIONS)
-        if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
+        await self.cache.start()
 
     async def stop_cache(self):
-        await self.cache.stop()
+        if self.cache:
+            await self.cache.stop()
 
     async def preload_dag_event_handler(self, flow_name: str, run_number: str):
         """
@@ -354,13 +367,15 @@ class LogCacheStore(object):
 
     async def start_cache(self):
         "Initialize the CacheAsyncClient for Log caching"
+        if not FEATURE_CACHE_ENABLE:
+            return  # self.cache stays None; direct log fetching will be used
         actions = [GetLogFile]
         self.cache = CacheAsyncClient('cache_data/log',
                                       actions,
                                       max_size=CACHE_LOG_STORAGE_LIMIT,
                                       max_actions=CACHE_LOG_MAX_ACTIONS)
-        if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
+        await self.cache.start()
 
     async def stop_cache(self):
-        await self.cache.stop()
+        if self.cache:
+            await self.cache.stop()

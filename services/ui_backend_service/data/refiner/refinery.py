@@ -1,3 +1,5 @@
+import asyncio
+
 from services.data.db_utils import DBResponse
 from services.ui_backend_service.features import FEATURE_REFINE_DISABLE
 from services.ui_backend_service.data import unpack_processed_value
@@ -21,17 +23,54 @@ class Refinery(object):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def _action(self):
-        return self.cache_store.cache.GetData
+        if self.cache_store and self.cache_store.cache:
+            return self.cache_store.cache.GetData
+        return None
+
+    def _direct_action_class(self):
+        """Return the CacheAction class for direct (non-cache) fetching. Override in subclasses."""
+        return None
+
+    async def _fetch_data_direct(self, targets):
+        """Fetch data directly from S3 without cache subprocess, using run_in_executor."""
+        action_cls = self._direct_action_class()
+        if action_cls is None:
+            return {}
+
+        loop = asyncio.get_event_loop()
+        msg = {'targets': list(frozenset(sorted(targets)))}
+        target_keys = ["data:{}:{}".format(action_cls.__name__, t) for t in targets]
+
+        try:
+            results = await loop.run_in_executor(
+                None,
+                lambda: action_cls.execute(
+                    message=msg,
+                    keys=target_keys,
+                    existing_keys={},
+                    stream_output=lambda x: None,
+                    invalidate_cache=True,
+                )
+            )
+            return action_cls.response(results)
+        except Exception as e:
+            self.logger.error("Direct fetch failed: %s", e)
+            return {}
 
     async def fetch_data(self, targets, event_stream=None, invalidate_cache=False):
-        _res = await self._action()(targets, invalidate_cache=invalidate_cache)
-        if _res.has_pending_request():
-            async for event in _res.stream():
-                if event["type"] == "error":
-                    if event_stream:
-                        event_stream(event)
-            await _res.wait()  # wait for results to be ready
-        return _res.get() or {}  # cache get() might return None if no keys are produced.
+        action = self._action()
+        if action is not None:
+            _res = await action(targets, invalidate_cache=invalidate_cache)
+            if _res.has_pending_request():
+                async for event in _res.stream():
+                    if event["type"] == "error":
+                        if event_stream:
+                            event_stream(event)
+                await _res.wait()  # wait for results to be ready
+            return _res.get() or {}  # cache get() might return None if no keys are produced.
+
+        # Fall back to direct S3 fetching (no cache subprocess)
+        return await self._fetch_data_direct(targets)
 
     async def refine_record(self, record, values):
         """No refinement necessary here"""

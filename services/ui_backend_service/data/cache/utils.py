@@ -67,10 +67,22 @@ def artifact_value(artifact: DataArtifact) -> Tuple[bool, object]:
     tuple : (bool, object)
         (success, artifact.data)
     """
-    if artifact.size < MAX_S3_SIZE:
+    try:
+        size = artifact.size
+    except Exception:
+        # Some artifacts have broken metadata (.info) in the datastore even though
+        # the actual data exists in S3.  Fall back to loading the value directly
+        # (capped by MAX_S3_SIZE via the except below if it turns out to be huge).
+        try:
+            return (True, artifact.data)
+        except Exception:
+            return (False, 'artifact-handle-failed',
+                    "Unable to determine artifact size or load data for {}".format(artifact.pathspec))
+
+    if size < MAX_S3_SIZE:
         return (True, artifact.data)
     else:
-        return (False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size))
+        return (False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, size))
 
 
 def cacheable_artifact_value(artifact: DataArtifact) -> str:

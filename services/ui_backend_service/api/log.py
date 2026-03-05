@@ -1,4 +1,6 @@
 
+import asyncio
+import logging
 from typing import Optional, Tuple
 
 from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
@@ -7,6 +9,8 @@ from .utils import format_response_list, get_pathspec_from_request
 
 from aiohttp import web
 from multidict import MultiDict
+
+logger = logging.getLogger(__name__)
 
 
 STDOUT = 'log_location_stdout'
@@ -245,23 +249,59 @@ class LogApi(object):
 
 
 async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
-    res = await cache_client.cache.GetLogFile(task, logtype, limit, page, reverse_order, output_raw, invalidate_cache=True)
+    if cache_client is not None and cache_client.cache is not None:
+        # Use cache subprocess (production path)
+        res = await cache_client.cache.GetLogFile(task, logtype, limit, page, reverse_order, output_raw, invalidate_cache=True)
 
-    if res.has_pending_request():
-        async for event in res.stream():
-            if event["type"] == "error":
-                # raise error, there was an exception during fetching.
-                raise LogException(event["message"], event["id"], event["traceback"])
-        await res.wait()  # wait until results are ready
+        if res.has_pending_request():
+            async for event in res.stream():
+                if event["type"] == "error":
+                    raise LogException(event["message"], event["id"], event["traceback"])
+            await res.wait()
 
-    log_response = res.get()
+        log_response = res.get()
+        if log_response is None:
+            return [], 0
+        return log_response["content"], log_response["pages"]
 
-    if log_response is None:
-        # This should not happen under normal circumstances.
-        raise LogException("Cache returned None for log content and raised no errors. \
-            The cache server might be experiencing issues.")
+    # Direct S3 fetching (local dev with cache disabled)
+    return await _fetch_log_direct(task, logtype, limit, page, reverse_order, output_raw)
 
-    return log_response["content"], log_response["pages"]
+
+async def _fetch_log_direct(task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
+    """Fetch log directly from S3 without cache subprocess."""
+    from services.ui_backend_service.data.cache.get_log_file_action import (
+        GetLogFile, log_cache_id, log_result_id
+    )
+
+    loop = asyncio.get_event_loop()
+    msg = {
+        'task': task,
+        'logtype': logtype,
+        'limit': limit,
+        'page': page,
+        'reverse_order': reverse_order,
+        'raw_log': output_raw,
+    }
+    log_key = log_cache_id(task, logtype)
+    result_key = log_result_id(task, logtype, limit, page, reverse_order, output_raw)
+
+    try:
+        results = await loop.run_in_executor(
+            None,
+            lambda: GetLogFile.execute(
+                message=msg,
+                keys=[log_key, result_key],
+                existing_keys={},
+                stream_output=lambda x: None,
+                invalidate_cache=True,
+            )
+        )
+        log_response = GetLogFile.response(results)
+        return log_response["content"], log_response["pages"]
+    except Exception as e:
+        logger.error("Direct log fetch failed: %s", e)
+        return [], 0
 
 
 def get_pagination_params(request):

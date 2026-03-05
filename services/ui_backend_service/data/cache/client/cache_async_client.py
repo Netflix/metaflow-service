@@ -13,11 +13,13 @@ OP_WORKER_TERMINATE = "worker_terminate"
 
 WAIT_FREQUENCY = 0.2
 HEARTBEAT_FREQUENCY = 1
+CHECK_TIMEOUT = 30  # seconds to wait for cache subprocess health check
 
 
 class CacheAsyncClient(CacheClient):
     _drain_lock = asyncio.Lock()
     _restart_requested = False
+    _background_tasks = None
 
     async def start_server(self, cmdline, env):
         self.logger = logging.getLogger(
@@ -28,13 +30,15 @@ class CacheAsyncClient(CacheClient):
             *cmdline, env=env, stdin=PIPE, stdout=PIPE, stderr=STDOUT, limit=1024000
         )  # 1024KB
 
-        asyncio.gather(self._heartbeat(), self.read_stdout())
+        # Store the reference to prevent garbage collection of background tasks
+        self._background_tasks = asyncio.gather(self._heartbeat(), self.read_stdout())
 
     async def _read_pipe(self, src):
         while self._is_alive:
             line = await src.readline()
             if not line:
-                await asyncio.sleep(WAIT_FREQUENCY)
+                # EOF: subprocess has terminated
+                self._is_alive = False
                 break
             yield line.rstrip().decode("utf-8")
 
@@ -66,16 +70,21 @@ class CacheAsyncClient(CacheClient):
 
     async def check(self):
         ret = await self.Check()  # pylint: disable=no-member
-        await ret.wait()
+        await ret.wait(timeout=CHECK_TIMEOUT)
         ret.get()
 
     async def stop_server(self):
-        if self._is_alive:
-            self._is_alive = False
-            self._proc.terminate()
-            await self._proc.wait()
+        self._is_alive = False
+        if self._proc and self._proc.returncode is None:
+            try:
+                self._proc.terminate()
+                await self._proc.wait()
+            except ProcessLookupError:
+                pass
 
     async def send_request(self, blob):
+        if self._proc is None:
+            raise CacheServerUnreachable()
         try:
             self._proc.stdin.write(blob)
             async with self._drain_lock:
@@ -90,7 +99,7 @@ class CacheAsyncClient(CacheClient):
             # essentially the cache functionality remains broken after the first asyncio.TimeoutError.
             # Request restart from CacheStore so that normal operation can be resumed.
             self._restart_requested = True
-        except ConnectionResetError:
+        except (ConnectionResetError, BrokenPipeError, ConnectionError, OSError):
             self._is_alive = False
             # This could indicate that the cache worker pool has unexpectedly crashed.
             # Request restart from CacheStore so that normal operation can be resumed.

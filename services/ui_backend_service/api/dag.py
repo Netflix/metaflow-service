@@ -1,7 +1,13 @@
+import asyncio
+import logging
+
 from services.data.db_utils import DBResponse, translate_run_key
 from services.utils import handle_exceptions
 from .utils import format_response, web_response, query_param_enabled
 from services.ui_backend_service.data.db.utils import get_run_dag_data
+from services.ui_backend_service.features import FEATURE_CACHE_ENABLE
+
+logger = logging.getLogger(__name__)
 
 
 class DagApi(object):
@@ -59,20 +65,44 @@ class DagApi(object):
         run_id = db_response.body.get('run_id') or db_response.body['run_number']
         invalidate_cache = query_param_enabled(request, "invalidate")
 
-        dag = await self._dag_store.cache.GenerateDag(
-            flow_name, run_id, invalidate_cache=invalidate_cache)
+        if FEATURE_CACHE_ENABLE and self._dag_store and self._dag_store.cache:
+            # Use cache subprocess (production path)
+            dag = await self._dag_store.cache.GenerateDag(
+                flow_name, run_id, invalidate_cache=invalidate_cache)
 
-        if dag.has_pending_request():
-            async for event in dag.stream():
-                if event["type"] == "error":
-                    # raise error, there was an exception during processing.
-                    raise GenerateDAGFailed(event["message"], event["id"], event["traceback"])
-            await dag.wait()  # wait until results are ready
-        dag = dag.get()
+            if dag.has_pending_request():
+                async for event in dag.stream():
+                    if event["type"] == "error":
+                        raise GenerateDAGFailed(event["message"], event["id"], event["traceback"])
+                await dag.wait()
+            dag = dag.get()
+        else:
+            # Direct generation (local dev with cache disabled)
+            dag = await self._generate_dag_direct(flow_name, run_id)
+
         response = DBResponse(200, dag)
         status, body = format_response(request, response)
 
         return web_response(status, body)
+
+    async def _generate_dag_direct(self, flow_name, run_id):
+        """Generate DAG directly without the cache subprocess."""
+        from services.ui_backend_service.data.cache.generate_dag_action import GenerateDag
+        loop = asyncio.get_event_loop()
+        message = {'flow_id': flow_name, 'run_number': run_id}
+        keys = ['dag:result:direct']
+        # Run in executor to avoid blocking the event loop (uses Metaflow SDK / S3)
+        results = await loop.run_in_executor(
+            None,
+            lambda: GenerateDag.execute(
+                message=message,
+                keys=keys,
+                existing_keys={},
+                stream_output=None,
+                invalidate_cache=True,
+            )
+        )
+        return GenerateDag.response(results)
 
 
 class GenerateDAGFailed(Exception):

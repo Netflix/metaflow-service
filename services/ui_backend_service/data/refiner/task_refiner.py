@@ -17,7 +17,13 @@ class TaskRefiner(Refinery):
         super().__init__(cache=cache)
 
     def _action(self):
-        return self.cache_store.cache.GetTask
+        if self.cache_store and self.cache_store.cache:
+            return self.cache_store.cache.GetTask
+        return None
+
+    def _direct_action_class(self):
+        from services.ui_backend_service.data.cache.get_task_action import GetTask
+        return GetTask
 
     def _record_to_action_input(self, record):
         # Prefer run_id over run_number

@@ -17,17 +17,27 @@ class ParameterRefiner(Refinery):
         super().__init__(cache=cache)
 
     def _action(self):
-        return self.cache_store.cache.GetParameters
+        if self.cache_store and self.cache_store.cache:
+            return self.cache_store.cache.GetParameters
+        return None
+
+    def _direct_action_class(self):
+        from services.ui_backend_service.data.cache.get_parameters_action import GetParameters
+        return GetParameters
 
     async def fetch_data(self, targets, event_stream=None, invalidate_cache=False):
-        _res = await self._action()(targets, invalidate_cache=invalidate_cache)
-        if _res.has_pending_request():
-            async for event in _res.stream():
-                if event["type"] == "error":
-                    # raise error, there was an exception during processing.
-                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
-            await _res.wait()  # wait for results to be ready
-        return _res.get() or {}  # cache get() might return None if no keys are produced.
+        action = self._action()
+        if action is not None:
+            _res = await action(targets, invalidate_cache=invalidate_cache)
+            if _res.has_pending_request():
+                async for event in _res.stream():
+                    if event["type"] == "error":
+                        raise GetParametersFailed(event["message"], event["id"], event["traceback"])
+                await _res.wait()
+            return _res.get() or {}
+
+        # Fall back to direct S3 fetching (no cache subprocess)
+        return await self._fetch_data_direct(targets)
 
     def _record_to_action_input(self, record):
         # Prefer run_id over run_number

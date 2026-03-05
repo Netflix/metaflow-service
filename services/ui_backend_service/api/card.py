@@ -1,9 +1,13 @@
+import asyncio
+import logging
 from typing import Dict, Optional
 from services.data.db_utils import translate_run_key, translate_task_key
 from services.ui_backend_service.data import unpack_processed_value
 from services.utils import handle_exceptions
 from .utils import format_response_list, get_pathspec_from_request, query_param_enabled, web_response, DBPagination, DBResponse
 from aiohttp import web
+
+logger = logging.getLogger(__name__)
 
 
 class CardsApi(object):
@@ -80,6 +84,7 @@ class CardsApi(object):
             return web_response(404, {'data': []})
 
         invalidate_cache = query_param_enabled(request, "invalidate")
+
         cards = await get_cards_for_task(self.cache, task, invalidate_cache)
 
         if cards is None:
@@ -166,23 +171,62 @@ async def get_cards_for_task(cache_client, task, invalidate_cache=False) -> Opti
         step_name=task.get("step_name"),
         task_id=task.get("task_name") or task.get("task_id"),
     )
-    res = await cache_client.cache.GetCards([pathspec], invalidate_cache)
 
-    if res.has_pending_request():
-        async for event in res.stream():
-            if event["type"] == "error":
-                # raise error, there was an exception during fetching.
-                raise CardException(event["message"], event["id"], event["traceback"])
-        await res.wait()  # wait until results are ready
-    data = res.get()
-    if data and pathspec in data:
-        success, value, detail, trace = unpack_processed_value(data[pathspec])
-        if success:
-            return value
-        else:
-            raise CardException(detail, value, trace)
+    if cache_client is not None and cache_client.cache is not None:
+        res = await cache_client.cache.GetCards([pathspec], invalidate_cache)
 
-    return None
+        if res.has_pending_request():
+            async for event in res.stream():
+                if event["type"] == "error":
+                    # raise error, there was an exception during fetching.
+                    raise CardException(event["message"], event["id"], event["traceback"])
+            await res.wait()  # wait until results are ready
+        data = res.get()
+        if data and pathspec in data:
+            success, value, detail, trace = unpack_processed_value(data[pathspec])
+            if success:
+                return value
+            else:
+                raise CardException(detail, value, trace)
+
+        return None
+
+    # Fallback: Direct fetch from Metaflow Client (cache disabled)
+    return await _fetch_cards_direct(pathspec)
+
+
+async def _fetch_cards_direct(pathspec: str) -> Optional[Dict[str, Dict]]:
+    """Fetch cards directly from S3 via Metaflow Client without cache subprocess."""
+    from services.ui_backend_service.data.cache.get_cards_action import GetCards
+    from services.ui_backend_service.data.cache.get_data_action import cache_key_from_target
+
+    loop = asyncio.get_event_loop()
+    target_key = cache_key_from_target(pathspec, "data:{}:".format(GetCards.__name__))
+
+    try:
+        results = await loop.run_in_executor(
+            None,
+            lambda: GetCards.execute(
+                message={'targets': [pathspec]},
+                keys=[target_key],
+                existing_keys={},
+                stream_output=lambda x: None,
+                invalidate_cache=True,
+            )
+        )
+        response = GetCards.response(results)
+        if response and pathspec in response:
+            success, value, detail, trace = unpack_processed_value(response[pathspec])
+            if success:
+                return value
+            else:
+                raise CardException(detail, value, trace)
+        return None
+    except CardException:
+        raise
+    except Exception as e:
+        logger.error("Direct card fetch failed: %s", e)
+        return None
 
 
 def get_pagination_params(request):

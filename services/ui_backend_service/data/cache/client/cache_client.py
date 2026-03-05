@@ -159,6 +159,7 @@ class CacheClient(object):
         self._root = root
         self._prev_is_alive = 0
         self._is_alive = True
+        self._proc = None
         self._action_classes = action_classes
         self._max_actions = max_actions
         self._max_size = max_size
@@ -203,6 +204,11 @@ class CacheClient(object):
             future = CacheFuture(keys, stream_key, self, cls, self._root)
             if future.key_paths_ready() and not invalidate_cache:
                 # cache hit
+                req = None
+            elif self._proc is None:
+                # Cache server was never started (e.g. FEATURE_CACHE_DISABLE=1).
+                # Return the future without sending a request; its get() will
+                # return None, which callers are expected to handle gracefully.
                 req = None
             else:
                 # Set stream_key as pending
