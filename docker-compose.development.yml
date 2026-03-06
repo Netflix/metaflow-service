@@ -1,18 +1,22 @@
+# Development docker-compose
+# All services use the same unified Dockerfile (runtime stage).
+# Volume mounts enable hot-reload during development.
+
 version: "3"
 services:
   ui_backend:
-    platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile.ui_service
+      dockerfile: Dockerfile
+      target: runtime
       args:
-        UI_ENABLED: 1
+        UI_ENABLED: 0
     ports:
       - "${MF_UI_METADATA_PORT:-8083}:${MF_UI_METADATA_PORT:-8083}"
     volumes:
-      - ./services:/root/services
+      - ./services:/root/services        # hot-reload: code changes reflect immediately
       - ${HOME}/.aws:/root/.aws
-    # Add container capability for benchmarking processes. required for py-spy
+    # Required for py-spy process profiling during development
     cap_add:
       - SYS_PTRACE
     environment:
@@ -29,8 +33,8 @@ services:
       - LOGLEVEL=INFO
       - AIOPG_ECHO=0
       - UI_ENABLED=0
-      - PREFETCH_RUNS_SINCE=2592000 # 30 days in seconds
-      - PREFETCH_RUNS_LIMIT=1 # Prefetch only one run
+      - PREFETCH_RUNS_SINCE=2592000
+      - PREFETCH_RUNS_LIMIT=1
       - S3_NUM_WORKERS=2
       - CACHE_ARTIFACT_MAX_ACTIONS=1
       - CACHE_DAG_MAX_ACTIONS=1
@@ -53,17 +57,19 @@ services:
       - GA_TRACKING_ID=none
       - PLUGINS=$PLUGINS
       - AWS_PROFILE=$AWS_PROFILE
+    command: ["ui_backend_service"]
     depends_on:
       - migration
+
   metadata:
-    platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile.metadata_service
+      dockerfile: Dockerfile
+      target: runtime
     ports:
       - "${MF_METADATA_PORT:-8080}:${MF_METADATA_PORT:-8080}"
     volumes:
-      - ./services:/root/services
+      - ./services:/root/services        # hot-reload
     environment:
       - LOGLEVEL=WARNING
       - MF_METADATA_DB_HOST=db
@@ -74,14 +80,15 @@ services:
       - MF_METADATA_PORT=${MF_METADATA_PORT:-8080}
       - MF_METADATA_HOST=${MF_METADATA_HOST:-0.0.0.0}
       - MF_MIGRATION_PORT=${MF_MIGRATION_PORT:-8082}
+    command: ["metadata_service"]
     depends_on:
       - migration
+
   migration:
-    command: ["python", "/root/run_goose.py"]
-    platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile.migration_service
+      dockerfile: Dockerfile
+      target: runtime
     volumes:
       - ./services:/root/services
     environment:
@@ -94,8 +101,10 @@ services:
       - MF_METADATA_HOST=${MF_METADATA_HOST:-0.0.0.0}
       - MF_MIGRATION_ENDPOINTS_ENABLED=1
       - MF_MIGRATION_PORT=${MF_MIGRATION_PORT:-8082}
+    command: ["python", "/root/run_goose.py"]
     depends_on:
       - db
+
   db:
     image: "postgres:11"
     command: ["postgres", "-c", "log_statement=none", "-c", "wal_level=logical"]
@@ -112,5 +121,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
 volumes:
   db_dev_data:

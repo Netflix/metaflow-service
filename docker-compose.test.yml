@@ -1,10 +1,15 @@
+# Test docker-compose
+# Uses the test stage of the unified Dockerfile,
+# which includes pytest and all test dependencies.
+
 version: "3"
 services:
   service_test:
     container_name: service_test
     build:
       context: .
-      dockerfile: Dockerfile.service.test
+      dockerfile: Dockerfile
+      target: test              # test stage has pytest pre-installed
     volumes:
       - .:/app
     environment:
@@ -16,6 +21,7 @@ services:
       - MF_MIGRATION_ENDPOINTS_ENABLED=1
     depends_on:
       - db_test
+
   db_test:
     container_name: db_test
     image: "postgres:11"
