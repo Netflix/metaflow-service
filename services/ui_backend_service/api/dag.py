@@ -98,7 +98,7 @@ class DagApi(object):
                 message=message,
                 keys=keys,
                 existing_keys={},
-                stream_output=None,
+                stream_output=lambda *a, **k: None,
                 invalidate_cache=True,
             )
         )
