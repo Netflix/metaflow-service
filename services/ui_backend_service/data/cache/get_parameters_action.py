@@ -1,3 +1,4 @@
+import json
 from typing import List, Callable
 
 from .get_data_action import GetData
@@ -59,7 +60,15 @@ class GetParameters(GetData):
                 continue
             try:
                 if artifact.size < MAX_S3_SIZE:
-                    values[artifact_name] = artifact.data
+                    value = artifact.data
+                    # Ensure the value is JSON-serializable before storing.
+                    # Some parameter values (e.g. logging.Logger) cannot be
+                    # serialized and would cause json.dumps to fail downstream.
+                    try:
+                        json.dumps(value)
+                    except (TypeError, ValueError):
+                        value = repr(value)
+                    values[artifact_name] = value
                 else:
                     values[artifact_name] = "Artifact too large: {} bytes".format(artifact.size)
             except Exception as ex:
