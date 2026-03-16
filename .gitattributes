@@ -1,0 +1,3 @@
+# Enforce Unix LF line endings for shell scripts
+# Prevents CRLF issues on Windows that break bash scripts inside containers
+*.sh text eol=lf

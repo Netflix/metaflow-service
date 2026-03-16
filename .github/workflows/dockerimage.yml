@@ -29,10 +29,13 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME_NETFLIX_OSS }}
           password: ${{ secrets.DOCKER_AUTH_TOKEN_NETFLIX_OSS }}
       -
-        name: Build and push # We have a single-platform build, so use of setup-buildx-action is currently omitted.
+        name: Build and push
         uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
         with:
           context: .
+          # Only build up to the runtime stage — excludes test stage
+          # from the production image pushed to the registry
+          target: runtime
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
