@@ -76,9 +76,9 @@ class RunApi(object):
         - name: "_limit"
           in: "query"
           description: >
-            Maximum runs to return per page. Default: 200.
-            Pass _limit=0 to disable pagination and return all runs (legacy
-            behavior — may cause 10MB API Gateway failures on large flows).
+            Maximum runs to return per page (must be >= 1).
+            When omitted, the endpoint preserves legacy behavior and returns
+            all runs without pagination headers.
           required: false
           type: "integer"
         - name: "_after"
@@ -95,8 +95,9 @@ class RunApi(object):
             "200":
                 description: >
                   Flat array of run objects (schema unchanged).
-                  When paginated, includes X-Total-Count, X-Pagination-Limit,
-                  and Link headers for RFC 5988 navigation.
+                  When _limit is provided with a positive value, includes
+                  X-Total-Count, X-Pagination-Limit, and Link headers for
+                  RFC 5988 navigation.
             "400":
                 description: Invalid pagination parameters (_limit or _after non-integer)
             "405":
@@ -105,16 +106,24 @@ class RunApi(object):
         flow_name = request.match_info.get("flow_id")
 
         # --- Parse pagination query params --------------------------------
-        raw_limit = request.rel_url.query.get("_limit", "200")
+        raw_limit = request.rel_url.query.get("_limit")
         raw_after = request.rel_url.query.get("_after", None)
+
+        if raw_limit is None:
+            if raw_after is not None:
+                return DBResponse(
+                    response_code=400,
+                    body="Invalid _after: _limit must be provided when using a cursor",
+                )
+            return await self._async_table.get_all_runs(flow_name)
 
         try:
             limit = int(raw_limit)
         except (ValueError, TypeError):
-            return DBResponse(response_code=400, body="Invalid _limit: must be a non-negative integer")
+            return DBResponse(response_code=400, body="Invalid _limit: must be a positive integer")
 
-        if limit < 0:
-            return DBResponse(response_code=400, body="Invalid _limit: must be a non-negative integer")
+        if limit <= 0:
+            return DBResponse(response_code=400, body="Invalid _limit: must be a positive integer")
 
         if raw_after is not None:
             try:
@@ -125,10 +134,6 @@ class RunApi(object):
                 return DBResponse(response_code=400, body="Invalid _after: must be an integer run_number")
         else:
             after_run_number = None
-
-        # --- Legacy opt-out (_limit=0): unbounded query, no headers -------
-        if limit == 0:
-            return await self._async_table.get_all_runs(flow_name)
 
         # --- Paginated path -----------------------------------------------
         db_response, total_count = await self._async_table.get_all_runs_paginated(

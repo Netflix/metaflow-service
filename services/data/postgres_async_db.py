@@ -220,8 +220,13 @@ class AsyncPostgresTable(object):
         Return the total count of rows matching filter_dict.
         Used for X-Total-Count pagination header without fetching all rows.
         Uses reader pool when available (read-only query).
-        Returns 0 on any DB error rather than propagating — callers treat
+        Returns 0 on any DB error rather than propagating -- callers treat
         X-Total-Count as a best-effort hint, not a guarantee.
+
+        Column names in filter_dict are validated against self.keys before
+        interpolation; unknown columns are skipped to prevent SQL injection.
+        JSONB fields (e.g. tags) are intentionally not supported here --
+        tag-aware counting would need a GIN index and a separate strategy.
         """
         if filter_dict is None:
             filter_dict = {}
@@ -655,7 +660,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     async def get_all_runs_paginated(
         self,
         flow_id: str,
-        limit: int = 200,
+        limit: int,
         after_run_number: int = None,
     ) -> Tuple["DBResponse", int]:
         """
@@ -670,7 +675,21 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         (DBResponse, total_count)
             DBResponse.body is a flat list of run dicts (unchanged schema).
             total_count is the full run count for the flow (for X-Total-Count
-            header) — computed independently of the cursor.
+            header) -- computed independently of the cursor.
+
+        Performance notes
+        -----------------
+        The COUNT query is `SELECT COUNT(*) FROM runs_v3 WHERE flow_id = %s`.
+        PostgreSQL can satisfy this with an index-only scan on the
+        (flow_id, run_number) primary key B-tree, so it is fast for the
+        current query shape.
+
+        If future work adds tag-based filters (e.g. `tags @> '{...}'::jsonb`),
+        that condition cannot use the B-tree index. It would require a GIN
+        index on `tags || system_tags` and the count strategy should be
+        revisited at that point -- for example, skipping X-Total-Count
+        entirely when tag filters are active, or using a separate estimate.
+        That work is tracked as a follow-up and is out of scope here.
         """
         conditions = ["flow_id = %s"]
         values = [flow_id]
