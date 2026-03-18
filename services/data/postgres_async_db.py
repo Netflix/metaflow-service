@@ -1,6 +1,5 @@
 import psycopg2
 import psycopg2.extras
-from psycopg2.extensions import QuotedString
 import os
 import aiopg
 import json
@@ -361,41 +360,39 @@ class AsyncPostgresTable(object):
             return aiopg_exception_handling(error)
 
     async def update_row(self, filter_dict={}, update_dict={}, cur: aiopg.Cursor = None):
-        # generate where clause
+        # Build a single values list in the same order as SQL placeholders:
+        # UPDATE ... SET col1=%s, col2=%s WHERE col3=%s AND col4=%s
+        values = []
+
+        # generate SET clause (values come first in SQL)
+        sets = []
+        for col_name, col_val in update_dict.items():
+            sets.append('%s = %%s' % col_name)
+            values.append(col_val)
+        set_clause = ", ".join(sets)
+
+        # generate WHERE clause (values come second in SQL)
         filters = []
         for col_name, col_val in filter_dict.items():
             operator = '='
-            v = str(col_val).strip("'")
-            if not v.isnumeric():
-                v = "'" + v + "'"
             find_operator = operator_match.match(col_name)
             if find_operator:
                 col_name = find_operator.group(1)
                 operator = find_operator.group(2)
-                filters.append('(%s IS NULL or %s %s %s)' %
-                               (col_name, col_name, operator, str(v)))
+                filters.append('(%s IS NULL or %s %s %%s)' %
+                               (col_name, col_name, operator))
             else:
-                filters.append(col_name + operator + str(v))
+                filters.append('%s %s %%s' % (col_name, operator))
+            values.append(col_val)
+        where_clause = " and ".join(filters)
 
-        seperator = " and "
-        where_clause = ""
-        if bool(filter_dict):
-            where_clause = seperator.join(filters)
-
-        sets = []
-        for col_name, col_val in update_dict.items():
-            sets.append(col_name + " = " + str(col_val))
-
-        set_seperator = ", "
-        set_clause = ""
-        if bool(filter_dict):
-            set_clause = set_seperator.join(sets)
         update_sql = """
                 UPDATE {0} SET {1} WHERE {2};
         """.format(self.table_name, set_clause, where_clause)
+        values = tuple(values)
 
         async def _execute_update_on_cursor(_cur):
-            await _cur.execute(update_sql)
+            await _cur.execute(update_sql, values)
             if _cur.rowcount < 1:
                 return DBResponse(response_code=404,
                                   body={"msg": "could not find row"})
@@ -631,7 +628,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         filter_dict = {"flow_id": flow_id,
                        run_key: str(run_value)}
 
-        set_dict = {"tags": QuotedString(json.dumps(run_tags)).getquoted().decode()}
+        set_dict = {"tags": json.dumps(run_tags)}
         return await self.update_row(filter_dict=filter_dict,
                                      update_dict=set_dict,
                                      cur=cur)
