@@ -302,8 +302,9 @@ class AsyncPostgresTable(object):
             values.append(col_val)
 
         # add create ts
-        cols.append("ts_epoch")
-        values.append(get_db_ts_epoch_str())
+        if "ts_epoch" not in record_dict:
+            cols.append("ts_epoch")
+            values.append(get_db_ts_epoch_str())
 
         str_format = []
         for _ in cols:
@@ -778,6 +779,7 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
         user_name,
         tags,
         system_tags,
+        ts_epoch = None
     ):
         dict = {
             "flow_id": flow_id,
@@ -793,6 +795,8 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             "tags": json.dumps(tags),
             "system_tags": json.dumps(system_tags),
         }
+        if ts_epoch is not None:
+            dict["ts_epoch"] = ts_epoch
         return await self.create_record(dict)
 
     async def get_metadata_in_runs(self, flow_id: str, run_id: str):
