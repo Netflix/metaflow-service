@@ -1,0 +1,5 @@
+# Enforce LF line endings for shell scripts and Python files.
+# This prevents CRLF line ending issues on Windows without requiring
+# dos2unix inside the Dockerfile.
+*.sh text eol=lf
+*.py text eol=lf
