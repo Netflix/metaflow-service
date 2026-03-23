@@ -87,7 +87,8 @@ if __name__ == '__main__':
               "next": [
                   "regular_step"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": False
           },
           "regular_step": {
               "name": "regular_step",
@@ -98,7 +99,8 @@ if __name__ == '__main__':
                   "prepare_foreach",
                   "prepare_foreach2"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": False
           },
           "prepare_foreach": {
               "name": "prepare_foreach",
@@ -108,7 +110,8 @@ if __name__ == '__main__':
               "next": [
                   "process_foreach"
               ],
-              "foreach_artifact": "things"
+              "foreach_artifact": "things",
+              "is_inside_foreach": False
           },
           "process_foreach": {
               "name": "process_foreach",
@@ -118,7 +121,8 @@ if __name__ == '__main__':
               "next": [
                   "join"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": True
           },
           "join": {
               "name": "join",
@@ -128,7 +132,8 @@ if __name__ == '__main__':
               "next": [
                   "ultimate_join"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": False
           },
           "prepare_foreach2": {
               "name": "prepare_foreach2",
@@ -138,7 +143,8 @@ if __name__ == '__main__':
               "next": [
                   "process_foreach2"
               ],
-              "foreach_artifact": "things"
+              "foreach_artifact": "things",
+              "is_inside_foreach": False
           },
           "process_foreach2": {
               "name": "process_foreach2",
@@ -148,7 +154,8 @@ if __name__ == '__main__':
               "next": [
                   "join2"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": True
           },
           "join2": {
               "name": "join2",
@@ -158,7 +165,8 @@ if __name__ == '__main__':
               "next": [
                   "after_join"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": False
           },
           "after_join": {
               "name": "after_join",
@@ -168,7 +176,8 @@ if __name__ == '__main__':
               "next": [
                   "ultimate_join"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": False
           },
           "ultimate_join": {
               "name": "ultimate_join",
@@ -178,7 +187,8 @@ if __name__ == '__main__':
               "next": [
                   "end"
               ],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": False
           },
           "end": {
               "name": "end",
@@ -186,7 +196,8 @@ if __name__ == '__main__':
               "line": 65,
               "doc": "",
               "next": [],
-              "foreach_artifact": None
+              "foreach_artifact": None,
+              "is_inside_foreach": False
           }
       },
       "graph_structure": [
@@ -273,3 +284,4 @@ if __name__ == '__main__':
         pass  # expect a raised exception
     else:
         assert False  # Parsing should have failed
+
