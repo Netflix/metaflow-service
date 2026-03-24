@@ -4,7 +4,8 @@ services:
     container_name: service_test
     build:
       context: .
-      dockerfile: Dockerfile.service.test
+      dockerfile: Dockerfile
+      target: test
     volumes:
       - .:/app
     environment:

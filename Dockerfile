@@ -4,7 +4,10 @@ FROM arm64v8/golang:1.20.2-buster as arm64-golang
 FROM ${TARGETARCH}-golang as goose
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
-FROM python:3.11.6-slim-bookworm
+# ── base stage ────────────────────────────────────────────────────────────────
+# Contains all system dependencies and source code.
+# Shared by both runtime and dev stages.
+FROM python:3.11.6-slim-bookworm AS base
 COPY --from=goose /go/bin/goose /usr/local/bin/
 
 ARG BUILD_TIMESTAMP
@@ -40,14 +43,39 @@ ADD services/ui_backend_service /root/services/ui_backend_service
 ADD services/utils /root/services/utils
 ADD setup.py setup.cfg run_goose.py /root/
 WORKDIR /root
-RUN /opt/latest/bin/pip install .
 
-# Install Netflix/metaflow-ui release artifact
-RUN /root/services/ui_backend_service/download_ui.sh
+# Install Netflix/metaflow-ui release artifact — only when UI_ENABLED=1
+# bash is used explicitly to avoid permission denied on fresh clones
+# where git may not preserve the +x bit on download_ui.sh
+RUN if [ "$UI_ENABLED" = "1" ]; then \
+      sed -i 's/\r//' /root/services/ui_backend_service/download_ui.sh && \
+      bash /root/services/ui_backend_service/download_ui.sh; \
+    fi
 
 # Migration Service
 ADD services/migration_service /root/services/migration_service
 RUN pip3 install -r /root/services/migration_service/requirements.txt
-
 RUN chmod 777 /root/services/migration_service/run_script.py
-CMD python3  services/migration_service/run_script.py
+
+# ── runtime stage ─────────────────────────────────────────────────────────────
+# Production image. Self-contained, no volume mounts needed.
+# This is the stage pushed to the registry by CI.
+FROM base AS runtime
+RUN /opt/latest/bin/pip install .
+CMD python3 services/migration_service/run_script.py
+
+# ── dev stage ─────────────────────────────────────────────────────────────────
+# Development image. Editable install so that the volume-mounted
+# ./services directory is the live source — no rebuild needed on code change.
+FROM base AS dev
+RUN /opt/latest/bin/pip install --editable .
+CMD python3 services/migration_service/run_script.py
+
+# ── test stage ────────────────────────────────────────────────────────────────
+# Shares the same base as dev and runtime — prevents dev/test version drift.
+# Replaces the standalone Dockerfile.service.test.
+FROM base AS test
+RUN pip3 install tox
+COPY . /app
+WORKDIR /app
+CMD ["/app/wait-for-postgres.sh", "tox"]
