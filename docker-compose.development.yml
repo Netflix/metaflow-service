@@ -101,7 +101,8 @@ services:
       - MF_MIGRATION_ENDPOINTS_ENABLED=1
       - MF_MIGRATION_PORT=${MF_MIGRATION_PORT:-8082}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
   db:
     image: "postgres:11"
     command: ["postgres", "-c", "log_statement=none", "-c", "wal_level=logical"]

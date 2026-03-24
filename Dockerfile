@@ -45,9 +45,11 @@ ADD setup.py setup.cfg run_goose.py /root/
 WORKDIR /root
 
 # Install Netflix/metaflow-ui release artifact — only when UI_ENABLED=1
+# bash is used explicitly to avoid permission denied on fresh clones
+# where git may not preserve the +x bit on download_ui.sh
 RUN if [ "$UI_ENABLED" = "1" ]; then \
       sed -i 's/\r//' /root/services/ui_backend_service/download_ui.sh && \
-      /root/services/ui_backend_service/download_ui.sh; \
+      bash /root/services/ui_backend_service/download_ui.sh; \
     fi
 
 # Migration Service
@@ -68,3 +70,12 @@ CMD python3 services/migration_service/run_script.py
 FROM base AS dev
 RUN /opt/latest/bin/pip install --editable .
 CMD python3 services/migration_service/run_script.py
+
+# ── test stage ────────────────────────────────────────────────────────────────
+# Shares the same base as dev and runtime — prevents dev/test version drift.
+# Replaces the standalone Dockerfile.service.test.
+FROM base AS test
+RUN pip3 install tox
+COPY . /app
+WORKDIR /app
+CMD ["/app/wait-for-postgres.sh", "tox"]
