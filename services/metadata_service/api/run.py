@@ -336,7 +336,7 @@ class RunApi(object):
             filter_dict={
                 "flow_id": flow_name,
                 "run_number": run_number,
-                "step_name": "_run_metadata",
+                "step_name": "_parameters",
                 "field_name": "_status",
             },
             update_dict={
@@ -358,7 +358,7 @@ class RunApi(object):
         step = await self._step_table.get_step(
             flow_id=run_row["flow_id"],
             run_id=run_row["run_number"],
-            step_name="_run_metadata",
+            step_name="_parameters",
             expanded=True
         )
         if step.response_code != 200:
@@ -368,7 +368,7 @@ class RunApi(object):
                     run_number=run_row["run_number"],
                     run_id=run_row["run_id"],
                     user_name=run_row["user_name"],
-                    step_name="_run_metadata",
+                    step_name="_parameters",
                     tags=run_row["tags"],
                     system_tags=run_row["system_tags"]
                 ),

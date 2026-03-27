@@ -65,7 +65,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHERE
                 {table_name}.flow_id = status.flow_id AND
                 {table_name}.run_number = status.run_number AND
-                status.step_name = '_run_metadata' AND
+                status.step_name = '_parameters' AND
                 status.field_name = '_status'
             ORDER BY ts_epoch DESC
             LIMIT 1
