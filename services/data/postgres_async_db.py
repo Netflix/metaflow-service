@@ -56,7 +56,8 @@ class DBQueryTracer:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        active_db_tracer.reset(self._tokens.pop())
+        if self._tokens:
+            active_db_tracer.reset(self._tokens.pop())
 
     def _record(self, execution_time, row_count):
         self._queries.append(
