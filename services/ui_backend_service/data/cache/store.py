@@ -74,7 +74,7 @@ class CacheStore(object):
         await self.log_cache.start_cache()
         await self.card_cache.start_cache()
 
-        asyncio.gather(self._monitor_restart_requests())
+        self._monitor_task = asyncio.ensure_future(self._monitor_restart_requests())
 
         if FEATURE_PREFETCH_ENABLE:
             asyncio.run_coroutine_threadsafe(
@@ -84,14 +84,41 @@ class CacheStore(object):
     async def _monitor_restart_requests(self):
         while True:
             for _cache in [self.artifact_cache, self.dag_cache, self.log_cache]:
-                if await _cache.restart_requested():
-                    cache_name = type(_cache).__name__
-                    logger.info("[{}] restart requested...".format(cache_name))
-                    await _cache.stop_cache()
-                    await _cache.start_cache()
-                    logger.info("[{}] restart done.".format(cache_name))
+                try:
+                    if await _cache.restart_requested():
+                        cache_name = type(_cache).__name__
+                        cache_obj = _cache.cache
+                        try:
+                            logger.warning(
+                                "[%s] restart requested. is_alive=%s, pid=%s, returncode=%s, "
+                                "pending_requests=%d",
+                                cache_name,
+                                cache_obj._is_alive if cache_obj else None,
+                                cache_obj._proc.pid if cache_obj and hasattr(cache_obj, '_proc') else None,
+                                cache_obj._proc.returncode if cache_obj and hasattr(cache_obj, '_proc') else None,
+                                len(cache_obj.pending_requests) if cache_obj else 0
+                            )
+                        except Exception:
+                            logger.warning("[%s] restart requested (diagnostic log failed)", cache_name)
+                        try:
+                            await _cache.stop_cache()
+                            await _cache.start_cache()
+                        except asyncio.CancelledError:
+                            # Cancelled mid-restart — clean up partially-started cache (DEF-B03-D1)
+                            try:
+                                await _cache.stop_cache()
+                            except Exception:
+                                logger.exception("[%s] cleanup after CancelledError failed", cache_name)
+                            raise
+                        logger.info("[%s] restart done.", cache_name)
+                except asyncio.CancelledError:
+                    raise  # allow clean shutdown (M4)
+                except Exception:
+                    logger.exception(
+                        "[%s] failed to restart cache, will retry next cycle",
+                        type(_cache).__name__
+                    )
 
-            # Wait 5 seconds until checking requested restarts again
             await asyncio.sleep(5)
 
     async def preload_initial_data(self):
@@ -105,6 +132,10 @@ class CacheStore(object):
 
     async def stop_caches(self, app):
         "Stops all caches as part of app teardown"
+        # Cancel the monitor first so it cannot resurrect caches after we stop them (M4)
+        if hasattr(self, '_monitor_task'):
+            self._monitor_task.cancel()
+            await asyncio.gather(self._monitor_task, return_exceptions=True)
         await self.artifact_cache.stop_cache()
         await self.dag_cache.stop_cache()
         await self.log_cache.stop_cache()
@@ -121,6 +152,8 @@ class CardCacheStore(object):
         self.cache = None
         self.loop = asyncio.get_event_loop()
         self.cache_manager = CardCacheManager()
+        self._cleanup_coroutine = None  # guards stop_cache if start_cache never ran (M5)
+        self._disk_cleanup_coroutine = None
 
     async def start_cache(self):
         self._cleanup_coroutine = asyncio.create_task(
@@ -131,10 +164,12 @@ class CardCacheStore(object):
         )
 
     async def stop_cache(self):
-        self._cleanup_coroutine.cancel()
-        await self._cleanup_coroutine
-        self._disk_cleanup_coroutine.cancel()
-        await self._disk_cleanup_coroutine
+        if self._cleanup_coroutine:
+            self._cleanup_coroutine.cancel()
+            await self._cleanup_coroutine
+        if self._disk_cleanup_coroutine:
+            self._disk_cleanup_coroutine.cancel()
+            await self._disk_cleanup_coroutine
 
 
 class ArtifactCacheStore(object):
@@ -189,14 +224,15 @@ class ArtifactCacheStore(object):
             GetArtifacts,
             GetParameters,
         ]
-        self.cache = CacheAsyncClient(
+        new_cache = CacheAsyncClient(
             "cache_data/artifact_search",
             actions,
             max_size=CACHE_ARTIFACT_STORAGE_LIMIT,
             max_actions=CACHE_ARTIFACT_MAX_ACTIONS,
         )
         if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
+            await new_cache.start()  # _proc and handshake complete before self.cache is set (M6)
+            self.cache = new_cache  # only assign when started; leave None when disabled (DEF-A01-D1/D2)
 
     async def preload_data_for_runs(self, runs: List[Dict]):
         """
@@ -214,15 +250,11 @@ class ArtifactCacheStore(object):
                     **run
                 )
             )
-            asyncio.gather(
-                # Preload run parameters
-                await self.get_run_parameters(run["flow_id"], run["run_number"]),
-                # Preload task statuses
-                await self._task_table.get_tasks_for_run(
-                    run["flow_id"],
-                    run["run_number"],
-                    postprocess=self.task_refiner.postprocess,
-                ),
+            await self.get_run_parameters(run["flow_id"], run["run_number"])
+            await self._task_table.get_tasks_for_run(
+                run["flow_id"],
+                run["run_number"],
+                postprocess=self.task_refiner.postprocess,
             )
 
     async def get_run_parameters(
@@ -251,9 +283,14 @@ class ArtifactCacheStore(object):
         """
         db_response = await self._run_table.get_run(flow_id, run_key)
 
-        # Return nothing if params artifacts were not found.
         if not db_response.response_code == 200:
             return None
+
+        cache_alive = self.cache.is_alive if self.cache else None
+        logger.debug(
+            "get_run_parameters: flow_id=%s, run_key=%s, cache_alive=%s, invalidate_cache=%s",
+            flow_id, run_key, cache_alive, invalidate_cache
+        )
 
         response = await self.parameter_refiner.postprocess(
             db_response, invalidate_cache=invalidate_cache
@@ -281,7 +318,10 @@ class ArtifactCacheStore(object):
                 parameters,
             )
         except Exception:
-            logger.error("Run parameter fetching failed")
+            logger.error(
+                "Run parameter fetching failed for flow_id=%s, run_number=%s",
+                flow_id, run_number, exc_info=True
+            )
 
     async def preload_task_statuses_event_handler(self, flow_id: str, run_number: int):
         """
@@ -302,7 +342,8 @@ class ArtifactCacheStore(object):
         )
 
     async def stop_cache(self):
-        await self.cache.stop()
+        if self.cache:
+            await self.cache.stop()
 
 
 class DAGCacheStore(object):
@@ -335,17 +376,19 @@ class DAGCacheStore(object):
     async def start_cache(self):
         "Initialize the CacheAsyncClient for DAG caching"
         actions = [GenerateDag]
-        self.cache = CacheAsyncClient(
+        new_cache = CacheAsyncClient(
             "cache_data/dag",
             actions,
             max_size=CACHE_DAG_STORAGE_LIMIT,
             max_actions=CACHE_DAG_MAX_ACTIONS,
         )
         if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
+            await new_cache.start()  # M6
+            self.cache = new_cache  # DEF-A01-D1/D2 fix
 
     async def stop_cache(self):
-        await self.cache.stop()
+        if self.cache:
+            await self.cache.stop()
 
     async def preload_dag_event_handler(self, flow_name: str, run_number: str):
         """
@@ -420,14 +463,16 @@ class LogCacheStore(object):
     async def start_cache(self):
         "Initialize the CacheAsyncClient for Log caching"
         actions = [GetLogFile]
-        self.cache = CacheAsyncClient(
+        new_cache = CacheAsyncClient(
             "cache_data/log",
             actions,
             max_size=CACHE_LOG_STORAGE_LIMIT,
             max_actions=CACHE_LOG_MAX_ACTIONS,
         )
         if FEATURE_CACHE_ENABLE:
-            await self.cache.start()
+            await new_cache.start()  # M6
+            self.cache = new_cache  # DEF-A01-D1/D2 fix
 
     async def stop_cache(self):
-        await self.cache.stop()
+        if self.cache:
+            await self.cache.stop()
