@@ -107,6 +107,9 @@ class Refinery(object):
         if FEATURE_REFINE_DISABLE:
             return response
 
+        if self.cache_store.cache is None:
+            return response  # cache disabled — return unrefined data gracefully (DEF-C02)
+
         if response.response_code != 200 or not response.body:
             return response
 

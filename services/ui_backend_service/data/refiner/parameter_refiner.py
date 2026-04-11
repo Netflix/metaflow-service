@@ -1,4 +1,5 @@
-from .refinery import Refinery
+from .refinery import Refinery, CACHE_RETRY_MAX_ATTEMPTS
+from services.ui_backend_service.data.cache.client.cache_client import CacheServerUnreachable
 
 
 class ParameterRefiner(Refinery):
@@ -20,14 +21,26 @@ class ParameterRefiner(Refinery):
         return self.cache_store.cache.GetParameters
 
     async def fetch_data(self, targets, event_stream=None, invalidate_cache=False):
-        _res = await self._action()(targets, invalidate_cache=invalidate_cache)
-        if _res.has_pending_request():
-            async for event in _res.stream():
-                if event["type"] == "error":
-                    # raise error, there was an exception during processing.
-                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
-            await _res.wait()  # wait for results to be ready
-        return _res.get() or {}  # cache get() might return None if no keys are produced.
+        self.logger.debug("fetch_data called with targets=%s, invalidate_cache=%s", targets, invalidate_cache)
+        for attempt in range(CACHE_RETRY_MAX_ATTEMPTS):
+            try:
+                _res = await self._action()(targets, invalidate_cache=invalidate_cache)
+                if _res.has_pending_request():
+                    async for event in _res.stream():
+                        if event["type"] == "error":
+                            raise GetParametersFailed(event["message"], event["id"], event["traceback"])
+                    await _res.wait()
+                return _res.get() or {}
+            except CacheServerUnreachable:
+                if attempt >= CACHE_RETRY_MAX_ATTEMPTS - 1:
+                    self.logger.error(
+                        "CacheServerUnreachable on final attempt %d/%d for targets=%s, giving up",
+                        attempt + 1, CACHE_RETRY_MAX_ATTEMPTS, targets
+                    )
+                    raise
+                recovered = await self._wait_for_cache_restart(attempt, CACHE_RETRY_MAX_ATTEMPTS, targets)
+                if not recovered:
+                    continue
 
     def _record_to_action_input(self, record):
         # Prefer run_id over run_number

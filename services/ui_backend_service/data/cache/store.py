@@ -107,7 +107,7 @@ class CacheStore(object):
                             # Cancelled mid-restart — clean up partially-started cache (DEF-B03-D1)
                             try:
                                 await _cache.stop_cache()
-                            except Exception:
+                            except (Exception, asyncio.CancelledError):  # DEF-C03: CancelledError is BaseException
                                 logger.exception("[%s] cleanup after CancelledError failed", cache_name)
                             raise
                         logger.info("[%s] restart done.", cache_name)
