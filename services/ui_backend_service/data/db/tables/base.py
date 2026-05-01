@@ -1,5 +1,6 @@
 import math
 import os
+import time
 from asyncio import iscoroutinefunction
 from typing import Callable, List, Tuple
 
@@ -13,6 +14,14 @@ from services.data.postgres_async_db import (
 
 # Heartbeat check interval. Add margin in case of client-server communication delays, before marking a heartbeat stale.
 HEARTBEAT_THRESHOLD = int(os.environ.get("HEARTBEAT_THRESHOLD", WAIT_TIME * 6))
+
+# Tags older than this window are not surfaced via get_tags(). The autocomplete dropdowns in
+# the UI only need recent tags ("what's actively being used"), and pre-filtering by ts_epoch
+# lets PostgreSQL use runs_v3_idx_ts_epoch to narrow the input from ~10M rows to ~10K-100K
+# before the JSONB unnest. Without this bound, the unnest+DISTINCT+ILIKE pattern times out
+# on production-sized data. Tunable via env var for ops debugging.
+TAGS_RECENT_WINDOW_DAYS = int(os.environ.get("MF_TAGS_RECENT_WINDOW_DAYS", "7"))
+TAGS_RECENT_WINDOW_MS = TAGS_RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000
 # Time before a run without heartbeat will be marked as failed, if it is decisively not running, or completed.
 # Default 1 day (in milliseconds)
 OLD_RUN_FAILURE_CUTOFF_TIME = int(
@@ -275,11 +284,16 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         FROM (
             SELECT JSONB_ARRAY_ELEMENTS_TEXT(tags||system_tags) AS tag
             FROM {table_name}
+            WHERE ts_epoch > %s
         ) AS t
         {conditions}
         {limit}
         {offset}
         """
+        # Recency cutoff inside the subquery so the JSONB unnest sees ~10K rows, not ~10M.
+        # See TAGS_RECENT_WINDOW_DAYS at the top of the file.
+        cutoff_ms = int(time.time() * 1000) - TAGS_RECENT_WINDOW_MS
+
         select_sql = sql_template.format(
             table_name=self.table_name,
             conditions="WHERE {}".format(" AND ".join(conditions))
@@ -290,7 +304,7 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         )
 
         res, pagination = await self.execute_sql(
-            select_sql=select_sql, values=values, serialize=False
+            select_sql=select_sql, values=[cutoff_ms] + list(values), serialize=False
         )
 
         # process the unserialized DBResponse
