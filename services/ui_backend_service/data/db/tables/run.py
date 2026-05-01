@@ -34,7 +34,40 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
     # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
     # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
+    #
+    # Bare-flow fix: previously these LATERAL JOINs hardcoded `step_name = 'end'`, which
+    # meant a flow whose terminal step is anything other than literally "end" (e.g. a single
+    # bare `@step`, or a flow using `@step(end=True)` introduced in OSS metaflow PR #3120)
+    # never had its `attempt_ok` row matched. The run-level `status`, `finished_at`, and
+    # `duration` CASE expressions then fell through to `'failed'` / `last_heartbeat_ts`
+    # respectively, producing a permanent "failed" status with sometimes-negative duration.
+    #
+    # Mirror the Python client's Run._graph_endpoints: pre-resolve the terminal step name
+    # from the `_parameters` task's `end_step` metadata row (written by `persist_constants`
+    # in the OSS runtime), and fall back to the literal `'end'` for legacy runs that pre-
+    # date that metadata.
     joins = [
+        """
+        LEFT JOIN LATERAL (
+            SELECT COALESCE((
+                SELECT
+                    (CASE
+                        WHEN pg_typeof(value)='jsonb'::regtype
+                        THEN value::jsonb->>0
+                        ELSE value::text
+                    END)
+                FROM {metadata_table} as end_step_meta
+                WHERE
+                    {table_name}.flow_id = end_step_meta.flow_id AND
+                    {table_name}.run_number = end_step_meta.run_number AND
+                    end_step_meta.step_name = '_parameters' AND
+                    end_step_meta.field_name = 'end_step'
+                LIMIT 1
+            ), 'end') as step_name
+        ) as end_step_lookup ON true
+        """.format(
+            table_name=table_name, metadata_table=metadata_table
+        ),
         """
         LEFT JOIN LATERAL (
             SELECT
@@ -48,7 +81,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHERE
                 {table_name}.flow_id = attempt_ok.flow_id AND
                 {table_name}.run_number = attempt_ok.run_number AND
-                attempt_ok.step_name = 'end' AND
+                attempt_ok.step_name = end_step_lookup.step_name AND
                 attempt_ok.field_name = 'attempt_ok'
             ORDER BY ts_epoch DESC
             LIMIT 1
@@ -63,7 +96,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHERE
                 {table_name}.flow_id = attempt.flow_id AND
                 {table_name}.run_number = attempt.run_number AND
-                attempt.step_name = 'end' AND
+                attempt.step_name = end_step_lookup.step_name AND
                 attempt.field_name = 'attempt' AND
                 end_attempt_ok.value IS FALSE
             ORDER BY ts_epoch DESC

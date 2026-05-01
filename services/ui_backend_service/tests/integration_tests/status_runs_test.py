@@ -343,3 +343,152 @@ async def test_run_status_failed_with_retrying_task(cli, db):
     _, data = await _test_single_resource(cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200)
 
     assert data["status"] == "failed"
+
+
+# Bare-flow fix: a flow whose terminal step is anything other than literally "end"
+# (single bare @step, or @step(end=True) annotation introduced in OSS metaflow PR #3120)
+# previously rendered as `status='failed'` because the run-level LATERAL JOIN hardcoded
+# `step_name = 'end'`. The fix mirrors `Run._graph_endpoints`: pre-resolve the terminal
+# step name from `_parameters.end_step` metadata and substitute into the join.
+async def test_run_status_completed_bare_step(cli, db):
+    _flow = (await add_flow(db, flow_id="HelloBareSingleStepFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+
+    # Create the single bare step "only" — NOT "end".
+    _step = (await add_step(
+        db,
+        flow_id=_run.get("flow_id"),
+        step_name="only",
+        run_number=_run.get("run_number"),
+        run_id=_run.get("run_id"),
+    )).body
+    _task = (await add_task(
+        db,
+        flow_id=_step.get("flow_id"),
+        step_name=_step.get("step_name"),
+        run_number=_step.get("run_number"),
+        run_id=_step.get("run_id"),
+    )).body
+
+    # The `_parameters` task carries the end_step metadata (written by persist_constants
+    # in OSS metaflow). For a bare flow, end_step == start_step == the single step name.
+    _params_step = (await add_step(
+        db,
+        flow_id=_run.get("flow_id"),
+        step_name="_parameters",
+        run_number=_run.get("run_number"),
+        run_id=_run.get("run_id"),
+    )).body
+    _params_task = (await add_task(
+        db,
+        flow_id=_params_step.get("flow_id"),
+        step_name=_params_step.get("step_name"),
+        run_number=_params_step.get("run_number"),
+        run_id=_params_step.get("run_id"),
+    )).body
+    await add_metadata(
+        db,
+        flow_id=_params_task.get("flow_id"),
+        run_number=_params_task.get("run_number"),
+        run_id=_params_task.get("run_id"),
+        step_name=_params_task.get("step_name"),
+        task_id=_params_task.get("task_id"),
+        task_name=_params_task.get("task_name"),
+        metadata={
+            "field_name": "end_step",
+            "value": "only",
+            "type": "graph_structure",
+        },
+    )
+
+    # The bare step succeeded — write attempt + attempt_ok under step_name="only".
+    await add_metadata(
+        db,
+        flow_id=_task.get("flow_id"),
+        run_number=_task.get("run_number"),
+        run_id=_task.get("run_id"),
+        step_name=_task.get("step_name"),
+        task_id=_task.get("task_id"),
+        task_name=_task.get("task_name"),
+        tags=["attempt_id:0"],
+        metadata={
+            "field_name": "attempt",
+            "value": "0",
+            "type": "attempt",
+        },
+    )
+    _attempt_ok = (await add_metadata(
+        db,
+        flow_id=_task.get("flow_id"),
+        run_number=_task.get("run_number"),
+        run_id=_task.get("run_id"),
+        step_name=_task.get("step_name"),
+        task_id=_task.get("task_id"),
+        task_name=_task.get("task_name"),
+        tags=["attempt_id:0"],
+        metadata={
+            "field_name": "attempt_ok",
+            "value": "True",
+            "type": "internal_attempt_status",
+        },
+    )).body
+
+    _, data = await _test_single_resource(
+        cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None
+    )
+
+    # Pre-fix: status="failed", finished_at == last_heartbeat_ts*1000 (often producing
+    # negative duration). Post-fix: the SQL resolves end_step="only" from _parameters,
+    # picks up the bare step's attempt_ok=True row, and reports the run as completed.
+    assert data["status"] == "completed"
+    assert data["finished_at"] == _attempt_ok["ts_epoch"]
+    assert data["duration"] == _attempt_ok["ts_epoch"] - _run["ts_epoch"]
+
+
+# Backwards-compatibility: a legacy run that DOESN'T write `_parameters.end_step` must
+# still resolve via the literal `'end'` step. Verifies the COALESCE fallback in the new
+# end_step_lookup join.
+async def test_run_status_completed_legacy_end_step_fallback(cli, db):
+    _flow = (await add_flow(db, flow_id="LegacyHelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+
+    _step = (await add_step(
+        db,
+        flow_id=_run.get("flow_id"),
+        step_name="end",
+        run_number=_run.get("run_number"),
+        run_id=_run.get("run_id"),
+    )).body
+    _task = (await add_task(
+        db,
+        flow_id=_step.get("flow_id"),
+        step_name=_step.get("step_name"),
+        run_number=_step.get("run_number"),
+        run_id=_step.get("run_id"),
+    )).body
+
+    # No _parameters.end_step metadata. The COALESCE in end_step_lookup must fall back
+    # to literal 'end', preserving pre-fix semantics for legacy runs.
+    _attempt_ok = (await add_metadata(
+        db,
+        flow_id=_task.get("flow_id"),
+        run_number=_task.get("run_number"),
+        run_id=_task.get("run_id"),
+        step_name=_task.get("step_name"),
+        task_id=_task.get("task_id"),
+        task_name=_task.get("task_name"),
+        tags=["attempt_id:0"],
+        metadata={
+            "field_name": "attempt_ok",
+            "value": "True",
+            "type": "internal_attempt_status",
+        },
+    )).body
+
+    _, data = await _test_single_resource(
+        cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200, None
+    )
+
+    assert data["status"] == "completed"
+    assert data["finished_at"] == _attempt_ok["ts_epoch"]
+    assert data["duration"] == _attempt_ok["ts_epoch"] - _run["ts_epoch"]
