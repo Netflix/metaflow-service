@@ -247,6 +247,7 @@ operators_to_sql = {
     "ew": "\"{}\" ILIKE %s",      # ends with
     "li": "\"{}\" ILIKE %s",      # ILIKE (used with % placeholders supplied in the request params)
     "is": "\"{}\" IS %s",         # IS
+    "re": "\"{}\" ~ %s",          # POSIX regex match (case-sensitive)
 }
 
 operators_to_sql_values = {
@@ -261,6 +262,7 @@ operators_to_sql_values = {
     "ew": "%{}",
     "li": "{}",
     "is": "{}",
+    "re": "{}",                   # raw regex pattern, no padding
 }
 
 
