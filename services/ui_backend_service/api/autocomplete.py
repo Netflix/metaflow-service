@@ -9,6 +9,7 @@ class AutoCompleteApi(object):
         self.db = db
         self.logger = logging.getLogger("AutoCompleteApi")
         app.router.add_route("GET", "/tags/autocomplete", self.get_tags)
+        app.router.add_route("GET", "/users/autocomplete", self.get_users)
         app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
         app.router.add_route("GET", "/flows/{flow_id}/runs/autocomplete", self.get_runs_for_flow)
         app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/steps/autocomplete", self.get_steps_for_run)
@@ -37,6 +38,31 @@ class AutoCompleteApi(object):
             request,
             self.db.run_table_postgres.get_tags,
             allowed_keys=["tag"],
+        )
+
+    @handle_exceptions
+    async def get_users(self, request):
+        """
+        ---
+        description: Get distinct user_name values across all runs, with pagination.
+        tags:
+        - Autocomplete
+        - User
+        produces:
+        - application/json
+        responses:
+            "200":
+                description: Returns string list of distinct user_name values
+                schema:
+                    $ref: '#/definitions/ResponsesAutocompleteUserList'
+        """
+        # Reads run.user_name directly rather than the `user:` system_tag, so
+        # Maestro-driven production runs (which never get a `user:` tag) still
+        # surface their author in the User filter dropdown.
+        return await resource_response(
+            request,
+            self.db.run_table_postgres.get_users,
+            allowed_keys=["user_name"],
         )
 
     @handle_exceptions
