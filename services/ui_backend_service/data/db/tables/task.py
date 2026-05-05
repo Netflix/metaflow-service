@@ -174,6 +174,12 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             THEN 'completed'
             WHEN attempt.attempt_ok IS FALSE
             THEN 'failed'
+            WHEN attempt.attempt_ok IS NULL
+                AND attempt.task_ok_location IS NULL
+                AND {table_name}.last_heartbeat_ts IS NOT NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
+                AND {finished_at_column} IS NULL
+            THEN 'killed'
             WHEN COALESCE(attempt.attempt_finished_at, attempt.task_ok_finished_at) IS NOT NULL
                 AND attempt_ok IS NULL
             THEN 'unknown'

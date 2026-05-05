@@ -4,9 +4,7 @@ from .refinery import Refinery
 class TaskRefiner(Refinery):
     """
     Refiner class for postprocessing Task rows.
-
     Uses Metaflow Client API to refine Task's actual status from Metaflow Service and Datastore.
-
     Parameters
     -----------
     cache : AsyncCacheClient
@@ -36,11 +34,12 @@ class TaskRefiner(Refinery):
                 record['status'] = 'failed'
             elif value is True:
                 record['status'] = 'completed'
-
+        # If task is failed and _task_ok key exists in values but is None,
+        # the process was killed externally (SIGKILL bypasses finally in task.py)
+        elif record['status'] == 'failed' and '_task_ok' in values and values['_task_ok'] is None:
+            record['status'] = 'killed'
         if values.get('_foreach_stack'):
             value = values['_foreach_stack']
             if len(value) > 0 and len(value[0]) >= 4:
-                # The third one in the tuple is the foreach index. We access this way for backwards compatibility.
                 record['foreach_label'] = "{}[{}]".format(record['task_id'], value[0][3])
-
         return record
