@@ -6,6 +6,7 @@ import json
 import math
 import re
 import time
+from contextvars import ContextVar
 from services.utils import logging, DBType
 from typing import List, Tuple
 
@@ -36,10 +37,41 @@ ARTIFACT_TABLE_NAME = os.environ.get("DB_TABLE_NAME_ARTIFACT", "artifact_v3")
 DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 
 operator_match = re.compile('([^:]*):([=><]+)$')
+active_db_tracer = ContextVar("active_db_tracer", default=None)
 
 # use a ddmmyyy timestamp as the version for triggers
 TRIGGER_VERSION = "05092024"
 TRIGGER_NAME_PREFIX = "notify_ui"
+
+
+# Tracing is scoped via ContextVar, ensuring metrics are isolated per request context
+class DBQueryTracer:
+    def __init__(self):
+        self._queries = []
+        self._tokens = []
+
+    def __enter__(self):
+        self._tokens.append(active_db_tracer.set(self))
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self._tokens:
+            active_db_tracer.reset(self._tokens.pop())
+
+    def _record(self, execution_time, row_count):
+        self._queries.append(
+            {"execution_time": execution_time, "row_count": row_count}
+        )
+
+    def summary(self):
+        query_count = len(self._queries)
+        total_rows = sum(query["row_count"] for query in self._queries)
+        total_time = sum(query["execution_time"] for query in self._queries)
+        return {
+            "query_count": query_count,
+            "total_time": total_time,
+            "total_rows": total_rows,
+        }
 
 
 class _AsyncPostgresDB(object):
@@ -248,27 +280,46 @@ class AsyncPostgresTable(object):
                           expanded=False, limit: int = 0, offset: int = 0,
                           cur: aiopg.Cursor = None, serialize: bool = True) -> Tuple[DBResponse, DBPagination]:
         async def _execute_on_cursor(_cur):
-            await _cur.execute(select_sql, values)
+            tracer = active_db_tracer.get()
+            if tracer:
+                start_time = time.perf_counter()
 
-            rows = []
-            records = await _cur.fetchall()
-            if serialize:
-                for record in records:
-                    # pylint-initial-ignore: Lack of __init__ makes this too hard for pylint
-                    # pylint: disable=not-callable
-                    row = self._row_type(**record)
-                    rows.append(row.serialize(expanded))
-            else:
-                rows = records
+            try:
+                await _cur.execute(select_sql, values)
 
-            count = len(rows)
+                rows = []
+                records = await _cur.fetchall()
+                row_count = len(records)
+                if serialize:
+                    for record in records:
+                        # pylint-initial-ignore: Lack of __init__ makes this too hard for pylint
+                        # pylint: disable=not-callable
+                        row = self._row_type(**record)
+                        rows.append(row.serialize(expanded))
+                else:
+                    rows = records
+            except Exception:
+                if tracer:
+                    elapsed = time.perf_counter() - start_time
+                    tracer._record(
+                        execution_time=elapsed,
+                        row_count=0,
+                    )
+                raise
+
+            if tracer:
+                elapsed = time.perf_counter() - start_time
+                tracer._record(
+                    execution_time=elapsed,
+                    row_count=row_count,
+                )
 
             # Will raise IndexError in case fetch_single=True and there's no results
             body = rows[0] if fetch_single else rows
             pagination = DBPagination(
                 limit=limit,
                 offset=offset,
-                count=count,
+                count=row_count,
                 page=math.floor(int(offset) / max(int(limit), 1)) + 1,
             )
             return body, pagination
