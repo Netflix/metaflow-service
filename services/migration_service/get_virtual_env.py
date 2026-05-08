@@ -38,6 +38,6 @@ except Exception as e:
 r = requests.get('http://localhost:{0}/version'.format(port))
 r.raise_for_status()
 
-conf_file = open('/root/services/migration_service/config', 'w')
+conf_file = open('/src/services/migration_service/config', 'w')
 print(r.text, file=conf_file)
 conf_file.close()

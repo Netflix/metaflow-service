@@ -7,10 +7,14 @@ COPY --from=goose /go/bin/goose /usr/local/bin/
 RUN apt-get update -y \
     && apt-get -y install libpq-dev
 
-ADD services/__init__.py /root/services/__init__.py
-ADD services/utils /root/services/utils
-ADD services/migration_service /root/services/migration_service
-ADD setup.py setup.cfg run_goose.py /root/
-WORKDIR /root
+ADD services/__init__.py /src/services/__init__.py
+ADD services/utils /src/services/utils
+ADD services/migration_service /src/services/migration_service
+ADD setup.py setup.cfg run_goose.py /src/
+WORKDIR /src
 RUN pip install --editable .
+
+WORKDIR /tmp
+USER 1001
+
 CMD migration_service

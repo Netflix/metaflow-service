@@ -88,7 +88,7 @@ def main():
         [
             "goose",
             "-dir",
-            "/root/services/migration_service/migration_files/",
+            "/src/services/migration_service/migration_files/",
             "postgres",
             db_connection_string,
             "up",

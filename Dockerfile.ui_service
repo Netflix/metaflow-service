@@ -18,18 +18,22 @@ ENV CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
 RUN apt-get update -y \
     && apt-get -y install libpq-dev unzip gcc curl
 
-ADD services/__init__.py /root/services/__init__.py
-ADD services/data /root/services/data
-ADD services/utils /root/services/utils
-ADD services/metadata_service /root/services/metadata_service
-ADD services/ui_backend_service /root/services/ui_backend_service
-ADD setup.py setup.cfg /root/
+ADD services/__init__.py /src/services/__init__.py
+ADD services/data /src/services/data
+ADD services/utils /src/services/utils
+ADD services/metadata_service /src/services/metadata_service
+ADD services/ui_backend_service /src/services/ui_backend_service
+ADD setup.py setup.cfg /src/
 
-WORKDIR /root
+WORKDIR /src
+
 
 # Install Netflix/metaflow-ui release artifact
-RUN /root/services/ui_backend_service/download_ui.sh
+RUN /src/services/ui_backend_service/download_ui.sh
 
 RUN pip install --editable .
+
+WORKDIR /tmp
+USER 1001
 
 CMD ui_backend_service
