@@ -124,6 +124,33 @@ class ListenNotify(object):
                         filter_dict={"attempt_id": _attempt_id}
                     )
 
+                # Notify related resources on _status updates.
+                if table.table_name == self.db.metadata_table_postgres.table_name and data["field_name"] == "_status":
+
+                    # Run level status.
+                    if data["step_name"] == "_parameters":
+                        await _broadcast(
+                            event_emitter=self.event_emitter,
+                            operation="UPDATE",
+                            table=self.db.run_table_postgres,
+                            data=data,
+                        )
+                    # Task level status
+                    else:
+                        try:
+                            attempt_tag = [t for t in data['tags'] if t.startswith('attempt_id')][0]
+                            attempt_id = attempt_tag.split(":")[1]
+                        except Exception:
+                            self.logger.exception("Failed to load attempt_id from _status metadata")
+                            pass
+                        await _broadcast(
+                            event_emitter=self.event_emitter,
+                            operation="UPDATE",
+                            table=self.db.task_table_postgres,
+                            data=data,
+                            filter_dict={"attempt_id": attempt_id} if attempt_id else {}
+                        )
+
                 # Notify related resources once attempt_ok for task has been saved.
                 if operation == "INSERT" and \
                         table.table_name == self.db.metadata_table_postgres.table_name and \

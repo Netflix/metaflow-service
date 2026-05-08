@@ -34,6 +34,11 @@ class TaskApi(object):
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/task",
             self.create_task,
         )
+        app.router.add_route(
+            "PATCH",
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/status",
+            self.update_status,
+        )
         app.router.add_route("POST",
                              "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/heartbeat",
                              self.tasks_heartbeat)
@@ -319,3 +324,111 @@ class TaskApi(object):
         return await self._async_table.update_heartbeat(flow_name,
                                                         run_number, step_name,
                                                         task_id)
+
+    @format_response
+    @handle_exceptions
+    async def update_status(self, request):
+        """
+        ---
+        description: update task (attempt) status
+        tags:
+        - Tasks
+        parameters:
+        - name: "flow_id"
+          in: "path"
+          description: "flow_id"
+          required: true
+          type: "string"
+        - name: "run_number"
+          in: "path"
+          description: "run_number"
+          required: true
+          type: "string"
+        - name: "step_name"
+          in: "path"
+          description: "step_name"
+          required: true
+          type: "string"
+        - name: "task_id"
+          in: "path"
+          description: "task_id"
+          required: true
+          type: "string"
+        - name: "body"
+          in: "body"
+          description: "body"
+          required: true
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+              attempt:
+                type: int
+        produces:
+        - 'text/plain'
+        responses:
+            "200":
+                description: successful operation. Return newly registered run
+            "400":
+                description: invalid HTTP Request
+            "405":
+                description: invalid HTTP Method
+        """
+        flow_name = request.match_info.get("flow_id")
+        run_number = request.match_info.get("run_number")
+        step_name = request.match_info.get("step_name")
+        task_id = request.match_info.get("task_id")
+
+        body = await read_body(request.content)
+        new_status = body.get("status", None)
+        attempt = body.get("attempt", 0)
+        if new_status is None:
+            raise Exception("Can not update without a valid 'status'")
+
+        # TODO: This might not be performant without providing a task_id as part of the query.
+        res = await self._async_metadata_table.update_row_with_attempt(
+            filter_dict={
+                "flow_id": flow_name,
+                "run_number": run_number,
+                "step_name": step_name,
+                "task_id": task_id,
+                "field_name": "_status",
+            },
+            update_dict={
+                "value": "'%s'" % new_status,
+            },
+            attempt_id=attempt
+        )
+
+        if res.response_code == 200:
+            return res
+
+        # Status Metadata missing, so we need to register the metadata for the task.
+
+        task = await self._async_table.get_task(
+            flow_id=flow_name,
+            run_id=run_number,
+            step_name=step_name,
+            task_id=task_id,
+            expanded=True
+        )
+
+        if task.response_code != 200:
+            return task
+
+        task = task.body
+        return await self._async_metadata_table.add_metadata(
+            flow_id=task["flow_id"],
+            run_id=task["run_id"],
+            run_number=task["run_number"],
+            step_name=task["step_name"],
+            task_id=task["task_id"],
+            task_name=task["task_name"],
+            user_name=task["user_name"],
+            tags=task["tags"] + ["attempt_id:%i" % attempt],
+            system_tags=task["system_tags"],
+            field_name="_status",
+            type="_status",
+            value=new_status
+        )

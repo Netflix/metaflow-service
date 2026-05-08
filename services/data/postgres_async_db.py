@@ -38,7 +38,7 @@ DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 operator_match = re.compile('([^:]*):([=><]+)$')
 
 # use a ddmmyyy timestamp as the version for triggers
-TRIGGER_VERSION = "05092024"
+TRIGGER_VERSION = "05022026"
 TRIGGER_NAME_PREFIX = "notify_ui"
 
 
@@ -292,7 +292,7 @@ class AsyncPostgresTable(object):
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error), None
 
-    async def create_record(self, record_dict):
+    async def create_record(self, record_dict, expanded=False):
         # note: need to maintain order
         cols = []
         values = []
@@ -332,7 +332,7 @@ class AsyncPostgresTable(object):
                 for key, value in record.items():
                     if key in self.keys:
                         filtered_record[key] = value
-                response_body = self._row_type(**filtered_record).serialize()  # pylint: disable=not-callable
+                response_body = self._row_type(**filtered_record).serialize(expanded)  # pylint: disable=not-callable
                 # todo make sure connection is closed even with error
                 cur.close()
             return DBResponse(response_code=200, body=response_body)
@@ -393,6 +393,68 @@ class AsyncPostgresTable(object):
 
         async def _execute_update_on_cursor(_cur):
             await _cur.execute(update_sql, values)
+            if _cur.rowcount < 1:
+                return DBResponse(response_code=404,
+                                  body={"msg": "could not find row"})
+            if _cur.rowcount > 1:
+                return DBResponse(response_code=500,
+                                  body={"msg": "duplicate rows"})
+            return DBResponse(response_code=200, body={"rowcount": _cur.rowcount})
+        if cur:
+            return await _execute_update_on_cursor(cur)
+        try:
+            with (
+                await self.db.pool.cursor(
+                    cursor_factory=psycopg2.extras.DictCursor
+                )
+            ) as cur:
+                db_response = await _execute_update_on_cursor(cur)
+                cur.close()
+                return db_response
+        except (Exception, psycopg2.DatabaseError) as error:
+            self.db.logger.exception("Exception occurred")
+            return aiopg_exception_handling(error)
+
+    # TODO: Cleanup. Placeholder for experimentation
+    async def update_row_with_attempt(self, filter_dict={}, update_dict={}, attempt_id: int = 0, cur: aiopg.Cursor = None):
+        # generate where clause
+        filters = []
+        for col_name, col_val in filter_dict.items():
+            operator = '='
+            v = str(col_val).strip("'")
+            if not v.isnumeric():
+                v = "'" + v + "'"
+            find_operator = operator_match.match(col_name)
+            if find_operator:
+                col_name = find_operator.group(1)
+                operator = find_operator.group(2)
+                filters.append('(%s IS NULL or %s %s %s)' %
+                               (col_name, col_name, operator, str(v)))
+            else:
+                filters.append(col_name + operator + str(v))
+
+        seperator = " and "
+        # always include attempt matching. Assume that attempt number is recorded in tags.
+        filters.append("tags @> '\"attempt_id:%i\"'" % attempt_id)
+
+        where_clause = ""
+        if bool(filter_dict):
+            where_clause = seperator.join(filters)
+
+        sets = []
+        for col_name, col_val in update_dict.items():
+            sets.append(col_name + " = " + str(col_val))
+
+        set_seperator = ", "
+        set_clause = ""
+        if bool(filter_dict):
+            set_clause = set_seperator.join(sets)
+        update_sql = """
+                UPDATE {0} SET {1} WHERE {2};
+        """.format(self.table_name, set_clause, where_clause)
+
+        async def _execute_update_on_cursor(_cur):
+            await _cur.execute(update_sql)
             if _cur.rowcount < 1:
                 return DBResponse(response_code=404,
                                   body={"msg": "could not find row"})
@@ -646,7 +708,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
     select_columns = keys
     run_table_name = AsyncRunTablePostgres.table_name
 
-    async def add_step(self, step_object: StepRow):
+    async def add_step(self, step_object: StepRow, expanded=False):
         dict = {
             "flow_id": step_object.flow_id,
             "run_number": str(step_object.run_number),
@@ -656,7 +718,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             "tags": json.dumps(step_object.tags),
             "system_tags": json.dumps(step_object.system_tags),
         }
-        return await self.create_record(dict)
+        return await self.create_record(dict, expanded)
 
     async def get_steps(self, flow_id: str, run_id: str):
         run_id_key, run_id_value = translate_run_key(run_id)
@@ -664,14 +726,14 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
                        run_id_key: run_id_value}
         return await self.get_records(filter_dict=filter_dict)
 
-    async def get_step(self, flow_id: str, run_id: str, step_name: str):
+    async def get_step(self, flow_id: str, run_id: str, step_name: str, expanded: bool = False):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
             run_id_key: run_id_value,
             "step_name": step_name,
         }
-        return await self.get_records(filter_dict=filter_dict, fetch_single=True)
+        return await self.get_records(filter_dict=filter_dict, fetch_single=True, expanded=expanded)
 
 
 class AsyncTaskTablePostgres(AsyncPostgresTable):
@@ -687,7 +749,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     select_columns = keys
     step_table_name = AsyncStepTablePostgres.table_name
 
-    async def add_task(self, task: TaskRow, fill_heartbeat=False):
+    async def add_task(self, task: TaskRow, fill_heartbeat=False, expanded=False):
         # todo backfill run_number if missing?
         dict = {
             "flow_id": task.flow_id,
@@ -700,16 +762,16 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "system_tags": json.dumps(task.system_tags),
             "last_heartbeat_ts": str(new_heartbeat_ts()) if fill_heartbeat else None
         }
-        return await self.create_record(dict)
+        return await self.create_record(dict, expanded)
 
-    async def get_tasks(self, flow_id: str, run_id: str, step_name: str):
+    async def get_tasks(self, flow_id: str, run_id: str, step_name: str, expanded: bool = False):
         run_id_key, run_id_value = translate_run_key(run_id)
         filter_dict = {
             "flow_id": flow_id,
             run_id_key: run_id_value,
             "step_name": step_name,
         }
-        return await self.get_records(filter_dict=filter_dict)
+        return await self.get_records(filter_dict=filter_dict, expanded=expanded)
 
     async def get_task(self, flow_id: str, run_id: str, step_name: str,
                        task_id: str, expanded: bool = False):

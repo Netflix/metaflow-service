@@ -129,6 +129,18 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 (attempt.attempt_id + 1) = (next_attempt_start.value::jsonb->>0)::int
             LIMIT 1
         ) as next_attempt_start ON true
+        LEFT JOIN LATERAL (
+            SELECT value
+            FROM {metadata_table} as attempt_status
+            WHERE
+                {table_name}.flow_id = attempt_status.flow_id AND
+                {table_name}.run_number = attempt_status.run_number AND
+                {table_name}.step_name = attempt_status.step_name AND
+                {table_name}.task_id = attempt_status.task_id AND
+                attempt_status.field_name = '_status' AND
+                attempt_status.tags @> CONCAT('"', 'attempt_id:', attempt.attempt_id, '"')::jsonb
+            LIMIT 1
+        ) as status_metadata ON true
         """.format(
             table_name=table_name,
             metadata_table=metadata_table,
@@ -175,9 +187,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             WHEN attempt.attempt_ok IS FALSE
             THEN 'failed'
             WHEN COALESCE(attempt.attempt_finished_at, attempt.task_ok_finished_at) IS NOT NULL
-                AND attempt_ok IS NULL
-            THEN 'unknown'
-            WHEN COALESCE(attempt.attempt_finished_at, attempt.task_ok_finished_at) IS NOT NULL
             THEN 'completed'
             WHEN next_attempt_start.ts_epoch IS NOT NULL
             THEN 'failed'
@@ -185,6 +194,8 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)>{heartbeat_threshold}
                 AND {finished_at_column} IS NULL
             THEN 'failed'
+            WHEN status_metadata IS NOT NULL
+            THEN status_metadata.value
             WHEN {table_name}.last_heartbeat_ts IS NULL
                 AND @(extract(epoch from now())*1000 - COALESCE(attempt.started_at, {table_name}.ts_epoch))>{cutoff}
                 AND {finished_at_column} IS NULL
