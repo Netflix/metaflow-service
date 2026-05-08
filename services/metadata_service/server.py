@@ -13,6 +13,7 @@ from .api.admin import AuthApi
 
 from .api.metadata import MetadataApi
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.data.query_tracing import query_tracing_middleware, QUERY_TRACING_ENABLED
 from services.utils import DBConfiguration
 
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
@@ -23,6 +24,10 @@ def app(loop=None, db_conf: DBConfiguration = None, middlewares=None, path_prefi
     loop = loop or asyncio.get_event_loop()
 
     _app = web.Application(loop=loop)
+
+    if QUERY_TRACING_ENABLED:
+        _app.middlewares.append(query_tracing_middleware)
+
     app = web.Application(loop=loop) if path_prefix else _app
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))

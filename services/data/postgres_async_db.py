@@ -11,6 +11,7 @@ from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
     get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts
+from .query_tracing import record_query, QUERY_TRACING_ENABLED
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration, USE_SEPARATE_READER_POOL
 
@@ -248,6 +249,8 @@ class AsyncPostgresTable(object):
                           expanded=False, limit: int = 0, offset: int = 0,
                           cur: aiopg.Cursor = None, serialize: bool = True) -> Tuple[DBResponse, DBPagination]:
         async def _execute_on_cursor(_cur):
+            _trace_start = time.monotonic() if QUERY_TRACING_ENABLED else None
+
             await _cur.execute(select_sql, values)
 
             rows = []
@@ -262,6 +265,10 @@ class AsyncPostgresTable(object):
                 rows = records
 
             count = len(rows)
+
+            if _trace_start is not None:
+                record_query(self.table_name, select_sql, count,
+                             (time.monotonic() - _trace_start) * 1000)
 
             # Will raise IndexError in case fetch_single=True and there's no results
             body = rows[0] if fetch_single else rows
