@@ -81,8 +81,17 @@ class RunApi(object):
             "405":
                 description: invalid HTTP Method
         """
+        try:
+            limit = int(request.query.get("limit", 0))
+            offset = int(request.query.get("offset", 0))
+        except ValueError:
+            raise ValueError("limit and offset must be integers")
+
+        # Prevent negative values
+        limit = max(0, limit)
+        offset= max(0, offset)
         flow_name = request.match_info.get("flow_id")
-        return await self._async_table.get_all_runs(flow_name)
+        return await self._async_table.get_all_runs(flow_name, limit=limit, offset=offset)
 
     @format_response
     @handle_exceptions
