@@ -48,7 +48,7 @@ async def test_task_post(cli, db):
         cli,
         path="/flows/NonExistentFlow/runs/{run_number}/steps/{step_name}/task".format(**_task),
         payload=payload,
-        status=500
+        status=404
     )
 
     # posting on a non-existent run number should result in an error
@@ -56,7 +56,7 @@ async def test_task_post(cli, db):
         cli,
         path="/flows/{flow_id}/runs/1234/steps/{step_name}/task".format(**_task),
         payload=payload,
-        status=500
+        status=404
     )
 
     # posting on a non-existent step_name should result in a 404 due to foreign key constraint
