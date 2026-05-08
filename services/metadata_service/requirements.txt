@@ -1,5 +1,5 @@
 aiohttp >= 3.8.1, < 4
 packaging
-psycopg2
+psycopg2-binary
 boto3
 aiopg
