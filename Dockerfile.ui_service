@@ -32,4 +32,8 @@ RUN /root/services/ui_backend_service/download_ui.sh
 
 RUN pip install --editable .
 
+# The program uses `print` to log messages, so disable buffering to output the messages as soon as
+# they are written.
+ENV PYTHONUNBUFFERED=1
+
 CMD ui_backend_service
