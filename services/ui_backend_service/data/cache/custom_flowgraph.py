@@ -250,6 +250,7 @@ class FlowGraph(object):
                 "doc": node.doc,
                 "next": node.out_funcs,
                 "foreach_artifact": node.foreach_param,
+                "is_inside_foreach": node.is_inside_foreach,
             }
 
         def populate_block(start_name, end_name):
