@@ -1,3 +1,8 @@
+exclude: |
+  (?x)^(
+    services/ui_backend_service/tests/integration_tests/plugins_test.py|
+    services/ui_backend_service/docs/plugins.md|
+  )$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
