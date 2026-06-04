@@ -45,8 +45,15 @@ class TaskRefiner(Refinery):
 
         if values.get('_foreach_stack'):
             value = values['_foreach_stack']
+            # A foreach-stack frame is a Metaflow ForeachFrame: (step, var, num_splits, index, ...).
+            # It used to have exactly 4 fields, but newer Metaflow SDKs append a 5th `value`
+            # field (see metaflow.tuple_util.ForeachFrame). Unpacking into exactly 4 vars
+            # (`_, _name, _, _index = value[0]`) therefore raises "too many values to unpack
+            # (expected 4)" for every foreach task produced by a recent client — which crash-looped
+            # the refiner and exhausted the downstream connection pool. Read the index positionally
+            # so any number of trailing fields (>= 4) is tolerated.
             if len(value) > 0 and len(value[0]) >= 4:
-                _, _name, _, _index = value[0]
+                _index = value[0][3]
                 record['foreach_label'] = "{}[{}]".format(record['task_id'], _index)
 
         return record
