@@ -1,7 +1,7 @@
 import asyncio
 from itertools import chain
 
-from services.data.db_utils import DBResponse
+from services.data.db_utils import DBResponse, decode_cursor
 from services.data.models import RunRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
@@ -73,6 +73,16 @@ class RunApi(object):
           description: "flow_id"
           required: true
           type: "string"
+        - name: "_cursor"
+          in: "query"
+          description: "cursor"
+          required: false
+          type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "limit"
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -80,9 +90,27 @@ class RunApi(object):
                 description: Returned all runs of specified flow
             "405":
                 description: invalid HTTP Method
+            "400":
+                description: remove_cursor_parameter_to_restar
         """
         flow_name = request.match_info.get("flow_id")
-        return await self._async_table.get_all_runs(flow_name)
+        cursor = request.query.get("_cursor")
+        limit = request.query.get("_limit")
+
+        cur_ts, cur_run = None, None
+        if cursor:
+            try:
+                cursor_dict = decode_cursor(cursor)
+                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(cursor_dict["run_number"])
+            except ValueError:
+                return DBResponse(response_code = 400,body="invalid cursor")
+
+        if limit is None and cursor is None:
+            return await self._async_table.get_all_runs(flow_name) 
+        
+        limit = min(int(limit), 500) if limit else 50
+
+        return await self._async_table.get_all_runs_paginated(flow_name, cur_ts, cur_run, limit)
 
     @format_response
     @handle_exceptions
