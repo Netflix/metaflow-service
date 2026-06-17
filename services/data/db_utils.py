@@ -10,8 +10,8 @@ from base64 import b64encode, b64decode
 
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
-DBPagination = collections.namedtuple("DBPagination", "limit offset count page next_cursor")
-DBPagination.__new__.__defaults__ = (None,)
+DBPagination = collections.namedtuple("DBPagination", "limit offset count page next_cursor run_number")
+DBPagination.__new__.__defaults__ = (None, None,)
 
 
 def aiopg_exception_handling(exception):
