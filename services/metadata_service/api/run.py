@@ -103,7 +103,7 @@ class RunApi(object):
                 cursor_dict = decode_cursor(cursor)
                 cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(cursor_dict["run_number"])
             except ValueError:
-                return DBResponse(response_code = 400,body="invalid cursor")
+                return DBResponse(response_code = 400,body="Invalid cursor")
 
         if limit is None and cursor is None:
             return await self._async_table.get_all_runs(flow_name) 
