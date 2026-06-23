@@ -1,7 +1,5 @@
-
 import pytest
 from services.utils import has_heartbeat_capable_version_tag
-
 
 expectations = [
     ([], False),
@@ -31,6 +29,6 @@ expectations = [
 
 @pytest.mark.parametrize("system_tags, expected_boolean", expectations)
 async def test_has_heartbeat_capable_version_tag(system_tags, expected_boolean):
-  _result_bool = has_heartbeat_capable_version_tag(system_tags)
+    _result_bool = has_heartbeat_capable_version_tag(system_tags)
 
-  assert expected_boolean == _result_bool
+    assert expected_boolean == _result_bool

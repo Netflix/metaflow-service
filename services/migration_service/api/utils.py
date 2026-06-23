@@ -1,7 +1,6 @@
 from subprocess import Popen, PIPE
 from ..data.postgres_async_db import PostgresUtils
-from . import version_dict, latest, \
-    make_goose_migration_template, make_goose_template
+from . import version_dict, latest, make_goose_migration_template, make_goose_template
 from services.migration_service.migration_config import db_conf
 import sys
 
@@ -18,17 +17,20 @@ class ApiUtils(object):
         try:
             migrations_list = ApiUtils.list_migrations()
             index_version = migrations_list.index(current_version)
-            return migrations_list[index_version + 1:]
+            return migrations_list[index_version + 1 :]
         except:
             return migrations_list
 
     @staticmethod
     async def get_goose_version():
         # if tables exist but goose doesn't find version table then
-        goose_version_cmd = make_goose_template(db_conf.connection_string_url(), 'version')
+        goose_version_cmd = make_goose_template(
+            db_conf.connection_string_url(), "version"
+        )
 
-        p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,
-                  close_fds=True)
+        p = Popen(
+            goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True, close_fds=True
+        )
         p.wait()
 
         version = None
@@ -45,7 +47,8 @@ class ApiUtils(object):
             return version
         else:
             raise Exception(
-                "unable to get db version via goose: " + std_err.decode("utf-8"))
+                "unable to get db version via goose: " + std_err.decode("utf-8")
+            )
 
     @staticmethod
     async def get_latest_compatible_version():
@@ -55,9 +58,10 @@ class ApiUtils(object):
             return version_dict[version]
         else:
             print("Running initial migration..", file=sys.stderr)
-            goose_version_cmd = make_goose_migration_template(db_conf.connection_string_url(), 'up')
-            p = Popen(goose_version_cmd, shell=True,
-                      close_fds=True)
+            goose_version_cmd = make_goose_migration_template(
+                db_conf.connection_string_url(), "up"
+            )
+            p = Popen(goose_version_cmd, shell=True, close_fds=True)
             if p.wait() != 0:
                 raise Exception("Failed to run initial migration")
             return latest
@@ -68,8 +72,9 @@ class ApiUtils(object):
             db_conf.connection_string_url(), "status"
         )
 
-        p = Popen(goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True,
-                  close_fds=True)
+        p = Popen(
+            goose_version_cmd, stdout=PIPE, stderr=PIPE, shell=True, close_fds=True
+        )
         p.wait()
 
         std_err = p.stderr.read()

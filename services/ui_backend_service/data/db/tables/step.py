@@ -2,13 +2,14 @@ from typing import List, Tuple
 from .base import AsyncPostgresTable, OLD_RUN_FAILURE_CUTOFF_TIME
 from ..models import StepRow
 from services.data.db_utils import DBResponse, DBPagination
+
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
     AsyncStepTablePostgres as MetadataStepTable,
     AsyncTaskTablePostgres as MetadataTaskTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable,
-    AsyncMetadataTablePostgres as MetaMetadataTable
+    AsyncMetadataTablePostgres as MetaMetadataTable,
 )
 
 
@@ -35,10 +36,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             ORDER BY last_heartbeat_ts DESC
             LIMIT 1
         ) AS latest_task_hb ON true
-        """.format(
-            table_name=table_name,
-            task_table=task_table_name
-        ),
+        """.format(table_name=table_name, task_table=task_table_name),
         """
         LEFT JOIN LATERAL (
             SELECT ts_epoch as ts_epoch
@@ -51,10 +49,7 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
                 ts_epoch DESC
             LIMIT 1
         ) AS latest_task_ok ON true
-        """.format(
-            table_name=table_name,
-            artifact_table=artifact_table_name
-        ),
+        """.format(table_name=table_name, artifact_table=artifact_table_name),
         """
         LEFT JOIN LATERAL (
             SELECT ts_epoch as ts_epoch
@@ -70,19 +65,18 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
                 ts_epoch DESC
             LIMIT 1
         ) AS latest_metadata_done ON true
-        """.format(
-            table_name=table_name,
-            metadata_table=metadata_table_name
-        )
+        """.format(table_name=table_name, metadata_table=metadata_table_name),
     ]
 
     @property
     def select_columns(self):
         # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
-        return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys]
+        return [
+            "{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k)
+            for k in self.keys
+        ]
 
-    join_columns = [
-        """
+    join_columns = ["""
         (CASE
             WHEN COALESCE(latest_task_ok, latest_metadata_done, latest_task_hb) IS NOT NULL
             THEN GREATEST(
@@ -94,14 +88,15 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
             THEN NULL
             ELSE @(extract(epoch from now())::bigint*1000) - {table_name}.ts_epoch
         END) as duration
-        """.format(
-            table_name=table_name,
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
-        )
-    ]
+        """.format(table_name=table_name, cutoff=OLD_RUN_FAILURE_CUTOFF_TIME)]
 
-    async def get_step_names(self, conditions: List[str] = [],
-                             values: List[str] = [], limit: int = 0, offset: int = 0) -> Tuple[DBResponse, DBPagination]:
+    async def get_step_names(
+        self,
+        conditions: List[str] = [],
+        values: List[str] = [],
+        limit: int = 0,
+        offset: int = 0,
+    ) -> Tuple[DBResponse, DBPagination]:
         """
         Get a paginated set of step names.
 
@@ -132,14 +127,22 @@ class AsyncStepTablePostgres(AsyncPostgresTable):
         select_sql = sql_template.format(
             table_name=self.table_name,
             keys=",".join(self.select_columns),
-            conditions=("WHERE {}".format(" AND ".join(conditions)) if conditions else ""),
+            conditions=(
+                "WHERE {}".format(" AND ".join(conditions)) if conditions else ""
+            ),
             limit="LIMIT {}".format(limit) if limit else "",
-            offset="OFFSET {}".format(offset) if offset else ""
+            offset="OFFSET {}".format(offset) if offset else "",
         )
 
-        res, pag = await self.execute_sql(select_sql=select_sql, values=values, fetch_single=False,
-                                          expanded=False,
-                                          limit=limit, offset=offset, serialize=False)
+        res, pag = await self.execute_sql(
+            select_sql=select_sql,
+            values=values,
+            fetch_single=False,
+            expanded=False,
+            limit=limit,
+            offset=offset,
+            serialize=False,
+        )
         # process the unserialized DBResponse
         _body = [row[0] for row in res.body]
 

@@ -20,9 +20,7 @@ OLD_RUN_FAILURE_CUTOFF_TIME = int(
 )
 # Time before a run with a heartbeat will be considered inactive (and thus failed).
 # Default to 6 minutes (in seconds)
-RUN_INACTIVE_CUTOFF_TIME = int(
-    os.environ.get("RUN_INACTIVE_CUTOFF_TIME", 60 * 6)
-)
+RUN_INACTIVE_CUTOFF_TIME = int(os.environ.get("RUN_INACTIVE_CUTOFF_TIME", 60 * 6))
 
 
 class AsyncPostgresTable(MetadataAsyncPostgresTable):
@@ -110,11 +108,12 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
             select_sql = sql_template.format(
                 keys=",".join(
-                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])
+                    self.select_columns
+                    + (self.join_columns if enable_joins and self.join_columns else [])
                 ),
-                table_name=overwrite_select_from
-                if overwrite_select_from
-                else self.table_name,
+                table_name=(
+                    overwrite_select_from if overwrite_select_from else self.table_name
+                ),
                 joins=" ".join(self.joins) if enable_joins and self.joins else "",
                 where="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
                 order_by="ORDER BY {}".format(", ".join(order)) if order else "",
@@ -141,12 +140,15 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
             groups_sql = groups_sql_template.format(
                 keys=",".join(
-                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])
+                    self.select_columns
+                    + (self.join_columns if enable_joins and self.join_columns else [])
                 ),
                 table_name=self.table_name,
-                joins=" ".join(self.joins)
-                if enable_joins and self.joins is not None
-                else "",
+                joins=(
+                    " ".join(self.joins)
+                    if enable_joins and self.joins is not None
+                    else ""
+                ),
                 where="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
                 group_by=", ".join(groups),
                 limit="LIMIT {}".format(limit) if limit else "",
@@ -192,23 +194,28 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
 
             select_sql = sql_template.format(
                 keys=",".join(
-                    self.select_columns + (self.join_columns if enable_joins and self.join_columns else [])
+                    self.select_columns
+                    + (self.join_columns if enable_joins and self.join_columns else [])
                 ),
-                table_name=overwrite_select_from
-                if overwrite_select_from
-                else self.table_name,
-                joins=" ".join(self.joins)
-                if enable_joins and self.joins is not None
-                else "",
+                table_name=(
+                    overwrite_select_from if overwrite_select_from else self.table_name
+                ),
+                joins=(
+                    " ".join(self.joins)
+                    if enable_joins and self.joins is not None
+                    else ""
+                ),
                 where="WHERE {}".format(" AND ".join(conditions)) if conditions else "",
                 group_by=", ".join(groups),
                 order_by="ORDER BY {}".format(", ".join(order)) if order else "",
                 group_where="""
                     WHERE {group_limit} {group_selects}
                 """.format(
-                    group_limit="row_number <= {} AND ".format(group_limit)
-                    if group_limit
-                    else "",
+                    group_limit=(
+                        "row_number <= {} AND ".format(group_limit)
+                        if group_limit
+                        else ""
+                    ),
                     group_selects=" AND ".join(group_label_selects),
                 ),
             ).strip()
@@ -253,8 +260,8 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
     ):
         "Benchmark and log a given SQL query with EXPLAIN ANALYZE"
         try:
-            with (
-                await self.db.pool.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            with await self.db.pool.cursor(
+                cursor_factory=psycopg2.extras.DictCursor
             ) as cur:
                 # Run EXPLAIN ANALYZE on query and log the results.
                 benchmark_sql = "EXPLAIN ANALYZE {}".format(select_sql)
@@ -269,7 +276,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
             self.db.logger.exception("Query Benchmarking failed")
             return None
 
-    async def get_tags(self, conditions: List[str] = None, values=[], limit: int = 0, offset: int = 0):
+    async def get_tags(
+        self, conditions: List[str] = None, values=[], limit: int = 0, offset: int = 0
+    ):
         sql_template = """
         SELECT DISTINCT tag
         FROM (
@@ -282,9 +291,9 @@ class AsyncPostgresTable(MetadataAsyncPostgresTable):
         """
         select_sql = sql_template.format(
             table_name=self.table_name,
-            conditions="WHERE {}".format(" AND ".join(conditions))
-            if conditions
-            else "",
+            conditions=(
+                "WHERE {}".format(" AND ".join(conditions)) if conditions else ""
+            ),
             limit="LIMIT {}".format(limit) if limit else "",
             offset="OFFSET {}".format(offset) if offset else "",
         )

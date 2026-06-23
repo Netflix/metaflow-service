@@ -2,9 +2,8 @@ import pytest
 import json
 import os
 import time
-from .utils import (
-    cli, db
-)
+from .utils import cli, db
+
 pytestmark = [pytest.mark.integration_tests]
 
 # Fixtures begin
@@ -13,8 +12,8 @@ pytestmark = [pytest.mark.integration_tests]
 @pytest.fixture
 async def custom_quicklinks():
     custom = [
-        {"href": 'docs_url', "label": 'Custom Documents'},
-        {"href": 'info_url', "label": 'Info'}
+        {"href": "docs_url", "label": "Custom Documents"},
+        {"href": "info_url", "label": "Info"},
     ]
 
     # Quicklinks are configured through an environment variable.
@@ -22,7 +21,8 @@ async def custom_quicklinks():
     os.environ["CUSTOM_QUICKLINKS"] = custom_string
 
     yield custom
-    del(os.environ["CUSTOM_QUICKLINKS"])  # cleanup afterwards
+    del os.environ["CUSTOM_QUICKLINKS"]  # cleanup afterwards
+
 
 NOW = time.time() * 1000  # Epoch time in milliseconds
 HOUR = 3600 * 1000  # 1 hour in milliseconds
@@ -32,12 +32,30 @@ HOUR = 3600 * 1000  # 1 hour in milliseconds
 async def notifications():
     _notifications = [
         {"created": NOW, "message": "Active: No start/end times defined"},
-        {"created": NOW, "message": "Active: No start/end defined and id + type overwritten", "id": "fixed_id", "type": "warning"},
-        {"created": NOW, "message": "Hidden: Start time not yet reached", "start": NOW + HOUR},
+        {
+            "created": NOW,
+            "message": "Active: No start/end defined and id + type overwritten",
+            "id": "fixed_id",
+            "type": "warning",
+        },
+        {
+            "created": NOW,
+            "message": "Hidden: Start time not yet reached",
+            "start": NOW + HOUR,
+        },
         {"created": NOW, "message": "Active: Start time passed", "start": NOW - HOUR},
         {"created": NOW, "message": "Hidden: End time passed", "end": NOW - HOUR},
-        {"created": NOW, "message": "Active: End time not yet reached", "end": NOW + HOUR},
-        {"created": NOW, "message": "Active: Start time passed and end time not yet reached", "start": NOW - HOUR, "end": NOW + HOUR},
+        {
+            "created": NOW,
+            "message": "Active: End time not yet reached",
+            "end": NOW + HOUR,
+        },
+        {
+            "created": NOW,
+            "message": "Active: Start time passed and end time not yet reached",
+            "start": NOW - HOUR,
+            "end": NOW + HOUR,
+        },
         {"message": "Ignored due to missing `created` field"},
         {"created": NOW},  # Ignored due to missing `message` field
     ]
@@ -47,7 +65,7 @@ async def notifications():
     os.environ["NOTIFICATIONS"] = custom_string
 
     yield _notifications
-    del(os.environ["NOTIFICATIONS"])  # cleanup afterwards
+    del os.environ["NOTIFICATIONS"]  # cleanup afterwards
 
 
 @pytest.fixture
@@ -58,8 +76,10 @@ async def broken_env():
     os.environ["NOTIFICATIONS"] = broken_json
 
     yield
-    del(os.environ["CUSTOM_QUICKLINKS"])  # cleanup afterwards
-    del(os.environ["NOTIFICATIONS"])  # cleanup afterwards
+    del os.environ["CUSTOM_QUICKLINKS"]  # cleanup afterwards
+    del os.environ["NOTIFICATIONS"]  # cleanup afterwards
+
+
 # Fixtures end
 
 
@@ -81,8 +101,8 @@ async def DISABLED_test_version(cli, db):
 
 async def test_links(cli, db):
     default_links = [
-        {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
-        {"href": 'http://chat.metaflow.org/', "label": 'Help'}
+        {"href": "https://docs.metaflow.org/", "label": "Documentation"},
+        {"href": "http://chat.metaflow.org/", "label": "Help"},
     ]
 
     resp = await cli.get("/links")
@@ -158,8 +178,8 @@ async def test_broken_json_notifications(broken_env, cli, db):
 
 async def test_broken_json_links(broken_env, cli, db):
     default_links = [
-        {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
-        {"href": 'http://chat.metaflow.org/', "label": 'Help'}
+        {"href": "https://docs.metaflow.org/", "label": "Documentation"},
+        {"href": "http://chat.metaflow.org/", "label": "Help"},
     ]
     resp = await cli.get("/links")
     body = await resp.json()

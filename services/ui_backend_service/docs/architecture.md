@@ -43,7 +43,7 @@ The cache worker is a subprocess whose sole responsibility is to read the reques
 
 ![Heartbeat monitoring architecture diagram](images/heartbeat_monitoring.png)
 
-Heartbeat monitoring is required to track in-flight resources that might stop executing without producing any trace of failure. 
+Heartbeat monitoring is required to track in-flight resources that might stop executing without producing any trace of failure.
 
 ### Basic structure
 A heartbeat monitor has a list of resources, with their respective latest heartbeat timestamps. The list is iterated through periodically (heartbeat interval + buffer), and further processing is done on items that have an expired timestamp, for example broadcasting them as failures.

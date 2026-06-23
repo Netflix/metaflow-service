@@ -19,7 +19,9 @@ class GetParameters(GetData):
         invalidate_cache : bool
             Force cache invalidation, defaults to False
         """
-        return super().format_request(targets=pathspecs, invalidate_cache=invalidate_cache)
+        return super().format_request(
+            targets=pathspecs, invalidate_cache=invalidate_cache
+        )
 
     @classmethod
     def fetch_data(cls, pathspec: str, stream_output: Callable[[object], None]):
@@ -55,13 +57,18 @@ class GetParameters(GetData):
             # Exclude following internal only artifacts from results:
             #   - Artifacts prefixed with underscore (_)
             #   - Artifacts with 'name' or 'script_name'
-            if artifact_name.startswith('_') or artifact_name in ['name', 'script_name']:
+            if artifact_name.startswith("_") or artifact_name in [
+                "name",
+                "script_name",
+            ]:
                 continue
             try:
                 if artifact.size < MAX_S3_SIZE:
                     values[artifact_name] = artifact.data
                 else:
-                    values[artifact_name] = "Artifact too large: {} bytes".format(artifact.size)
+                    values[artifact_name] = "Artifact too large: {} bytes".format(
+                        artifact.size
+                    )
             except Exception as ex:
                 values[artifact_name] = str(ex)
 

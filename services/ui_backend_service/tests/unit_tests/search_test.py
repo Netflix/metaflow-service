@@ -7,7 +7,7 @@ pytestmark = [pytest.mark.unit_tests]
 
 async def test_search_term_parsing():
 
-    op, term = _parse_search_term("\"test term\"")
+    op, term = _parse_search_term('"test term"')
 
     assert op == "eq"
     assert term == "test term"
@@ -17,7 +17,7 @@ async def test_search_term_parsing():
     assert op == "co"
     assert term == "test term"
 
-    op, term = _parse_search_term("test \"term\"")
+    op, term = _parse_search_term('test "term"')
 
     assert op == "co"
-    assert term == "test \"term\""
+    assert term == 'test "term"'

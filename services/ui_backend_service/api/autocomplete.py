@@ -1,6 +1,12 @@
 from services.utils import handle_exceptions, logging
 from services.data.db_utils import DBResponse, DBPagination, translate_run_key
-from .utils import format_response_list, web_response, custom_conditions_query, pagination_query, operators_to_filters
+from .utils import (
+    format_response_list,
+    web_response,
+    custom_conditions_query,
+    pagination_query,
+    operators_to_filters,
+)
 import sys
 import asyncio
 
@@ -18,17 +24,27 @@ class AutoCompleteApi(object):
         app.router.add_route("GET", "/tags/autocomplete", self.get_tags)
         # Non-cached resources
         app.router.add_route("GET", "/flows/autocomplete", self.get_flows)
-        app.router.add_route("GET", "/flows/{flow_id}/runs/autocomplete", self.get_runs_for_flow)
-        app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/steps/autocomplete", self.get_steps_for_run)
-        app.router.add_route("GET", "/flows/{flow_id}/runs/{run_id}/artifacts/autocomplete", self.get_artifacts_for_run)
+        app.router.add_route(
+            "GET", "/flows/{flow_id}/runs/autocomplete", self.get_runs_for_flow
+        )
+        app.router.add_route(
+            "GET",
+            "/flows/{flow_id}/runs/{run_id}/steps/autocomplete",
+            self.get_steps_for_run,
+        )
+        app.router.add_route(
+            "GET",
+            "/flows/{flow_id}/runs/{run_id}/artifacts/autocomplete",
+            self.get_artifacts_for_run,
+        )
         loop = asyncio.get_event_loop()
         loop.create_task(self.periodic_tags_fetch_and_cache())
 
     async def periodic_tags_fetch_and_cache(self):
-        '''
+        """
         Async task that fill tags cache every 5minutes. Database query might take a while
         so its better to cache the result.
-        '''
+        """
         while True:
             await self.update_cached_tags()
             # Check tags again after some sleep
@@ -71,18 +87,22 @@ class AutoCompleteApi(object):
                 field = key
                 operator = None
 
-            if field == 'tag' and operator in operators_to_filters:
+            if field == "tag" and operator in operators_to_filters:
                 filter_func = operators_to_filters[operator]
 
         if filter_func:
-            tags = [tag for tag in self.tags if filter_func(tag, val)][offset:(offset + limit)]
+            tags = [tag for tag in self.tags if filter_func(tag, val)][
+                offset : (offset + limit)
+            ]
         else:
-            tags = self.tags[offset:(offset + limit)]
+            tags = self.tags[offset : (offset + limit)]
 
         count = len(tags)
         pagination = DBPagination(limit, offset, count, page)
 
-        status, body = format_response_list(request, DBResponse(200, tags), pagination, page)
+        status, body = format_response_list(
+            request, DBResponse(200, tags), pagination, page
+        )
         return web_response(status, body)
 
     @handle_exceptions
@@ -102,7 +122,9 @@ class AutoCompleteApi(object):
                     $ref: '#/definitions/ResponsesAutocompleteFlowList'
         """
 
-        return await resource_response(request, self.db.flow_table_postgres.get_flow_ids, allowed_keys=["flow_id"])
+        return await resource_response(
+            request, self.db.flow_table_postgres.get_flow_ids, allowed_keys=["flow_id"]
+        )
 
     @handle_exceptions
     async def get_runs_for_flow(self, request):
@@ -127,7 +149,7 @@ class AutoCompleteApi(object):
             self.db.run_table_postgres.get_run_keys,
             initial_conditions=["flow_id=%s"],
             initial_values=[flow_id],
-            allowed_keys=["run"]
+            allowed_keys=["run"],
         )
 
     @handle_exceptions
@@ -156,7 +178,7 @@ class AutoCompleteApi(object):
             self.db.step_table_postgres.get_step_names,
             initial_conditions=["flow_id=%s", "{}=%s".format(run_key)],
             initial_values=[flow_id, run_value],
-            allowed_keys=["step_name"]
+            allowed_keys=["step_name"],
         )
 
     @handle_exceptions
@@ -185,11 +207,13 @@ class AutoCompleteApi(object):
             self.db.artifact_table_postgres.get_artifact_names,
             initial_conditions=["flow_id=%s", "{}=%s".format(run_key)],
             initial_values=[flow_id, run_value],
-            allowed_keys=["name"]
+            allowed_keys=["name"],
         )
 
 
-async def resource_response(request, get_record_fun, initial_conditions=[], initial_values=[], allowed_keys=[]):
+async def resource_response(
+    request, get_record_fun, initial_conditions=[], initial_values=[], allowed_keys=[]
+):
     """
     Abstract resource fetch helper that processes query and pagination parameters from the request,
     and performs a db query with the generated conditions, with a provided db getter.
@@ -219,12 +243,16 @@ async def resource_response(request, get_record_fun, initial_conditions=[], init
     page, limit, offset, _, _, _ = pagination_query(request)
 
     # custom query conditions
-    custom_conditions, custom_vals = custom_conditions_query(request, allowed_keys=allowed_keys)
+    custom_conditions, custom_vals = custom_conditions_query(
+        request, allowed_keys=allowed_keys
+    )
 
     conditions = initial_conditions + custom_conditions
     values = initial_values + custom_vals
 
-    db_response, pagination = await get_record_fun(conditions=conditions, values=values, limit=limit, offset=offset)
+    db_response, pagination = await get_record_fun(
+        conditions=conditions, values=values, limit=limit, offset=offset
+    )
 
     status, body = format_response_list(request, db_response, pagination, page)
 

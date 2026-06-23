@@ -10,8 +10,13 @@ from .utils import (
     DBPagination,
     DBResponse,
 )
-from services.ui_backend_service.data.cache.card_cache_manager import wait_until_card_is_ready, CARD_API_HTML_WAIT_TIME
-from services.ui_backend_service.data.cache.card_cache_manager import list_cards as list_cards_from_cache
+from services.ui_backend_service.data.cache.card_cache_manager import (
+    wait_until_card_is_ready,
+    CARD_API_HTML_WAIT_TIME,
+)
+from services.ui_backend_service.data.cache.card_cache_manager import (
+    list_cards as list_cards_from_cache,
+)
 import time
 from aiohttp import web
 import asyncio
@@ -285,16 +290,16 @@ async def get_card_data_for_task_async(
     return _card_data_from_cache(_local_cache)
 
 
-async def get_card_list(
-    cache_client, task, max_wait_time=3
-):
+async def get_card_list(cache_client, task, max_wait_time=3):
     pathspec = "{flow_id}/{run_id}/{step_name}/{task_id}".format(
         flow_id=task.get("flow_id"),
         run_id=task.get("run_id") or task.get("run_number"),
         step_name=task.get("step_name"),
         task_id=task.get("task_name") or task.get("task_id"),
     )
-    return await list_cards_from_cache(cache_client.cache_manager, pathspec, max_wait_time)
+    return await list_cards_from_cache(
+        cache_client.cache_manager, pathspec, max_wait_time
+    )
 
 
 def get_pagination_params(request):

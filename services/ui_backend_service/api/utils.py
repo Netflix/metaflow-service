@@ -19,8 +19,10 @@ logger = logging.getLogger("Utils")
 
 
 # only look for config.json files in ui_backend_service root
-JSON_CONFIG_ROOT = os.environ["JSON_CONFIG_ROOT"] if "JSON_CONFIG_ROOT" in os.environ else os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..")
+JSON_CONFIG_ROOT = (
+    os.environ["JSON_CONFIG_ROOT"]
+    if "JSON_CONFIG_ROOT" in os.environ
+    else os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 )
 
 
@@ -39,8 +41,7 @@ def get_json_config(variable_name: str):
 
     filepath = os.path.join(JSON_CONFIG_ROOT, f"config.{variable_name.lower()}.json")
     logger.info(f"Looking for JSON config in env: {env_name} or file: {filepath}")
-    return get_json_from_env(env_name) or \
-        get_json_from_file(filepath)
+    return get_json_from_env(env_name) or get_json_from_file(filepath)
 
 
 def get_json_from_env(variable_name: str):
@@ -61,13 +62,13 @@ def get_json_from_file(filepath: str):
         # not an issue, as users might not want to configure certain components.
         return None
     except Exception as ex:
-        logger.warning(
-            f"Error parsing JSON from file: {filepath}\n Error: {str(ex)}"
-        )
+        logger.warning(f"Error parsing JSON from file: {filepath}\n Error: {str(ex)}")
         return None
 
 
-def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[int, Dict]:
+def format_response(
+    request: web.BaseRequest, db_response: DBResponse
+) -> Tuple[int, Dict]:
     query = {}
     for key in request.query:
         query[key] = request.query.get(key)
@@ -76,15 +77,19 @@ def format_response(request: web.BaseRequest, db_response: DBResponse) -> Tuple[
     response_object = {
         "data": db_response.body,
         "status": db_response.response_code,
-        "links": {
-            "self": "{}{}".format(baseurl, format_qs(query))
-        },
+        "links": {"self": "{}{}".format(baseurl, format_qs(query))},
         "query": query,
     }
     return db_response.response_code, response_object
 
 
-def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagination: DBPagination, page: int, page_count: int = None) -> Tuple[int, Dict]:
+def format_response_list(
+    request: web.BaseRequest,
+    db_response: DBResponse,
+    pagination: DBPagination,
+    page: int,
+    page_count: int = None,
+) -> Tuple[int, Dict]:
     query = {}
     for key in request.query:
         query[key] = request.query.get(key)
@@ -103,22 +108,34 @@ def format_response_list(request: web.BaseRequest, db_response: DBResponse, pagi
             "self": "{}{}".format(baseurl, format_qs(query)),
             "first": "{}{}".format(baseurl, format_qs(query, {"_page": 1})),
             "prev": "{}{}".format(baseurl, format_qs(query, {"_page": prevPage})),
-            "next": "{}{}".format(baseurl, format_qs(query, {"_page": nextPage})) if nextPage else None,
-            "last": "{}{}".format(baseurl, format_qs(query, {"_page": page_count})) if page_count else None
+            "next": (
+                "{}{}".format(baseurl, format_qs(query, {"_page": nextPage}))
+                if nextPage
+                else None
+            ),
+            "last": (
+                "{}{}".format(baseurl, format_qs(query, {"_page": page_count}))
+                if page_count
+                else None
+            ),
         },
         "pages": {
             "self": page,
             "first": 1,
             "prev": prevPage,
             "next": nextPage,
-            "last": page_count
+            "last": page_count,
         },
         "query": query,
     }
     return db_response.response_code, response_object
 
 
-def pagination_query(request: web.BaseRequest, allowed_order: List[str] = [], allowed_group: List[str] = []):
+def pagination_query(
+    request: web.BaseRequest,
+    allowed_order: List[str] = [],
+    allowed_group: List[str] = [],
+):
     # Page
     try:
         page = max(int(request.query.get("_page", 1)), 1)
@@ -159,7 +176,7 @@ def pagination_query(request: web.BaseRequest, allowed_order: List[str] = [], al
                     direction = "DESC"
 
                 if column in allowed_order:
-                    _orders.append("\"{}\" {}".format(column, direction))
+                    _orders.append('"{}" {}'.format(column, direction))
 
             order = _orders
         else:
@@ -176,14 +193,18 @@ def pagination_query(request: web.BaseRequest, allowed_order: List[str] = [], al
         groups = []
         for g in _group.split(","):
             if g in allowed_group:
-                groups.append("\"{}\"".format(g))
+                groups.append('"{}"'.format(g))
     else:
         groups = None
 
-    return page, limit, offset, \
-        order if order else None, \
-        groups if groups else None, \
-        group_limit
+    return (
+        page,
+        limit,
+        offset,
+        order if order else None,
+        groups if groups else None,
+        group_limit,
+    )
 
 
 # Built-in conditions (always prefixed with _)
@@ -219,8 +240,10 @@ def builtin_conditions_query_dict(query: MultiDict):
                 compare = "ANY" if operator == "likeany" else "ALL"
 
                 conditions.append(
-                    "tags||system_tags::text LIKE {}(array[{}])"
-                    .format(compare, ",".join(["%s"] * len(tags))))
+                    "tags||system_tags::text LIKE {}(array[{}])".format(
+                        compare, ",".join(["%s"] * len(tags))
+                    )
+                )
                 values += map(lambda t: "%{}%".format(t), tags)
 
             else:
@@ -228,25 +251,28 @@ def builtin_conditions_query_dict(query: MultiDict):
                 # `?_tags:all` => ?& (AND) (default)
                 compare = "?|" if operator == "any" else "?&"
 
-                conditions.append("tags||system_tags {} array[{}]".format(
-                    compare, ",".join(["%s"] * len(tags))))
+                conditions.append(
+                    "tags||system_tags {} array[{}]".format(
+                        compare, ",".join(["%s"] * len(tags))
+                    )
+                )
                 values += tags
 
     return conditions, values
 
 
 operators_to_sql = {
-    "eq": "\"{}\" = %s",          # equals
-    "ne": "\"{}\" != %s",         # not equals
-    "lt": "\"{}\" < %s",          # less than
-    "le": "\"{}\" <= %s",         # less than or equals
-    "gt": "\"{}\" > %s",          # greater than
-    "ge": "\"{}\" >= %s",         # greater than or equals
-    "co": "\"{}\" ILIKE %s",      # contains
-    "sw": "\"{}\" ILIKE %s",      # starts with
-    "ew": "\"{}\" ILIKE %s",      # ends with
-    "li": "\"{}\" ILIKE %s",      # ILIKE (used with % placeholders supplied in the request params)
-    "is": "\"{}\" IS %s",         # IS
+    "eq": '"{}" = %s',  # equals
+    "ne": '"{}" != %s',  # not equals
+    "lt": '"{}" < %s',  # less than
+    "le": '"{}" <= %s',  # less than or equals
+    "gt": '"{}" > %s',  # greater than
+    "ge": '"{}" >= %s',  # greater than or equals
+    "co": '"{}" ILIKE %s',  # contains
+    "sw": '"{}" ILIKE %s',  # starts with
+    "ew": '"{}" ILIKE %s',  # ends with
+    "li": '"{}" ILIKE %s',  # ILIKE (used with % placeholders supplied in the request params)
+    "is": '"{}" IS %s',  # IS
 }
 
 operators_to_sql_values = {
@@ -273,6 +299,7 @@ def bound_filter(op, term, key):
             return _filter(item[key], term) if key in item else False
         except Exception:
             return False
+
     return _fn
 
 
@@ -291,7 +318,7 @@ operators_to_filters = {
     "ew": (lambda item, term: str(item).endswith(str(term))),
     "li": (lambda item, term: True),  # Not implemented yet
     "is": (lambda item, term: str(item) is str(term)),
-    're': (lambda item, pattern: re.compile(pattern).match(str(item))),
+    "re": (lambda item, pattern: re.compile(pattern).match(str(item))),
 }
 
 
@@ -303,7 +330,9 @@ def filter_or(filter_a, filter_b):
     return lambda item: filter_a(item) or filter_b(item)
 
 
-def filter_from_conditions_query(request: web.BaseRequest, allowed_keys: List[str] = []):
+def filter_from_conditions_query(
+    request: web.BaseRequest, allowed_keys: List[str] = []
+):
     return filter_from_conditions_query_dict(request.query, allowed_keys)
 
 
@@ -317,7 +346,7 @@ def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] 
         return True
 
     for key, val in query.items():
-        if key.startswith("_") and not key.startswith('_tags'):
+        if key.startswith("_") and not key.startswith("_tags"):
             continue  # skip internal conditions except _tags
 
         deconstruct = key.split(":", 1)
@@ -331,7 +360,7 @@ def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] 
         if allowed_keys is not None and field not in allowed_keys:
             continue  # skip conditions on non-allowed fields
 
-        if operator not in operators_to_filters and field != '_tags':
+        if operator not in operators_to_filters and field != "_tags":
             continue  # skip conditions with no known operators
 
         # Tags
@@ -354,7 +383,11 @@ def filter_from_conditions_query_dict(query: MultiDict, allowed_keys: List[str] 
 
             def bound(op, term):
                 _filter = operators_to_filters[op]
-                return lambda item: _filter(item['tags'] + item['system_tags'], term) if 'tags' in item and 'system_tags' in item else False
+                return lambda item: (
+                    _filter(item["tags"] + item["system_tags"], term)
+                    if "tags" in item and "system_tags" in item
+                    else False
+                )
 
             for tag in tags:
                 # Necessary to wrap value inside quotes as we are
@@ -424,12 +457,23 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
         vals = val.split(",")
 
         conditions.append(
-            "({})".format(" OR ".join(
-                map(lambda v: operators_to_sql["is" if v == "null" else operator].format(field), vals)
-            ))
+            "({})".format(
+                " OR ".join(
+                    map(
+                        lambda v: operators_to_sql[
+                            "is" if v == "null" else operator
+                        ].format(field),
+                        vals,
+                    )
+                )
+            )
         )
         values += map(
-            lambda v: None if v == "null" else operators_to_sql_values[operator].format(v), vals)
+            lambda v: (
+                None if v == "null" else operators_to_sql_values[operator].format(v)
+            ),
+            vals,
+        )
 
     return conditions, values
 
@@ -452,19 +496,28 @@ def resource_conditions(fullpath: str = None) -> Tuple[str, MultiDict, List[str]
     return parsedurl.path, query, filter_fn
 
 
-async def find_records(request: web.BaseRequest, async_table=None, initial_conditions: List[str] = [], initial_values=[],
-                       initial_order: List[str] = [], allowed_order: List[str] = [], allowed_group: List[str] = [],
-                       allowed_filters: List[str] = [], postprocess: Callable[[DBResponse], DBResponse] = None,
-                       fetch_single=False, enable_joins=False, overwrite_select_from: str = None):
+async def find_records(
+    request: web.BaseRequest,
+    async_table=None,
+    initial_conditions: List[str] = [],
+    initial_values=[],
+    initial_order: List[str] = [],
+    allowed_order: List[str] = [],
+    allowed_group: List[str] = [],
+    allowed_filters: List[str] = [],
+    postprocess: Callable[[DBResponse], DBResponse] = None,
+    fetch_single=False,
+    enable_joins=False,
+    overwrite_select_from: str = None,
+):
     page, limit, offset, order, groups, group_limit = pagination_query(
-        request,
-        allowed_order=allowed_order,
-        allowed_group=allowed_group)
+        request, allowed_order=allowed_order, allowed_group=allowed_group
+    )
 
     builtin_conditions, builtin_vals = builtin_conditions_query(request)
     custom_conditions, custom_vals = custom_conditions_query(
-        request,
-        allowed_keys=allowed_filters)
+        request, allowed_keys=allowed_filters
+    )
 
     conditions = initial_conditions + builtin_conditions + custom_conditions
     values = initial_values + builtin_vals + custom_vals
@@ -473,14 +526,20 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
     invalidate_cache = query_param_enabled(request, "invalidate")
 
     results, pagination, benchmark_result = await async_table.find_records(
-        conditions=conditions, values=values, limit=limit, offset=offset,
-        order=ordering if len(ordering) > 0 else None, groups=groups, group_limit=group_limit,
-        fetch_single=fetch_single, enable_joins=enable_joins,
+        conditions=conditions,
+        values=values,
+        limit=limit,
+        offset=offset,
+        order=ordering if len(ordering) > 0 else None,
+        groups=groups,
+        group_limit=group_limit,
+        fetch_single=fetch_single,
+        enable_joins=enable_joins,
         expanded=True,
         postprocess=postprocess,
         invalidate_cache=invalidate_cache,
         benchmark=benchmark,
-        overwrite_select_from=overwrite_select_from
+        overwrite_select_from=overwrite_select_from,
     )
 
     if fetch_single:
@@ -496,7 +555,7 @@ async def find_records(request: web.BaseRequest, async_table=None, initial_condi
 
 def query_param_enabled(request: web.BaseRequest, name: str) -> bool:
     """Parse boolean query parameter and return enabled status"""
-    return request.query.get(name, False) in ['True', 'true', '1', "t"]
+    return request.query.get(name, False) in ["True", "true", "1", "t"]
 
 
 class TTLQueue:
@@ -524,7 +583,9 @@ class TTLQueue:
         return [value for value in await self.values() if value[0] >= since_epoch]
 
 
-def get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, Optional[str]]:
+def get_pathspec_from_request(
+    request: MultiDict,
+) -> Tuple[str, str, str, str, Optional[str]]:
     """extract relevant resource id's from the request
 
     Returns
@@ -544,11 +605,15 @@ def get_pathspec_from_request(request: MultiDict) -> Tuple[str, str, str, str, O
 Postprocess = Callable[[DBResponse], DBResponse]
 
 
-def postprocess_chain(postprocess_list: List[Optional[Postprocess]]) -> Optional[Postprocess]:
+def postprocess_chain(
+    postprocess_list: List[Optional[Postprocess]],
+) -> Optional[Postprocess]:
     if not postprocess_list:
         return None
 
-    async def _chained(input_db_response: DBResponse, invalidate_cache: bool = False) -> DBResponse:
+    async def _chained(
+        input_db_response: DBResponse, invalidate_cache: bool = False
+    ) -> DBResponse:
         result = input_db_response
         for _postprocess in postprocess_list:
             if _postprocess is None:
@@ -558,12 +623,16 @@ def postprocess_chain(postprocess_list: List[Optional[Postprocess]]) -> Optional
             else:
                 result = _postprocess(result, invalidate_cache=invalidate_cache)
         return result
+
     return _chained
 
 
 def apply_run_tags_postprocess(flow_id, run_number, run_table_postgres):
     async def _postprocess(db_response: DBResponse, invalidate_cache=False):
-        return await apply_run_tags_to_db_response(flow_id, run_number, run_table_postgres, db_response)
+        return await apply_run_tags_to_db_response(
+            flow_id, run_number, run_table_postgres, db_response
+        )
+
     return _postprocess
 
 
@@ -572,6 +641,6 @@ async def allow_get_requests_only(request, handler):
     """
     Only allow GET request, otherwise raise 405 Method Not Allowed.
     """
-    if request.method != 'GET':
-        raise web.HTTPMethodNotAllowed(method=request.method, allowed_methods=['GET'])
+    if request.method != "GET":
+        raise web.HTTPMethodNotAllowed(method=request.method, allowed_methods=["GET"])
     return await handler(request)
