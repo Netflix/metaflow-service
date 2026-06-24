@@ -115,33 +115,21 @@ def filter_artifacts_by_attempt_id_for_tasks(
     return result
 
 
-def decode_cursor(cursor: str | None) -> dict | None:
-    if cursor:
-        try:
-            decoded = json.loads(b64decode(cursor).decode())
+def decode_cursor(cursor: str | None) -> dict:
+    try:
+        decoded = json.loads(b64decode(cursor).decode())
 
-        except (binascii.Error, UnicodeDecodeError,json.JSONDecodeError ):
-            raise ValueError("invalid_cursor")
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("invalid_cursor")
 
-        if "ts_epoch" not in decoded or "run_number" not in decoded:
-            raise ValueError("invalid_cursor")
-        return decoded  
-            
-    return None
+    if "ts_epoch" not in decoded or "run_number" not in decoded:
+        raise ValueError("invalid_cursor")
 
-
-def default_encoder(cursor: bytes) -> str:
-    return b64encode(cursor).decode()
+    return decoded
 
 
 def encode_cursor(
-    cursor:dict,
-    encoder: Callable[[bytes], str] = default_encoder, 
-) -> str | None:
-    if cursor:
-        cursor = json.dumps(cursor).encode() if isinstance(cursor, dict ) else cursor
-        encoded = encoder(cursor)
-
-        return encoded
-        
-    return None
+    cursor: dict
+) -> str:
+    cursor_bytes = json.dumps(cursor).encode()
+    return b64encode(cursor_bytes).decode()

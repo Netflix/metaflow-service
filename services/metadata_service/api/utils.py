@@ -13,8 +13,6 @@ from services.data.db_utils import DBPagination
 version = metadata.version("metadata_service")
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
-X_LIMIT = 'X-Limit'
-# eh_질문 이거 다 upper case로 해야하나?
 
 ServiceResponse = collections.namedtuple("ServiceResponse", "response_code body")
 
@@ -25,18 +23,16 @@ def format_response(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         result = await func(*args, **kwargs)
-        print("DEBUG RESULT", result)
-        print(result)
-        if  type(result) is tuple and isinstance(result[-1], DBPagination):
+        if type(result) is tuple and isinstance(result[-1], DBPagination):
             db_response, db_pagination = result
-            headers = MultiDict({"Content-Type": "application/json",
-                        METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION,
-                        X_LIMIT : db_pagination.limit})
+            headers = MultiDict({
+                METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION,
+                'X-Limit': db_pagination.limit})
             if db_pagination.next_cursor:
-                headers["X-Next-Cursor"] = db_pagination.next_cursor
+                headers['X-Next-Cursor'] = db_pagination.next_cursor
             return web.Response(status=db_response.response_code,
-                    body=json.dumps(db_response.body),
-                    headers= headers)
+                                body=json.dumps(db_response.body),
+                                headers=headers)
 
         db_response = result
         return web.Response(status=db_response.response_code,
@@ -83,4 +79,3 @@ def handle_exceptions(func):
             return http_500(str(err))
 
     return wrapper
-

@@ -8,7 +8,7 @@ import time
 from .utils import (
     cli, db,
     assert_api_get_response, assert_api_post_response, compare_partial,
-    add_flow, add_run, assert_api_patch_response
+    add_flow, add_run, assert_api_patch_response, assert_paginated_api_get_response
 )
 import pytest
 
@@ -155,6 +155,36 @@ async def test_run_get(cli, db):
     # non-existent flow or run should return 404
     await assert_api_get_response(cli, "/flows/{flow_id}/runs/1234".format(**_run), status=404)
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs/{run_number}".format(**_run), status=404)
+
+
+async def test_runs_pagination_get(cli, db):
+    # create a flow for the test
+    _flow = (await add_flow(db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"])).body
+
+    # add runs to the flow
+    _first_run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _second_run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _third_run = (await add_run(db, flow_id=_flow["flow_id"])).body
+
+    # first page: _limit returns the newest runs and a cursor for the next page
+    next_cursor = await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run),
+                                  data=[_third_run,_second_run], data_is_unordered_list_of_dicts=True, params = {'_limit':2})
+
+    # following the cursor returns the remaining run
+    await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run),
+                                  data=[_first_run], data_is_unordered_list_of_dicts=True, params = {'_limit':2,'_cursor':next_cursor},status = 200)
+
+    # an invalid cursor returns 400
+    await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run), params = {'_cursor':'garbage123'},status = 400)
+
+    # a limit larger than the total returns everything with no next cursor
+    await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run),
+                                data=[_third_run, _second_run, _first_run], data_is_unordered_list_of_dicts=True, params = {'_limit':1000},status = 200, has_next_cursor = False)
+
+    # getting runs for non-existent flow should return empty list
+    await assert_api_get_response(cli, "/flows/NonExistentFlow/runs", status=200, data=[])
+    
+
 
 
 async def test_run_mutate_user_tags(cli, db):

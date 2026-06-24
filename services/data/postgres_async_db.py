@@ -215,8 +215,8 @@ class AsyncPostgresTable(object):
         return response
 
     async def get_records_paginated(self, filter_dict={}, fetch_single=False,
-                          ordering: List[str] = None, limit: int = 50, expanded=False,
-                          cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
+                                    ordering: List[str] = None, limit: int = 50, expanded=False,
+                                    cur: aiopg.Cursor = None) -> Tuple[DBResponse, DBPagination]:
         conditions = []
         values = []
         for col_name, col_val in filter_dict.items():
@@ -227,22 +227,21 @@ class AsyncPostgresTable(object):
             conditions.append("{} = %s".format(col_name))
             values.append(col_val)
 
-        if limit:
-            cur_limit = limit + 1
+        cur_limit = limit + 1
 
         response, pagination = await self.find_records(
             conditions=conditions, values=values, fetch_single=fetch_single,
             order=ordering, limit=cur_limit, expanded=expanded, cur=cur
         )
- 
+
         if len(response.body) > limit:
             response = response._replace(body=response.body[:limit])
             last_data = response.body[-1]
-            next_cursor = encode_cursor({"ts_epoch":last_data["ts_epoch"], "run_number":pagination.run_number})
+            next_cursor = encode_cursor({"ts_epoch": last_data["ts_epoch"], "run_number": pagination.run_number})
         else:
             next_cursor = None
-        
-        pagination = pagination._replace(limit=str(limit), next_cursor = next_cursor)
+
+        pagination = pagination._replace(limit=str(limit), next_cursor=next_cursor)
 
         return response, pagination
 
@@ -304,7 +303,7 @@ class AsyncPostgresTable(object):
                 count=count,
                 page=math.floor(int(offset) / max(int(limit), 1)) + 1,
                 # Used for cursor when has_next (records == limit + 1); ignored otherwise
-                run_number= records[-2]['run_number'] if records is not None and len(records) > 1 else None
+                run_number=records[-2]['run_number'] if records is not None and len(records) > 1 else None
             )
             return body, pagination
 
@@ -326,7 +325,6 @@ class AsyncPostgresTable(object):
         except (Exception, psycopg2.DatabaseError) as error:
             self.db.logger.exception("Exception occurred")
             return aiopg_exception_handling(error), None
-
 
     async def create_record(self, record_dict):
         # note: need to maintain order
@@ -644,16 +642,14 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
         return await self.get_records(filter_dict=filter_dict)
 
-
-    async def get_all_runs_paginated(self, flow_id: str, cur_ts:int = None, cur_run:int = None, limit:int = None): #여기 기본값 none 같은거 해야하나 0을 해야하나 max500도 해줘야하나?
+    async def get_all_runs_paginated(self, flow_id: str, cur_ts: int = None, cur_run: int = None, limit: int = None):
         if cur_ts is None or cur_run is None:
             filter_dict = {"flow_id": flow_id}
         else:
-            filter_dict = {"flow_id": flow_id,"(ts_epoch, run_number)":[cur_ts, cur_run]}
+            filter_dict = {"flow_id": flow_id, "(ts_epoch, run_number)": [cur_ts, cur_run]}
         order = ["ts_epoch DESC", "run_number DESC"]
 
-        return await self.get_records_paginated(filter_dict=filter_dict, limit = limit, ordering = order)
-        
+        return await self.get_records_paginated(filter_dict=filter_dict, limit=limit, ordering=order)
 
     async def update_heartbeat(self, flow_id: str, run_id: str):
         run_key, run_value = translate_run_key(run_id)
