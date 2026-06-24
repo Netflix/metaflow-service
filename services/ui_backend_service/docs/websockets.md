@@ -15,7 +15,7 @@ Subscribing to a RESTful resources realtime events is done by sending the follow
 
 ```json
   {
-    "type": "SUBSCRIBE", 
+    "type": "SUBSCRIBE",
     "resource": "path-to-subscribable-restful-resource",
     "uuid": "client-generated-uuid"
   }
@@ -24,7 +24,7 @@ Subscribing to a RESTful resources realtime events is done by sending the follow
 Subscribe to future events and return past data since unix time (seconds):
 ```json
   {
-    "type": "SUBSCRIBE", 
+    "type": "SUBSCRIBE",
     "resource": "path-to-subscribable-restful-resource",
     "uuid": "client-generated-uuid",
     "since": 1602752197
@@ -34,7 +34,7 @@ Subscribe to future events and return past data since unix time (seconds):
 Unsubscribing is done through the same endpoint with the message:
 ```json
   {
-    "type": "UNSUBSCRIBE", 
+    "type": "UNSUBSCRIBE",
     "uuid": "existing-client-generated-uuid"
   }
 ```
@@ -130,4 +130,3 @@ Results example:
   }
 ```
 The `searchable` boolean of a single task conveys whether the task had an artifact that could be included in the search process.
-

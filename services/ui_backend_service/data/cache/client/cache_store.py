@@ -131,7 +131,7 @@ class CacheStore(object):
             None,
             "Cache initialized with %d permanents objects, "
             "%d disposable objects, totaling %d bytes."
-            % (len(self.objects_queue), len(self.disposables_queue), self.total_size)
+            % (len(self.objects_queue), len(self.disposables_queue), self.total_size),
         )
 
     def _gc_objects(self, quarantine=GC_MARKER_QUARANTINE):
@@ -204,8 +204,7 @@ class CacheStore(object):
 
         try:
             self.ensure_dir(self.tmproot)
-            tmp = tempfile.mkdtemp(prefix='cache_action_%s.' % token,
-                                   dir=self.tmproot)
+            tmp = tempfile.mkdtemp(prefix="cache_action_%s." % token, dir=self.tmproot)
         except Exception as ex:
             msg = "Could not create a temp directory for request %s" % token
             self.warn(ex, msg)
@@ -305,7 +304,7 @@ class CacheStore(object):
                     if p in self.objects_queue:
                         # cover possible file size changes
                         old_size = self.objects_queue[p]
-                        sz = (sz - old_size)
+                        sz = sz - old_size
                     self.total_size += sz
                     _insert(self.objects_queue, p, sz)
 

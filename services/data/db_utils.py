@@ -6,7 +6,6 @@ import datetime
 import time
 import json
 
-
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
 DBPagination = collections.namedtuple("DBPagination", "limit offset count page")
@@ -28,12 +27,14 @@ def aiopg_exception_handling(exception):
             "err_msg": {
                 "pgerror": exception.pgerror,
                 "pgcode": exception.pgcode,
-                "diag": None
-                if exception.diag is None
-                else {
-                    "message_primary": exception.diag.message_primary,
-                    "severity": exception.diag.severity,
-                },
+                "diag": (
+                    None
+                    if exception.diag is None
+                    else {
+                        "message_primary": exception.diag.message_primary,
+                        "severity": exception.diag.severity,
+                    }
+                ),
             }
         }
 
@@ -92,7 +93,7 @@ def get_latest_attempt_id_for_tasks(artifacts):
 
 
 def filter_artifacts_for_latest_attempt(
-    artifacts: List[Dict[str, Any]]
+    artifacts: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     # `artifacts` is a `list` of dictionaries where each item in the list
     # consists of `ArtifactRow` in a dictionary form

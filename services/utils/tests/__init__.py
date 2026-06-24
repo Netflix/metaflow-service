@@ -8,9 +8,14 @@ def get_test_dbconf():
     """
     db_conf = DBConfiguration(timeout=1)
 
-    if db_conf.get_dsn() != "dbname=test user=test host=db_test port=5432 password=test":
-        pytest.exit("The test suite should only be run in a test environment. \n \
+    if (
+        db_conf.get_dsn()
+        != "dbname=test user=test host=db_test port=5432 password=test"
+    ):
+        pytest.exit(
+            "The test suite should only be run in a test environment. \n \
             Configured database host is not suited for running tests. \n \
-            expected DSN to be: dbname=test user=test host=db_test port=5432 password=test")
+            expected DSN to be: dbname=test user=test host=db_test port=5432 password=test"
+        )
 
     return db_conf

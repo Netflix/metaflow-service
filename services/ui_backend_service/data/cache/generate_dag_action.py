@@ -8,6 +8,7 @@ from .custom_flowgraph import FlowGraph
 
 from metaflow import Run, Step, DataArtifact, namespace
 from metaflow.exception import MetaflowNotFound
+
 namespace(None)  # Always use global namespace by default
 
 
@@ -46,27 +47,27 @@ class GenerateDag(CacheAction):
 
     @classmethod
     def format_request(cls, flow_id, run_number, invalidate_cache=False):
-        msg = {
-            'flow_id': flow_id,
-            'run_number': run_number
-        }
+        msg = {"flow_id": flow_id, "run_number": run_number}
         key_identifier = "{}/{}".format(flow_id, run_number)
-        result_key = 'dag:result:%s' % hashlib.sha1((key_identifier).encode('utf-8')).hexdigest()
-        stream_key = 'dag:stream:%s' % hashlib.sha1((key_identifier).encode('utf-8')).hexdigest()
+        result_key = (
+            "dag:result:%s" % hashlib.sha1((key_identifier).encode("utf-8")).hexdigest()
+        )
+        stream_key = (
+            "dag:stream:%s" % hashlib.sha1((key_identifier).encode("utf-8")).hexdigest()
+        )
 
-        return msg, \
-            [result_key], \
-            stream_key, \
-            [stream_key], \
-            invalidate_cache, \
-            None
+        return msg, [result_key], stream_key, [stream_key], invalidate_cache, None
 
     @classmethod
     def response(cls, keys_objs):
-        '''
+        """
         Returns the generated DAG result
-        '''
-        return [json.loads(val) for key, val in keys_objs.items() if key.startswith('dag:result')][0]
+        """
+        return [
+            json.loads(val)
+            for key, val in keys_objs.items()
+            if key.startswith("dag:result")
+        ][0]
 
     @classmethod
     def stream_response(cls, it):
@@ -74,30 +75,35 @@ class GenerateDag(CacheAction):
             yield msg
 
     @classmethod
-    def execute(cls,
-                message=None,
-                keys=None,
-                existing_keys={},
-                stream_output=None,
-                invalidate_cache=False,
-                **kwargs):
+    def execute(
+        cls,
+        message=None,
+        keys=None,
+        existing_keys={},
+        stream_output=None,
+        invalidate_cache=False,
+        **kwargs,
+    ):
         results = {}
-        flow_id = message['flow_id']
-        run_number = message['run_number']
+        flow_id = message["flow_id"]
+        run_number = message["run_number"]
 
-        result_key = [key for key in keys if key.startswith('dag:result')][0]
+        result_key = [key for key in keys if key.startswith("dag:result")][0]
 
         with streamed_errors(stream_output):
             run = Run("{}/{}".format(flow_id, run_number))
             param_step = Step("{}/_parameters".format(run.pathspec))
             try:
-                dag = DataArtifact("{}/_graph_info".format(param_step.task.pathspec)).data
+                dag = DataArtifact(
+                    "{}/_graph_info".format(param_step.task.pathspec)
+                ).data
             except MetaflowNotFound:
                 dag = generate_dag(run)
 
             results[result_key] = json.dumps(dag)
 
         return results
+
 
 # Utilities
 
@@ -111,14 +117,14 @@ def generate_dag(run: Run):
         graph_info = {
             "steps": steps_info,
             "graph_structure": graph_structure,
-            "doc": graph.doc
+            "doc": graph.doc,
         }
 
         return graph_info
     except Exception as ex:
-        if ex.__class__.__name__ == 'KeyError' and "python" in str(ex):
+        if ex.__class__.__name__ == "KeyError" and "python" in str(ex):
             raise DAGUnsupportedFlowLanguage(
-                'DAG parsing is not supported for the language used in this Flow.'
+                "DAG parsing is not supported for the language used in this Flow."
             ) from None
         else:
             raise DAGParsingFailed(f"DAG Parsing failed: {str(ex)}")

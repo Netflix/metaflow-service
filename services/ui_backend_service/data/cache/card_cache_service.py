@@ -7,7 +7,10 @@ from metaflow import Task, namespace, Run
 from metaflow.cards import get_cards
 from metaflow.plugins.cards.card_client import Card
 from metaflow.exception import MetaflowNotFound
-from metaflow.plugins.cards.exception import CardNotPresentException, UnresolvableDatastoreException
+from metaflow.plugins.cards.exception import (
+    CardNotPresentException,
+    UnresolvableDatastoreException,
+)
 import json
 import hashlib
 import shutil
@@ -15,7 +18,13 @@ import logging
 from typing import Dict, List
 from collections import namedtuple
 
-ResolvedCards = namedtuple("ResolvedCards", ["cards", "unresolvable",])
+ResolvedCards = namedtuple(
+    "ResolvedCards",
+    [
+        "cards",
+        "unresolvable",
+    ],
+)
 
 
 def get_logger():
@@ -46,7 +55,9 @@ def _get_task(pathspec):
 
 
 def _card_dir_path(cache_path, cache_dir, task_pathspec, card_hash):
-    return os.path.join(_task_dir_path(cache_path, cache_dir, task_pathspec), str(card_hash))
+    return os.path.join(
+        _task_dir_path(cache_path, cache_dir, task_pathspec), str(card_hash)
+    )
 
 
 def _task_dir_path(cache_path, cache_dir, task_pathspec):
@@ -98,7 +109,12 @@ class CardCache:
             self.card_id, self.card_type = metadata
 
     @classmethod
-    def load_from_disk(cls, pathspec, card_hash, cache_path="./",):
+    def load_from_disk(
+        cls,
+        pathspec,
+        card_hash,
+        cache_path="./",
+    ):
         cache = cls(pathspec, card_hash, cache_path=cache_path)
         metadata = cache.read_metadata()
         if metadata is not None:
@@ -216,7 +232,7 @@ class TaskCardCacheService:
         list_frequency_seconds=5,
         data_update_frequency=0.2,
         html_update_frequency=2,
-        max_no_card_wait_time=10
+        max_no_card_wait_time=10,
     ) -> None:
         self._task_pathspec = task_pathspec
         self._cache: Dict[str, CardCache] = {
@@ -294,22 +310,44 @@ class TaskCardCacheService:
         try:
             _cards = get_cards(self._task, follow_resumed=False)
             if len(_cards) == 0:
-                return ResolvedCards([], False,)
-            return ResolvedCards([c for c in _cards], False,)
+                return ResolvedCards(
+                    [],
+                    False,
+                )
+            return ResolvedCards(
+                [c for c in _cards],
+                False,
+            )
         except CardNotPresentException as e:
-            self.logger.debug(f"Cards were not found for pathspec {self._task_pathspec}")
+            self.logger.debug(
+                f"Cards were not found for pathspec {self._task_pathspec}"
+            )
             # This means that the card is not present but can be polled for some time.
-            return ResolvedCards([], False,)
+            return ResolvedCards(
+                [],
+                False,
+            )
         except AttributeError as e:
             # This means that accessing attributes of task is not possible
-            self.logger.debug(f"Error while accessing task attributes for pathspec {self._task_pathspec} {e}")
-            return ResolvedCards([], True,)
+            self.logger.debug(
+                f"Error while accessing task attributes for pathspec {self._task_pathspec} {e}"
+            )
+            return ResolvedCards(
+                [],
+                True,
+            )
         except UnresolvableDatastoreException as e:
             self.logger.debug(f"Error while resolving datastore for card: {e}")
-            return ResolvedCards([], True,)
+            return ResolvedCards(
+                [],
+                True,
+            )
         except Exception as e:
             self.logger.error(f"Unknown Error while extracting cards: {e}")
-            return ResolvedCards([], True,)  # On other errors fail away too!
+            return ResolvedCards(
+                [],
+                True,
+            )  # On other errors fail away too!
 
     def refresh_loop(self):
         timings = {"data": None, "html": None, "list": None}
@@ -326,15 +364,21 @@ class TaskCardCacheService:
                     self.write_available_cards()
 
             cache_is_empty = len(self._cache) == 0
-            crossed_no_card_wait_time = time.time() - start_time > self._max_no_card_wait_time
+            crossed_no_card_wait_time = (
+                time.time() - start_time > self._max_no_card_wait_time
+            )
             if cache_is_empty and not crossed_no_card_wait_time:
                 time.sleep(_sleep_time)
                 continue
             elif cache_is_empty and crossed_no_card_wait_time:
-                self.logger.info(f"Cache is empty for {self._task_pathspec} and no cards were found for {self._max_no_card_wait_time} seconds")
+                self.logger.info(
+                    f"Cache is empty for {self._task_pathspec} and no cards were found for {self._max_no_card_wait_time} seconds"
+                )
                 break
             elif cache_is_empty and cards_are_unresolvable:
-                self.logger.error(f"Cache is empty for {self._task_pathspec} and no cards were unresolvable")
+                self.logger.error(
+                    f"Cache is empty for {self._task_pathspec} and no cards were unresolvable"
+                )
                 break
 
             for card_hash in self._cache:
@@ -356,10 +400,22 @@ def cli():
 @click.argument("pathspec")
 @click.option("--cache-path", default="./", help="Path to the cache")
 @click.option("--uptime-seconds", default=600, help="Timeout for the cache service")
-@click.option("--list-frequency", default=5, help="Frequency for the listing cards to populate the cache")
-@click.option("--data-update-frequency", default=0.2, help="Frequency for the data update")
-@click.option("--html-update-frequency", default=2, help="Frequency for the html update")
-@click.option("--max-no-card-wait-time", default=10, help="Maximum time to wait a card to be present")
+@click.option(
+    "--list-frequency",
+    default=5,
+    help="Frequency for the listing cards to populate the cache",
+)
+@click.option(
+    "--data-update-frequency", default=0.2, help="Frequency for the data update"
+)
+@click.option(
+    "--html-update-frequency", default=2, help="Frequency for the html update"
+)
+@click.option(
+    "--max-no-card-wait-time",
+    default=10,
+    help="Maximum time to wait a card to be present",
+)
 def task_updates(
     pathspec,
     cache_path,

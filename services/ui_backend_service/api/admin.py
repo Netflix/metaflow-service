@@ -4,16 +4,20 @@ import asyncio
 
 from aiohttp import web
 from multidict import MultiDict
-from services.utils import (METADATA_SERVICE_HEADER, METADATA_SERVICE_VERSION,
-                            SERVICE_BUILD_TIMESTAMP, SERVICE_COMMIT_HASH,
-                            web_response)
+from services.utils import (
+    METADATA_SERVICE_HEADER,
+    METADATA_SERVICE_VERSION,
+    SERVICE_BUILD_TIMESTAMP,
+    SERVICE_COMMIT_HASH,
+    web_response,
+)
 
 from .utils import get_json_config
 
 UI_SERVICE_VERSION = "{metadata_v}-{timestamp}-{commit}".format(
     metadata_v=METADATA_SERVICE_VERSION,
     timestamp=SERVICE_BUILD_TIMESTAMP or "",
-    commit=SERVICE_COMMIT_HASH or ""
+    commit=SERVICE_COMMIT_HASH or "",
 )
 
 
@@ -33,8 +37,8 @@ class AdminApi(object):
         app.router.add_route("GET", "/status", self.status)
 
         defaults = [
-            {"href": 'https://docs.metaflow.org/', "label": 'Documentation'},
-            {"href": 'http://chat.metaflow.org/', "label": 'Help'}
+            {"href": "https://docs.metaflow.org/", "label": "Documentation"},
+            {"href": "http://chat.metaflow.org/", "label": "Help"},
         ]
 
         self.notifications = _get_notifications_config() or []
@@ -70,8 +74,10 @@ class AdminApi(object):
             "405":
                 description: invalid HTTP Method
         """
-        return web.Response(text="pong", headers=MultiDict(
-            {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+        return web.Response(
+            text="pong",
+            headers=MultiDict({METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}),
+        )
 
     async def links(self, request):
         """
@@ -120,18 +126,22 @@ class AdminApi(object):
                 if not created:
                     continue
 
-                processed_notifications.append({
-                    "id": notification.get("id", hashlib.sha1(
-                        str(notification).encode('utf-8')).hexdigest()),
-                    "type": notification.get("type", "info"),
-                    "contentType": notification.get("contentType", "text"),
-                    "message": notification.get("message", ""),
-                    "url": notification.get("url", None),
-                    "urlText": notification.get("urlText", None),
-                    "created": created,
-                    "start": notification.get("start", None),
-                    "end": notification.get("end", None)
-                })
+                processed_notifications.append(
+                    {
+                        "id": notification.get(
+                            "id",
+                            hashlib.sha1(str(notification).encode("utf-8")).hexdigest(),
+                        ),
+                        "type": notification.get("type", "info"),
+                        "contentType": notification.get("contentType", "text"),
+                        "message": notification.get("message", ""),
+                        "url": notification.get("url", None),
+                        "urlText": notification.get("urlText", None),
+                        "created": created,
+                        "start": notification.get("start", None),
+                        "end": notification.get("end", None),
+                    }
+                )
             except:
                 pass
 
@@ -170,8 +180,9 @@ class AdminApi(object):
 
             return True
 
-        return web_response(status=200, body=list(
-            filter(filter_notifications, processed_notifications)))
+        return web_response(
+            status=200, body=list(filter(filter_notifications, processed_notifications))
+        )
 
     async def status(self, request):
         """
@@ -189,7 +200,11 @@ class AdminApi(object):
         """
 
         cache_status = {}
-        for store in [self.cache_store.artifact_cache, self.cache_store.dag_cache, self.cache_store.log_cache]:
+        for store in [
+            self.cache_store.artifact_cache,
+            self.cache_store.dag_cache,
+            self.cache_store.log_cache,
+        ]:
             try:
                 # Use client ping to verify communcation, True = ok
                 await store.cache.ping()
@@ -211,13 +226,17 @@ class AdminApi(object):
                 try:
                     proc = await asyncio.create_subprocess_shell(
                         "pgrep -P {}".format(cache_server_pid),
-                        stdout=asyncio.subprocess.PIPE)
+                        stdout=asyncio.subprocess.PIPE,
+                    )
                     stdout, _ = await proc.communicate()
                     if stdout:
                         pids = stdout.decode().splitlines()
                         proc = await asyncio.create_subprocess_shell(
-                            "ps -p {} -o pid,%cpu,%mem,stime,time,command".format(",".join(pids)),
-                            stdout=asyncio.subprocess.PIPE)
+                            "ps -p {} -o pid,%cpu,%mem,stime,time,command".format(
+                                ",".join(pids)
+                            ),
+                            stdout=asyncio.subprocess.PIPE,
+                        )
                         stdout, _ = await proc.communicate()
 
                         worker_list = stdout.decode().splitlines()
@@ -232,7 +251,8 @@ class AdminApi(object):
                 cache_data_path = os.path.abspath(store.cache._root)
                 proc = await asyncio.create_subprocess_shell(
                     "du -s {} | cut -f1".format(cache_data_path),
-                    stdout=asyncio.subprocess.PIPE)
+                    stdout=asyncio.subprocess.PIPE,
+                )
                 stdout, _ = await proc.communicate()
                 if stdout:
                     current_size = int(stdout.decode())
@@ -245,22 +265,26 @@ class AdminApi(object):
                 "pending_requests": list(store.cache.pending_requests),
                 "root": store.cache._root,
                 "prev_is_alive": store.cache._prev_is_alive,
-                "action_classes": list(map(lambda cls: cls.__name__, store.cache._action_classes)),
+                "action_classes": list(
+                    map(lambda cls: cls.__name__, store.cache._action_classes)
+                ),
                 "max_actions": store.cache._max_actions,
                 "max_size": store.cache._max_size,
                 "current_size": current_size,
                 "ping": ping,
                 "check_action": check,
-                "proc": {
-                    "pid": store.cache._proc.pid,
-                    "returncode": store.cache._proc.returncode,
-                } if store.cache._proc else None,
-                "workers": worker_list
+                "proc": (
+                    {
+                        "pid": store.cache._proc.pid,
+                        "returncode": store.cache._proc.returncode,
+                    }
+                    if store.cache._proc
+                    else None
+                ),
+                "workers": worker_list,
             }
 
-        return web_response(status=200, body={
-            "cache": cache_status
-        })
+        return web_response(status=200, body={"cache": cache_status})
 
 
 def _get_links_config():

@@ -1,8 +1,7 @@
 from aiohttp import web
 import json
 from services.utils import read_body
-from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+from services.metadata_service.api.utils import format_response, handle_exceptions
 import asyncio
 from services.data.postgres_async_db import AsyncPostgresDB
 
@@ -106,9 +105,7 @@ class MetadataApi(object):
         """
         flow_name = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        return await self._async_table.get_metadata_in_runs(
-            flow_name, run_number
-        )
+        return await self._async_table.get_metadata_in_runs(flow_name, run_number)
 
     async def create_metadata(self, request):
         """
@@ -175,11 +172,16 @@ class MetadataApi(object):
         count = 0
         try:
             run_number, run_id = await self._db.get_run_ids(flow_name, run_number)
-            task_id, task_name = await self._db.get_task_ids(flow_name, run_number,
-                                                             step_name, task_id)
+            task_id, task_name = await self._db.get_task_ids(
+                flow_name, run_number, step_name, task_id
+            )
         except Exception:
-            return web.Response(status=400, body=json.dumps(
-                {"message": "need to register run_id and task_id first"}))
+            return web.Response(
+                status=400,
+                body=json.dumps(
+                    {"message": "need to register run_id and task_id first"}
+                ),
+            )
 
         for datum in body:
             values = {

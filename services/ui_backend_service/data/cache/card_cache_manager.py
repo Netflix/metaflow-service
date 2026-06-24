@@ -9,7 +9,6 @@ import asyncio
 from .card_cache_service import CardCache, cleanup_non_running_caches
 import contextlib
 
-
 _PARENT_DIR = os.path.dirname(__file__)
 PATH_TO_CACHE_SERVICE = os.path.join(_PARENT_DIR, "card_cache_service.py")
 
@@ -181,13 +180,15 @@ class CardCacheManager:
                 "--cache-path",
                 CACHE_STORAGE_PATH,
                 "--max-no-card-wait-time",
-                CARD_CACHE_PROCESS_NO_CARD_WAIT_TIME
+                CARD_CACHE_PROCESS_NO_CARD_WAIT_TIME,
             ]
         ]
 
     def get_local_cache(self, pathspec, card_hash):
         cache = CardCache.load_from_disk(
-            pathspec, card_hash, CACHE_STORAGE_PATH,
+            pathspec,
+            card_hash,
+            CACHE_STORAGE_PATH,
         )
         return cache
 
@@ -198,10 +199,10 @@ class CardCacheManager:
             return proc_id, "running"
 
         cmd = self._make_task_command(pathspec)
-        self.logger.info(
-            "Registering task [%s]" % (pathspec)
+        self.logger.info("Registering task [%s]" % (pathspec))
+        _id, status = await self._process_manager.add(
+            proc_id, cmd, logs_file_path=CACHE_SERVICE_LOG_STORAGE_ROOT
         )
-        _id, status = await self._process_manager.add(proc_id, cmd, logs_file_path=CACHE_SERVICE_LOG_STORAGE_ROOT)
         return _id, status
 
     async def get_status(self, pathspec):
@@ -210,12 +211,16 @@ class CardCacheManager:
     async def start_process_cleanup_routine(self, interval=60):
         try:
             while True:
-                cleanup_keys = await self._process_manager.cleanup()  # Perform the cleanup
+                cleanup_keys = (
+                    await self._process_manager.cleanup()
+                )  # Perform the cleanup
                 if len(cleanup_keys) > 0:
                     self.logger.info(
                         "Cleaned up processes: %s" % ", ".join(cleanup_keys)
                     )
-                await asyncio.sleep(interval)  # Wait for a specified interval before the next cleanup
+                await asyncio.sleep(
+                    interval
+                )  # Wait for a specified interval before the next cleanup
         except asyncio.CancelledError:
             self.logger.info("Process cleanup routine cancelled")
 
@@ -227,7 +232,9 @@ class CardCacheManager:
                 # processes are not getting removed when the disk cleanup is happening.
                 async with self._process_manager.lock:
                     running_proc_ids = await self._process_manager.running_processes()
-                    cleanup_non_running_caches(CACHE_STORAGE_PATH, CardCache.CACHE_DIR, running_proc_ids)
+                    cleanup_non_running_caches(
+                        CACHE_STORAGE_PATH, CardCache.CACHE_DIR, running_proc_ids
+                    )
         except asyncio.CancelledError:
             self.logger.info("Disk cleanup routine cancelled")
 
@@ -254,7 +261,10 @@ def _get_html_or_refresh(local_cache: CardCache):
 
 
 async def wait_until_card_is_ready(
-    cache_manager: CardCacheManager, local_cache: CardCache, max_wait_time=3, frequency=0.1
+    cache_manager: CardCacheManager,
+    local_cache: CardCache,
+    max_wait_time=3,
+    frequency=0.1,
 ):
     html = None
     start_time = time.time()
@@ -264,7 +274,9 @@ async def wait_until_card_is_ready(
         html = _get_html_or_refresh(local_cache)
         if html is not None:
             break
-        process_failed = await verify_process_has_crashed(cache_manager, local_cache.pathspec)
+        process_failed = await verify_process_has_crashed(
+            cache_manager, local_cache.pathspec
+        )
         if process_failed:
             cache_manager.logger.error(
                 f"Card {local_cache.card_hash} has crashed for {local_cache.pathspec}"

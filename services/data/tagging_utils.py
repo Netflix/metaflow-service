@@ -2,7 +2,9 @@ from services.data.db_utils import DBResponse
 import copy
 
 
-async def apply_run_tags_to_db_response(flow_id, run_number, run_table_postgres, db_response: DBResponse) -> DBResponse:
+async def apply_run_tags_to_db_response(
+    flow_id, run_number, run_table_postgres, db_response: DBResponse
+) -> DBResponse:
     """
     We want read APIs to return steps, tasks and artifact objects with tags
     and system_tags set to their ancestral Run.
@@ -29,6 +31,6 @@ async def apply_run_tags_to_db_response(flow_id, run_number, run_table_postgres,
         return DBResponse(response_code=500, body=db_response_for_run.body)
     run = db_response_for_run.body
     for item_as_dict in items_to_modify:
-        item_as_dict['tags'] = run['tags']
-        item_as_dict['system_tags'] = run['system_tags']
+        item_as_dict["tags"] = run["tags"]
+        item_as_dict["system_tags"] = run["system_tags"]
     return new_db_response

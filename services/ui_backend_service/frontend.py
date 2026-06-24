@@ -21,47 +21,61 @@ class Frontend(object):
     """
 
     def __init__(self, app):
-        app.router.add_static('/static',
-                              path=os.path.join(static_ui_path, "static"),
-                              name='static')
+        app.router.add_static(
+            "/static", path=os.path.join(static_ui_path, "static"), name="static"
+        )
 
         # serve the root static files separately.
         static_files = glob.glob(os.path.join(static_ui_path, "*.*"))
         for filepath in static_files:
-            filename = filepath[len(static_ui_path) + 1:]
-            app.router.add_route(
-                'GET', f'/{filename}', self.serve_file(filename))
+            filename = filepath[len(static_ui_path) + 1 :]
+            app.router.add_route("GET", f"/{filename}", self.serve_file(filename))
 
         # catch-all route that unfortunately messes with root static file serving.
         # Refreshing SPA pages won't work without the tail.
-        app.router.add_route('GET', '/{tail:.*}', self.serve_index_html)
+        app.router.add_route("GET", "/{tail:.*}", self.serve_index_html)
 
     def serve_file(self, filename: str):
         "Generator for single static file serving handlers"
+
         async def filehandler(request):
             return web.FileResponse(os.path.join(static_ui_path, filename))
+
         return filehandler
 
     async def serve_index_html(self, request):
         "Serve index.html by injecting `METAFLOW_SERVICE` variable to define API base url."
         try:
             with open(os.path.join(static_ui_path, "index.html")) as f:
-                content = f.read() \
-                    .replace("</head>",
-                             "<script>window.METAFLOW_SERVICE=\"{METAFLOW_SERVICE}\";</script></head>".format(METAFLOW_SERVICE=METAFLOW_SERVICE))
+                content = f.read().replace(
+                    "</head>",
+                    '<script>window.METAFLOW_SERVICE="{METAFLOW_SERVICE}";</script></head>'.format(
+                        METAFLOW_SERVICE=METAFLOW_SERVICE
+                    ),
+                )
 
                 if METAFLOW_HEAD:
-                    content = content.replace("</head>", "{METAFLOW_HEAD}</head>"
-                                              .format(METAFLOW_HEAD=METAFLOW_HEAD))
+                    content = content.replace(
+                        "</head>",
+                        "{METAFLOW_HEAD}</head>".format(METAFLOW_HEAD=METAFLOW_HEAD),
+                    )
 
                 if METAFLOW_BODY_BEFORE:
-                    content = content.replace("<body>", "<body>{METAFLOW_BODY_BEFORE}"
-                                              .format(METAFLOW_BODY_BEFORE=METAFLOW_BODY_BEFORE))
+                    content = content.replace(
+                        "<body>",
+                        "<body>{METAFLOW_BODY_BEFORE}".format(
+                            METAFLOW_BODY_BEFORE=METAFLOW_BODY_BEFORE
+                        ),
+                    )
 
                 if METAFLOW_BODY_AFTER:
-                    content = content.replace("</body>", "{METAFLOW_BODY_AFTER}</body>"
-                                              .format(METAFLOW_BODY_AFTER=METAFLOW_BODY_AFTER))
+                    content = content.replace(
+                        "</body>",
+                        "{METAFLOW_BODY_AFTER}</body>".format(
+                            METAFLOW_BODY_AFTER=METAFLOW_BODY_AFTER
+                        ),
+                    )
 
-                return web.Response(text=content, content_type='text/html')
+                return web.Response(text=content, content_type="text/html")
         except Exception as err:
-            return web.Response(text=str(err), status=500, content_type='text/plain')
+            return web.Response(text=str(err), status=500, content_type="text/plain")

@@ -25,7 +25,7 @@ class StepRow(BaseRow):
         duration=None,
         tags=None,
         system_tags=None,
-        **kwargs
+        **kwargs,
     ):
         self.flow_id = flow_id
         self.run_number = run_number

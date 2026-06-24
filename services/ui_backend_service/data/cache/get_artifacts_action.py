@@ -20,7 +20,9 @@ class GetArtifacts(GetData):
         invalidate_cache : bool
             Force cache invalidation, defaults to False
         """
-        return super().format_request(targets=pathspecs, invalidate_cache=invalidate_cache)
+        return super().format_request(
+            targets=pathspecs, invalidate_cache=invalidate_cache
+        )
 
     @classmethod
     def fetch_data(cls, pathspec: str, stream_output: Callable[[str], None]):

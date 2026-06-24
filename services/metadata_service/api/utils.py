@@ -10,7 +10,7 @@ from services.utils import get_traceback_str
 
 version = metadata.version("metadata_service")
 METADATA_SERVICE_VERSION = version
-METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
+METADATA_SERVICE_HEADER = "METADATA_SERVICE_VERSION"
 
 ServiceResponse = collections.namedtuple("ServiceResponse", "response_code body")
 
@@ -21,20 +21,26 @@ def format_response(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         db_response = await func(*args, **kwargs)
-        return web.Response(status=db_response.response_code,
-                            body=json.dumps(db_response.body),
-                            headers=MultiDict(
-                                {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+        return web.Response(
+            status=db_response.response_code,
+            body=json.dumps(db_response.body),
+            headers=MultiDict({METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}),
+        )
 
     return wrapper
 
 
 def web_response(status: int, body):
-    return web.Response(status=status,
-                        body=json.dumps(body),
-                        headers=MultiDict(
-                            {"Content-Type": "application/json",
-                             METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+    return web.Response(
+        status=status,
+        body=json.dumps(body),
+        headers=MultiDict(
+            {
+                "Content-Type": "application/json",
+                METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION,
+            }
+        ),
+    )
 
 
 def http_500(msg, traceback_str=None):
@@ -42,11 +48,11 @@ def http_500(msg, traceback_str=None):
     if traceback_str is None:
         traceback_str = get_traceback_str()
     body = {
-        'traceback': traceback_str,
-        'detail': msg,
-        'status': 500,
-        'title': 'Internal Server Error',
-        'type': 'about:blank'
+        "traceback": traceback_str,
+        "detail": msg,
+        "status": 500,
+        "title": "Internal Server Error",
+        "type": "about:blank",
     }
 
     return ServiceResponse(500, body)

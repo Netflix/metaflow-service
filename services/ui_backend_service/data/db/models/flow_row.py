@@ -7,7 +7,9 @@ class FlowRow(BaseRow):
     user_name: str = None
     ts_epoch: int = 0
 
-    def __init__(self, flow_id, user_name, ts_epoch=None, tags=None, system_tags=None, **kwargs):
+    def __init__(
+        self, flow_id, user_name, ts_epoch=None, tags=None, system_tags=None, **kwargs
+    ):
         self.flow_id = flow_id
         self.user_name = user_name
         if ts_epoch is None:

@@ -1,9 +1,6 @@
 import pytest
-from .utils import (
-    cli, db,
-    add_flow,
-    _test_list_resources, _test_single_resource
-)
+from .utils import cli, db, add_flow, _test_list_resources, _test_single_resource
+
 pytestmark = [pytest.mark.integration_tests]
 
 

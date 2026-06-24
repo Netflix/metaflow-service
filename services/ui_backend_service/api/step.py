@@ -52,17 +52,22 @@ class StepApi(object):
         run_number = request.match_info.get("run_number")
         run_id_key, run_id_value = translate_run_key(run_number)
 
-        return await find_records(request,
-                                  self._async_table,
-                                  initial_conditions=[
-                                      "flow_id = %s",
-                                      "{run_id_key} = %s".format(run_id_key=run_id_key)],
-                                  initial_values=[flow_name, run_id_value],
-                                  allowed_order=self._async_table.keys,
-                                  allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys,
-                                  enable_joins=True,
-                                  postprocess=apply_run_tags_postprocess(flow_name, run_number, self._async_run_table))
+        return await find_records(
+            request,
+            self._async_table,
+            initial_conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(run_id_key=run_id_key),
+            ],
+            initial_values=[flow_name, run_id_value],
+            allowed_order=self._async_table.keys,
+            allowed_group=self._async_table.keys,
+            allowed_filters=self._async_table.keys,
+            enable_joins=True,
+            postprocess=apply_run_tags_postprocess(
+                flow_name, run_number, self._async_run_table
+            ),
+        )
 
     @handle_exceptions
     async def get_step(self, request):
@@ -93,16 +98,18 @@ class StepApi(object):
         run_id_key, run_id_value = translate_run_key(run_number)
         step_name = request.match_info.get("step_name")
 
-        return await find_records(request,
-                                  self._async_table,
-                                  fetch_single=True,
-                                  initial_conditions=[
-                                      "flow_id = %s",
-                                      "{run_id_key} = %s".format(
-                                          run_id_key=run_id_key),
-                                      "step_name = %s"],
-                                  initial_values=[
-                                      flow_name, run_id_value, step_name],
-                                  enable_joins=True,
-                                  postprocess=apply_run_tags_postprocess(flow_name, run_number, self._async_run_table)
-                                  )
+        return await find_records(
+            request,
+            self._async_table,
+            fetch_single=True,
+            initial_conditions=[
+                "flow_id = %s",
+                "{run_id_key} = %s".format(run_id_key=run_id_key),
+                "step_name = %s",
+            ],
+            initial_values=[flow_name, run_id_value, step_name],
+            enable_joins=True,
+            postprocess=apply_run_tags_postprocess(
+                flow_name, run_number, self._async_run_table
+            ),
+        )

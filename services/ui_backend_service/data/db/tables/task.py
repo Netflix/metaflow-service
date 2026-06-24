@@ -1,12 +1,23 @@
-from .base import AsyncPostgresTable, HEARTBEAT_THRESHOLD, WAIT_TIME, OLD_RUN_FAILURE_CUTOFF_TIME
+from .base import (
+    AsyncPostgresTable,
+    HEARTBEAT_THRESHOLD,
+    WAIT_TIME,
+    OLD_RUN_FAILURE_CUTOFF_TIME,
+)
 from .step import AsyncStepTablePostgres
 from ..models import TaskRow
-from services.data.db_utils import DBPagination, DBResponse, translate_run_key, translate_task_key
+from services.data.db_utils import (
+    DBPagination,
+    DBResponse,
+    translate_run_key,
+    translate_task_key,
+)
+
 # use schema constants from the .data module to keep things consistent
 from services.data.postgres_async_db import (
     AsyncTaskTablePostgres as MetadataTaskTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable,
-    AsyncMetadataTablePostgres as MetaMetadataTable
+    AsyncMetadataTablePostgres as MetaMetadataTable,
 )
 from typing import List, Callable, Tuple
 import json
@@ -132,14 +143,17 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             metadata_table=metadata_table,
-            artifact_table=artifact_table
+            artifact_table=artifact_table,
         ),
     ]
 
     @property
     def select_columns(self):
         # NOTE: We must use a function scope in order to be able to access the table_name variable for list comprehension.
-        return ["{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k) for k in self.keys]
+        return [
+            "{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k)
+            for k in self.keys
+        ]
 
     join_columns = [
         "COALESCE(attempt.attempt_id, 0) as attempt_id",
@@ -155,7 +169,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
-            finished_at_column="COALESCE(GREATEST(attempt.attempt_finished_at, attempt.task_ok_finished_at), next_attempt_start.ts_epoch)"
+            finished_at_column="COALESCE(GREATEST(attempt.attempt_finished_at, attempt.task_ok_finished_at), next_attempt_start.ts_epoch)",
         ),
         "attempt.attempt_ok as attempt_ok",
         # If 'attempt_ok' is present, we can leave task_ok NULL since
@@ -198,7 +212,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             table_name=table_name,
             heartbeat_threshold=HEARTBEAT_THRESHOLD,
             finished_at_column="COALESCE(attempt.attempt_finished_at, attempt.task_ok_finished_at)",
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
         ),
         """
         (CASE
@@ -220,14 +234,20 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             finished_at_column="COALESCE(attempt.attempt_finished_at, attempt.task_ok_finished_at)",
-            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME
-        )
+            cutoff=OLD_RUN_FAILURE_CUTOFF_TIME,
+        ),
     ]
     step_table_name = AsyncStepTablePostgres.table_name
 
-    async def get_task_attempt(self, flow_id: str, run_key: str,
-                               step_name: str, task_key: str, attempt_id: int = None,
-                               postprocess: Callable = None) -> DBResponse:
+    async def get_task_attempt(
+        self,
+        flow_id: str,
+        run_key: str,
+        step_name: str,
+        task_key: str,
+        attempt_id: int = None,
+        postprocess: Callable = None,
+    ) -> DBResponse:
         """
         Fetches task attempt from DB. Specifying attempt_id will fetch the specific attempt.
         Otherwise the newest attempt is returned.
@@ -258,7 +278,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             "flow_id = %s",
             "{run_id_column} = %s".format(run_id_column=run_id_key),
             "step_name = %s",
-            "{task_id_column} = %s".format(task_id_column=task_id_key)
+            "{task_id_column} = %s".format(task_id_column=task_id_key),
         ]
         values = [flow_id, run_id_value, step_name, task_id_value]
         if attempt_id:
@@ -272,11 +292,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             fetch_single=True,
             enable_joins=True,
             expanded=True,
-            postprocess=postprocess
+            postprocess=postprocess,
         )
         return result
 
-    async def get_tasks_for_run(self, flow_id: str, run_key: str, postprocess: Callable = None) -> DBResponse:
+    async def get_tasks_for_run(
+        self, flow_id: str, run_key: str, postprocess: Callable = None
+    ) -> DBResponse:
         """
         Fetches run tasks from DB.
 
@@ -297,7 +319,7 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         run_id_key, run_id_value = translate_run_key(run_key)
         conditions = [
             "flow_id = %s",
-            "{run_id_column} = %s".format(run_id_column=run_id_key)
+            "{run_id_column} = %s".format(run_id_column=run_id_key),
         ]
         values = [flow_id, run_id_value]
 
@@ -307,6 +329,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             fetch_single=False,
             enable_joins=True,
             expanded=False,
-            postprocess=postprocess
+            postprocess=postprocess,
         )
         return result

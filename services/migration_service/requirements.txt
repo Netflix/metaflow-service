@@ -1,4 +1,4 @@
 aiohttp >= 3.8.1, < 4
+aiopg
 packaging
 psycopg2
-aiopg
