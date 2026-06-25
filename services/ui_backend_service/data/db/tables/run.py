@@ -111,7 +111,9 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN NULL
-            WHEN latest_task_heartbeat.last_heartbeat_ts IS NOT NULL
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={run_stale_threshold}
+                AND latest_task_heartbeat.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-latest_task_heartbeat.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN NULL
             ELSE {table_name}.last_heartbeat_ts*1000
@@ -119,6 +121,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
+            run_stale_threshold=RUN_INACTIVE_CUTOFF_TIME * 10,
         ),
         """
         (CASE
@@ -132,7 +135,9 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN 'running'
-            WHEN latest_task_heartbeat.last_heartbeat_ts IS NOT NULL
+            WHEN {table_name}.last_heartbeat_ts IS NOT NULL
+                AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={run_stale_threshold}
+                AND latest_task_heartbeat.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-latest_task_heartbeat.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN 'running'
             ELSE 'failed'
@@ -140,6 +145,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
         """.format(
             table_name=table_name,
             heartbeat_cutoff=RUN_INACTIVE_CUTOFF_TIME,
+            run_stale_threshold=RUN_INACTIVE_CUTOFF_TIME * 10,
         ),
         """
         (CASE
