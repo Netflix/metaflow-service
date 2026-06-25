@@ -231,7 +231,9 @@ async def test_run_status_running_with_heartbeat(cli, db):
     assert data["finished_at"] == None
 
 
-async def test_run_status_running_when_task_heartbeat_active_and_run_heartbeat_expired(cli, db):
+async def test_run_status_running_when_task_heartbeat_active_and_run_heartbeat_expired(
+    cli, db
+):
     """
     Run should show as 'running' when the run-level heartbeat has expired but a task
     still has a recent heartbeat. This covers foreach flows where the orchestrator
@@ -244,7 +246,9 @@ async def test_run_status_running_when_task_heartbeat_active_and_run_heartbeat_e
     _expired_run_heartbeat = get_heartbeat_ts() - (60 * 7)
 
     _run = (
-        await add_run(db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=_expired_run_heartbeat)
+        await add_run(
+            db, flow_id=_flow.get("flow_id"), last_heartbeat_ts=_expired_run_heartbeat
+        )
     ).body
 
     _step = (
@@ -350,8 +354,8 @@ async def test_run_status_failed_with_heartbeat_expired_and_no_failed_tasks(cli,
     assert data["last_heartbeat_ts"] == _heartbeat
     assert data["finished_at"] == _run["last_heartbeat_ts"] * 1000
 
-    # even if the run has no failed tasks, it should count as failed at this point due to not receiving heartbeats
-    # on the run level for long enough (should count as stuck, ie. 'failed')
+    # If a task has a fresh heartbeat, the run is still running — even if the run-level
+    # heartbeat has expired. Task heartbeat is the fallback indicator.
     _step = (
         await add_step(
             db,
@@ -376,11 +380,11 @@ async def test_run_status_failed_with_heartbeat_expired_and_no_failed_tasks(cli,
         cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200
     )
 
-    assert data["status"] == "failed"
+    assert data["status"] == "running"
     assert data["ts_epoch"] == _run["ts_epoch"]
     assert data["last_heartbeat_ts"] == _heartbeat
     assert data["duration"] == _run["last_heartbeat_ts"] * 1000 - _run["ts_epoch"]
-    assert data["finished_at"] == _run["last_heartbeat_ts"] * 1000
+    assert data["finished_at"] is None
 
     # Run should be possibly to be bumped to 'completed' with an eventually successful end-task
     _metadata = (
