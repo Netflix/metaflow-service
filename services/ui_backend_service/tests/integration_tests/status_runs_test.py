@@ -354,8 +354,8 @@ async def test_run_status_failed_with_heartbeat_expired_and_no_failed_tasks(cli,
     assert data["last_heartbeat_ts"] == _heartbeat
     assert data["finished_at"] == _run["last_heartbeat_ts"] * 1000
 
-    # A week-old run heartbeat is too stale for the task-HB fallback to apply.
-    # Even with a fresh task heartbeat, the run remains "failed" (stuck/zombie).
+    # If a task has a fresh heartbeat (< RUN_INACTIVE_CUTOFF_TIME), the run is still
+    # running — the task HB is definitive proof, regardless of how long ago the run HB lapsed.
     _step = (
         await add_step(
             db,
@@ -380,11 +380,11 @@ async def test_run_status_failed_with_heartbeat_expired_and_no_failed_tasks(cli,
         cli, db, "/flows/{flow_id}/runs/{run_number}".format(**_run), 200
     )
 
-    assert data["status"] == "failed"
+    assert data["status"] == "running"
     assert data["ts_epoch"] == _run["ts_epoch"]
     assert data["last_heartbeat_ts"] == _heartbeat
     assert data["duration"] == _run["last_heartbeat_ts"] * 1000 - _run["ts_epoch"]
-    assert data["finished_at"] == _run["last_heartbeat_ts"] * 1000
+    assert data["finished_at"] is None
 
     # Run should be possibly to be bumped to 'completed' with an eventually successful end-task
     _metadata = (
