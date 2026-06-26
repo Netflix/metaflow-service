@@ -10,8 +10,13 @@ from base64 import b64encode, b64decode
 
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
-DBPagination = collections.namedtuple("DBPagination", "limit offset count page next_cursor next_cursor_record")
-DBPagination.__new__.__defaults__ = (None, None,)
+DBPagination = collections.namedtuple(
+    "DBPagination", "limit offset count page next_cursor next_cursor_record"
+)
+DBPagination.__new__.__defaults__ = (
+    None,
+    None,
+)
 
 
 def aiopg_exception_handling(exception):
@@ -30,12 +35,14 @@ def aiopg_exception_handling(exception):
             "err_msg": {
                 "pgerror": exception.pgerror,
                 "pgcode": exception.pgcode,
-                "diag": None
-                if exception.diag is None
-                else {
-                    "message_primary": exception.diag.message_primary,
-                    "severity": exception.diag.severity,
-                },
+                "diag": (
+                    None
+                    if exception.diag is None
+                    else {
+                        "message_primary": exception.diag.message_primary,
+                        "severity": exception.diag.severity,
+                    }
+                ),
             }
         }
 
@@ -94,7 +101,7 @@ def get_latest_attempt_id_for_tasks(artifacts):
 
 
 def filter_artifacts_for_latest_attempt(
-    artifacts: List[Dict[str, Any]]
+    artifacts: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
     # `artifacts` is a `list` of dictionaries where each item in the list
     # consists of `ArtifactRow` in a dictionary form
@@ -128,8 +135,6 @@ def decode_cursor(cursor: str | None) -> dict:
     return decoded
 
 
-def encode_cursor(
-    cursor: dict
-) -> str:
+def encode_cursor(cursor: dict) -> str:
     cursor_bytes = json.dumps(cursor).encode()
     return b64encode(cursor_bytes).decode()
