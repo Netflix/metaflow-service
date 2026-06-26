@@ -30,7 +30,7 @@ class RunRow(BaseRow):
         tags=None,
         system_tags=None,
         last_heartbeat_ts=None,
-        **kwargs
+        **kwargs,
     ):
         self.flow_id = flow_id
         self.user_name = user_name
@@ -65,7 +65,7 @@ class RunRow(BaseRow):
                 "duration": self.duration,
                 "last_heartbeat_ts": self.last_heartbeat_ts,
                 "tags": self.tags,
-                "system_tags": self.system_tags
+                "system_tags": self.system_tags,
             }
         else:
             return {
@@ -78,5 +78,5 @@ class RunRow(BaseRow):
                 "duration": self.duration,
                 "last_heartbeat_ts": self.last_heartbeat_ts,
                 "tags": self.tags,
-                "system_tags": self.system_tags
+                "system_tags": self.system_tags,
             }

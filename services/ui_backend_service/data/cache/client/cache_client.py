@@ -7,7 +7,6 @@ import time
 from .cache_store import object_path, stream_path, is_safely_readable
 from .cache_action import Check
 
-
 FOREVER = 60 * 60 * 24 * 3650
 
 
@@ -50,19 +49,26 @@ class CacheFuture(object):
         return bool(self.stream_key)
 
     def wait(self, timeout=FOREVER):
-        return self.client.wait(lambda: None if self.has_pending_request() else True,
-                                timeout)
+        return self.client.wait(
+            lambda: None if self.has_pending_request() else True, timeout
+        )
 
     def get(self):
         def _read(path):
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 return f.read()
 
-        _safe_key_paths = {key: path for key, path in self.key_paths.items() if is_safely_readable(path)}
+        _safe_key_paths = {
+            key: path
+            for key, path in self.key_paths.items()
+            if is_safely_readable(path)
+        }
         if self.key_objs is None and self.is_ready():
-            self.key_objs = {key: _read(path)
-                             for key, path in _safe_key_paths.items()
-                             if key != self.stream_key}
+            self.key_objs = {
+                key: _read(path)
+                for key, path in _safe_key_paths.items()
+                if key != self.stream_key
+            }
 
         if self.key_objs:
             return self.action.response(self.key_objs)
@@ -106,15 +112,15 @@ class CacheFuture(object):
                 # in case waiting for file timed out and stream remained none.
                 return
 
-            tail = ''
+            tail = ""
             while True:
                 buf = stream.readline()
-                if buf == '':
+                if buf == "":
                     yield None
-                elif buf == '\n' and not tail:
+                elif buf == "\n" and not tail:
                     # an empty line marks the end of stream
                     break
-                elif buf[-1] == '\n':
+                elif buf[-1] == "\n":
                     try:
                         # NOTE: yield must not be None since None
                         # indicates no-result
@@ -123,7 +129,7 @@ class CacheFuture(object):
                         err = "Corrupted message: '%s'" % tail + buf
                         raise CacheStreamCorrupted(err)
                     else:
-                        tail = ''
+                        tail = ""
                         yield msg
                 else:
                     tail += buf
@@ -144,8 +150,7 @@ class CacheFuture(object):
             # 3) client.wait_iter() handles sync/async sleeping when no
             #    events are available.
             it = _readlines([self.stream_path, self.key_paths[self.stream_key]])
-            return self.client.wait_iter(self.action.stream_response(it),
-                                         timeout)
+            return self.client.wait_iter(self.action.stream_response(it), timeout)
 
 
 class CacheClient(object):
@@ -166,20 +171,25 @@ class CacheClient(object):
         self.pending_requests = set()
 
     def start(self):
-        cmd, env = subprocess_cmd_and_env('cache_server')
+        cmd, env = subprocess_cmd_and_env("cache_server")
         cmdline = cmd + [
-            '--root', os.path.abspath(self._root),
-            '--max-actions', str(self._max_actions),
-            '--max-size', str(self._max_size)
+            "--root",
+            os.path.abspath(self._root),
+            "--max-actions",
+            str(self._max_actions),
+            "--max-size",
+            str(self._max_size),
         ]
 
-        msg = {
-            'actions': [[c.__module__, c.__name__] for c in self._action_classes]
-        }
-        return self.request_and_return([self.start_server(cmdline, env),
-                                        self._send('init', message=msg),
-                                        self.check()],
-                                       None)
+        msg = {"actions": [[c.__module__, c.__name__] for c in self._action_classes]}
+        return self.request_and_return(
+            [
+                self.start_server(cmdline, env),
+                self._send("init", message=msg),
+                self.check(),
+            ],
+            None,
+        )
 
     def stop(self):
         return self.stop_server()
@@ -189,17 +199,18 @@ class CacheClient(object):
         return self._is_alive
 
     def ping(self):
-        return self._send('ping')
+        return self._send("ping")
 
     def _send(self, op, **kwargs):
         req = server_request(op, **kwargs)
-        return self.send_request(json.dumps(req).encode('utf-8') + b'\n')
+        return self.send_request(json.dumps(req).encode("utf-8") + b"\n")
 
     def _action(self, cls):
 
         def _call(*args, **kwargs):
-            msg, keys, stream_key, disposable_keys, invalidate_cache, ephemeral_path =\
+            msg, keys, stream_key, disposable_keys, invalidate_cache, ephemeral_path = (
                 cls.format_request(*args, **kwargs)
+            )
             future = CacheFuture(keys, stream_key, self, cls, self._root)
             if future.key_paths_ready() and not invalidate_cache:
                 # cache hit
@@ -209,16 +220,18 @@ class CacheClient(object):
                 self.pending_requests.add(stream_key)
 
                 # cache miss
-                action_spec = '%s.%s' % (cls.__module__, cls.__name__)
-                req = self._send('action',
-                                 prio=cls.PRIORITY,
-                                 action=action_spec,
-                                 keys=keys,
-                                 stream_key=stream_key,
-                                 message=msg,
-                                 disposable_keys=disposable_keys,
-                                 invalidate_cache=invalidate_cache,
-                                 ephemeral_path=ephemeral_path)
+                action_spec = "%s.%s" % (cls.__module__, cls.__name__)
+                req = self._send(
+                    "action",
+                    prio=cls.PRIORITY,
+                    action=action_spec,
+                    keys=keys,
+                    stream_key=stream_key,
+                    message=msg,
+                    disposable_keys=disposable_keys,
+                    invalidate_cache=invalidate_cache,
+                    ephemeral_path=ephemeral_path,
+                )
 
             return self.request_and_return([req] if req else [], future)
 
@@ -279,22 +292,28 @@ class CacheClient(object):
 
 
 def subprocess_cmd_and_env(mod):
-    pypath = os.environ.get('PYTHONPATH', '')
+    pypath = os.environ.get("PYTHONPATH", "")
     env = os.environ.copy()
-    env['PYTHONPATH'] = ':'.join((os.getcwd(), pypath))
-    return [sys.executable, '-m', 'services.ui_backend_service.data.cache.client.%s' % mod], env
+    env["PYTHONPATH"] = ":".join((os.getcwd(), pypath))
+    return [
+        sys.executable,
+        "-m",
+        "services.ui_backend_service.data.cache.client.%s" % mod,
+    ], env
 
 
-def server_request(op,
-                   action=None,
-                   prio=None,
-                   keys=None,
-                   stream_key=None,
-                   message=None,
-                   disposable_keys=None,
-                   idempotency_token=None,
-                   invalidate_cache=False,
-                   ephemeral_path=None):
+def server_request(
+    op,
+    action=None,
+    prio=None,
+    keys=None,
+    stream_key=None,
+    message=None,
+    disposable_keys=None,
+    idempotency_token=None,
+    invalidate_cache=False,
+    ephemeral_path=None,
+):
 
     if idempotency_token is None:
         fields = [op]
@@ -304,19 +323,19 @@ def server_request(op,
             fields.extend(sorted(keys))
         if stream_key:
             fields.append(stream_key)
-        token = hashlib.sha1('|'.join(fields).encode('utf-8')).hexdigest()
+        token = hashlib.sha1("|".join(fields).encode("utf-8")).hexdigest()
     else:
         token = idempotency_token
 
     return {
-        'op': op,
-        'action': action,
-        'priority': prio,
-        'keys': keys,
-        'stream_key': stream_key,
-        'message': message,
-        'idempotency_token': token,
-        'disposable_keys': disposable_keys,
-        'invalidate_cache': invalidate_cache,
-        'ephemeral_path': ephemeral_path
+        "op": op,
+        "action": action,
+        "priority": prio,
+        "keys": keys,
+        "stream_key": stream_key,
+        "message": message,
+        "idempotency_token": token,
+        "disposable_keys": disposable_keys,
+        "invalidate_cache": invalidate_cache,
+        "ephemeral_path": ephemeral_path,
     }

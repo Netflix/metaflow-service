@@ -2,17 +2,16 @@ import os
 from services.utils import handle_exceptions, web_response
 
 # These environment values will be available to the frontend
-ALLOWED_CONFIG_KEYS = [
-    'GA_TRACKING_ID'
-]
+ALLOWED_CONFIG_KEYS = ["GA_TRACKING_ID"]
 
 
 class ConfigApi(object):
     """
     Adds an Api endpoint for fetching required configuration variables for the frontend.
     """
+
     def __init__(self, app):
-        app.router.add_route('GET', '/config', self.get_config)
+        app.router.add_route("GET", "/config", self.get_config)
 
     @handle_exceptions
     async def get_config(self, request):
@@ -35,7 +34,7 @@ class ConfigApi(object):
                             description: "A frontend configuration variable from the server environment. These are exposed based on a whitelist on the server."
             "405":
                 description: invalid HTTP Method
-         """
+        """
         config = {}
         for key in ALLOWED_CONFIG_KEYS:
             val = os.environ.get(key, None)

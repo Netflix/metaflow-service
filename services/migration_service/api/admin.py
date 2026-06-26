@@ -14,8 +14,7 @@ class AdminApi(object):
         app.router.add_route("GET", "/ping", self.ping)
         app.router.add_route("GET", "/db_schema_status", self.db_schema_status)
 
-        endpoints_enabled = int(os.environ.get("MF_MIGRATION_ENDPOINTS_ENABLED",
-                                               1))
+        endpoints_enabled = int(os.environ.get("MF_MIGRATION_ENDPOINTS_ENABLED", 1))
         if endpoints_enabled:
             app.router.add_route("PATCH", "/upgrade", self.upgrade)
 
@@ -69,11 +68,9 @@ class AdminApi(object):
                 description: could not upgrade
         """
         goose_version_cmd = make_goose_migration_template(
-            db_conf.connection_string_url(),
-            "up"
+            db_conf.connection_string_url(), "up"
         )
-        p = Popen(goose_version_cmd, shell=True,
-                  close_fds=True)
+        p = Popen(goose_version_cmd, shell=True, close_fds=True)
         p.wait()
         if p.returncode == 0:
             return web.Response(text="upgrade success")
@@ -103,14 +100,17 @@ class AdminApi(object):
                 "current_version": version,
                 "migration_in_progress": migration_in_progress,
                 "db_schema_versions": ApiUtils.list_migrations(),
-                "unapplied_migrations": unapplied_migrations
+                "unapplied_migrations": unapplied_migrations,
             }
-            return web.Response(body=json.dumps(body),
-                                headers=MultiDict({"Content-Type": "application/json"}))
+            return web.Response(
+                body=json.dumps(body),
+                headers=MultiDict({"Content-Type": "application/json"}),
+            )
 
         except Exception as e:
-            body = {
-                "detail": repr(e)
-            }
-            return web.Response(status=500, body=json.dumps(body),
-                                headers=MultiDict({"Content-Type": "application/json"}))
+            body = {"detail": repr(e)}
+            return web.Response(
+                status=500,
+                body=json.dumps(body),
+                headers=MultiDict({"Content-Type": "application/json"}),
+            )

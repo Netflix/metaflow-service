@@ -66,7 +66,7 @@ class RunRow(object):
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
-                "last_heartbeat_ts": self.last_heartbeat_ts
+                "last_heartbeat_ts": self.last_heartbeat_ts,
             }
         else:
             return {
@@ -76,7 +76,7 @@ class RunRow(object):
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
-                "last_heartbeat_ts": self.last_heartbeat_ts
+                "last_heartbeat_ts": self.last_heartbeat_ts,
             }
 
 
@@ -195,7 +195,7 @@ class TaskRow(object):
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
-                "last_heartbeat_ts": self.last_heartbeat_ts
+                "last_heartbeat_ts": self.last_heartbeat_ts,
             }
         else:
             return {
@@ -207,7 +207,7 @@ class TaskRow(object):
                 "ts_epoch": self.ts_epoch,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
-                "last_heartbeat_ts": self.last_heartbeat_ts
+                "last_heartbeat_ts": self.last_heartbeat_ts,
             }
 
 

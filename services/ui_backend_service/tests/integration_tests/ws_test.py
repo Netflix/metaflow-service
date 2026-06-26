@@ -2,11 +2,7 @@ import pytest
 import time
 import asyncio
 import math
-from .utils import (
-    cli, init_app, init_db, clean_db,
-    add_flow,
-    TIMEOUT_FUTURE
-)
+from .utils import cli, init_app, init_db, clean_db, add_flow, TIMEOUT_FUTURE
 from services.ui_backend_service.api.notify import ListenNotify
 
 pytestmark = [pytest.mark.integration_tests]
@@ -31,23 +27,19 @@ async def db(cli):
     yield async_db
     await clean_db(async_db)
 
+
 # Fixtures end
 
 
 async def _subscribe(ws, resource, uuid="123", since: int = None):
-    subscription = {
-        "type": "SUBSCRIBE",
-        "uuid": uuid,
-        "resource": resource}
+    subscription = {"type": "SUBSCRIBE", "uuid": uuid, "resource": resource}
     if since is not None:
-        subscription['since'] = since
+        subscription["since"] = since
     return await ws.send_json(subscription)
 
 
 async def _unsubscribe(ws, uuid="123"):
-    return await ws.send_json({
-        "type": "UNSUBSCRIBE",
-        "uuid": uuid})
+    return await ws.send_json({"type": "UNSUBSCRIBE", "uuid": uuid})
 
 
 async def test_subscription(cli, db):

@@ -51,11 +51,12 @@ class StepVisitor(ast.NodeVisitor):
         super(StepVisitor, self).__init__()
 
     def visit_FunctionDef(self, node):
-        decos = [d.func.id if isinstance(d, ast.Call) else d.id
-                 for d in node.decorator_list]
-        if 'step' in decos:
+        decos = [
+            d.func.id if isinstance(d, ast.Call) else d.id for d in node.decorator_list
+        ]
+        if "step" in decos:
             doc = ast.get_docstring(node)
-            self.nodes[node.name] = DAGNode(node, decos, doc if doc else '')
+            self.nodes[node.name] = DAGNode(node, decos, doc if doc else "")
 
 
 class DAGNode(object):
@@ -165,7 +166,7 @@ class FlowGraph(object):
         [root] = list(filter(_flow, ast.parse(source).body))
         self.name = root.name
         doc = ast.get_docstring(root)
-        self.doc = deindent_docstring(doc) if doc else ''
+        self.doc = deindent_docstring(doc) if doc else ""
         nodes = {}
         StepVisitor(nodes).visit(root)
         return nodes

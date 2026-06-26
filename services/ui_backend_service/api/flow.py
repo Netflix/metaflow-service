@@ -33,11 +33,13 @@ class FlowApi(object):
 
         flow_name = request.match_info.get("flow_id")
 
-        return await find_records(request,
-                                  self._async_table,
-                                  fetch_single=True,
-                                  initial_conditions=["flow_id = %s"],
-                                  initial_values=[flow_name])
+        return await find_records(
+            request,
+            self._async_table,
+            fetch_single=True,
+            initial_conditions=["flow_id = %s"],
+            initial_values=[flow_name],
+        )
 
     @handle_exceptions
     async def get_all_flows(self, request):
@@ -68,11 +70,12 @@ class FlowApi(object):
                   $ref: '#/definitions/ResponsesError405'
         """
 
-        return await find_records(request,
-                                  self._async_table,
-                                  initial_conditions=[],
-                                  initial_values=[],
-                                  allowed_order=self._async_table.keys,
-                                  allowed_group=self._async_table.keys,
-                                  allowed_filters=self._async_table.keys
-                                  )
+        return await find_records(
+            request,
+            self._async_table,
+            initial_conditions=[],
+            initial_values=[],
+            allowed_order=self._async_table.keys,
+            allowed_group=self._async_table.keys,
+            allowed_filters=self._async_table.keys,
+        )

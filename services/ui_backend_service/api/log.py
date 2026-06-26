@@ -1,16 +1,20 @@
-
 from typing import Optional, Tuple
 
-from services.data.db_utils import DBResponse, translate_run_key, translate_task_key, DBPagination, DBResponse
+from services.data.db_utils import (
+    DBResponse,
+    translate_run_key,
+    translate_task_key,
+    DBPagination,
+    DBResponse,
+)
 from services.utils import handle_exceptions, web_response
 from .utils import format_response_list, get_pathspec_from_request, logger
 
 from aiohttp import web
 from multidict import MultiDict
 
-
-STDOUT = 'log_location_stdout'
-STDERR = 'log_location_stderr'
+STDOUT = "log_location_stdout"
+STDERR = "log_location_stderr"
 
 
 class LogApi(object):
@@ -179,8 +183,9 @@ class LogApi(object):
         return await self.get_task_log_file(request, STDERR)
 
     async def get_task_by_request(self, request):
-        flow_id, run_number, step_name, task_id, attempt_id = \
-            get_pathspec_from_request(request)
+        flow_id, run_number, step_name, task_id, attempt_id = get_pathspec_from_request(
+            request
+        )
 
         run_id_key, run_id_value = translate_run_key(run_number)
         task_id_key, task_id_value = translate_task_key(task_id)
@@ -189,7 +194,7 @@ class LogApi(object):
             "flow_id = %s",
             "{run_id_key} = %s".format(run_id_key=run_id_key),
             "step_name = %s",
-            "{task_id_key} = %s".format(task_id_key=task_id_key)
+            "{task_id_key} = %s".format(task_id_key=task_id_key),
         ]
         values = [flow_id, run_id_value, step_name, task_id_value]
         if attempt_id:
@@ -204,7 +209,7 @@ class LogApi(object):
             values=values,
             order=["attempt_id DESC"],
             enable_joins=True,
-            expanded=True
+            expanded=True,
         )
         if db_response.response_code == 200:
             return db_response.body
@@ -214,30 +219,36 @@ class LogApi(object):
         "fetches log and emits it as a list of rows wrapped in json"
         task = await self.get_task_by_request(request)
         if not task:
-            return web_response(404, {'data': []})
+            return web_response(404, {"data": []})
         limit, page, reverse_order = get_pagination_params(request)
 
-        lines, page_count = await read_and_output(self.cache, task, logtype, limit, page, reverse_order)
+        lines, page_count = await read_and_output(
+            self.cache, task, logtype, limit, page, reverse_order
+        )
 
         # paginated response
         response = DBResponse(200, lines)
         pagination = DBPagination(limit, limit * (page - 1), len(response.body), page)
-        status, body = format_response_list(request, response, pagination, page, page_count)
+        status, body = format_response_list(
+            request, response, pagination, page, page_count
+        )
         return web_response(status, body)
 
     async def get_task_log_file(self, request, logtype=STDOUT):
         "fetches log and emits it as a single file download response"
         task = await self.get_task_by_request(request)
         if not task:
-            return web_response(404, {'data': []})
+            return web_response(404, {"data": []})
 
-        log_filename = "{type}_{flow_id}_{run_number}_{step_name}_{task_id}-{attempt}.txt".format(
-            type="stdout" if logtype == STDOUT else "stderr",
-            flow_id=task['flow_id'],
-            run_number=task['run_number'],
-            step_name=task['step_name'],
-            task_id=task['task_id'],
-            attempt=task['attempt_id']
+        log_filename = (
+            "{type}_{flow_id}_{run_number}_{step_name}_{task_id}-{attempt}.txt".format(
+                type="stdout" if logtype == STDOUT else "stderr",
+                flow_id=task["flow_id"],
+                run_number=task["run_number"],
+                step_name=task["step_name"],
+                task_id=task["task_id"],
+                attempt=task["attempt_id"],
+            )
         )
 
         def _gen():
@@ -246,8 +257,12 @@ class LogApi(object):
         return await file_download_response(request, log_filename, _gen)
 
 
-async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False):
-    res = await cache_client.cache.GetLogFile(task, logtype, limit, page, reverse_order, output_raw, invalidate_cache=True)
+async def read_and_output(
+    cache_client, task, logtype, limit=0, page=1, reverse_order=False, output_raw=False
+):
+    res = await cache_client.cache.GetLogFile(
+        task, logtype, limit, page, reverse_order, output_raw, invalidate_cache=True
+    )
 
     if res.has_pending_request():
         async for event in res.stream():
@@ -269,7 +284,9 @@ async def read_and_output(cache_client, task, logtype, limit=0, page=1, reverse_
 async def stream_pages(cache_client, task, logtype, output_raw):
     page = 1
     while True:
-        logs, _ = await read_and_output(cache_client, task, logtype, limit=1000, page=page, output_raw=output_raw)
+        logs, _ = await read_and_output(
+            cache_client, task, logtype, limit=1000, page=page, output_raw=output_raw
+        )
         if not logs:
             break
         yield logs
@@ -277,8 +294,7 @@ async def stream_pages(cache_client, task, logtype, output_raw):
 
 
 def get_pagination_params(request):
-    """extract pagination params from request
-    """
+    """extract pagination params from request"""
     # Page
     page = max(int(request.query.get("_page", 1)), 1)
 
@@ -295,7 +311,9 @@ def get_pagination_params(request):
 
 async def file_download_response(request, filename, async_line_iterator):
     response = web.StreamResponse(
-        headers=MultiDict({'Content-Disposition': 'Attachment;filename={}'.format(filename)}),
+        headers=MultiDict(
+            {"Content-Disposition": "Attachment;filename={}".format(filename)}
+        ),
     )
     await response.prepare(request)
     # NOTE: this can not handle errors thrown by the cache, as status cannot be changed after .prepare() has been called.
@@ -307,7 +325,7 @@ async def file_download_response(request, filename, async_line_iterator):
 
 
 class LogException(Exception):
-    def __init__(self, msg='Failed to read log', id='log-error', traceback_str=None):
+    def __init__(self, msg="Failed to read log", id="log-error", traceback_str=None):
         self.message = msg
         self.id = id
         self.traceback_str = traceback_str

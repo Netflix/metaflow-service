@@ -7,7 +7,6 @@ from urllib.parse import quote
 import psycopg2
 import psycopg2.errorcodes
 
-
 DB_SCHEMA_NAME = os.environ.get("DB_SCHEMA_NAME", "public")
 
 
@@ -24,7 +23,10 @@ def check_if_goose_table_exists(db_connection_string: str):
             )
             return False
         else:
-            print(f"Goose migration table found in schema {DB_SCHEMA_NAME}", file=sys.stderr)
+            print(
+                f"Goose migration table found in schema {DB_SCHEMA_NAME}",
+                file=sys.stderr,
+            )
             return True
     finally:
         conn.close()
@@ -40,7 +42,7 @@ def wait_for_postgres(db_connection_string: str, timeout_seconds: int):
         except psycopg2.OperationalError as e:
             if time.time() < deadline:
                 print(f"Failed to connect to postgres ({e}), sleeping", file=sys.stderr)
-                time.sleep(.5)
+                time.sleep(0.5)
             else:
                 raise
 
@@ -48,30 +50,34 @@ def wait_for_postgres(db_connection_string: str, timeout_seconds: int):
 def main():
     parser = argparse.ArgumentParser(description="Run goose migrations")
     parser.add_argument("--only-if-empty-db", default=False, action="store_true")
-    parser.add_argument("--wait", type=int, default=30, help="Wait for connection for X seconds")
+    parser.add_argument(
+        "--wait", type=int, default=30, help="Wait for connection for X seconds"
+    )
     args = parser.parse_args()
 
-    db_connection_string = f'postgresql://{quote(os.environ["MF_METADATA_DB_USER"])}:'\
-        f'{quote(os.environ["MF_METADATA_DB_PSWD"])}@{os.environ["MF_METADATA_DB_HOST"]}:'\
+    db_connection_string = (
+        f'postgresql://{quote(os.environ["MF_METADATA_DB_USER"])}:'
+        f'{quote(os.environ["MF_METADATA_DB_PSWD"])}@{os.environ["MF_METADATA_DB_HOST"]}:'
         f'{os.environ["MF_METADATA_DB_PORT"]}/{os.environ["MF_METADATA_DB_NAME"]}'
+    )
 
     ssl_mode = os.environ.get("MF_METADATA_DB_SSL_MODE")
     ssl_cert_path = os.environ.get("MF_METADATA_DB_SSL_CERT_PATH")
     ssl_key_path = os.environ.get("MF_METADATA_DB_SSL_KEY_PATH")
     ssl_root_cert_path = os.environ.get("MF_METADATA_DB_SSL_ROOT_CERT")
 
-    if ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']:
-        ssl_query = f'sslmode={ssl_mode}'
+    if ssl_mode in ["allow", "prefer", "require", "verify-ca", "verify-full"]:
+        ssl_query = f"sslmode={ssl_mode}"
         if ssl_cert_path is not None:
-            ssl_query = f'{ssl_query}&sslcert={ssl_cert_path}'
+            ssl_query = f"{ssl_query}&sslcert={ssl_cert_path}"
         if ssl_key_path is not None:
-            ssl_query = f'{ssl_query}&sslkey={ssl_key_path}'
+            ssl_query = f"{ssl_query}&sslkey={ssl_key_path}"
         if ssl_root_cert_path is not None:
-            ssl_query = f'{ssl_query}&sslrootcert={ssl_root_cert_path}'
+            ssl_query = f"{ssl_query}&sslrootcert={ssl_root_cert_path}"
     else:
-        ssl_query = f'sslmode=disable'
+        ssl_query = f"sslmode=disable"
 
-    db_connection_string = f'{db_connection_string}?{ssl_query}'
+    db_connection_string = f"{db_connection_string}?{ssl_query}"
 
     if args.wait:
         wait_for_postgres(db_connection_string, timeout_seconds=args.wait)

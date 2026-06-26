@@ -6,14 +6,19 @@ from typing import List
 import aiopg
 import psycopg2
 import psycopg2.extras
+
 # baselevel classes from shared data adapter to inherit from.
-from services.data.postgres_async_db import \
-    _AsyncPostgresDB as BaseAsyncPostgresDB
+from services.data.postgres_async_db import _AsyncPostgresDB as BaseAsyncPostgresDB
 from services.utils import DBConfiguration, logging
 
-from .tables import (AsyncArtifactTablePostgres, AsyncFlowTablePostgres,
-                     AsyncMetadataTablePostgres, AsyncRunTablePostgres,
-                     AsyncStepTablePostgres, AsyncTaskTablePostgres)
+from .tables import (
+    AsyncArtifactTablePostgres,
+    AsyncFlowTablePostgres,
+    AsyncMetadataTablePostgres,
+    AsyncRunTablePostgres,
+    AsyncStepTablePostgres,
+    AsyncTaskTablePostgres,
+)
 
 
 class AsyncPostgresDB(BaseAsyncPostgresDB):
@@ -26,6 +31,7 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
     name : str (optional)
         name for the DB Adapter instance. Used primarily for naming the associated logger.
     """
+
     connection = None
     flow_table_postgres = None
     run_table_postgres = None
@@ -38,7 +44,7 @@ class AsyncPostgresDB(BaseAsyncPostgresDB):
     reader_pool = None
     db_conf: DBConfiguration = None
 
-    def __init__(self, name='global'):
+    def __init__(self, name="global"):
         self.name = name
         self.logger = logging.getLogger("AsyncPostgresDB:{name}".format(name=self.name))
 
