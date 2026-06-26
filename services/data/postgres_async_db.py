@@ -10,7 +10,7 @@ from services.utils import logging, DBType
 from typing import List, Tuple
 
 from .db_utils import DBResponse, DBPagination, aiopg_exception_handling, \
-    get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts, encode_cursor, decode_cursor
+    get_db_ts_epoch_str, translate_run_key, translate_task_key, new_heartbeat_ts
 from .models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
 from services.utils import DBConfiguration, USE_SEPARATE_READER_POOL
 
@@ -236,12 +236,8 @@ class AsyncPostgresTable(object):
 
         if len(response.body) > limit:
             response = response._replace(body=response.body[:limit])
-            last_data = response.body[-1]
-            next_cursor = encode_cursor({"ts_epoch": last_data["ts_epoch"], "run_number": pagination.run_number})
-        else:
-            next_cursor = None
 
-        pagination = pagination._replace(limit=str(limit), next_cursor=next_cursor)
+        pagination = pagination._replace(limit=str(limit))
 
         return response, pagination
 
@@ -303,7 +299,8 @@ class AsyncPostgresTable(object):
                 count=count,
                 page=math.floor(int(offset) / max(int(limit), 1)) + 1,
                 # Used for cursor when has_next (records == limit + 1); ignored otherwise
-                run_number=records[-2]['run_number'] if records is not None and len(records) > 1 else None
+                next_cursor_record=records[-2] if records is not None and len(records) > 1 else None
+
             )
             return body, pagination
 

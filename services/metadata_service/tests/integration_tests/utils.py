@@ -247,7 +247,7 @@ async def assert_api_get_response(cli, path: str, status: int = 200, data: objec
 
 
 async def assert_paginated_api_get_response(cli, path: str, status: int = 200, data: object = None,
-                                  data_is_unordered_list_of_dicts: bool = False, params:dict = None, has_next_cursor:bool = None):
+                                  params:dict = None, has_next_cursor:bool = None):
     """
     Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
     Expectation is that the API returns text/plain format json.
@@ -262,8 +262,6 @@ async def assert_paginated_api_get_response(cli, path: str, status: int = 200, d
         http status code to expect from response
     data : object
         An object to assert the api response against.
-    data_is_unordered_list_of_dicts : bool
-        Data is an unordered list of dictionaries, so ignore ordering when comparing data and response body
     params : dict
         query parameters to send with the request, such as _limit and _cursor
     has_next_cursor : bool 
@@ -277,15 +275,8 @@ async def assert_paginated_api_get_response(cli, path: str, status: int = 200, d
 
     if data is None:
         return
-    if data_is_unordered_list_of_dicts:
-        assert isinstance(data, list) and isinstance(body, list)
-
-        # if item contains fields A and B, then sort list first by item[A], then item[B]
-        def _sort_key(r):
-            return tuple(r[k] for k in sorted(r.keys()))
-        assert sorted(data, key=_sort_key) == sorted(body, key=_sort_key)
-    else:
-        assert body == data
+   
+    assert body == data
 
     if params and '_limit' in params:
         assert len(body) <= params['_limit']

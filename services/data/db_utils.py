@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any
 import psycopg2
 import collections
 import datetime
@@ -10,7 +10,7 @@ from base64 import b64encode, b64decode
 
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
-DBPagination = collections.namedtuple("DBPagination", "limit offset count page next_cursor run_number")
+DBPagination = collections.namedtuple("DBPagination", "limit offset count page next_cursor next_cursor_record")
 DBPagination.__new__.__defaults__ = (None, None,)
 
 

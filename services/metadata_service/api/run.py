@@ -1,7 +1,7 @@
 import asyncio
 from itertools import chain
 
-from services.data.db_utils import DBResponse, decode_cursor
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
 from services.data.models import RunRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, \
@@ -91,7 +91,7 @@ class RunApi(object):
             "405":
                 description: invalid HTTP Method
             "400":
-                description: remove_cursor_parameter_to_restar
+                description: invalid cursor
         """
         flow_name = request.match_info.get("flow_id")
         cursor = request.query.get("_cursor")
@@ -110,7 +110,13 @@ class RunApi(object):
 
         limit = min(int(limit), 500) if limit else 50
 
-        return await self._async_table.get_all_runs_paginated(flow_name, cur_ts, cur_run, limit)
+        response, pagination = await self._async_table.get_all_runs_paginated(flow_name, cur_ts, cur_run, limit)
+
+        if pagination.next_cursor_record:
+            next_cursor = encode_cursor({"ts_epoch": pagination.next_cursor_record["ts_epoch"], "run_number": pagination.next_cursor_record["run_number"]})
+            pagination = pagination._replace(next_cursor=next_cursor)
+
+        return response, pagination
 
     @format_response
     @handle_exceptions

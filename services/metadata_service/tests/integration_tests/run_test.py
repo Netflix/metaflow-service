@@ -168,18 +168,18 @@ async def test_runs_pagination_get(cli, db):
 
     # first page: _limit returns the newest runs and a cursor for the next page
     next_cursor = await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run),
-                                  data=[_third_run,_second_run], data_is_unordered_list_of_dicts=True, params = {'_limit':2})
+                                  data=[_third_run,_second_run], params = {'_limit':2})
 
     # following the cursor returns the remaining run
     await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run),
-                                  data=[_first_run], data_is_unordered_list_of_dicts=True, params = {'_limit':2,'_cursor':next_cursor},status = 200)
+                                  data=[_first_run], params = {'_limit':2,'_cursor':next_cursor},status = 200)
 
     # an invalid cursor returns 400
     await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run), params = {'_cursor':'garbage123'},status = 400)
 
     # a limit larger than the total returns everything with no next cursor
     await assert_paginated_api_get_response(cli, "/flows/{flow_id}/runs".format(**_first_run),
-                                data=[_third_run, _second_run, _first_run], data_is_unordered_list_of_dicts=True, params = {'_limit':1000},status = 200, has_next_cursor = False)
+                                data=[_third_run, _second_run, _first_run], params = {'_limit':1000},status = 200, has_next_cursor = False)
 
     # getting runs for non-existent flow should return empty list
     await assert_api_get_response(cli, "/flows/NonExistentFlow/runs", status=200, data=[])
