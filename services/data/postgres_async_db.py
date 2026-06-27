@@ -278,6 +278,8 @@ class AsyncPostgresTable(object):
 
         if len(response.body) > limit:
             response = response._replace(body=response.body[:limit])
+        else:
+            pagination = pagination._replace(next_cursor_record=None)
 
         pagination = pagination._replace(limit=str(limit))
 
