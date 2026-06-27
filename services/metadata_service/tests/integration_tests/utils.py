@@ -295,6 +295,53 @@ async def assert_api_get_response(
         assert body == data
 
 
+async def assert_paginated_api_get_response(
+    cli,
+    path: str,
+    status: int = 200,
+    data: object = None,
+    params: dict = None,
+    has_next_cursor: bool = None,
+):
+    """
+    Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
+    Expectation is that the API returns text/plain format json.
+
+    Parameters
+    ----------
+    cli : aiohttp cli
+        aiohttp test client
+    path : str
+        url path to perform GET request to
+    status : int (default 200)
+        http status code to expect from response
+    data : object
+        An object to assert the api response against.
+    params : dict
+        query parameters to send with the request, such as _limit and _cursor
+    has_next_cursor : bool
+        if set, assert whether the X-Next-Cursor header is present (True) or absent (False)
+    """
+    response = await cli.get(path, params=params or {})
+
+    assert response.status == status
+
+    body = json.loads(await response.text()) if status == 200 else None
+
+    if data is None:
+        return
+
+    assert body == data
+
+    if params and "_limit" in params:
+        assert len(body) <= params["_limit"]
+
+    next_cursor = response.headers.get("X-Next-Cursor")
+    if has_next_cursor is not None:
+        assert (next_cursor is not None) == has_next_cursor
+    return next_cursor
+
+
 async def assert_api_post_response(
     cli,
     path: str,

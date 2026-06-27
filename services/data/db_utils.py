@@ -5,10 +5,18 @@ import collections
 import datetime
 import time
 import json
+import binascii
+from base64 import b64encode, b64decode
 
 DBResponse = collections.namedtuple("DBResponse", "response_code body")
 
-DBPagination = collections.namedtuple("DBPagination", "limit offset count page")
+DBPagination = collections.namedtuple(
+    "DBPagination", "limit offset count page next_cursor next_cursor_record"
+)
+DBPagination.__new__.__defaults__ = (
+    None,
+    None,
+)
 
 
 def aiopg_exception_handling(exception):
@@ -112,3 +120,21 @@ def filter_artifacts_by_attempt_id_for_tasks(
         if artifact["attempt_id"] == attempt_for_tasks[artifact["task_id"]]:
             result.append(artifact)
     return result
+
+
+def decode_cursor(cursor: str | None) -> dict:
+    try:
+        decoded = json.loads(b64decode(cursor).decode())
+
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("invalid_cursor")
+
+    if "ts_epoch" not in decoded or "run_number" not in decoded:
+        raise ValueError("invalid_cursor")
+
+    return decoded
+
+
+def encode_cursor(cursor: dict) -> str:
+    cursor_bytes = json.dumps(cursor).encode()
+    return b64encode(cursor_bytes).decode()

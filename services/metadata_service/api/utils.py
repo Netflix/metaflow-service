@@ -8,6 +8,8 @@ from importlib import metadata
 
 from services.utils import get_traceback_str
 
+from services.data.db_utils import DBPagination
+
 version = metadata.version("metadata_service")
 METADATA_SERVICE_VERSION = version
 METADATA_SERVICE_HEADER = "METADATA_SERVICE_VERSION"
@@ -20,7 +22,24 @@ def format_response(func):
 
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        db_response = await func(*args, **kwargs)
+        result = await func(*args, **kwargs)
+        if type(result) is tuple and isinstance(result[-1], DBPagination):
+            db_response, db_pagination = result
+            headers = MultiDict(
+                {
+                    METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION,
+                    "X-Limit": db_pagination.limit,
+                }
+            )
+            if db_pagination.next_cursor:
+                headers["X-Next-Cursor"] = db_pagination.next_cursor
+            return web.Response(
+                status=db_response.response_code,
+                body=json.dumps(db_response.body),
+                headers=headers,
+            )
+
+        db_response = result
         return web.Response(
             status=db_response.response_code,
             body=json.dumps(db_response.body),
