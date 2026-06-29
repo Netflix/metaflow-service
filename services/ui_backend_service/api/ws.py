@@ -107,7 +107,7 @@ class Websocket(object):
         """
         # Check if event needs to be broadcast (if anyone is subscribed to the resource)
         if any(
-            subscription.resource in resources for subscription in self.subscriptions()
+            subscription.resource in resources for subscription in self.subscriptions
         ):
             # load the data and postprocessor for broadcasting if table
             # is provided (otherwise data has already been loaded in advance)
@@ -133,7 +133,7 @@ class Websocket(object):
             await self.queue.append(
                 {"operation": operation, "resources": resources, "data": _data}
             )
-            for subscription in self.subscriptions():
+            for subscription in self.subscriptions:
                 try:
                     if (
                         subscription.disconnected_ts
@@ -154,6 +154,7 @@ class Websocket(object):
                 except Exception:
                     self.logger.exception("Broadcasting to subscription failed")
 
+    @property
     def subscriptions(self):
         # Grab all of the keys upfront and use that to iterate so that callers can
         # safely modify the subscriptions dict while we are iterating through it.
