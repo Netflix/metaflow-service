@@ -371,6 +371,37 @@ async def test_runs_get_time_range_filter(cli, db):
     assert await _run_numbers(cli, flow_id) == everyone
 
 
+async def test_runs_get_time_range_strict_operators(cli, db):
+    # multiple operators on the same field compose (the ts_epoch:gt=..&ts_epoch:lt=..
+    # example from the review). gt/lt are exclusive, so a strict window drops the runs
+    # sitting exactly on the bounds.
+    _flow = (
+        await add_flow(db, "StrictTimeFlow", "test_user-1", ["a_tag"], ["runtime:test"])
+    ).body
+    flow_id = _flow["flow_id"]
+
+    async def run_at(ts):
+        run = (await add_run(db, flow_id=flow_id)).body
+        await db.run_table_postgres.update_row(
+            filter_dict={"flow_id": flow_id, "run_number": run["run_number"]},
+            update_dict={"ts_epoch": ts},
+        )
+        return run["run_number"]
+
+    low = await run_at(1000)
+    mid = await run_at(2000)
+    high = await run_at(3000)
+
+    # gt and lt on one field, together: strictly between the bounds -> only the middle run
+    assert await _run_numbers(cli, flow_id, "?ts_epoch:gt=1000&ts_epoch:lt=3000") == {
+        mid
+    }
+    # exclusive lower bound drops the run sitting on it
+    assert await _run_numbers(cli, flow_id, "?ts_epoch:gt=1000") == {mid, high}
+    # exclusive upper bound drops the run sitting on it
+    assert await _run_numbers(cli, flow_id, "?ts_epoch:lt=3000") == {low, mid}
+
+
 async def test_runs_get_time_range_partitions_runs(cli, db):
     # stamp deterministic timestamps so the window genuinely splits the set.
     _flow = (
