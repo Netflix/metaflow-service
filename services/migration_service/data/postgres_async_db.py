@@ -8,7 +8,7 @@ from services.utils import DBConfiguration
 class PostgresUtils(object):
     @staticmethod
     async def is_present(table_name):
-        with (await AsyncPostgresDB.get_instance().pool.cursor()) as cur:
+        with await AsyncPostgresDB.get_instance().pool.cursor() as cur:
             await cur.execute(
                 "select * from information_schema.tables where table_name=%s",
                 (table_name,),
@@ -40,7 +40,9 @@ class AsyncPostgresDB(object):
         retries = 3
         for i in range(retries):
             try:
-                self.pool = await aiopg.create_pool(db_conf.get_dsn(), timeout=db_conf.timeout)
+                self.pool = await aiopg.create_pool(
+                    db_conf.get_dsn(), timeout=db_conf.timeout
+                )
             except Exception as e:
                 print("printing connection exception: " + str(e))
                 if retries - i < 1:

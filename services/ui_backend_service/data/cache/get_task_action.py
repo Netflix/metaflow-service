@@ -21,7 +21,9 @@ class GetTask(GetData):
         invalidate_cache : bool
             Force cache invalidation, defaults to False
         """
-        return super().format_request(targets=pathspecs, invalidate_cache=invalidate_cache)
+        return super().format_request(
+            targets=pathspecs, invalidate_cache=invalidate_cache
+        )
 
     @classmethod
     def fetch_data(cls, pathspec: str, stream_output: Callable[[object], None]):
@@ -46,22 +48,28 @@ class GetTask(GetData):
             stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str()))
         """
         try:
-            pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
+            pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(
+                pathspec
+            )
             task = Task(pathspec_without_attempt, attempt=attempt_id)
         except MetaflowNotFound:
             return False  # Skip cache persist if Task cannot be found
 
-        if '_task_ok' not in task:
+        if "_task_ok" not in task:
             # Skip cache persist if _task_ok artifact cannot be found
             return False
 
         values = {}
-        for artifact_name in ['_task_ok', '_foreach_stack']:
+        for artifact_name in ["_task_ok", "_foreach_stack"]:
             if artifact_name in task:
                 artifact = task[artifact_name]
                 if artifact.size < MAX_S3_SIZE:
                     values[artifact_name] = artifact.data
                 else:
-                    return [False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size)]
+                    return [
+                        False,
+                        "artifact-too-large",
+                        "{}: {} bytes".format(artifact.pathspec, artifact.size),
+                    ]
 
         return [True, values]

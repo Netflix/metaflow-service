@@ -9,7 +9,7 @@ Refer to the project root for running the project [README.md](../../README.md)
 
 ### Metaflow UI deployment
 
-For a complete Metaflow UI production stack deployment (frontend + service + database) please refer to [Cloudformation templates](https://github.com/Netflix/metaflow-tools/tree/master/aws/cloudformation) and [Admin docs](https://admin-docs.metaflow.org/). This is the preferred way to deploy Metaflow UI.
+For a complete Metaflow UI production stack deployment (frontend + service + database) please refer to [Cloudformation templates](https://github.com/Netflix/metaflow-tools/tree/master/aws/cloudformation) and [Admin docs](https://docs.outerbounds.com/engineering/welcome/). This is the preferred way to deploy Metaflow UI.
 
 ### Running UI Service using the official Docker image
 

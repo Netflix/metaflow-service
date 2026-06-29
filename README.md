@@ -5,7 +5,7 @@ Metadata service implementation for [Metaflow](https://github.com/Netflix/metafl
 This provides a thin wrapper around a database and keeps track of metadata associated with
 metaflow entities such as Flows, Runs, Steps, Tasks, and Artifacts.
 
-For more information, see [Metaflow's admin docs](https://admin-docs.metaflow.org/overview/service-architecture#metadata)
+For more information, see [Metaflow's admin docs](https://docs.outerbounds.com/engineering/service-architecture/#metadata)
 
 ## Getting Started
 
@@ -138,7 +138,7 @@ With the metadata service up and running at `http://localhost:8080`, you are abl
 METAFLOW_SERVICE_URL=http://localhost:8080 METAFLOW_DEFAULT_METADATA="service" python3 basicflow.py run
 ```
 
-Alternatively you can configure a default profile with the service URL for the Metaflow client to use. See [Configuring metaflow](https://admin-docs.metaflow.org/overview/configuring-metaflow) for instructions.
+Alternatively you can configure a default profile with the service URL for the Metaflow client to use. See [Configuring metaflow](https://docs.outerbounds.com/engineering/operations/configure-metaflow/) for instructions.
 
 ## Migration Service
 

@@ -190,18 +190,18 @@ The `MF_CARD_LOAD_POLICY` (default `full`) environment variable can be set to `b
 
 ## Scaling reads using read replicas
 
-Databases such as [Amazon Aurora](https://aws.amazon.com/rds/aurora/) provide 
+Databases such as [Amazon Aurora](https://aws.amazon.com/rds/aurora/) provide
 [read replicas](https://aws.amazon.com/rds/features/read-replicas/) that make it easy to elastically scale beyond
 the capacity constraints of single database instance for heavy read workloads. You are able to separate out the reads
 and the writes of this application by setting the following two environment variables:
 
 >```
-> USE_SEPARATE_READER_POOL = 1                               
+> USE_SEPARATE_READER_POOL = 1
 > MF_METADATA_DB_READ_REPLICA_HOST = <READ_REPLICA_ENDPOINT>
 >```
 
-As the name suggests, the `USE_SEPARATE_READER_POOL` variable creates a separate read pool with the same 
-min/max pool size as the writer pool. It is also required to set this variable `MF_METADATA_DB_READ_REPLICA_HOST` to 
+As the name suggests, the `USE_SEPARATE_READER_POOL` variable creates a separate read pool with the same
+min/max pool size as the writer pool. It is also required to set this variable `MF_METADATA_DB_READ_REPLICA_HOST` to
 point to the read replica endpoint that is typically a load balancer in front of all the database's read replicas.
 
 ### Accounting for eventual consistency

@@ -1,4 +1,7 @@
-FROM golang:1.20.2-buster as goose
+FROM golang:1.20.2-buster as amd64-golang
+FROM arm64v8/golang:1.20.2-buster as arm64-golang
+
+FROM ${TARGETARCH}-golang as goose
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.9.0
 
 FROM python:3.11.6-slim-bookworm
@@ -10,7 +13,7 @@ ENV BUILD_TIMESTAMP=$BUILD_TIMESTAMP
 ENV BUILD_COMMIT_HASH=$BUILD_COMMIT_HASH
 
 ARG UI_ENABLED="1"
-ARG UI_VERSION="v1.3.12"
+ARG UI_VERSION="v1.3.13"
 ENV UI_ENABLED=$UI_ENABLED
 ENV UI_VERSION=$UI_VERSION
 

@@ -1,8 +1,8 @@
 import uuid
 import importlib
 
-LO_PRIO = 'lo_prio'
-HI_PRIO = 'hi_prio'
+LO_PRIO = "lo_prio"
+HI_PRIO = "hi_prio"
 
 
 class CacheServerInitFailed(Exception):
@@ -10,10 +10,10 @@ class CacheServerInitFailed(Exception):
 
 
 def import_action_class_spec(action_spec):
-    parts = action_spec.split('.')
-    package = '.'.join(action_spec.split('.')[:-1])
-    action_name = action_spec.split('.')[-1]
-    return import_action_class('.'.join(parts[:-1]), parts[-1])
+    parts = action_spec.split(".")
+    package = ".".join(action_spec.split(".")[:-1])
+    action_name = action_spec.split(".")[-1]
+    return import_action_class(".".join(parts[:-1]), parts[-1])
 
 
 def import_action_class(mod, cls):
@@ -75,12 +75,14 @@ class CacheAction(object):
         raise NotImplementedError
 
     @classmethod
-    def execute(cls,
-                message=None,
-                keys=[],
-                existing_keys={},
-                stream_output=None,
-                invalidate_cache=False):
+    def execute(
+        cls,
+        message=None,
+        keys=[],
+        existing_keys={},
+        stream_output=None,
+        invalidate_cache=False,
+    ):
         """
         Execute an action. This method is called by `cache_worker` to
         execute the action as a subprocess.
@@ -106,13 +108,13 @@ class Check(CacheAction):
 
     @classmethod
     def format_request(cls, *args, **kwargs):
-        key = 'check-%s' % uuid.uuid4()
+        key = "check-%s" % uuid.uuid4()
         return None, [key], None, [key], False, None
 
     @classmethod
     def response(cls, keys_objs):
         for key, blob in keys_objs.items():
-            if blob != b'works: %s' % key.encode('utf-8'):
+            if blob != b"works: %s" % key.encode("utf-8"):
                 raise CacheServerInitFailed()
         return True
 
@@ -122,4 +124,4 @@ class Check(CacheAction):
 
     @classmethod
     def execute(cls, keys=[], **kwargs):
-        return {key: 'works: %s' % key for key in keys}
+        return {key: "works: %s" % key for key in keys}

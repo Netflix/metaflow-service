@@ -25,22 +25,32 @@ class ParameterRefiner(Refinery):
             async for event in _res.stream():
                 if event["type"] == "error":
                     # raise error, there was an exception during processing.
-                    raise GetParametersFailed(event["message"], event["id"], event["traceback"])
+                    raise GetParametersFailed(
+                        event["message"], event["id"], event["traceback"]
+                    )
             await _res.wait()  # wait for results to be ready
-        return _res.get() or {}  # cache get() might return None if no keys are produced.
+        return (
+            _res.get() or {}
+        )  # cache get() might return None if no keys are produced.
 
     def _record_to_action_input(self, record):
         # Prefer run_id over run_number
         return "{flow_id}/{run_id}".format(
-            flow_id=record['flow_id'],
-            run_id=record.get('run_id') or record['run_number'])
+            flow_id=record["flow_id"],
+            run_id=record.get("run_id") or record["run_number"],
+        )
 
     async def refine_record(self, record, values):
-        return {k: {'value': v} for k, v in values.items()}
+        return {k: {"value": v} for k, v in values.items()}
 
 
 class GetParametersFailed(Exception):
-    def __init__(self, msg="Failed to Get Parameters", id="failed-to-get-parameters", traceback_str=None):
+    def __init__(
+        self,
+        msg="Failed to Get Parameters",
+        id="failed-to-get-parameters",
+        traceback_str=None,
+    ):
         self.message = msg
         self.id = id
         self.traceback_str = traceback_str

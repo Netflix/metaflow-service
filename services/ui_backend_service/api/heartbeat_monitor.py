@@ -70,7 +70,7 @@ class HeartbeatMonitor(object):
         and triggering handlers in case the heartbeat is too old.
         """
         while True:
-            time_now = int(datetime.datetime.utcnow().timestamp())  # same format as the metadata heartbeat uses
+            time_now = heartbeat_time_now()
             for key, hb in list(self.watched.items()):
                 if time_now - hb > HEARTBEAT_INTERVAL:
                     self.loop.create_task(self.load_and_broadcast(key))
@@ -95,11 +95,7 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
 
     def __init__(self, event_emitter=None, db=None):
         # Init the abstract class
-        super().__init__(
-            event_name="run-heartbeat",
-            db=db,
-            event_emitter=event_emitter
-        )
+        super().__init__(event_name="run-heartbeat", db=db, event_emitter=event_emitter)
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._run_table = self.db.run_table_postgres
 
@@ -123,9 +119,8 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
     async def add_to_watch(self, run: Dict):
         if "last_heartbeat_ts" in run and "run_number" in run:
             run_number = run["run_number"]
-            heartbeat_ts = run["last_heartbeat_ts"]
-            if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
-                self.watched[run_number] = heartbeat_ts
+            heartbeat_ts = run["last_heartbeat_ts"] or heartbeat_time_now()
+            self.watched[run_number] = heartbeat_ts
 
     async def get_run(self, run_key: str) -> Optional[Dict]:
         "Fetch run with a given id or number from the DB"
@@ -136,10 +131,14 @@ class RunHeartbeatMonitor(HeartbeatMonitor):
     async def load_and_broadcast(self, key):
         run = await self.get_run(key)
         resources = resource_list(self._run_table.table_name, run) if run else None
-        if resources and run['status'] == "failed":
+        if not resources:
+            return
+        if run["status"] == "running":
+            await self.add_to_watch(run)
+        if run["status"] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
-            self.event_emitter.emit('notify', 'UPDATE', resources, run)
+            self.event_emitter.emit("notify", "UPDATE", resources, run)
 
 
 class TaskHeartbeatMonitor(HeartbeatMonitor):
@@ -159,10 +158,7 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
     def __init__(self, event_emitter=None, db=None, cache=None):
         # Init the abstract class
         super().__init__(
-            event_name="task-heartbeat",
-            db=db,
-            event_emitter=event_emitter,
-            cache=cache
+            event_name="task-heartbeat", db=db, event_emitter=event_emitter, cache=cache
         )
         # Table for data fetching for load_and_broadcast and add_to_watch
         self._task_table = self.db.task_table_postgres
@@ -191,19 +187,23 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
         # TODO: Optimize db trigger so we do not have to fetch a record in order to add it to the
         # heartbeat monitor
         task = await self._get_task(
-            data["flow_id"],
-            data["run_number"],
-            data["step_name"],
-            data["task_id"]
+            data["flow_id"], data["run_number"], data["step_name"], data["task_id"]
         )
 
         key = self.generate_dict_key(task)
         if key and "last_heartbeat_ts" in task:
-            heartbeat_ts = task["last_heartbeat_ts"]
-            if heartbeat_ts is not None:  # only start monitoring on runs that have a heartbeat
-                self.watched[key] = heartbeat_ts
+            heartbeat_ts = task["last_heartbeat_ts"] or heartbeat_time_now()
+            self.watched[key] = heartbeat_ts
 
-    async def _get_task(self, flow_id: str, run_key: str, step_name: str, task_key: str, attempt_id: int = None, postprocess=None) -> Optional[Dict]:
+    async def _get_task(
+        self,
+        flow_id: str,
+        run_key: str,
+        step_name: str,
+        task_key: str,
+        attempt_id: int = None,
+        postprocess=None,
+    ) -> Optional[Dict]:
         """
         Fetches task from DB. Specifying attempt_id will fetch the specific attempt.
         Otherwise the newest attempt is returned.
@@ -214,29 +214,57 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
             either the task Dict object is returned, or if no task is found, None is returned.
         """
         # NOTE: task being broadcast should contain the same fields as the GET request returns so UI can easily infer changes.
-        result = await self._task_table.get_task_attempt(flow_id, run_key, step_name, task_key,
-                                                         attempt_id=attempt_id,
-                                                         postprocess=postprocess_chain(
-                                                             [apply_run_tags_postprocess(flow_id, run_key, self._run_table), postprocess]))
+        result = await self._task_table.get_task_attempt(
+            flow_id,
+            run_key,
+            step_name,
+            task_key,
+            attempt_id=attempt_id,
+            postprocess=postprocess_chain(
+                [
+                    apply_run_tags_postprocess(flow_id, run_key, self._run_table),
+                    postprocess,
+                ]
+            ),
+        )
 
         return result.body if result.response_code == 200 else None
 
     async def load_and_broadcast(self, key):
         flow_id, run_number, step_name, task_id, attempt_id = self.decode_key_ids(key)
-        task = await self._get_task(flow_id, run_number, step_name, task_id, attempt_id, postprocess=self.refiner.postprocess)
+        task = await self._get_task(
+            flow_id,
+            run_number,
+            step_name,
+            task_id,
+            attempt_id,
+            postprocess=self.refiner.postprocess,
+        )
         resources = resource_list(self._task_table.table_name, task) if task else None
-        if resources and task['status'] == "failed":
+        if not resources:
+            return
+
+        if task["status"] == "running":
+            await self.add_to_watch(task)
+        if task["status"] == "failed":
             # The purpose of the monitor is to emit otherwise unnoticed failed attempts.
             # Do not unnecessarily broadcast other statuses that already get propagated by Notify.
-            self.event_emitter.emit('notify', 'UPDATE', resources, task)
+            self.event_emitter.emit("notify", "UPDATE", resources, task)
 
     def generate_dict_key(self, data):
         "Creates an unique key for the 'watched' dictionary for storing the heartbeat of a specific task"
         try:
-            return "{flow_id}/{run_number}/{step_name}/{task_id}/{attempt_id}".format(**data)
+            return "{flow_id}/{run_number}/{step_name}/{task_id}/{attempt_id}".format(
+                **data
+            )
         except:
             return None
 
     def decode_key_ids(self, key):
         flow, run, step, task, attempt = key.split("/")
         return flow, run, step, task, attempt
+
+
+def heartbeat_time_now():
+    # same format as the metadata heartbeat uses
+    return int(datetime.datetime.utcnow().timestamp())

@@ -10,34 +10,60 @@ from services.utils import DBConfiguration, logging, ORIGIN_TO_ALLOW_CORS_FROM
 from services.metadata_service.server import app as metadata_service_app
 
 # service processes and routes
-from .api import (AdminApi, ArtificatsApi, AutoCompleteApi, ConfigApi,
-                  DagApi, FeaturesApi, FlowApi, ListenNotify, LogApi,
-                  MetadataApi, RunApi, RunHeartbeatMonitor, SearchApi, StepApi, TagApi,
-                  TaskApi, TaskHeartbeatMonitor, Websocket, PluginsApi, CardsApi)
+from .api import (
+    AdminApi,
+    ArtificatsApi,
+    AutoCompleteApi,
+    ConfigApi,
+    DagApi,
+    FeaturesApi,
+    FlowApi,
+    ListenNotify,
+    LogApi,
+    MetadataApi,
+    RunApi,
+    RunHeartbeatMonitor,
+    SearchApi,
+    StepApi,
+    TagApi,
+    TaskApi,
+    TaskHeartbeatMonitor,
+    Websocket,
+    PluginsApi,
+    CardsApi,
+)
 from .api.utils import allow_get_requests_only
 from .data.cache import CacheStore
 from .data.db import AsyncPostgresDB
 from .doc import swagger_definitions, swagger_description
-from .features import (FEATURE_DB_LISTEN_ENABLE, FEATURE_HEARTBEAT_ENABLE,
-                       FEATURE_WS_ENABLE)
+from .features import (
+    FEATURE_DB_LISTEN_ENABLE,
+    FEATURE_HEARTBEAT_ENABLE,
+    FEATURE_WS_ENABLE,
+)
 from .frontend import Frontend
 
 from .plugins import init_plugins
 
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
-DEFAULT_SERVICE_HOST = str(os.environ.get('MF_UI_METADATA_HOST', '0.0.0.0'))
-DEFAULT_SERVICE_PORT = os.environ.get('MF_UI_METADATA_PORT', 8083)
+DEFAULT_SERVICE_HOST = str(os.environ.get("MF_UI_METADATA_HOST", "0.0.0.0"))
+DEFAULT_SERVICE_PORT = os.environ.get("MF_UI_METADATA_PORT", 8083)
 DEFAULT_METADATA_SERVICE_URL = "http://{}:{}{}/metadata".format(
-    DEFAULT_SERVICE_HOST,
-    DEFAULT_SERVICE_PORT,
-    PATH_PREFIX)
+    DEFAULT_SERVICE_HOST, DEFAULT_SERVICE_PORT, PATH_PREFIX
+)
 
 # Provide defaults for Metaflow Client
-os.environ['METAFLOW_SERVICE_URL'] = os.environ.get('METAFLOW_SERVICE_URL', DEFAULT_METADATA_SERVICE_URL)
-os.environ['USERNAME'] = os.environ.get('USERNAME', 'none')
-os.environ['METAFLOW_CLIENT_CACHE_MAX_SIZE'] = os.environ.get('METAFLOW_CLIENT_CACHE_MAX_SIZE', '0')
-os.environ['METAFLOW_DEFAULT_METADATA'] = os.environ.get('METAFLOW_DEFAULT_METADATA', 'service')
+os.environ["METAFLOW_SERVICE_URL"] = os.environ.get(
+    "METAFLOW_SERVICE_URL", DEFAULT_METADATA_SERVICE_URL
+)
+os.environ["USERNAME"] = os.environ.get("USERNAME", "none")
+os.environ["METAFLOW_CLIENT_CACHE_MAX_SIZE"] = os.environ.get(
+    "METAFLOW_CLIENT_CACHE_MAX_SIZE", "0"
+)
+os.environ["METAFLOW_DEFAULT_METADATA"] = os.environ.get(
+    "METAFLOW_DEFAULT_METADATA", "service"
+)
 
 # Create database triggers automatically, enabled by default
 # Disable with env variable `DB_TRIGGER_CREATE=0`
@@ -50,28 +76,30 @@ def app(loop=None, db_conf: DBConfiguration = None):
     _app = web.Application(loop=loop)
     app = web.Application(loop=loop) if len(PATH_PREFIX) > 0 else _app
 
-    async_db = AsyncPostgresDB('ui')
-    loop.run_until_complete(async_db._init(db_conf=db_conf, create_triggers=DB_TRIGGER_CREATE))
+    async_db = AsyncPostgresDB("ui")
+    loop.run_until_complete(
+        async_db._init(db_conf=db_conf, create_triggers=DB_TRIGGER_CREATE)
+    )
 
     event_emitter = AsyncIOEventEmitter()
 
-    async_db_cache = AsyncPostgresDB('ui:cache')
+    async_db_cache = AsyncPostgresDB("ui:cache")
     loop.run_until_complete(async_db_cache._init(db_conf))
     cache_store = CacheStore(app=app, db=async_db_cache, event_emitter=event_emitter)
 
     if FEATURE_DB_LISTEN_ENABLE:
-        async_db_notify = AsyncPostgresDB('ui:notify')
+        async_db_notify = AsyncPostgresDB("ui:notify")
         loop.run_until_complete(async_db_notify._init(db_conf))
         ListenNotify(app, db=async_db_notify, event_emitter=event_emitter)
 
     if FEATURE_HEARTBEAT_ENABLE:
-        async_db_heartbeat = AsyncPostgresDB('ui:heartbeat')
+        async_db_heartbeat = AsyncPostgresDB("ui:heartbeat")
         loop.run_until_complete(async_db_heartbeat._init(db_conf))
         RunHeartbeatMonitor(event_emitter, db=async_db_heartbeat)
         TaskHeartbeatMonitor(event_emitter, db=async_db_heartbeat, cache=cache_store)
 
     if FEATURE_WS_ENABLE:
-        async_db_ws = AsyncPostgresDB('ui:websocket')
+        async_db_ws = AsyncPostgresDB("ui:websocket")
         loop.run_until_complete(async_db_ws._init(db_conf))
         Websocket(app, db=async_db_ws, event_emitter=event_emitter, cache=cache_store)
 
@@ -98,8 +126,12 @@ def app(loop=None, db_conf: DBConfiguration = None):
     #
     # Metadata service exposed through UI service is intended for read-only use only.
     # 'allow_get_requests_only' middleware will only accept GET requests.
-    app.add_subapp("/metadata", metadata_service_app(
-        loop=loop, db_conf=db_conf, middlewares=[allow_get_requests_only]))
+    app.add_subapp(
+        "/metadata",
+        metadata_service_app(
+            loop=loop, db_conf=db_conf, middlewares=[allow_get_requests_only]
+        ),
+    )
 
     if os.environ.get("UI_ENABLED", "1") == "1":
         # Serve UI bundle only if enabled
@@ -111,24 +143,33 @@ def app(loop=None, db_conf: DBConfiguration = None):
 
     if ORIGIN_TO_ALLOW_CORS_FROM:
         import aiohttp_cors
-        logging.info("We will allows CORS from the origin %s" % ORIGIN_TO_ALLOW_CORS_FROM)
-        cors = aiohttp_cors.setup(_app, defaults={
-            ORIGIN_TO_ALLOW_CORS_FROM: aiohttp_cors.ResourceOptions(
-                allow_credentials=True,
-                expose_headers="*",
-                allow_headers="*",
-                allow_methods="*",
-            )
-        })
+
+        logging.info(
+            "We will allows CORS from the origin %s" % ORIGIN_TO_ALLOW_CORS_FROM
+        )
+        cors = aiohttp_cors.setup(
+            _app,
+            defaults={
+                ORIGIN_TO_ALLOW_CORS_FROM: aiohttp_cors.ResourceOptions(
+                    allow_credentials=True,
+                    expose_headers="*",
+                    allow_headers="*",
+                    allow_methods="*",
+                )
+            },
+        )
         # Configure CORS on all routes.
         for route in list(_app.router.routes()):
             cors.add(route)
 
-    logging.info("Metadata service available at {}".format(DEFAULT_METADATA_SERVICE_URL))
+    logging.info(
+        "Metadata service available at {}".format(DEFAULT_METADATA_SERVICE_URL)
+    )
 
     async def _init_plugins():
         with concurrent.futures.ThreadPoolExecutor() as pool:
             await loop.run_in_executor(pool, init_plugins)
+
     asyncio.run_coroutine_threadsafe(_init_plugins(), loop)
 
     return _app

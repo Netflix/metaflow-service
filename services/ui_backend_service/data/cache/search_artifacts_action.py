@@ -2,15 +2,20 @@ import hashlib
 import json
 
 from .client import CacheAction
-from .utils import (cacheable_artifact_value, cacheable_exception_value,
-                    progress_event_msg,
-                    artifact_cache_id, unpack_pathspec_with_attempt_id,
-                    streamed_errors)
+from .utils import (
+    cacheable_artifact_value,
+    cacheable_exception_value,
+    progress_event_msg,
+    artifact_cache_id,
+    unpack_pathspec_with_attempt_id,
+    streamed_errors,
+)
 from services.ui_backend_service.data import unpack_processed_value
 from services.ui_backend_service.api.utils import operators_to_filters
 
 
 from metaflow import DataArtifact, namespace
+
 namespace(None)  # Always use global namespace by default
 
 
@@ -43,11 +48,13 @@ class SearchArtifacts(CacheAction):
     """
 
     @classmethod
-    def format_request(cls, pathspecs, searchterm, operator="eq", invalidate_cache=False):
+    def format_request(
+        cls, pathspecs, searchterm, operator="eq", invalidate_cache=False
+    ):
         msg = {
-            'pathspecs': list(frozenset(sorted(pathspecs))),
-            'searchterm': searchterm,
-            'operator': operator
+            "pathspecs": list(frozenset(sorted(pathspecs))),
+            "searchterm": searchterm,
+            "operator": operator,
         }
 
         artifact_keys = []
@@ -55,15 +62,17 @@ class SearchArtifacts(CacheAction):
             artifact_keys.append(artifact_cache_id(pathspec))
 
         request_id = lookup_id(pathspecs, searchterm, operator)
-        stream_key = 'search:stream:%s' % request_id
-        result_key = 'search:result:%s' % request_id
+        stream_key = "search:stream:%s" % request_id
+        result_key = "search:result:%s" % request_id
 
-        return msg, \
-            [result_key, *artifact_keys], \
-            stream_key, \
-            [stream_key, result_key], \
-            invalidate_cache, \
-            None
+        return (
+            msg,
+            [result_key, *artifact_keys],
+            stream_key,
+            [stream_key, result_key],
+            invalidate_cache,
+            None,
+        )
 
     @classmethod
     def response(cls, keys_objs):
@@ -77,7 +86,11 @@ class SearchArtifacts(CacheAction):
         }
         that tells the client whether the search term matches in the given pathspec, or if performing search was impossible
         """
-        return [json.loads(val) for key, val in keys_objs.items() if key.startswith('search:result')][0]
+        return [
+            json.loads(val)
+            for key, val in keys_objs.items()
+            if key.startswith("search:result")
+        ][0]
 
     @classmethod
     def stream_response(cls, it):
@@ -85,17 +98,19 @@ class SearchArtifacts(CacheAction):
             if msg is None:
                 yield msg
             else:
-                yield {'event': msg}
+                yield {"event": msg}
 
     @classmethod
-    def execute(cls,
-                message=None,
-                keys=None,
-                existing_keys={},
-                stream_output=None,
-                invalidate_cache=False,
-                **kwargs):
-        pathspecs = message['pathspecs']
+    def execute(
+        cls,
+        message=None,
+        keys=None,
+        existing_keys={},
+        stream_output=None,
+        invalidate_cache=False,
+        **kwargs,
+    ):
+        pathspecs = message["pathspecs"]
 
         if invalidate_cache:
             results = {}
@@ -105,10 +120,12 @@ class SearchArtifacts(CacheAction):
             # in the format_request response.
             results = {**existing_keys}
             # Make a list of artifact pathspecs that require fetching (not cached previously)
-            pathspecs_to_fetch = [loc for loc in pathspecs if not artifact_cache_id(loc) in existing_keys]
+            pathspecs_to_fetch = [
+                loc for loc in pathspecs if not artifact_cache_id(loc) in existing_keys
+            ]
 
-        artifact_keys = [key for key in keys if key.startswith('search:artifactdata')]
-        result_key = [key for key in keys if key.startswith('search:result')][0]
+        artifact_keys = [key for key in keys if key.startswith("search:artifactdata")]
+        result_key = [key for key in keys if key.startswith("search:result")][0]
 
         # Helper functions for streaming status updates.
         def stream_progress(num):
@@ -120,9 +137,13 @@ class SearchArtifacts(CacheAction):
                 stream_progress((idx + 1) / len(pathspecs_to_fetch))
 
                 try:
-                    pathspec_without_attempt, attempt_id = unpack_pathspec_with_attempt_id(pathspec)
+                    pathspec_without_attempt, attempt_id = (
+                        unpack_pathspec_with_attempt_id(pathspec)
+                    )
                     artifact_key = "search:artifactdata:{}".format(pathspec)
-                    artifact = DataArtifact(pathspec_without_attempt, attempt=attempt_id)
+                    artifact = DataArtifact(
+                        pathspec_without_attempt, attempt=attempt_id
+                    )
                     results[artifact_key] = cacheable_artifact_value(artifact)
                 except Exception as ex:
                     results[artifact_key] = cacheable_exception_value(ex)
@@ -130,30 +151,40 @@ class SearchArtifacts(CacheAction):
 
         # Perform search on loaded artifacts.
         search_results = {}
-        searchterm = message['searchterm']
-        operator = message['operator']
-        filter_fn = operators_to_filters[operator] if operator in operators_to_filters else operators_to_filters["eq"]
+        searchterm = message["searchterm"]
+        operator = message["operator"]
+        filter_fn = (
+            operators_to_filters[operator]
+            if operator in operators_to_filters
+            else operators_to_filters["eq"]
+        )
 
         def format_loc(x):
             "extract pathspec from the artifact cache key"
-            return x[len("search:artifactdata:"):]
+            return x[len("search:artifactdata:") :]
 
         for key in artifact_keys:
             if key in results:
-                load_success, value, detail, trace = unpack_processed_value(json.loads(results[key]))
+                load_success, value, detail, trace = unpack_processed_value(
+                    json.loads(results[key])
+                )
             else:
-                load_success, value, _ = False, None, None
+                load_success, value, detail, trace = False, None, None, None
             # keep the matching case-insensitive
             matches = filter_fn(str(value).lower(), searchterm.lower())
 
             search_results[format_loc(key)] = {
                 "included": load_success,
                 "matches": matches,
-                "error": None if load_success else {
-                    "id": value or "artifact-handle-failed",
-                    "detail": detail or "Unknown error during artifact processing",
-                    "traceback": trace
-                }
+                "error": (
+                    None
+                    if load_success
+                    else {
+                        "id": value or "artifact-handle-failed",
+                        "detail": detail or "Unknown error during artifact processing",
+                        "traceback": trace,
+                    }
+                ),
             }
 
         results[result_key] = json.dumps(search_results)
@@ -164,4 +195,4 @@ class SearchArtifacts(CacheAction):
 def lookup_id(locations, searchterm, operator):
     "construct a unique id to be used with stream_key and result_key"
     _string = "-".join(list(frozenset(sorted(locations)))) + searchterm + operator
-    return hashlib.sha1(_string.encode('utf-8')).hexdigest()
+    return hashlib.sha1(_string.encode("utf-8")).hexdigest()

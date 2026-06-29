@@ -5,7 +5,7 @@ pytestmark = [pytest.mark.unit_tests]
 
 
 def test_valid_flow_source_flowgraph_parsing():
-  flow_source = """
+    flow_source = """
 from metaflow import FlowSpec, step, Parameter, retry
 
 class DAGTest(FlowSpec):
@@ -77,156 +77,118 @@ if __name__ == '__main__':
     DAGTest()
   """
 
-  expected_graph = {
-      "steps": {
-          "start": {
-              "name": "start",
-              "type": "start",
-              "line": 10,
-              "doc": "",
-              "next": [
-                  "regular_step"
-              ],
-              "foreach_artifact": None
-          },
-          "regular_step": {
-              "name": "regular_step",
-              "type": "split-static",
-              "line": 14,
-              "doc": "Just a regular step that splits into two",
-              "next": [
-                  "prepare_foreach",
-                  "prepare_foreach2"
-              ],
-              "foreach_artifact": None
-          },
-          "prepare_foreach": {
-              "name": "prepare_foreach",
-              "type": "split-foreach",
-              "line": 23,
-              "doc": "Generate a list of things to process in the first foreach",
-              "next": [
-                  "process_foreach"
-              ],
-              "foreach_artifact": "things"
-          },
-          "process_foreach": {
-              "name": "process_foreach",
-              "type": "linear",
-              "line": 35,
-              "doc": "",
-              "next": [
-                  "join"
-              ],
-              "foreach_artifact": None
-          },
-          "join": {
-              "name": "join",
-              "type": "join",
-              "line": 47,
-              "doc": "",
-              "next": [
-                  "ultimate_join"
-              ],
-              "foreach_artifact": None
-          },
-          "prepare_foreach2": {
-              "name": "prepare_foreach2",
-              "type": "split-foreach",
-              "line": 29,
-              "doc": "Generate a list of things to process in the second foreach",
-              "next": [
-                  "process_foreach2"
-              ],
-              "foreach_artifact": "things"
-          },
-          "process_foreach2": {
-              "name": "process_foreach2",
-              "type": "linear",
-              "line": 41,
-              "doc": "Process second foreach and retry in case of failures",
-              "next": [
-                  "join2"
-              ],
-              "foreach_artifact": None
-          },
-          "join2": {
-              "name": "join2",
-              "type": "join",
-              "line": 51,
-              "doc": "",
-              "next": [
-                  "after_join"
-              ],
-              "foreach_artifact": None
-          },
-          "after_join": {
-              "name": "after_join",
-              "type": "linear",
-              "line": 55,
-              "doc": "",
-              "next": [
-                  "ultimate_join"
-              ],
-              "foreach_artifact": None
-          },
-          "ultimate_join": {
-              "name": "ultimate_join",
-              "type": "join",
-              "line": 60,
-              "doc": "Join both process path results",
-              "next": [
-                  "end"
-              ],
-              "foreach_artifact": None
-          },
-          "end": {
-              "name": "end",
-              "type": "end",
-              "line": 65,
-              "doc": "",
-              "next": [],
-              "foreach_artifact": None
-          }
-      },
-      "graph_structure": [
-          "start",
-          "regular_step",
-          [
-              [
-                  "prepare_foreach",
-                  [
-                      [
-                          "process_foreach"
-                      ]
-                  ],
-                  "join"
-              ],
-              [
-                  "prepare_foreach2",
-                  [
-                      [
-                          "process_foreach2"
-                      ]
-                  ],
-                  "join2",
-                  "after_join"
-              ]
-          ],
-          "ultimate_join",
-          "end"
-      ],
-      "doc": ""
-  }
-  graph = FlowGraph(flow_source, "DAGTest")
-  steps_info, graph_structure = graph.output_steps()
-  graph_info = {
-      "steps": steps_info,
-      "graph_structure": graph_structure,
-      "doc": graph.doc
-  }
+    expected_graph = {
+        "steps": {
+            "start": {
+                "name": "start",
+                "type": "start",
+                "line": 10,
+                "doc": "",
+                "next": ["regular_step"],
+                "foreach_artifact": None,
+            },
+            "regular_step": {
+                "name": "regular_step",
+                "type": "split-static",
+                "line": 14,
+                "doc": "Just a regular step that splits into two",
+                "next": ["prepare_foreach", "prepare_foreach2"],
+                "foreach_artifact": None,
+            },
+            "prepare_foreach": {
+                "name": "prepare_foreach",
+                "type": "split-foreach",
+                "line": 23,
+                "doc": "Generate a list of things to process in the first foreach",
+                "next": ["process_foreach"],
+                "foreach_artifact": "things",
+            },
+            "process_foreach": {
+                "name": "process_foreach",
+                "type": "linear",
+                "line": 35,
+                "doc": "",
+                "next": ["join"],
+                "foreach_artifact": None,
+            },
+            "join": {
+                "name": "join",
+                "type": "join",
+                "line": 47,
+                "doc": "",
+                "next": ["ultimate_join"],
+                "foreach_artifact": None,
+            },
+            "prepare_foreach2": {
+                "name": "prepare_foreach2",
+                "type": "split-foreach",
+                "line": 29,
+                "doc": "Generate a list of things to process in the second foreach",
+                "next": ["process_foreach2"],
+                "foreach_artifact": "things",
+            },
+            "process_foreach2": {
+                "name": "process_foreach2",
+                "type": "linear",
+                "line": 41,
+                "doc": "Process second foreach and retry in case of failures",
+                "next": ["join2"],
+                "foreach_artifact": None,
+            },
+            "join2": {
+                "name": "join2",
+                "type": "join",
+                "line": 51,
+                "doc": "",
+                "next": ["after_join"],
+                "foreach_artifact": None,
+            },
+            "after_join": {
+                "name": "after_join",
+                "type": "linear",
+                "line": 55,
+                "doc": "",
+                "next": ["ultimate_join"],
+                "foreach_artifact": None,
+            },
+            "ultimate_join": {
+                "name": "ultimate_join",
+                "type": "join",
+                "line": 60,
+                "doc": "Join both process path results",
+                "next": ["end"],
+                "foreach_artifact": None,
+            },
+            "end": {
+                "name": "end",
+                "type": "end",
+                "line": 65,
+                "doc": "",
+                "next": [],
+                "foreach_artifact": None,
+            },
+        },
+        "graph_structure": [
+            "start",
+            "regular_step",
+            [
+                ["prepare_foreach", [["process_foreach"]], "join"],
+                ["prepare_foreach2", [["process_foreach2"]], "join2", "after_join"],
+            ],
+            "ultimate_join",
+            "end",
+        ],
+        "doc": "",
+    }
+    graph = FlowGraph(flow_source, "DAGTest")
+    steps_info, graph_structure = graph.output_steps()
+    graph_info = {
+        "steps": steps_info,
+        "graph_structure": graph_structure,
+        "doc": graph.doc,
+    }
 
-  assert graph_info == expected_graph
+    assert graph_info == expected_graph
 
 
 def test_broken_flow_source_flowgraph_parsing():
@@ -258,7 +220,7 @@ class BasicFlow(FlowSpec):
     @step
     def start(self):
         self.next(self.end)
-    
+
     @step
     def end(self):
         print("done")

@@ -3,9 +3,12 @@ import asyncio
 from typing import Dict
 from services.utils import logging
 from services.data.postgres_async_db import (
-    FLOW_TABLE_NAME, RUN_TABLE_NAME,
-    STEP_TABLE_NAME, TASK_TABLE_NAME,
-    METADATA_TABLE_NAME, ARTIFACT_TABLE_NAME
+    FLOW_TABLE_NAME,
+    RUN_TABLE_NAME,
+    STEP_TABLE_NAME,
+    TASK_TABLE_NAME,
+    METADATA_TABLE_NAME,
+    ARTIFACT_TABLE_NAME,
 )
 from pyee import AsyncIOEventEmitter
 
@@ -39,10 +42,7 @@ class ListenNotify(object):
             try:
                 async with pool.acquire() as conn:
                     self.logger.info("Connection acquired")
-                    await asyncio.gather(
-                        self.listen(conn),
-                        self.ping(conn)
-                    )
+                    await asyncio.gather(self.listen(conn), self.ping(conn))
             except Exception as ex:
                 self.logger.warning(str(ex))
             finally:
@@ -90,22 +90,34 @@ class ListenNotify(object):
 
                 # Heartbeat watcher for Runs.
                 if table.table_name == self.db.run_table_postgres.table_name:
-                    self.event_emitter.emit('run-heartbeat', 'update', data)
+                    self.event_emitter.emit("run-heartbeat", "update", data)
 
                 # Heartbeat watcher for Tasks.
                 if table.table_name == self.db.task_table_postgres.table_name:
-                    self.event_emitter.emit('task-heartbeat', 'update', data)
+                    self.event_emitter.emit("task-heartbeat", "update", data)
+                    # also keepalive for run heartbeats.
+                    self.event_emitter.emit("run-heartbeat", "update", data)
+                    # also broadcast as a run heartbeat update, as otherwise these receive no updates
+                    await _broadcast(
+                        self.event_emitter, "UPDATE", self.db.run_table_postgres, data
+                    )
 
                 # Notify when Run parameters are ready.
-                if operation == "INSERT" and \
-                        table.table_name == self.db.step_table_postgres.table_name and \
-                        data["step_name"] == "start":
-                    self.event_emitter.emit("preload-run-parameters", data['flow_id'], data['run_number'])
+                if (
+                    operation == "INSERT"
+                    and table.table_name == self.db.step_table_postgres.table_name
+                    and data["step_name"] == "start"
+                ):
+                    self.event_emitter.emit(
+                        "preload-run-parameters", data["flow_id"], data["run_number"]
+                    )
 
                 # Notify task resources of a new attempt if 'attempt' metadata is inserted.
-                if operation == "INSERT" and \
-                        table.table_name == self.db.metadata_table_postgres.table_name and \
-                        data["field_name"] == "attempt":
+                if (
+                    operation == "INSERT"
+                    and table.table_name == self.db.metadata_table_postgres.table_name
+                    and data["field_name"] == "attempt"
+                ):
 
                     # Extract the attempt number from metadata attempt value, so we know which task attempt to broadcast.
                     _attempt_id = int(data.get("value", 0))
@@ -117,14 +129,28 @@ class ListenNotify(object):
                         operation=_op,
                         table=self.db.task_table_postgres,
                         data=data,
-                        filter_dict={"attempt_id": _attempt_id}
+                        filter_dict={"attempt_id": _attempt_id},
                     )
 
                 # Notify related resources once attempt_ok for task has been saved.
-                if operation == "INSERT" and \
-                        table.table_name == self.db.metadata_table_postgres.table_name and \
-                        data["field_name"] == "attempt_ok":
+                if (
+                    operation == "INSERT"
+                    and table.table_name == self.db.metadata_table_postgres.table_name
+                    and data["field_name"] == "attempt_ok"
+                ):
+                    attempt_id = None
+                    try:
+                        attempt_tag = [
+                            t for t in data["tags"] if t.startswith("attempt_id")
+                        ][0]
+                        attempt_id = attempt_tag.split(":")[1]
+                    except Exception:
+                        self.logger.exception(
+                            "Failed to load attempt_id from attempt_ok metadata"
+                        )
+                        pass
 
+                    # remove heartbeat watcher for completed task
                     self.event_emitter.emit("task-heartbeat", "complete", data)
 
                     # broadcast task status as it has either completed or failed.
@@ -133,57 +159,35 @@ class ListenNotify(object):
                         event_emitter=self.event_emitter,
                         operation="UPDATE",
                         table=self.db.task_table_postgres,
-                        data=data
+                        data=data,
+                        filter_dict={"attempt_id": attempt_id} if attempt_id else {},
                     )
 
                     # Notify updated Run status once attempt_ok metadata for end step has been received
                     if data["step_name"] == "end":
-                        await _broadcast(self.event_emitter, "UPDATE", self.db.run_table_postgres, data)
-                        # And remove possible heartbeat watchers for completed runs
-                        self.event_emitter.emit("run-heartbeat", "complete", data)
-
-                # Notify related resources once new `_task_ok` artifact has been created
-                if operation == "INSERT" and \
-                        table.table_name == self.db.artifact_table_postgres.table_name and \
-                        data["name"] == "_task_ok":
-
-                    # remove heartbeat watcher for completed task
-                    self.event_emitter.emit("task-heartbeat", "complete", data)
-
-                    # Always mark task finished if '_task_ok' artifact is created
-                    # Include 'attempt_id' so we can identify which attempt this artifact related to
-                    _attempt_id = data.get("attempt_id", 0)
-                    await _broadcast(
-                        event_emitter=self.event_emitter,
-                        operation="UPDATE",
-                        table=self.db.task_table_postgres,
-                        data=data,
-                        filter_dict={"attempt_id": _attempt_id}
-                    )
-
-                    # Last step is always called 'end' and only one '_task_ok' should be present
-                    # Run is considered finished once 'end' step has '_task_ok' artifact
-                    if data["step_name"] == "end":
                         await _broadcast(
-                            self.event_emitter, "UPDATE", self.db.run_table_postgres,
-                            data)
+                            self.event_emitter,
+                            "UPDATE",
+                            self.db.run_table_postgres,
+                            data,
+                        )
                         # Also trigger preload of artifacts after a run finishes.
-                        self.event_emitter.emit("preload-task-statuses", data['flow_id'], data['run_number'])
+                        self.event_emitter.emit(
+                            "preload-task-statuses", data["flow_id"], data["run_number"]
+                        )
                         # And remove possible heartbeat watchers for completed runs
                         self.event_emitter.emit("run-heartbeat", "complete", data)
 
                 # Notify DAG cache store to preload artifact
-                if operation == "INSERT" and \
-                        table.table_name == self.db.metadata_table_postgres.table_name and \
-                        data["step_name"] == "start" and \
-                        data["field_name"] in ["code-package-url", "code-package"]:
-                    self.event_emitter.emit("preload-dag", data['flow_id'], data['run_number'])
-
-                if operation == "INSERT" and \
-                        table.table_name == self.db.artifact_table_postgres.table_name and \
-                        data["step_name"] == "_parameters" and \
-                        data["name"] == "_graph_info":
-                    self.event_emitter.emit("preload-dag", data['flow_id'], data['run_number'])
+                if (
+                    operation == "INSERT"
+                    and table.table_name == self.db.metadata_table_postgres.table_name
+                    and data["step_name"] == "start"
+                    and data["field_name"] in ["code-package-url", "code-package"]
+                ):
+                    self.event_emitter.emit(
+                        "preload-dag", data["flow_id"], data["run_number"]
+                    )
 
         except Exception:
             self.logger.exception("Exception occurred")
@@ -213,24 +217,21 @@ def resource_list(table_name: str, data: Dict):
         ]
     """
     resource_paths = {
-        FLOW_TABLE_NAME: [
-            "/flows",
-            "/flows/{flow_id}"
-        ],
+        FLOW_TABLE_NAME: ["/flows", "/flows/{flow_id}"],
         RUN_TABLE_NAME: [
             "/runs",
             "/flows/{flow_id}/runs",
-            "/flows/{flow_id}/runs/{run_number}"
+            "/flows/{flow_id}/runs/{run_number}",
         ],
         STEP_TABLE_NAME: [
             "/flows/{flow_id}/runs/{run_number}/steps",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}"
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}",
         ],
         TASK_TABLE_NAME: [
             "/flows/{flow_id}/runs/{run_number}/tasks",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks",
             "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts"
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/attempts",
         ],
         ARTIFACT_TABLE_NAME: [
             "/flows/{flow_id}/runs/{run_number}/artifacts",
@@ -239,8 +240,8 @@ def resource_list(table_name: str, data: Dict):
         ],
         METADATA_TABLE_NAME: [
             "/flows/{flow_id}/runs/{run_number}/metadata",
-            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata"
-        ]
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata",
+        ],
     }
     if table_name in resource_paths:
         return [path.format(**data) for path in resource_paths[table_name]]
@@ -249,4 +250,6 @@ def resource_list(table_name: str, data: Dict):
 
 async def _broadcast(event_emitter, operation: str, table, data: Dict, filter_dict={}):
     _resources = resource_list(table.table_name, data)
-    event_emitter.emit('notify', operation, _resources, data, table.table_name, filter_dict)
+    event_emitter.emit(
+        "notify", operation, _resources, data, table.table_name, filter_dict
+    )

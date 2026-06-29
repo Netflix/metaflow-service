@@ -31,6 +31,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     keys = MetadataRunTable.keys
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
+    trigger_operations = ["INSERT"]
 
     # NOTE: OSS Schema has metadata value column as TEXT, but for the time being we also need to support
     # value columns of type jsonb, which is why there is additional logic when dealing with 'value'
@@ -53,9 +54,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             ORDER BY ts_epoch DESC
             LIMIT 1
         ) as end_attempt_ok ON true
-        """.format(
-            table_name=table_name, metadata_table=metadata_table
-        ),
+        """.format(table_name=table_name, metadata_table=metadata_table),
         """
         LEFT JOIN LATERAL (
             SELECT ts_epoch
@@ -69,9 +68,7 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             ORDER BY ts_epoch DESC
             LIMIT 1
         ) as end_attempt ON true
-        """.format(
-            table_name=table_name, metadata_table=metadata_table
-        ),
+        """.format(table_name=table_name, metadata_table=metadata_table),
     ]
 
     @property
@@ -84,21 +81,15 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
                 "{table_name}.{col} AS {col}".format(table_name=self.table_name, col=k)
                 for k in self.keys
             ]
-            + [
-                """
+            + ["""
                 (CASE
                     WHEN system_tags ? ('user:' || user_name)
                     THEN user_name
                     ELSE NULL
-                END) AS user"""
-            ]
-            + [
-                """
+                END) AS user"""]
+            + ["""
                 COALESCE({table_name}.run_id, {table_name}.run_number::text) AS run
-                """.format(
-                    table_name=self.table_name
-                )
-            ]
+                """.format(table_name=self.table_name)]
         )
 
     join_columns = [

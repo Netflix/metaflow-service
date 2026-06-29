@@ -8,9 +8,11 @@ class PluginsApi(object):
     """
 
     def __init__(self, app):
-        app.router.add_route('GET', '/plugin', self.get_plugins)
+        app.router.add_route("GET", "/plugin", self.get_plugins)
         app.router.add_route("GET", "/plugin/{plugin_name}", self.get_plugin)
-        app.router.add_route("GET", "/plugin/{plugin_name}/{filename:.+}", self.get_plugin_asset)
+        app.router.add_route(
+            "GET", "/plugin/{plugin_name}/{filename:.+}", self.get_plugin_asset
+        )
 
     @handle_exceptions
     async def get_plugins(self, request):

@@ -19,6 +19,7 @@ class DAGUnsupportedFlowLanguage(Exception):
 class DAGParsingFailed(Exception):
     """Something went wrong while parsing the DAG"""
 
+
 # Generic helpers
 
 
@@ -49,12 +50,12 @@ MAX_S3_SIZE = int(os.environ.get("MAX_PROCESSABLE_S3_ARTIFACT_SIZE_KB", 4)) * 10
 
 def artifact_cache_id(location):
     "construct a unique cache key for artifact location"
-    return 'search:artifactdata:%s' % location
+    return "search:artifactdata:%s" % location
 
 
 def artifact_location_from_key(x):
     "extract location from the artifact cache key"
-    return x[len("search:artifactdata:"):]
+    return x[len("search:artifactdata:") :]
 
 
 def artifact_value(artifact: DataArtifact) -> Tuple[bool, object]:
@@ -70,7 +71,11 @@ def artifact_value(artifact: DataArtifact) -> Tuple[bool, object]:
     if artifact.size < MAX_S3_SIZE:
         return (True, artifact.data)
     else:
-        return (False, 'artifact-too-large', "{}: {} bytes".format(artifact.pathspec, artifact.size))
+        return (
+            False,
+            "artifact-too-large",
+            "{}: {} bytes".format(artifact.pathspec, artifact.size),
+        )
 
 
 def cacheable_artifact_value(artifact: DataArtifact) -> str:
@@ -103,6 +108,7 @@ def cacheable_exception_value(ex: Exception) -> str:
     """
     return json.dumps([False, ex.__class__.__name__, str(ex), get_traceback_str()])
 
+
 # Cache action stream output helpers
 
 
@@ -124,11 +130,7 @@ def streamed_errors(stream_output: Callable[[object], None], re_raise=True):
         yield
     except Exception as ex:
         stream_output(
-            error_event_msg(
-                str(ex),
-                ex.__class__.__name__,
-                get_traceback_str()
-            )
+            error_event_msg(str(ex), ex.__class__.__name__, get_traceback_str())
         )
         if re_raise:
             raise ex from None
@@ -136,10 +138,7 @@ def streamed_errors(stream_output: Callable[[object], None], re_raise=True):
 
 def progress_event_msg(number):
     "formatter for cache action progress stream messages"
-    return {
-        "type": "progress",
-        "fraction": number
-    }
+    return {"type": "progress", "fraction": number}
 
 
 def error_event_msg(msg, id, traceback=None, key=None):
@@ -149,16 +148,13 @@ def error_event_msg(msg, id, traceback=None, key=None):
         "message": msg,
         "id": id,
         "traceback": traceback,
-        "key": key
+        "key": key,
     }
 
 
 def search_result_event_msg(results):
     "formatter for cache action search result message"
-    return {
-        "type": "result",
-        "matches": results
-    }
+    return {"type": "result", "matches": results}
 
 
 def unpack_pathspec_with_attempt_id(pathspec: str):
@@ -179,6 +175,6 @@ def unpack_pathspec_with_attempt_id(pathspec: str):
     Example:
         "FlowId/RunNumber/StepName/TaskId/4" -> ("FlowId/RunNumber/StepName/TaskId", 4)
     """
-    pathspec_without_attempt = '/'.join(pathspec.split('/')[:-1])
-    attempt_id = int(pathspec.split('/')[-1])
+    pathspec_without_attempt = "/".join(pathspec.split("/")[:-1])
+    attempt_id = int(pathspec.split("/")[-1])
     return (pathspec_without_attempt, attempt_id)

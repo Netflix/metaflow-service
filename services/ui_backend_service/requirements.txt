@@ -1,13 +1,13 @@
 aiohttp >= 3.8.1, < 4
-pyee==8.0.1
-throttler==1.2.0
+aiohttp_cors==0.7.0
+aiopg
+azure-identity==1.16.1
+azure-storage-blob==12.13.1
+click==8.0.3
+google-cloud-storage~=2.10.0
+metaflow>=2.11.4
 packaging
 psycopg2
-aiopg
+pyee==8.0.1
 pygit2==1.12.1
-aiohttp_cors==0.7.0
-metaflow>=2.11.4
-click==8.0.3
-azure-storage-blob==12.13.1
-azure-identity==1.10.0
-google-cloud-storage~=2.10.0
+throttler==1.2.0

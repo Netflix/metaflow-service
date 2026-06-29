@@ -40,7 +40,7 @@ class TaskRow(BaseRow):
         tags=None,
         system_tags=None,
         last_heartbeat_ts=None,
-        **kwargs
+        **kwargs,
     ):
         self.flow_id = flow_id
         self.run_number = run_number
@@ -83,7 +83,7 @@ class TaskRow(BaseRow):
                 "attempt_id": self.attempt_id,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
-                "last_heartbeat_ts": self.last_heartbeat_ts
+                "last_heartbeat_ts": self.last_heartbeat_ts,
             }
         else:
             return {
@@ -101,5 +101,5 @@ class TaskRow(BaseRow):
                 "attempt_id": self.attempt_id,
                 "tags": self.tags,
                 "system_tags": self.system_tags,
-                "last_heartbeat_ts": self.last_heartbeat_ts
+                "last_heartbeat_ts": self.last_heartbeat_ts,
             }

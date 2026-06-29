@@ -1,11 +1,10 @@
 import asyncio
 from itertools import chain
 
-from services.data.db_utils import DBResponse
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
 from services.data.models import RunRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
-from services.metadata_service.api.utils import format_response, \
-    handle_exceptions
+from services.metadata_service.api.utils import format_response, handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
 
 
@@ -15,15 +14,16 @@ class RunApi(object):
 
     def __init__(self, app):
         app.router.add_route("GET", "/flows/{flow_id}/runs", self.get_all_runs)
-        app.router.add_route(
-            "GET", "/flows/{flow_id}/runs/{run_number}", self.get_run)
+        app.router.add_route("GET", "/flows/{flow_id}/runs/{run_number}", self.get_run)
         app.router.add_route("POST", "/flows/{flow_id}/run", self.create_run)
-        app.router.add_route("POST",
-                             "/flows/{flow_id}/runs/{run_number}/heartbeat",
-                             self.runs_heartbeat)
-        app.router.add_route("PATCH",
-                             "/flows/{flow_id}/runs/{run_number}/tag/mutate",
-                             self.mutate_user_tags)
+        app.router.add_route(
+            "POST", "/flows/{flow_id}/runs/{run_number}/heartbeat", self.runs_heartbeat
+        )
+        app.router.add_route(
+            "PATCH",
+            "/flows/{flow_id}/runs/{run_number}/tag/mutate",
+            self.mutate_user_tags,
+        )
         self._async_table = AsyncPostgresDB.get_instance().run_table_postgres
 
     @format_response
@@ -73,6 +73,16 @@ class RunApi(object):
           description: "flow_id"
           required: true
           type: "string"
+        - name: "_cursor"
+          in: "query"
+          description: "cursor"
+          required: false
+          type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "limit"
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -80,9 +90,42 @@ class RunApi(object):
                 description: Returned all runs of specified flow
             "405":
                 description: invalid HTTP Method
+            "400":
+                description: invalid cursor
         """
         flow_name = request.match_info.get("flow_id")
-        return await self._async_table.get_all_runs(flow_name)
+        cursor = request.query.get("_cursor")
+        limit = request.query.get("_limit")
+
+        cur_ts, cur_run = None, None
+        if cursor:
+            try:
+                cursor_dict = decode_cursor(cursor)
+                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(
+                    cursor_dict["run_number"]
+                )
+            except ValueError:
+                return DBResponse(response_code=400, body="Invalid cursor")
+
+        if limit is None and cursor is None:
+            return await self._async_table.get_all_runs(flow_name)
+
+        limit = min(int(limit), 500) if limit else 50
+
+        response, pagination = await self._async_table.get_all_runs_paginated(
+            flow_name, cur_ts, cur_run, limit
+        )
+
+        if pagination.next_cursor_record:
+            next_cursor = encode_cursor(
+                {
+                    "ts_epoch": pagination.next_cursor_record["ts_epoch"],
+                    "run_number": pagination.next_cursor_record["run_number"],
+                }
+            )
+            pagination = pagination._replace(next_cursor=next_cursor)
+
+        return response, pagination
 
     @format_response
     @handle_exceptions
@@ -136,11 +179,16 @@ class RunApi(object):
             raise Exception("provided run_id may not be a numeric")
 
         run_row = RunRow(
-            flow_id=flow_name, user_name=user, tags=tags,
-            system_tags=system_tags, run_id=run_id
+            flow_id=flow_name,
+            user_name=user,
+            tags=tags,
+            system_tags=system_tags,
+            run_id=run_id,
         )
 
-        return await self._async_table.add_run(run_row, fill_heartbeat=client_supports_heartbeats)
+        return await self._async_table.add_run(
+            run_row, fill_heartbeat=client_supports_heartbeats
+        )
 
     @format_response
     @handle_exceptions
@@ -208,7 +256,9 @@ class RunApi(object):
         tags_to_remove_set = set(tags_to_remove)
 
         async def _in_tx_mutation_logic(cur):
-            run_db_response = await self._async_table.get_run(flow_name, run_number, cur=cur)
+            run_db_response = await self._async_table.get_run(
+                flow_name, run_number, cur=cur
+            )
             if run_db_response.response_code != 200:
                 # if something went wrong with get_run, just return the error from that directly
                 # e.g. 404, or some other error. This is useful for the client (vs additional wrapping, etc).
@@ -220,25 +270,33 @@ class RunApi(object):
             if tags_to_remove_set & existing_system_tag_set:
                 # We use 422 here to communicate that the request was well-formatted in terms of structure and
                 # that the server understood what was being requested. However, it failed business rules.
-                return DBResponse(response_code=422,
-                                  body="Cannot remove tags that are existing system tags %s" %
-                                       str(tags_to_remove_set & existing_system_tag_set))
+                return DBResponse(
+                    response_code=422,
+                    body="Cannot remove tags that are existing system tags %s"
+                    % str(tags_to_remove_set & existing_system_tag_set),
+                )
 
             # Apply removals before additions.
             # And, make sure no existing system tags get added as a user tag
-            next_run_tag_set = (existing_tag_set - tags_to_remove_set) | (tags_to_add_set - existing_system_tag_set)
+            next_run_tag_set = (existing_tag_set - tags_to_remove_set) | (
+                tags_to_add_set - existing_system_tag_set
+            )
             if next_run_tag_set == existing_tag_set:
-                return DBResponse(response_code=200,
-                                  body={"tags": list(next_run_tag_set)})
+                return DBResponse(
+                    response_code=200, body={"tags": list(next_run_tag_set)}
+                )
             next_run_tags = list(next_run_tag_set)
 
-            update_db_response = await self._async_table.update_run_tags(flow_name, run_number, next_run_tags, cur=cur)
+            update_db_response = await self._async_table.update_run_tags(
+                flow_name, run_number, next_run_tags, cur=cur
+            )
             if update_db_response.response_code != 200:
                 return update_db_response
-            return DBResponse(response_code=200,
-                              body={"tags": next_run_tags})
+            return DBResponse(response_code=200, body={"tags": next_run_tags})
 
-        return await self._async_table.run_in_transaction_with_serializable_isolation_level(_in_tx_mutation_logic)
+        return await self._async_table.run_in_transaction_with_serializable_isolation_level(
+            _in_tx_mutation_logic
+        )
 
     @format_response
     @handle_exceptions

@@ -13,18 +13,37 @@ from services.ui_backend_service.data.cache.store import CacheStore
 from services.utils.tests import get_test_dbconf
 
 from services.ui_backend_service.api import (
-    FlowApi, RunApi, StepApi, TaskApi,
-    MetadataApi, ArtificatsApi, TagApi,
-    Websocket, AdminApi, FeaturesApi,
-    AutoCompleteApi, PluginsApi, LogApi, CardsApi
+    FlowApi,
+    RunApi,
+    StepApi,
+    TaskApi,
+    MetadataApi,
+    ArtificatsApi,
+    TagApi,
+    Websocket,
+    AdminApi,
+    FeaturesApi,
+    AutoCompleteApi,
+    PluginsApi,
+    LogApi,
+    CardsApi,
 )
 
-from services.ui_backend_service.data.db.models import FlowRow, RunRow, StepRow, TaskRow, MetadataRow, ArtifactRow
+from services.ui_backend_service.data.db.models import (
+    FlowRow,
+    RunRow,
+    StepRow,
+    TaskRow,
+    MetadataRow,
+    ArtifactRow,
+)
 
 # Migration imports
 
 from services.migration_service.api.admin import AdminApi as MigrationAdminApi
-from services.migration_service.data.postgres_async_db import AsyncPostgresDB as MigrationAsyncPostgresDB
+from services.migration_service.data.postgres_async_db import (
+    AsyncPostgresDB as MigrationAsyncPostgresDB,
+)
 
 # Constants
 
@@ -45,7 +64,7 @@ async def init_app(aiohttp_client, queue_ttl=30):
     # init a db adapter explicitly to be used for the api requests.
     # Skip all creation processes, these are handled with migration service and init_db
     db_conf = get_test_dbconf()
-    db = AsyncPostgresDB(name='api')
+    db = AsyncPostgresDB(name="api")
     await db._init(db_conf=db_conf, create_triggers=False)
 
     cache_store = CacheStore(db=db, event_emitter=app.event_emitter)
@@ -95,13 +114,13 @@ async def clean_db(db: AsyncPostgresDB):
         db.task_table_postgres,
         db.step_table_postgres,
         db.run_table_postgres,
-        db.flow_table_postgres
+        db.flow_table_postgres,
     ]
-    with (await db.pool.cursor(
-            cursor_factory=psycopg2.extras.DictCursor
-    )) as cur:
+    with await db.pool.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
         for table in tables:
-            await table.execute_sql(select_sql="DELETE FROM {}".format(table.table_name), cur=cur)
+            await table.execute_sql(
+                select_sql="DELETE FROM {}".format(table.table_name), cur=cur
+            )
 
 
 @pytest.fixture
@@ -114,6 +133,7 @@ async def db(cli):
     async_db = await init_db(cli)
     yield async_db
     await clean_db(async_db)
+
 
 # Test fixture helpers end
 
@@ -131,40 +151,59 @@ def set_env(environ={}):
         os.environ.clear()
         os.environ.update(old_environ)
 
+
 # Environment helpers end
 
 # Row helpers begin
 
 
-async def add_flow(db: AsyncPostgresDB, flow_id="HelloFlow",
-                   user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+async def add_flow(
+    db: AsyncPostgresDB,
+    flow_id="HelloFlow",
+    user_name="dipper",
+    tags=["foo:bar"],
+    system_tags=["runtime:dev"],
+):
     flow = {
         "flow_id": flow_id,
         "user_name": user_name,
         "tags": json.dumps(tags),
-        "system_tags": json.dumps(system_tags)
+        "system_tags": json.dumps(system_tags),
     }
     return await db.flow_table_postgres.create_record(flow)
 
 
-async def add_run(db: AsyncPostgresDB, flow_id="HelloFlow",
-                  run_number: int = None, run_id: str = None,
-                  user_name="dipper", tags=["run_user_tag"], system_tags=["run_system_tag"],
-                  last_heartbeat_ts=None):
+async def add_run(
+    db: AsyncPostgresDB,
+    flow_id="HelloFlow",
+    run_number: int = None,
+    run_id: str = None,
+    user_name="dipper",
+    tags=["run_user_tag"],
+    system_tags=["run_system_tag"],
+    last_heartbeat_ts=None,
+):
     run = {
         "flow_id": flow_id,
         "run_id": run_id,
         "user_name": user_name,
         "tags": json.dumps(tags),
         "system_tags": json.dumps(system_tags),
-        "last_heartbeat_ts": last_heartbeat_ts
+        "last_heartbeat_ts": last_heartbeat_ts,
     }
     return await db.run_table_postgres.create_record(run)
 
 
-async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
-                   run_number: int = None, run_id: str = None, step_name="step",
-                   user_name="dipper", tags=["step_user_tag"], system_tags=["step_system_tag"]):
+async def add_step(
+    db: AsyncPostgresDB,
+    flow_id="HelloFlow",
+    run_number: int = None,
+    run_id: str = None,
+    step_name="step",
+    user_name="dipper",
+    tags=["step_user_tag"],
+    system_tags=["step_system_tag"],
+):
     step = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -172,15 +211,24 @@ async def add_step(db: AsyncPostgresDB, flow_id="HelloFlow",
         "step_name": step_name,
         "user_name": user_name,
         "tags": json.dumps(tags),
-        "system_tags": json.dumps(system_tags)
+        "system_tags": json.dumps(system_tags),
     }
     return await db.step_table_postgres.create_record(step)
 
 
-async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
-                   run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
-                   user_name="dipper", tags=["task_user_tag"], system_tags=["task_system_tag"],
-                   last_heartbeat_ts=None):
+async def add_task(
+    db: AsyncPostgresDB,
+    flow_id="HelloFlow",
+    run_number: int = None,
+    run_id: str = None,
+    step_name="step",
+    task_id=None,
+    task_name=None,
+    user_name="dipper",
+    tags=["task_user_tag"],
+    system_tags=["task_system_tag"],
+    last_heartbeat_ts=None,
+):
     task = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -190,15 +238,24 @@ async def add_task(db: AsyncPostgresDB, flow_id="HelloFlow",
         "user_name": user_name,
         "tags": json.dumps(tags),
         "system_tags": json.dumps(system_tags),
-        "last_heartbeat_ts": last_heartbeat_ts
+        "last_heartbeat_ts": last_heartbeat_ts,
     }
     return await db.task_table_postgres.create_record(task)
 
 
-async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
-                       run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
-                       metadata={},
-                       user_name="dipper", tags=["foo:bar"], system_tags=["runtime:dev"]):
+async def add_metadata(
+    db: AsyncPostgresDB,
+    flow_id="HelloFlow",
+    run_number: int = None,
+    run_id: str = None,
+    step_name="step",
+    task_id=None,
+    task_name=None,
+    metadata={},
+    user_name="dipper",
+    tags=["foo:bar"],
+    system_tags=["runtime:dev"],
+):
     values = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -211,15 +268,24 @@ async def add_metadata(db: AsyncPostgresDB, flow_id="HelloFlow",
         "type": metadata.get("type", " "),
         "user_name": user_name,
         "tags": json.dumps(tags),
-        "system_tags": json.dumps(system_tags)
+        "system_tags": json.dumps(system_tags),
     }
     return await db.metadata_table_postgres.create_record(values)
 
 
-async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
-                       run_number: int = None, run_id: str = None, step_name="step", task_id=None, task_name=None,
-                       artifact={},
-                       user_name="dipper", tags=["artifact_user_tag"], system_tags=["artifact_system_tag"]):
+async def add_artifact(
+    db: AsyncPostgresDB,
+    flow_id="HelloFlow",
+    run_number: int = None,
+    run_id: str = None,
+    step_name="step",
+    task_id=None,
+    task_name=None,
+    artifact={},
+    user_name="dipper",
+    tags=["artifact_user_tag"],
+    system_tags=["artifact_system_tag"],
+):
     values = {
         "flow_id": flow_id,
         "run_number": run_number,
@@ -236,9 +302,10 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
         "attempt_id": artifact.get("attempt_id", 0),
         "user_name": user_name,
         "tags": json.dumps(tags),
-        "system_tags": json.dumps(system_tags)
+        "system_tags": json.dumps(system_tags),
     }
     return await db.artifact_table_postgres.create_record(values)
+
 
 # Row helpers end
 
@@ -246,26 +313,34 @@ async def add_artifact(db: AsyncPostgresDB, flow_id="HelloFlow",
 
 
 def _fill_missing_resource_data(_item):
-    if 'run_number' in _item:
+    if "run_number" in _item:
         try:
-            _item['run_number'] = int(_item['run_number'])
+            _item["run_number"] = int(_item["run_number"])
         except:
             pass
-        if 'run_id' not in _item:
-            _item['run_id'] = None
+        if "run_id" not in _item:
+            _item["run_id"] = None
 
-    if 'task_id' in _item:
+    if "task_id" in _item:
         try:
-            _item['task_id'] = int(_item['task_id'])
+            _item["task_id"] = int(_item["task_id"])
         except:
             pass
-        if 'task_name' not in _item:
-            _item['task_name'] = None
+        if "task_name" not in _item:
+            _item["task_name"] = None
 
     return _item
 
 
-async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data=[], ignore_data_order=False, approx_keys=None):
+async def _test_list_resources(
+    cli,
+    db: AsyncPostgresDB,
+    path: str,
+    expected_status=200,
+    expected_data=[],
+    ignore_data_order=False,
+    approx_keys=None,
+):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
@@ -292,7 +367,12 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
             if isinstance(r, str):
                 return (r,)
             # Stringify everything for sorting purposes (avoid TypeError on "<" operator)
-            return tuple(str(r[k]) for k in sorted(r.keys()) if (not approx_keys or k not in approx_keys))
+            return tuple(
+                str(r[k])
+                for k in sorted(r.keys())
+                if (not approx_keys or k not in approx_keys)
+            )
+
         data_to_be_compared = sorted(data, key=_sort_key)
         expected_data_to_be_compared = sorted(expected_data, key=_sort_key)
 
@@ -306,7 +386,14 @@ async def _test_list_resources(cli, db: AsyncPostgresDB, path: str, expected_sta
     return resp.status, data
 
 
-async def _test_single_resource(cli, db: AsyncPostgresDB, path: str, expected_status=200, expected_data={}, approx_keys=None):
+async def _test_single_resource(
+    cli,
+    db: AsyncPostgresDB,
+    path: str,
+    expected_status=200,
+    expected_data={},
+    approx_keys=None,
+):
     resp = await cli.get(path)
     body = await resp.json()
     data = body.get("data")
@@ -348,8 +435,14 @@ def get_heartbeat_ts(offset=5):
 def update_objects_with_run_tags(obj_type_name: str, objects: list, run: object):
     # expect object's tags to be overridden by tags of their ancestral run
     for obj in objects:
-        assert obj['tags'] != run['tags'], f'Expected divergent {obj_type_name} tags to ensure test efficacy'
-        assert obj['system_tags'] != run['system_tags'], f'Expected divergent {obj_type_name} system_tags to ensure test efficacy'
-        obj['tags'] = run['tags']
-        obj['system_tags'] = run['system_tags']
+        assert (
+            obj["tags"] != run["tags"]
+        ), f"Expected divergent {obj_type_name} tags to ensure test efficacy"
+        assert (
+            obj["system_tags"] != run["system_tags"]
+        ), f"Expected divergent {obj_type_name} system_tags to ensure test efficacy"
+        obj["tags"] = run["tags"]
+        obj["system_tags"] = run["system_tags"]
+
+
 # Resource helpers end

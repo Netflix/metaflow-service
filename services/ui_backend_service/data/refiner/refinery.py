@@ -31,7 +31,9 @@ class Refinery(object):
                     if event_stream:
                         event_stream(event)
             await _res.wait()  # wait for results to be ready
-        return _res.get() or {}  # cache get() might return None if no keys are produced.
+        return (
+            _res.get() or {}
+        )  # cache get() might return None if no keys are produced.
 
     async def refine_record(self, record, values):
         """No refinement necessary here"""
@@ -72,11 +74,12 @@ class Refinery(object):
         def _event_stream(event):
             if event.get("type") == "error" and event.get("key"):
                 # Get last element from cache key which usually translates to "target"
-                target = event["key"].split(':')[-1:][0]
+                target = event["key"].split(":")[-1:][0]
                 errors[target] = event
 
         data = await self.fetch_data(
-            input, event_stream=_event_stream, invalidate_cache=invalidate_cache)
+            input, event_stream=_event_stream, invalidate_cache=invalidate_cache
+        )
 
         async def _process(record):
             target = self._record_to_action_input(record)
@@ -86,7 +89,7 @@ class Refinery(object):
                 record["postprocess_error"] = format_error_body(
                     errors[target].get("id"),
                     errors[target].get("message"),
-                    errors[target].get("traceback")
+                    errors[target].get("traceback"),
                 )
 
             if target in data:
@@ -94,15 +97,14 @@ class Refinery(object):
                 if success:
                     record = await self.refine_record(record, value)
                 else:
-                    record['postprocess_error'] = format_error_body(
+                    record["postprocess_error"] = format_error_body(
                         value if value else "artifact-handle-failed",
                         detail if detail else "Unknown error during postprocessing",
-                        trace
+                        trace,
                     )
             else:
-                record['postprocess_error'] = format_error_body(
-                    "artifact-value-not-found",
-                    "Artifact value not found"
+                record["postprocess_error"] = format_error_body(
+                    "artifact-value-not-found", "Artifact value not found"
                 )
 
             return record
@@ -116,11 +118,11 @@ class Refinery(object):
 
 
 def format_error_body(id=None, detail=None, traceback=None):
-    '''
+    """
     formatter for the "postprocess_error" key added to refined items in case of errors.
-    '''
+    """
     return {
         "id": id or "artifact-refine-failure",
         "detail": detail,
-        "traceback": traceback
+        "traceback": traceback,
     }

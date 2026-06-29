@@ -7,8 +7,8 @@ from typing import List
 from services.utils import logging
 from aiohttp import web
 
-CONFIG_FILENAME = 'manifest.json'
-INSTALLED_PLUGINS_DIR = 'installed'
+CONFIG_FILENAME = "manifest.json"
+INSTALLED_PLUGINS_DIR = "installed"
 
 _dirname = os.path.dirname(os.path.realpath(__file__))
 installed_plugins_base_dir = os.environ.get("INSTALLED_PLUGINS_BASE_DIR", _dirname)
@@ -28,7 +28,15 @@ class Plugin(object):
 
     _repo: pygit2.Repository = None
 
-    def __init__(self, identifier: str, repository: str, ref: str = None, parameters: dict = {}, path: str = None, auth: dict = {}):
+    def __init__(
+        self,
+        identifier: str,
+        repository: str,
+        ref: str = None,
+        parameters: dict = {},
+        path: str = None,
+        auth: dict = {},
+    ):
         self.logger = logging.getLogger("Plugin:{}:{}".format(identifier, path))
 
         self.identifier = identifier
@@ -37,7 +45,9 @@ class Plugin(object):
         self.parameters = parameters
 
         # Base path for plugin folder
-        self.basepath = os.path.join(installed_plugins_base_dir, INSTALLED_PLUGINS_DIR, self.identifier)
+        self.basepath = os.path.join(
+            installed_plugins_base_dir, INSTALLED_PLUGINS_DIR, self.identifier
+        )
         self.logger.info("self.basepath: {}".format(self.basepath))
 
         # Path to plugin files such as manifest.json.
@@ -45,7 +55,11 @@ class Plugin(object):
         self.filepath = os.path.join(self.basepath, path or "")
 
         self.credentials = _get_credentials(auth)
-        self.callbacks = pygit2.RemoteCallbacks(credentials=self.credentials) if self.credentials else None
+        self.callbacks = (
+            pygit2.RemoteCallbacks(credentials=self.credentials)
+            if self.credentials
+            else None
+        )
 
     def init(self):
         """
@@ -59,7 +73,8 @@ class Plugin(object):
             self.checkout(self.repository)
         elif self.repository:
             self._repo = pygit2.clone_repository(
-                self.repository, self.basepath, bare=False, callbacks=self.callbacks)
+                self.repository, self.basepath, bare=False, callbacks=self.callbacks
+            )
             self.checkout()
         else:
             # Target directory is not a Git repository, no need to checkout
@@ -87,10 +102,14 @@ class Plugin(object):
                 remote.fetch(callbacks=self.callbacks)
 
             # Resolve ref and checkout
-            commit, resolved_refish = self._repo.resolve_refish(self.ref if self.ref else 'origin/master')
+            commit, resolved_refish = self._repo.resolve_refish(
+                self.ref if self.ref else "origin/master"
+            )
             self._repo.checkout(resolved_refish, strategy=pygit2.GIT_CHECKOUT_FORCE)
 
-            self.logger.info("Checkout {} at {}".format(resolved_refish.name, commit.short_id))
+            self.logger.info(
+                "Checkout {} at {}".format(resolved_refish.name, commit.short_id)
+            )
 
     @property
     def name(self) -> str:
@@ -100,7 +119,7 @@ class Plugin(object):
         try:
             config = json.loads(self.get_file(CONFIG_FILENAME))
 
-            if not all(key in config for key in ('name', 'version', 'entrypoint')):
+            if not all(key in config for key in ("name", "version", "entrypoint")):
                 return None
             return dict(config)
         except Exception as e:
@@ -109,7 +128,7 @@ class Plugin(object):
 
     def _list_files(self) -> List[str]:
         files = []
-        static_files = glob.glob(os.path.join(self.filepath, '**'), recursive=True)
+        static_files = glob.glob(os.path.join(self.filepath, "**"), recursive=True)
         for filepath in static_files:
             filename = os.path.basename(filepath)
             if not os.path.isdir(filepath):
@@ -125,7 +144,7 @@ class Plugin(object):
             return None
 
         try:
-            with open(os.path.join(self.filepath, filename), 'r') as file:
+            with open(os.path.join(self.filepath, filename), "r") as file:
                 return file.read()
         except Exception as e:
             self.logger.info("get_file exception for: {}: {}".format(filename, e))
@@ -138,12 +157,22 @@ class Plugin(object):
         return web.FileResponse(os.path.join(self.filepath, filename))
 
     def __iter__(self):
-        for key in ["identifier", "name", "repository", "ref", "parameters", "config", "files"]:
+        for key in [
+            "identifier",
+            "name",
+            "repository",
+            "ref",
+            "parameters",
+            "config",
+            "files",
+        ]:
             yield key, getattr(self, key)
 
 
 class PluginException(Exception):
-    def __init__(self, msg="Error loading plugin", id="plugin-error-unknown", traceback_str=None):
+    def __init__(
+        self, msg="Error loading plugin", id="plugin-error-unknown", traceback_str=None
+    ):
         self.message = msg
         self.id = id
         self.traceback_str = traceback_str
@@ -166,9 +195,13 @@ def _get_credentials(_auth):
         credentials = pygit2.KeypairFromAgent(_username or "git")
     elif _public_key and _private_key:
         if os.path.exists(_public_key) and os.path.exists(_private_key):
-            credentials = pygit2.Keypair(_username or "git", _public_key, _private_key, _passphrase or "")
+            credentials = pygit2.Keypair(
+                _username or "git", _public_key, _private_key, _passphrase or ""
+            )
         else:
-            credentials = pygit2.KeypairFromMemory(_username or "git", _public_key, _private_key, _passphrase or "")
+            credentials = pygit2.KeypairFromMemory(
+                _username or "git", _public_key, _private_key, _passphrase or ""
+            )
     elif _username and _passphrase:
         credentials = pygit2.UserPass(_username, _passphrase)
     elif _username:

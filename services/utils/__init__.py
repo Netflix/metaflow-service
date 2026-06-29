@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import os
 import traceback
@@ -13,13 +14,16 @@ import psycopg2
 from packaging.version import Version, parse
 from importlib import metadata
 
-
-USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0") in ["True", "true", "1"]
+USE_SEPARATE_READER_POOL = os.environ.get("USE_SEPARATE_READER_POOL", "0") in [
+    "True",
+    "true",
+    "1",
+]
 
 version = metadata.version("metadata_service")
 
 METADATA_SERVICE_VERSION = version
-METADATA_SERVICE_HEADER = 'METADATA_SERVICE_VERSION'
+METADATA_SERVICE_HEADER = "METADATA_SERVICE_VERSION"
 
 # The latest commit hash of the repository, if set as an environment variable.
 SERVICE_COMMIT_HASH = os.environ.get("BUILD_COMMIT_HASH", None)
@@ -27,12 +31,12 @@ SERVICE_COMMIT_HASH = os.environ.get("BUILD_COMMIT_HASH", None)
 SERVICE_BUILD_TIMESTAMP = os.environ.get("BUILD_TIMESTAMP", None)
 
 # Setup log level based on environment variable
-log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
+log_level = os.environ.get("LOGLEVEL", "INFO").upper()
 logging.basicConfig(level=log_level)
 
 # E.g. set to http://localhost:3000 to allow CORS coming from a UI served from there
 # Setting to '*' to be maximally loose.
-ORIGIN_TO_ALLOW_CORS_FROM = os.environ.get('ORIGIN_TO_ALLOW_CORS_FROM', None)
+ORIGIN_TO_ALLOW_CORS_FROM = os.environ.get("ORIGIN_TO_ALLOW_CORS_FROM", None)
 
 
 async def read_body(request_content):
@@ -64,12 +68,12 @@ def get_traceback_str():
 def http_500(msg, id, traceback_str=get_traceback_str()):
     # NOTE: worth considering if we want to expose tracebacks in the future in the api messages.
     body = {
-        'id': id,
-        'traceback': traceback_str,
-        'detail': msg,
-        'status': 500,
-        'title': 'Internal Server Error',
-        'type': 'about:blank'
+        "id": id,
+        "traceback": traceback_str,
+        "detail": msg,
+        "status": 500,
+        "title": "Internal Server Error",
+        "type": "about:blank",
     }
 
     return web_response(500, body)
@@ -84,12 +88,12 @@ def handle_exceptions(func):
             return await func(*args, **kwargs)
         except Exception as err:
             # pass along an id for the error
-            err_id = getattr(err, 'id', None)
+            err_id = getattr(err, "id", None)
             # either use provided traceback from subprocess, or generate trace from current process
-            err_trace = getattr(err, 'traceback_str', None) or get_traceback_str()
+            err_trace = getattr(err, "traceback_str", None) or get_traceback_str()
             if not err_id:
                 # Log error only in case it is not a known case.
-                err_id = 'generic-error'
+                err_id = "generic-error"
                 logging.error(err_trace)
             return http_500(str(err), err_id, err_trace)
 
@@ -102,18 +106,22 @@ def format_response(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         db_response = await func(*args, **kwargs)
-        return web.Response(status=db_response.response_code,
-                            body=json.dumps(db_response.body),
-                            headers=MultiDict(
-                                {METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}))
+        return web.Response(
+            status=db_response.response_code,
+            body=json.dumps(db_response.body),
+            headers=MultiDict({METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION}),
+        )
 
     return wrapper
 
 
 def web_response(status: int, body):
     headers = MultiDict(
-        {"Content-Type": "application/json",
-         METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION})
+        {
+            "Content-Type": "application/json",
+            METADATA_SERVICE_HEADER: METADATA_SERVICE_VERSION,
+        }
+    )
     if not ORIGIN_TO_ALLOW_CORS_FROM:
         # The aiohttp-cors library actively asserts that this response header
         # is actively NOT set, before setting it to the original request's origin.
@@ -121,9 +129,7 @@ def web_response(status: int, body):
         # Therefore, we only want to add this blanket response header iff ORIGIN_TO_ALLOW_CORS_FROM
         # is not configured (default).
         headers["Access-Control-Allow-Origin"] = "*"
-    return web.Response(status=status,
-                        body=json.dumps(body),
-                        headers=headers)
+    return web.Response(status=status, body=json.dumps(body), headers=headers)
 
 
 def format_qs(query: Dict[str, str], overwrite=None):
@@ -131,7 +137,7 @@ def format_qs(query: Dict[str, str], overwrite=None):
     if overwrite:
         for key in overwrite:
             q[key] = overwrite[key]
-    qs = urlencode(q, safe=':,')
+    qs = urlencode(q, safe=":,")
     return ("?" if len(qs) > 0 else "") + qs
 
 
@@ -142,22 +148,34 @@ def format_baseurl(request: web.BaseRequest):
     scheme = scheme.split(",")[0].strip()
     host = host.split(",")[0].strip()
     baseurl = os.environ.get(
-        "MF_BASEURL", "{scheme}://{host}".format(scheme=scheme, host=host))
+        "MF_BASEURL", "{scheme}://{host}".format(scheme=scheme, host=host)
+    )
     return "{baseurl}{path}".format(baseurl=baseurl, path=request.path)
 
 
 def has_heartbeat_capable_version_tag(system_tags):
     """Check client version tag whether it is known to support heartbeats or not"""
     try:
-        version_tags = [tag for tag in system_tags if tag.startswith('metaflow_version:')]
-        version = parse(version_tags[0][17:])
+        # only parse for the major.minor.patch version and disregard any trailing bits that might cause issues with comparison.
+        version_tags = [
+            tag for tag in system_tags if tag.startswith("metaflow_version:")
+        ]
+        if not version_tags:
+            return False
+        # match versions: major | major.minor | major.minor.patch
+        ver_string = re.match(
+            r"(0|\d+)(\.(0|\d+))*", version_tags[0].lstrip("metaflow_version:")
+        )[0]
+        version = parse(ver_string)
 
         if version >= Version("1") and version < Version("2"):
             return version >= Version("1.14.0")
 
         return version >= Version("2.2.12")
     except Exception:
-        return False
+        # Treat non-standard versions as heartbeat-enabled by default
+        return True
+
 
 # Database configuration helper
 # Prioritizes DSN string over individual connection arguments (host,user,...)
@@ -197,21 +215,23 @@ class DBConfiguration(object):
 
     _dsn: str = None
 
-    def __init__(self,
-                 dsn: str = None,
-                 host: str = "localhost",
-                 port: int = 5432,
-                 user: str = "postgres",
-                 password: str = "postgres",
-                 database_name: str = "postgres",
-                 ssl_mode: str = "disabled",
-                 ssl_cert_path: str = None,
-                 ssl_key_path: str = None,
-                 ssl_root_cert_path: str = None,
-                 prefix="MF_METADATA_DB_",
-                 pool_min: int = 1,
-                 pool_max: int = 10,
-                 timeout: int = 60):
+    def __init__(
+        self,
+        dsn: str = None,
+        host: str = "localhost",
+        port: int = 5432,
+        user: str = "postgres",
+        password: str = "postgres",
+        database_name: str = "postgres",
+        ssl_mode: str = "disabled",
+        ssl_cert_path: str = None,
+        ssl_key_path: str = None,
+        ssl_root_cert_path: str = None,
+        prefix="MF_METADATA_DB_",
+        pool_min: int = 1,
+        pool_max: int = 10,
+        timeout: int = 60,
+    ):
 
         self._dsn = os.environ.get(prefix + "DSN", dsn)
         # Check if it is a BAD DSN String.
@@ -220,8 +240,11 @@ class DBConfiguration(object):
             if not self._is_valid_dsn(self._dsn):
                 self._dsn = None
         self._host = os.environ.get(prefix + "HOST", host)
-        self._read_replica_host = \
-            os.environ.get(prefix + "READ_REPLICA_HOST") if USE_SEPARATE_READER_POOL else self._host
+        self._read_replica_host = (
+            os.environ.get(prefix + "READ_REPLICA_HOST")
+            if USE_SEPARATE_READER_POOL
+            else self._host
+        )
         self._port = int(os.environ.get(prefix + "PORT", port))
         self._user = os.environ.get(prefix + "USER", user)
         self._password = os.environ.get(prefix + "PSWD", password)
@@ -229,23 +252,27 @@ class DBConfiguration(object):
         self._ssl_mode = os.environ.get(prefix + "SSL_MODE", ssl_mode)
         self._ssl_cert_path = os.environ.get(prefix + "SSL_CERT_PATH", ssl_cert_path)
         self._ssl_key_path = os.environ.get(prefix + "SSL_KEY_PATH", ssl_key_path)
-        self._ssl_root_cert_path = os.environ.get(prefix + "SSL_ROOT_CERT_PATH", ssl_root_cert_path)
+        self._ssl_root_cert_path = os.environ.get(
+            prefix + "SSL_ROOT_CERT_PATH", ssl_root_cert_path
+        )
         conn_str_required_values = [
             self._host,
             self._port,
             self._user,
             self._password,
-            self._database_name
+            self._database_name,
         ]
         some_conn_str_values_missing = any(v is None for v in conn_str_required_values)
         if self._dsn is None and some_conn_str_values_missing:
-            env_values = ', '.join([
-                prefix + "HOST",
-                prefix + "PORT",
-                prefix + "USER",
-                prefix + "PSWD",
-                prefix + "NAME",
-            ])
+            env_values = ", ".join(
+                [
+                    prefix + "HOST",
+                    prefix + "PORT",
+                    prefix + "USER",
+                    prefix + "PSWD",
+                    prefix + "NAME",
+                ]
+            )
             dsn_var = prefix + "DSN"
             raise Exception(
                 f"Some of the environment variables '{env_values}' are not set. "
@@ -269,22 +296,24 @@ class DBConfiguration(object):
     def connection_string_url(self, type=None):
         # postgresql://[user[:password]@][host][:port][/dbname][?param1=value1&...]
         if type is None or type == DBType.WRITER:
-            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}'
+            base_url = f"postgresql://{quote(self._user)}:{quote(self._password)}@{self._host}:{self._port}/{self._database_name}"
         elif type == DBType.READER:
-            base_url = f'postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}'
-
-        if (self._ssl_mode in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
-            ssl_query = f'sslmode={self._ssl_mode}'
-            if self._ssl_cert_path is not None:
-                ssl_query = f'{ssl_query}&sslcert={self._ssl_cert_path}'
-            if self._ssl_key_path is not None:
-                ssl_query = f'{ssl_query}&sslkey={self._ssl_key_path}'
-            if self._ssl_root_cert_path is not None:
-                ssl_query = f'{ssl_query}&sslrootcert={self._ssl_root_cert_path}'
+            base_url = f"postgresql://{quote(self._user)}:{quote(self._password)}@{self._read_replica_host}:{self._port}/{self._database_name}"
         else:
-            ssl_query = f'sslmode=disable'
+            raise Exception("Unsupported DBType %s" % type)
 
-        return f'{base_url}?{ssl_query}'
+        if self._ssl_mode in ["allow", "prefer", "require", "verify-ca", "verify-full"]:
+            ssl_query = f"sslmode={self._ssl_mode}"
+            if self._ssl_cert_path is not None:
+                ssl_query = f"{ssl_query}&sslcert={self._ssl_cert_path}"
+            if self._ssl_key_path is not None:
+                ssl_query = f"{ssl_query}&sslkey={self._ssl_key_path}"
+            if self._ssl_root_cert_path is not None:
+                ssl_query = f"{ssl_query}&sslrootcert={self._ssl_root_cert_path}"
+        else:
+            ssl_query = f"sslmode=disable"
+
+        return f"{base_url}?{ssl_query}"
 
     def get_dsn(self, type=None):
         if self._dsn is None:
@@ -292,21 +321,27 @@ class DBConfiguration(object):
             sslcert = self._ssl_cert_path
             sslkey = self._ssl_key_path
             sslrootcert = self._ssl_root_cert_path
-            if (ssl_mode not in ['allow', 'prefer', 'require', 'verify-ca', 'verify-full']):
+            if ssl_mode not in [
+                "allow",
+                "prefer",
+                "require",
+                "verify-ca",
+                "verify-full",
+            ]:
                 ssl_mode = None
                 sslcert = None
                 sslkey = None
                 sslrootcert = None
             kwargs = {
-                'dbname': self._database_name,
-                'user': self._user,
-                'host': self._host,
-                'port': self._port,
-                'password': self._password,
-                'sslmode': ssl_mode,
-                'sslcert': sslcert,
-                'sslkey': sslkey,
-                'sslrootcert': sslrootcert
+                "dbname": self._database_name,
+                "user": self._user,
+                "host": self._host,
+                "port": self._port,
+                "password": self._password,
+                "sslmode": ssl_mode,
+                "sslcert": sslcert,
+                "sslkey": sslkey,
+                "sslrootcert": sslrootcert,
             }
 
             if type == DBType.READER:
@@ -314,7 +349,9 @@ class DBConfiguration(object):
                 # At the moment this is a fair assumption for Postgres read replicas.
                 kwargs.update({"host": self._read_replica_host})
 
-            return psycopg2.extensions.make_dsn(**{k: v for k, v in kwargs.items() if v is not None})
+            return psycopg2.extensions.make_dsn(
+                **{k: v for k, v in kwargs.items() if v is not None}
+            )
         else:
             return self._dsn
 

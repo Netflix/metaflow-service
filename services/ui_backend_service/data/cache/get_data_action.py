@@ -31,40 +31,43 @@ class GetData(CacheAction):
 
     @classmethod
     def format_request(cls, *args, **kwargs):
-        targets = kwargs.get('targets', [])
-        invalidate_cache = kwargs.get('invalidate_cache', False)
+        targets = kwargs.get("targets", [])
+        invalidate_cache = kwargs.get("invalidate_cache", False)
 
-        msg = {
-            'targets': list(frozenset(sorted(targets)))
-        }
+        msg = {"targets": list(frozenset(sorted(targets)))}
 
         target_keys = []
         for object in targets:
-            target_keys.append(cache_key_from_target(object, "data:{}:".format(cls.__name__)))
+            target_keys.append(
+                cache_key_from_target(object, "data:{}:".format(cls.__name__))
+            )
 
         request_id = lookup_id(targets)
-        stream_key = cache_key_from_target(request_id, "data:stream:{}:".format(cls.__name__))
+        stream_key = cache_key_from_target(
+            request_id, "data:stream:{}:".format(cls.__name__)
+        )
 
-        return msg, \
-            target_keys, \
-            stream_key, \
-            [stream_key], \
-            invalidate_cache, \
-            None
+        return msg, target_keys, stream_key, [stream_key], invalidate_cache, None
 
     @classmethod
     def response(cls, keys_objs):
-        '''Action should respond with a dictionary of
+        """Action should respond with a dictionary of
         {
             "FlowId/RunNumber": [boolean, "contents"]
         }
-        '''
+        """
 
-        target_keys = [(key, val) for key, val in keys_objs.items() if key.startswith("data:{}:".format(cls.__name__))]
+        target_keys = [
+            (key, val)
+            for key, val in keys_objs.items()
+            if key.startswith("data:{}:".format(cls.__name__))
+        ]
 
         collected = {}
         for key, val in target_keys:
-            collected[target_from_cache_key(key, "data:{}:".format(cls.__name__))] = json.loads(val)
+            collected[target_from_cache_key(key, "data:{}:".format(cls.__name__))] = (
+                json.loads(val)
+            )
 
         return collected
 
@@ -74,13 +77,15 @@ class GetData(CacheAction):
             yield msg
 
     @classmethod
-    def execute(cls,
-                message=None,
-                keys=None,
-                existing_keys={},
-                stream_output=None,
-                invalidate_cache=False,
-                **kwargs):
+    def execute(
+        cls,
+        message=None,
+        keys=None,
+        existing_keys={},
+        stream_output=None,
+        invalidate_cache=False,
+        **kwargs,
+    ):
         """
         Execute fetching of targets.
         Produces cache results that are either successful or failed.
@@ -99,7 +104,7 @@ class GetData(CacheAction):
         Stream error example:
             stream_output(error_event_msg(str(ex), "s3-not-found", get_traceback_str(), artifact_key))
         """
-        targets = message['targets']
+        targets = message["targets"]
 
         if invalidate_cache:
             results = {}
@@ -109,7 +114,12 @@ class GetData(CacheAction):
             # in the format_request response.
             results = {**existing_keys}
             # Make a list of artifact locations that require fetching (not cached previously)
-            targets_to_fetch = [loc for loc in targets if not cache_key_from_target(loc, "data:{}:".format(cls.__name__)) in existing_keys]
+            targets_to_fetch = [
+                loc
+                for loc in targets
+                if not cache_key_from_target(loc, "data:{}:".format(cls.__name__))
+                in existing_keys
+            ]
 
         for target in targets_to_fetch:
             target_key = cache_key_from_target(target, "data:{}:".format(cls.__name__))
@@ -156,7 +166,7 @@ class GetData(CacheAction):
         raise NotImplementedError
 
 
-DATA_CACHE_ID_PREFIX = 'data:'
+DATA_CACHE_ID_PREFIX = "data:"
 
 
 def cache_key_from_target(target, prefix=DATA_CACHE_ID_PREFIX):
@@ -166,10 +176,10 @@ def cache_key_from_target(target, prefix=DATA_CACHE_ID_PREFIX):
 
 def target_from_cache_key(cache_key, prefix=DATA_CACHE_ID_PREFIX):
     "extract location from the target cache key"
-    return cache_key[len(prefix):]
+    return cache_key[len(prefix) :]
 
 
 def lookup_id(targets):
     "construct a unique id to be used with stream_key and result_key"
     _string = "-".join(list(frozenset(sorted(targets))))
-    return hashlib.sha1(_string.encode('utf-8')).hexdigest()
+    return hashlib.sha1(_string.encode("utf-8")).hexdigest()
