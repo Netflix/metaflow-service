@@ -14,7 +14,6 @@ from services.data.postgres_async_db import (
     AsyncRunTablePostgres as MetadataRunTable,
     AsyncMetadataTablePostgres as MetaMetadataTable,
     AsyncArtifactTablePostgres as MetadataArtifactTable,
-    AsyncTaskTablePostgres as MetadataTaskTable,
 )
 
 # Prefetch runs since 2 days ago (in seconds), limit maximum of 50 runs
@@ -27,7 +26,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
     table_name = MetadataRunTable.table_name
     metadata_table = MetaMetadataTable.table_name
     artifact_table = MetadataArtifactTable.table_name
-    task_table = MetadataTaskTable.table_name
     keys = MetadataRunTable.keys
     primary_keys = MetadataRunTable.primary_keys
     trigger_keys = MetadataRunTable.trigger_keys
