@@ -47,9 +47,8 @@ class Websocket(object):
     Example event:
     {"type": "UPDATE", "uuid": "myst3rySh4ck", "resource": "/runs", "data": {"foo": "bar"}}
     '''
-    _subscriptions: Dict[web.WebSocketResponse, List[WSSubscription]] = collections.defaultdict(list)
-
     def __init__(self, app, db, event_emitter=None, queue_ttl: int = WS_QUEUE_TTL_SECONDS, cache=None):
+        self._subscriptions: Dict[web.WebSocketResponse, List[WSSubscription]] = collections.defaultdict(list)
         self.event_emitter = event_emitter or AsyncIOEventEmitter()
         self.db = db
         self.queue = TTLQueue(queue_ttl)
@@ -168,7 +167,7 @@ class Websocket(object):
             return
         if uuid:
             self._subscriptions[ws] = list(
-                filter(lambda s: uuid != s.uuid or ws != s.ws, self._subscriptions[ws]))
+                filter(lambda s: uuid != s.uuid, self._subscriptions[ws]))
             if len(self._subscriptions[ws]) == 0:
                 del self._subscriptions[ws]
         else:
