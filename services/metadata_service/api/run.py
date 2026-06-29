@@ -189,7 +189,19 @@ class RunApi(object):
         custom_cond, custom_vals = custom_conditions_query_dict(
             query, RUN_ALLOWED_FILTERS
         )
-        conditions = ['"flow_id" = %s'] + builtin_cond + custom_cond
+        filter_conditions = builtin_cond + custom_cond
+
+        cursor = query.get("_cursor")
+        limit = query.get("_limit")
+
+        # Backwards-compatible fast path: with neither filters nor pagination, fall back
+        # to the original unfiltered, join-free listing (raw array) that older clients
+        # expect. New clients support filtering and cursor pagination together, so any
+        # filter or pagination param drops through to the paginated path below.
+        if not filter_conditions and cursor is None and limit is None:
+            return await self._async_table.get_all_runs(flow_name)
+
+        conditions = ['"flow_id" = %s'] + filter_conditions
         values = [flow_name] + list(builtin_vals) + list(custom_vals)
 
         # status is the only derived column needing the lateral joins; turn them on
@@ -198,12 +210,6 @@ class RunApi(object):
             _split_field_op(k)[0] for k in query if not k.startswith("_")
         }
         enable_joins = "status" in requested_fields
-
-        # Cursor pagination (mirrors the unfiltered endpoint added in #482): _cursor
-        # encodes the last (ts_epoch, run_number) seen; _limit sets the page size. When
-        # neither is present we keep the legacy raw-array response over the filtered set.
-        cursor = query.get("_cursor")
-        limit = query.get("_limit")
 
         cur_ts, cur_run = None, None
         if cursor:
@@ -214,11 +220,6 @@ class RunApi(object):
                 )
             except ValueError:
                 return DBResponse(response_code=400, body="Invalid cursor")
-
-        if limit is None and cursor is None:
-            return await self._async_table.get_filtered_runs(
-                conditions=conditions, values=values, enable_joins=enable_joins
-            )
 
         limit = min(int(limit), 500) if limit else 50
 

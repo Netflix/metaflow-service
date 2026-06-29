@@ -784,38 +784,6 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
 
         return await self.get_records(filter_dict=filter_dict)
 
-    async def get_filtered_runs(
-        self,
-        conditions: List[str],
-        values: list,
-        enable_joins: bool = False,
-        limit: int = 0,
-        offset: int = 0,
-        order: List[str] = None,
-    ):
-        # conditions/values come pre-built from the shared filter grammar
-        # (services/data/filter_grammar.py), with a leading flow_id predicate. The
-        # caller sets enable_joins=True only when a status filter is present, since
-        # status is the only derived column needing the lateral joins; user, tags and
-        # ts_epoch filter base (or join-free derived) columns.
-        if len(conditions) <= 1 and not enable_joins:
-            # nothing beyond the flow itself: keep the original join-free query so an
-            # unfiltered listing stays byte-identical to before.
-            flow_id = values[0] if values else None
-            return await self.get_records(
-                filter_dict={"flow_id": flow_id}, ordering=order, limit=limit
-            )
-
-        response, _ = await self.find_records(
-            conditions=conditions,
-            values=values,
-            limit=limit,
-            offset=offset,
-            order=order,
-            enable_joins=enable_joins,
-        )
-        return response
-
     async def get_filtered_runs_paginated(
         self,
         conditions: List[str],

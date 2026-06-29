@@ -333,11 +333,10 @@ async def test_runs_get_status_filter_composes_with_pagination(cli, db):
     # conditions/values shaped exactly as the handler builds them from ?status:eq=failed
     conditions = ['"flow_id" = %s', '("status" = %s)']
     values = [_flow["flow_id"], "failed"]
-    page = (
-        await db.run_table_postgres.get_filtered_runs(
-            conditions, values, enable_joins=True, limit=2, order=["run_number DESC"]
-        )
-    ).body
+    response, _ = await db.run_table_postgres.get_filtered_runs_paginated(
+        conditions, values, enable_joins=True, limit=2
+    )
+    page = response.body
 
     assert len(page) == 2
     assert all(r["status"] == "failed" for r in page)
