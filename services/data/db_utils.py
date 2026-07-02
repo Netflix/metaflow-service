@@ -129,7 +129,7 @@ def decode_cursor(cursor: str | None) -> dict:
     except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError):
         raise ValueError("invalid_cursor")
 
-    if "ts_epoch" not in decoded or "run_number" not in decoded:
+    if "ts_epoch" not in decoded:
         raise ValueError("invalid_cursor")
 
     return decoded

@@ -104,7 +104,7 @@ class RunApi(object):
                 cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(
                     cursor_dict["run_number"]
                 )
-            except ValueError:
+            except (ValueError, KeyError):
                 return DBResponse(response_code=400, body="Invalid cursor")
 
         if limit is None and cursor is None:
