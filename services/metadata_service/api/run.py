@@ -6,6 +6,67 @@ from services.data.models import RunRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.data.filter_grammar import (
+    builtin_conditions_query_dict,
+    custom_conditions_query_dict,
+    operators_to_sql,
+)
+
+# Statuses a run can be filtered by, matching the values the status query derives.
+SUPPORTED_RUN_STATUSES = {"running", "completed", "failed"}
+
+# Fields the runs endpoint accepts in the field:operator filter grammar: the base run
+# columns plus the derived 'status' (lateral joins) and 'user' (verified owner).
+RUN_ALLOWED_FILTERS = [
+    "flow_id",
+    "run_number",
+    "run_id",
+    "user_name",
+    "ts_epoch",
+    "last_heartbeat_ts",
+    "tags",
+    "system_tags",
+    "user",
+    "status",
+]
+# Fields whose values must be integer epoch milliseconds.
+_NUMERIC_FILTERS = {"ts_epoch", "last_heartbeat_ts"}
+
+
+def _split_field_op(key):
+    field, _, operator = key.partition(":")
+    return field, (operator or "eq")
+
+
+def _validate_run_filters(query):
+    """Fail loud on malformed filters the generic grammar would otherwise silently drop.
+
+    Returns an error string, or None when the filters are acceptable. Preserves the
+    contract that a bad status value, a non-integer time bound, or an unknown operator
+    on a known field is a 400 rather than a silently-ignored filter.
+    """
+    for key, val in query.items():
+        if key.startswith("_"):
+            continue
+        field, operator = _split_field_op(key)
+        if field not in RUN_ALLOWED_FILTERS:
+            continue  # unknown field: ignored, not an error
+        if operator not in operators_to_sql:
+            return "unsupported operator '%s' for field '%s'" % (operator, field)
+        for v in val.split(","):
+            if v == "null":
+                continue
+            if field == "status" and v not in SUPPORTED_RUN_STATUSES:
+                return "unsupported status filter: %s" % v
+            if field in _NUMERIC_FILTERS:
+                try:
+                    int(v)
+                except (TypeError, ValueError):
+                    return (
+                        "invalid %s: expected integer epoch milliseconds, got '%s'"
+                        % (field, v)
+                    )
+    return None
 
 
 class RunApi(object):
@@ -64,7 +125,7 @@ class RunApi(object):
     async def get_all_runs(self, request):
         """
         ---
-        description: Get all runs
+        description: Get all runs of a flow, optionally filtered and/or cursor-paginated
         tags:
         - Run
         parameters:
@@ -73,29 +134,84 @@ class RunApi(object):
           description: "flow_id"
           required: true
           type: "string"
+        - name: "status"
+          in: "query"
+          description: "filter by status, e.g. status:eq=running or status:eq=running,failed (OR). Status is derived relative to the heartbeat cutoff, so a multi-status filter that includes running is time-relative, not fully deterministic."
+          required: false
+          type: "string"
+        - name: "user"
+          in: "query"
+          description: "filter by verified owner, e.g. user:eq=alice (system tag user:<name>)."
+          required: false
+          type: "string"
+        - name: "ts_epoch"
+          in: "query"
+          description: "filter by start time, e.g. ts_epoch:ge=123&ts_epoch:le=456 (epoch ms)."
+          required: false
+          type: "string"
+        - name: "_tags"
+          in: "query"
+          description: "filter by tags, e.g. _tags:any=a,b (OR) or _tags:all=a,b (AND)."
+          required: false
+          type: "string"
         - name: "_cursor"
           in: "query"
-          description: "cursor"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
           required: false
           type: "string"
         - name: "_limit"
           in: "query"
-          description: "limit"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
           required: false
           type: "string"
         produces:
         - text/plain
         responses:
             "200":
-                description: Returned all runs of specified flow
+                description: Returned the matching runs of the specified flow
+            "400":
+                description: unsupported status value, non-integer time bound, unknown operator, or invalid cursor
             "405":
                 description: invalid HTTP Method
             "400":
                 description: invalid cursor
         """
         flow_name = request.match_info.get("flow_id")
-        cursor = request.query.get("_cursor")
-        limit = request.query.get("_limit")
+        query = request.query
+
+        err = _validate_run_filters(query)
+        if err:
+            return DBResponse(response_code=400, body=err)
+
+        # Parse the field:operator filter grammar into parameterised SQL (shared with
+        # the ui_backend so the two services filter identically).
+        builtin_cond, builtin_vals = builtin_conditions_query_dict(
+            query
+        )  # _tags:any/all
+        custom_cond, custom_vals = custom_conditions_query_dict(
+            query, RUN_ALLOWED_FILTERS
+        )
+        filter_conditions = builtin_cond + custom_cond
+
+        cursor = query.get("_cursor")
+        limit = query.get("_limit")
+
+        # Backwards-compatible fast path: with neither filters nor pagination, fall back
+        # to the original unfiltered, join-free listing (raw array) that older clients
+        # expect. New clients support filtering and cursor pagination together, so any
+        # filter or pagination param drops through to the paginated path below.
+        if not filter_conditions and cursor is None and limit is None:
+            return await self._async_table.get_all_runs(flow_name)
+
+        conditions = ['"flow_id" = %s'] + filter_conditions
+        values = [flow_name] + list(builtin_vals) + list(custom_vals)
+
+        # status is the only derived column needing the lateral joins; turn them on
+        # only when a status predicate is actually requested.
+        requested_fields = {
+            _split_field_op(k)[0] for k in query if not k.startswith("_")
+        }
+        enable_joins = "status" in requested_fields
 
         cur_ts, cur_run = None, None
         if cursor:
@@ -107,13 +223,15 @@ class RunApi(object):
             except (ValueError, KeyError):
                 return DBResponse(response_code=400, body="Invalid cursor")
 
-        if limit is None and cursor is None:
-            return await self._async_table.get_all_runs(flow_name)
-
         limit = min(int(limit), 500) if limit else 50
 
-        response, pagination = await self._async_table.get_all_runs_paginated(
-            flow_name, cur_ts, cur_run, limit
+        response, pagination = await self._async_table.get_filtered_runs_paginated(
+            conditions=conditions,
+            values=values,
+            enable_joins=enable_joins,
+            limit=limit,
+            cur_ts=cur_ts,
+            cur_run=cur_run,
         )
 
         if pagination.next_cursor_record:
