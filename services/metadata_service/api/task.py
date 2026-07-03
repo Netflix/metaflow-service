@@ -1,11 +1,63 @@
 from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.tagging_utils import apply_run_tags_to_db_response
+from services.data.db_utils import DBResponse, translate_run_key
+from services.data.filter_grammar import custom_conditions_query_dict, operators_to_sql
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, handle_exceptions
 import json
 from aiohttp import web
 import asyncio
+
+# Fields the tasks endpoint accepts in the field:operator filter grammar. Deliberately
+# excludes 'status' (task status is not derived by the metadata service, and is being
+# redefined upstream) and tag fields (a task's stored tags are not canonical; the run's
+# tags are grafted on at read time, so SQL tag filtering would match stale values).
+TASK_ALLOWED_FILTERS = [
+    "flow_id",
+    "run_number",
+    "run_id",
+    "step_name",
+    "task_id",
+    "task_name",
+    "user_name",
+    "ts_epoch",
+    "last_heartbeat_ts",
+]
+# Fields whose values must be integer epoch milliseconds.
+_NUMERIC_TASK_FILTERS = {"ts_epoch", "last_heartbeat_ts"}
+
+
+def _split_field_op(key):
+    field, _, operator = key.partition(":")
+    return field, (operator or "eq")
+
+
+def _validate_task_filters(query):
+    """Fail loud on malformed filters the generic grammar would otherwise silently drop:
+    an unknown operator on a known field, or a non-integer time bound. Returns an error
+    string, or None when the filters are acceptable.
+    """
+    for key, val in query.items():
+        if key.startswith("_"):
+            continue
+        field, operator = _split_field_op(key)
+        if field not in TASK_ALLOWED_FILTERS:
+            continue  # unknown field: ignored, not an error
+        if operator not in operators_to_sql:
+            return "unsupported operator '%s' for field '%s'" % (operator, field)
+        for v in val.split(","):
+            if v == "null":
+                continue
+            if field in _NUMERIC_TASK_FILTERS:
+                try:
+                    int(v)
+                except (TypeError, ValueError):
+                    return (
+                        "invalid %s: expected integer epoch milliseconds, got '%s'"
+                        % (field, v)
+                    )
+    return None
 
 
 class TaskApi(object):
