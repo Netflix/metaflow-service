@@ -102,7 +102,7 @@ class TaskApi(object):
     async def get_tasks(self, request):
         """
         ---
-        description: get all tasks associated with the specified step.
+        description: get all tasks of a step, optionally filtered by the field:operator grammar
         tags:
         - Tasks
         parameters:
@@ -121,23 +121,65 @@ class TaskApi(object):
           description: "step_name"
           required: true
           type: "string"
+        - name: "ts_epoch"
+          in: "query"
+          description: "filter by start time, e.g. ts_epoch:ge=123&ts_epoch:le=456 (epoch ms)."
+          required: false
+          type: "string"
+        - name: "user_name"
+          in: "query"
+          description: "filter by user_name/task_name, e.g. user_name:eq=alice."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
             "200":
-                description: successful operation. Return tasks
+                description: successful operation. Return the matching tasks
+            "400":
+                description: non-integer time bound or unknown operator
             "405":
                 description: invalid HTTP Method
         """
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
+        query = request.query
 
-        db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
-        db_response = await apply_run_tags_to_db_response(
+        err = _validate_task_filters(query)
+        if err:
+            return DBResponse(response_code=400, body=err)
+
+        # field:operator filtering only (no _tags builtin: task-level tags are not
+        # canonical, the run's tags are grafted on below, so SQL tag filtering would match
+        # stale stored values; task status is not derived by the metadata service).
+        filter_conditions, filter_values = custom_conditions_query_dict(
+            query, TASK_ALLOWED_FILTERS
+        )
+
+        # Backwards-compatible fast path: with no filters, keep the original listing.
+        if not filter_conditions:
+            db_response = await self._async_table.get_tasks(
+                flow_id, run_number, step_name
+            )
+            return await apply_run_tags_to_db_response(
+                flow_id, run_number, self._async_run_table, db_response
+            )
+
+        # the step listing is pinned by the path; the grammar filters narrow within it.
+        run_id_key, run_id_value = translate_run_key(run_number)
+        conditions = [
+            '"flow_id" = %s',
+            '"{}" = %s'.format(run_id_key),
+            '"step_name" = %s',
+        ] + filter_conditions
+        values = [flow_id, run_id_value, step_name] + list(filter_values)
+
+        db_response = await self._async_table.get_filtered_tasks(conditions, values)
+        # graft the run's tags onto every task, same contract as the unfiltered path
+        return await apply_run_tags_to_db_response(
             flow_id, run_number, self._async_run_table, db_response
         )
-        return db_response
 
     @format_response
     @handle_exceptions
