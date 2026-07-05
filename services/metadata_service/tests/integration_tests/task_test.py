@@ -1,4 +1,5 @@
 import copy
+import json
 
 from .utils import (
     cli,
@@ -285,6 +286,79 @@ async def test_tasks_get(cli, db):
         status=200,
         data=[],
     )
+
+
+async def _task_ids(cli, task, query=""):
+    # the metadata service serves json as text/plain, so parse the body ourselves
+    url = "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks{q}".format(
+        q=query, **task
+    )
+    resp = await cli.get(url)
+    assert resp.status == 200
+    return {t["task_id"] for t in json.loads(await resp.text())}
+
+
+async def test_tasks_get_filtering(cli, db):
+    # field:operator filtering on the tasks endpoint (time range + user), with the
+    # backward-compatible unfiltered path preserved.
+    _flow = (await add_flow(db, "TaskFilterFlow", "u", ["a"], ["runtime:test"])).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="s"
+        )
+    ).body
+
+    async def task_at(ts, user="dipper"):
+        t = (
+            await add_task(
+                db,
+                flow_id=_step["flow_id"],
+                run_number=_step["run_number"],
+                step_name=_step["step_name"],
+                user_name=user,
+            )
+        ).body
+        await db.task_table_postgres.update_row(
+            filter_dict={
+                "flow_id": t["flow_id"],
+                "run_number": t["run_number"],
+                "step_name": t["step_name"],
+                "task_id": t["task_id"],
+            },
+            update_dict={"ts_epoch": ts},
+        )
+        return t
+
+    old = await task_at(1000)
+    mid = await task_at(2000, user="alice")
+    new = await task_at(3000)
+    everyone = {old["task_id"], mid["task_id"], new["task_id"]}
+
+    # inclusive time bounds
+    assert await _task_ids(cli, old, "?ts_epoch:ge=2000") == {
+        mid["task_id"],
+        new["task_id"],
+    }
+    assert await _task_ids(cli, old, "?ts_epoch:le=2000") == {
+        old["task_id"],
+        mid["task_id"],
+    }
+    assert await _task_ids(cli, old, "?ts_epoch:ge=2000&ts_epoch:le=2000") == {
+        mid["task_id"]
+    }
+    # user filter narrows to one task
+    assert await _task_ids(cli, old, "?user_name:eq=alice") == {mid["task_id"]}
+    # an unknown field is ignored (returns everything); an unknown operator is a 400
+    assert await _task_ids(cli, old, "?nonsense:eq=x") == everyone
+    bad = await cli.get(
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?ts_epoch:zz=1".format(
+            **old
+        )
+    )
+    assert bad.status == 400
+    # no params still returns all tasks (legacy path)
+    assert await _task_ids(cli, old) == everyone
 
 
 async def test_filtered_tasks_get(cli, db):
