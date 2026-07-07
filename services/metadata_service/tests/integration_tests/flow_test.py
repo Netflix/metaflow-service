@@ -5,6 +5,7 @@ from .utils import (
     assert_api_post_response,
     compare_partial,
     add_flow,
+    assert_paginated_api_get_response,
 )
 import pytest
 
@@ -68,3 +69,48 @@ async def test_flow_get(cli, db):
 
     # non-existent flow should return 404
     await assert_api_get_response(cli, "/flows/AnotherFlow", status=404)
+
+
+async def test_flows_pagination_get(cli, db):
+    # create flow for test
+    _first_flow = (await add_flow(db, flow_id="TestFlow", user_name="test_user-1")).body
+    _second_flow = (
+        await add_flow(db, flow_id="TestFlow2", user_name="test_user-1")
+    ).body
+    _third_flow = (
+        await add_flow(db, flow_id="TestFlow3", user_name="test_user-1")
+    ).body
+
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows",
+        data=[_third_flow, _second_flow],
+        params={"_limit": 2},
+    )
+
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows",
+        data=[_first_flow],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows",
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows",
+        data=[_third_flow, _second_flow, _first_flow],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )

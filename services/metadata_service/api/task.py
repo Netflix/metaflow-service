@@ -70,6 +70,16 @@ class TaskApi(object):
           description: "step_name"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -89,20 +99,24 @@ class TaskApi(object):
         if cursor:
             try:
                 cursor_dict = decode_cursor(cursor)
-                cur_ts, cur_task = int(cursor_dict["ts_epoch"]), int(cursor_dict["task_id"])
+                cur_ts, cur_task = int(cursor_dict["ts_epoch"]), int(
+                    cursor_dict["task_id"]
+                )
             except (ValueError, KeyError):
                 return DBResponse(response_code=400, body="Invalid cursor")
 
-        # db_response = None # eh - 여기서 먼저 선언을 해줘야 밑에서 쓸 수 있나? local
         if limit is None and cursor is None:
-            db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
+            db_response = await self._async_table.get_tasks(
+                flow_id, run_number, step_name
+            )
             return await apply_run_tags_to_db_response(
                 flow_id, run_number, self._async_run_table, db_response
             )
         else:
             limit = min(int(limit), 500) if limit else 50
-            db_response, pagination = await self._async_table.get_tasks_paginated(flow_id, run_number, step_name, cur_ts, cur_task, limit)
-        # db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
+            db_response, pagination = await self._async_table.get_tasks_paginated(
+                flow_id, run_number, step_name, cur_ts, cur_task, limit
+            )
         db_response = await apply_run_tags_to_db_response(
             flow_id, run_number, self._async_run_table, db_response
         )
@@ -166,40 +180,10 @@ class TaskApi(object):
         metadata_field = request.query.get("metadata_field_name", None)
         pattern = request.query.get("pattern", None)
 
-        cursor = request.query.get("_cursor")
-        limit = request.query.get("_limit")
-
-        cur_ts, cur_task = None, None
-        if cursor:
-            try:
-                cursor_dict = decode_cursor(cursor)
-                cur_ts, cur_task = int(cursor_dict["ts_epoch"]), int(cursor_dict["task_id"])
-            except (ValueError, KeyError):
-                return DBResponse(response_code=400, body="Invalid cursor")
-
-        if limit is None and cursor is None:
-
-            db_response, _ = await self._async_metadata_table.get_filtered_task_pathspecs(
-                flow_id, run_number, step_name, metadata_field, pattern
-            )
-            return db_response
-
-        else:
-            limit = min(int(limit), 500) if limit else 50
-            db_response, pagination = await self._async_table.get_filtered_task_pathspecs(
-                flow_id, run_number, step_name, metadata_field, pattern, cur_ts, cur_task
-            )
-
-        if pagination.next_cursor_record:
-            next_cursor = encode_cursor(
-                {
-                    "ts_epoch": pagination.next_cursor_record["ts_epoch"],
-                    "task_id": pagination.next_cursor_record["task_id"],
-                }
-            )
-            pagination = pagination._replace(next_cursor=next_cursor)
-
-        return db_response, pagination
+        db_response, _ = await self._async_metadata_table.get_filtered_task_pathspecs(
+            flow_id, run_number, step_name, metadata_field, pattern
+        )
+        return db_response
 
     @format_response
     @handle_exceptions

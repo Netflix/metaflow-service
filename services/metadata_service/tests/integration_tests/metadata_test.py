@@ -9,6 +9,7 @@ from .utils import (
     add_step,
     add_task,
     add_metadata,
+    assert_paginated_api_get_response,
 )
 import pytest
 
@@ -26,6 +27,14 @@ METADATA_A = {
 }
 METADATA_B = {
     "field_name": "test-field-B",
+    "value": "test",
+    "type": "test-metadata",
+    "user_name": "test_user",
+    "tags": ["a_tag", "b_tag"],
+    "system_tags": ["runtime:test"],
+}
+METADATA_C = {
+    "field_name": "test-field-C",
     "value": "test",
     "type": "test-metadata",
     "user_name": "test_user",
@@ -202,6 +211,102 @@ async def test_run_metadata_get(cli, db):
     )
 
 
+async def test_run_metadata_pagination_get(cli, db):
+    # create for test
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+    _task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+
+    _first_metadata = (
+        await add_metadata(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            metadata=METADATA_A,
+        )
+    ).body
+    _second_metadata = (
+        await add_metadata(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            metadata=METADATA_B,
+        )
+    ).body
+
+    _third_metadata = (
+        await add_metadata(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            metadata=METADATA_C,
+        )
+    ).body
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+        data=[_third_metadata, _second_metadata],
+        params={"_limit": 2},
+    )
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+        data=[_first_metadata],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+        data=[_third_metadata, _second_metadata, _first_metadata],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+        data=[_third_metadata, _second_metadata, _first_metadata],
+        params={"_limit": 3},
+        has_next_cursor=False,
+    )
+
+
 async def test_task_metadata_get(cli, db):
     # create a flow, run, step and task for the test
     _flow = (
@@ -297,4 +402,111 @@ async def test_task_metadata_get(cli, db):
         ),
         status=200,
         data=[],
+    )
+
+
+async def test_task_metadata_pagination_get(cli, db):
+    # create for test
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+    _task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+
+    _first_metadata = (
+        await add_metadata(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            metadata=METADATA_A,
+        )
+    ).body
+    _second_metadata = (
+        await add_metadata(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            metadata=METADATA_B,
+        )
+    ).body
+    _third_metadata = (
+        await add_metadata(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            metadata=METADATA_C,
+        )
+    ).body
+
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(
+            **_task
+        ),
+        data=[_third_metadata, _second_metadata],
+        params={"_limit": 2},
+    )
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(
+            **_task
+        ),
+        data=[_first_metadata],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(
+            **_task
+        ),
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(
+            **_task
+        ),
+        data=[_third_metadata, _second_metadata, _first_metadata],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/metadata".format(
+            **_task
+        ),
+        data=[_third_metadata, _second_metadata, _first_metadata],
+        params={"_limit": 3},
+        has_next_cursor=False,
     )

@@ -61,6 +61,16 @@ class MetadataApi(object):
           description: "task_id"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -81,9 +91,7 @@ class MetadataApi(object):
         if cursor:
             try:
                 cursor_dict = decode_cursor(cursor)
-                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(
-                    cursor_dict["id"]
-                )
+                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
             except (ValueError, KeyError):
                 return DBResponse(response_code=400, body="Invalid cursor")
 
@@ -128,6 +136,16 @@ class MetadataApi(object):
           description: "run_number"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -146,9 +164,7 @@ class MetadataApi(object):
         if cursor:
             try:
                 cursor_dict = decode_cursor(cursor)
-                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(
-                    cursor_dict["id"]
-                )
+                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
             except (ValueError, KeyError):
                 return DBResponse(response_code=400, body="Invalid cursor")
 
@@ -157,7 +173,11 @@ class MetadataApi(object):
 
         limit = min(int(limit), 500) if limit else 50
 
-        db_response, pagination = await self._async_table.get_metadata_paginated_in_runs(flow_name, run_number, cur_ts, cur_id, limit)
+        db_response, pagination = (
+            await self._async_table.get_metadata_paginated_in_runs(
+                flow_name, run_number, cur_ts, cur_id, limit
+            )
+        )
 
         if pagination.next_cursor_record:
             next_cursor = encode_cursor(
@@ -169,7 +189,6 @@ class MetadataApi(object):
             pagination = pagination._replace(next_cursor=next_cursor)
 
         return db_response, pagination
-        # return await self._async_table.get_metadata_in_runs(flow_name, run_number)
 
     async def create_metadata(self, request):
         """

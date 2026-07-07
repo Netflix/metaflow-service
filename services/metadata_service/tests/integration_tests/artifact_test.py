@@ -10,6 +10,7 @@ from .utils import (
     add_task,
     add_artifact,
     update_objects_with_run_tags,
+    assert_paginated_api_get_response,
 )
 import pytest
 
@@ -36,6 +37,18 @@ ARTIFACT_B = {
     "location": "/test-location-b",
     "ds_type": "local",
     "sha": "1234dcba",
+    "type": "test-artifact",
+    "attempt_id": 0,
+    "tags": ["a_tag", "b_tag"],
+    "system_tags": ["runtime:test"],
+}
+ARTIFACT_C = {
+    "user_name": "test_user",
+    "name": "artifact-C",
+    "content_type": "text/plain",
+    "location": "/test-location-c",
+    "ds_type": "local",
+    "sha": "1234efgh",
     "type": "test-artifact",
     "attempt_id": 0,
     "tags": ["a_tag", "b_tag"],
@@ -242,6 +255,110 @@ async def test_run_artifacts_get(cli, db):
     )
 
 
+async def test_run_artifacts_pagination_get(cli, db):
+    # create a flow, run, step and task for the test
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+    _task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+
+    # add artifacts to the task
+    _first_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_A,
+        )
+    ).body
+    _second_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_B,
+        )
+    ).body
+    _third_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_C,
+        )
+    ).body
+
+    # expect artifacts' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags(
+        "artifact", [_first_artifact, _second_artifact, _third_artifact], _run
+    )
+
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task),
+        data=[_third_artifact, _second_artifact],
+        params={"_limit": 2},
+    )
+
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task),
+        data=[_first_artifact],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task),
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task),
+        data=[_third_artifact, _second_artifact, _first_artifact],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task),
+        data=[_third_artifact, _second_artifact, _first_artifact],
+        params={"_limit": 3},
+        has_next_cursor=False,
+    )
+
+
 async def test_step_artifacts_get(cli, db):
     # create a flow, run, step and task for the test
     _flow = (
@@ -328,6 +445,120 @@ async def test_step_artifacts_get(cli, db):
         ),
         status=200,
         data=[],
+    )
+
+
+async def test_step_artifacts_pagination_get(cli, db):
+    # create a flow, run, step and task for the test
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+    _task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+
+    # add artifacts to the task
+    _first_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_A,
+        )
+    ).body
+    _second_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_B,
+        )
+    ).body
+    _third_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_C,
+        )
+    ).body
+
+    # expect artifacts' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags(
+        "artifact", [_first_artifact, _second_artifact, _third_artifact], _run
+    )
+
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(
+            **_task
+        ),
+        data=[_third_artifact, _second_artifact],
+        params={"_limit": 2},
+    )
+
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(
+            **_task
+        ),
+        data=[_first_artifact],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(
+            **_task
+        ),
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(
+            **_task
+        ),
+        data=[_third_artifact, _second_artifact, _first_artifact],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts".format(
+            **_task
+        ),
+        data=[_third_artifact, _second_artifact, _first_artifact],
+        params={"_limit": 3},
+        has_next_cursor=False,
     )
 
 
@@ -429,6 +660,120 @@ async def test_task_artifacts_get(cli, db):
         ),
         status=200,
         data=[],
+    )
+
+
+async def test_task_artifacts_pagination_get(cli, db):
+    # create a flow, run, step and task for the test
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+    _task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+
+    # add artifacts to the task
+    _first_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_A,
+        )
+    ).body
+    _second_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_B,
+        )
+    ).body
+    _third_artifact = (
+        await add_artifact(
+            db,
+            flow_id=_task["flow_id"],
+            run_number=_task["run_number"],
+            step_name=_task["step_name"],
+            task_id=_task["task_id"],
+            artifact=ARTIFACT_C,
+        )
+    ).body
+
+    # expect artifacts' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags(
+        "artifact", [_first_artifact, _second_artifact, _third_artifact], _run
+    )
+
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(
+            **_task
+        ),
+        data=[_third_artifact, _second_artifact],
+        params={"_limit": 2},
+    )
+
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(
+            **_task
+        ),
+        data=[_first_artifact],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(
+            **_task
+        ),
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(
+            **_task
+        ),
+        data=[_third_artifact, _second_artifact, _first_artifact],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts".format(
+            **_task
+        ),
+        data=[_third_artifact, _second_artifact, _first_artifact],
+        params={"_limit": 3},
+        has_next_cursor=False,
     )
 
 

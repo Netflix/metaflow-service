@@ -3,6 +3,9 @@ from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.db_utils import (
     filter_artifacts_for_latest_attempt,
     filter_artifacts_by_attempt_id_for_tasks,
+    DBResponse,
+    encode_cursor,
+    decode_cursor,
 )
 from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import read_body
@@ -181,6 +184,8 @@ class ArtificatsApi(object):
         )
         return db_response
 
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_task(self, request):
         """
         ---
@@ -208,6 +213,16 @@ class ArtificatsApi(object):
           description: "task_id"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -221,22 +236,63 @@ class ArtificatsApi(object):
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
 
-        db_response = await self._async_table.get_artifact_in_task(
-            flow_id, run_number, step_name, task_id
-        )
-        if db_response.response_code == 200:
-            db_response = await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
+        cursor = request.query.get("_cursor")
+        limit = request.query.get("_limit")
+
+        cur_ts, cur_task, cur_name = None, None, None
+        if cursor:
+            try:
+                cursor_dict = decode_cursor(cursor)
+                cur_ts, cur_task, cur_name = (
+                    int(cursor_dict["ts_epoch"]),
+                    int(cursor_dict["task_id"]),
+                    str(cursor_dict["name"]),
+                )
+            except (ValueError, KeyError):
+                return DBResponse(response_code=400, body="Invalid cursor")
+
+        if limit is None and cursor is None:
+            db_response = await self._async_table.get_artifact_in_task(
+                flow_id, run_number, step_name, task_id
             )
-            filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
-            return web.Response(
-                status=db_response.response_code, body=json.dumps(filtered_body)
-            )
+            if db_response.response_code == 200:
+                db_response = await apply_run_tags_to_db_response(
+                    flow_id, run_number, self._async_run_table, db_response
+                )
+                filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
+                return db_response._replace(body=filtered_body)
+            else:
+                error_response = http_500(db_response.body)
+                return DBResponse(
+                    response_code=error_response.response_code,
+                    body=error_response.body,
+                )
         else:
-            return web.Response(
-                status=db_response.response_code,
-                body=json.dumps(http_500(db_response.body)),
+            limit = min(int(limit), 500) if limit else 50
+            db_response, pagination = (
+                await self._async_table.get_artifact_in_task_paginated(
+                    flow_id,
+                    run_number,
+                    step_name,
+                    task_id,
+                    cur_ts,
+                    cur_task,
+                    cur_name,
+                    limit,
+                )
             )
+
+        if pagination.next_cursor_record:
+            next_cursor = encode_cursor(
+                {
+                    "ts_epoch": pagination.next_cursor_record["ts_epoch"],
+                    "task_id": pagination.next_cursor_record["task_id"],
+                    "name": pagination.next_cursor_record["name"],
+                }
+            )
+            pagination = pagination._replace(next_cursor=next_cursor)
+
+        return db_response, pagination
 
     async def get_artifacts_by_task_attempt(self, request):
         """
@@ -308,6 +364,8 @@ class ArtificatsApi(object):
                 body=json.dumps(http_500(db_response.body)),
             )
 
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_step(self, request):
         """
         ---
@@ -330,6 +388,16 @@ class ArtificatsApi(object):
           description: "step_name"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -342,23 +410,60 @@ class ArtificatsApi(object):
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
 
-        db_response = await self._async_table.get_artifact_in_steps(
-            flow_id, run_number, step_name
-        )
-        if db_response.response_code == 200:
-            db_response = await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
+        cursor = request.query.get("_cursor")
+        limit = request.query.get("_limit")
+
+        cur_ts, cur_task, cur_name = None, None, None
+        if cursor:
+            try:
+                cursor_dict = decode_cursor(cursor)
+                cur_ts, cur_task, cur_name = (
+                    int(cursor_dict["ts_epoch"]),
+                    int(cursor_dict["task_id"]),
+                    str(cursor_dict["name"]),
+                )
+            except (ValueError, KeyError):
+                return DBResponse(response_code=400, body="Invalid cursor")
+
+        if limit is None and cursor is None:
+
+            db_response = await self._async_table.get_artifact_in_steps(
+                flow_id, run_number, step_name
             )
-            filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
-            return web.Response(
-                status=db_response.response_code, body=json.dumps(filtered_body)
-            )
+            if db_response.response_code == 200:
+                db_response = await apply_run_tags_to_db_response(
+                    flow_id, run_number, self._async_run_table, db_response
+                )
+                filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
+                return db_response._replace(body=filtered_body)
+            else:
+                error_response = http_500(db_response.body)
+                return DBResponse(
+                    response_code=error_response.response_code,
+                    body=error_response.body,
+                )
         else:
-            return web.Response(
-                status=db_response.response_code,
-                body=json.dumps(http_500(db_response.body)),
+            limit = min(int(limit), 500) if limit else 50
+            db_response, pagination = (
+                await self._async_table.get_artifact_in_steps_paginated(
+                    flow_id, run_number, step_name, cur_ts, cur_task, cur_name, limit
+                )
             )
 
+        if pagination.next_cursor_record:
+            next_cursor = encode_cursor(
+                {
+                    "ts_epoch": pagination.next_cursor_record["ts_epoch"],
+                    "task_id": pagination.next_cursor_record["task_id"],
+                    "name": pagination.next_cursor_record["name"],
+                }
+            )
+            pagination = pagination._replace(next_cursor=next_cursor)
+
+        return db_response, pagination
+
+    @format_response
+    @handle_exceptions
     async def get_artifacts_by_run(self, request):
         """
         ---
@@ -376,6 +481,16 @@ class ArtificatsApi(object):
           description: "run_number"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -387,20 +502,57 @@ class ArtificatsApi(object):
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
 
-        db_response = await self._async_table.get_artifacts_in_runs(flow_id, run_number)
-        if db_response.response_code == 200:
-            db_response = await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
+        cursor = request.query.get("_cursor")
+        limit = request.query.get("_limit")
+
+        cur_ts, cur_task, cur_name = None, None, None
+        if cursor:
+            try:
+                cursor_dict = decode_cursor(cursor)
+                cur_ts, cur_task, cur_name = (
+                    int(cursor_dict["ts_epoch"]),
+                    int(cursor_dict["task_id"]),
+                    str(cursor_dict["name"]),
+                )
+            except (ValueError, KeyError):
+                return DBResponse(response_code=400, body="Invalid cursor")
+
+        if limit is None and cursor is None:
+
+            db_response = await self._async_table.get_artifacts_in_runs(
+                flow_id, run_number
             )
-            filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
-            return web.Response(
-                status=db_response.response_code, body=json.dumps(filtered_body)
-            )
+            if db_response.response_code == 200:
+                db_response = await apply_run_tags_to_db_response(
+                    flow_id, run_number, self._async_run_table, db_response
+                )
+                filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
+                return db_response._replace(body=filtered_body)
+            else:
+                error_response = http_500(db_response.body)
+                return DBResponse(
+                    response_code=error_response.response_code,
+                    body=error_response.body,
+                )
         else:
-            return web.Response(
-                status=db_response.response_code,
-                body=json.dumps(http_500(db_response.body)),
+            limit = min(int(limit), 500) if limit else 50
+            db_response, pagination = (
+                await self._async_table.get_artifacts_in_runs_paginated(
+                    flow_id, run_number, cur_ts, cur_task, cur_name, limit
+                )
             )
+
+        if pagination.next_cursor_record:
+            next_cursor = encode_cursor(
+                {
+                    "ts_epoch": pagination.next_cursor_record["ts_epoch"],
+                    "task_id": pagination.next_cursor_record["task_id"],
+                    "name": pagination.next_cursor_record["name"],
+                }
+            )
+            pagination = pagination._replace(next_cursor=next_cursor)
+
+        return db_response, pagination
 
     async def create_artifacts(self, request):
         """
