@@ -1400,7 +1400,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         )
 
         db_response, pagination = await self.execute_sql(
-            select_sql=select_sql, values=values, serialize=False
+            select_sql=select_sql, values=values
         )
 
         if len(db_response.body) > limit:
@@ -1470,7 +1470,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         )
 
         db_response, pagination = await self.execute_sql(
-            select_sql=select_sql, values=values, serialize=False
+            select_sql=select_sql, values=values
         )
 
         if len(db_response.body) > limit:
@@ -1548,7 +1548,7 @@ class AsyncArtifactTablePostgres(AsyncPostgresTable):
         )
 
         db_response, pagination = await self.execute_sql(
-            select_sql=select_sql, values=values, serialize=False, limit=limit
+            select_sql=select_sql, values=values, limit=limit
         )
 
         if len(db_response.body) > limit:

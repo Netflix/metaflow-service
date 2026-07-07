@@ -281,6 +281,9 @@ class ArtificatsApi(object):
                     limit,
                 )
             )
+            db_response = await apply_run_tags_to_db_response(
+                flow_id, run_number, self._async_run_table, db_response
+            )
 
         if pagination.next_cursor_record:
             next_cursor = encode_cursor(
@@ -449,7 +452,9 @@ class ArtificatsApi(object):
                     flow_id, run_number, step_name, cur_ts, cur_task, cur_name, limit
                 )
             )
-
+            db_response = await apply_run_tags_to_db_response(
+                flow_id, run_number, self._async_run_table, db_response
+            )
         if pagination.next_cursor_record:
             next_cursor = encode_cursor(
                 {
@@ -540,6 +545,9 @@ class ArtificatsApi(object):
                 await self._async_table.get_artifacts_in_runs_paginated(
                     flow_id, run_number, cur_ts, cur_task, cur_name, limit
                 )
+            )
+            db_response = await apply_run_tags_to_db_response(
+                flow_id, run_number, self._async_run_table, db_response
             )
 
         if pagination.next_cursor_record:
