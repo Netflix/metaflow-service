@@ -91,7 +91,7 @@ class MetadataApi(object):
         if cursor:
             try:
                 cursor_dict = decode_cursor(cursor)
-                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
+                cur_ts, cur_id = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
             except (ValueError, KeyError):
                 return DBResponse(response_code=400, body="Invalid cursor")
 
@@ -164,7 +164,7 @@ class MetadataApi(object):
         if cursor:
             try:
                 cursor_dict = decode_cursor(cursor)
-                cur_ts, cur_run = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
+                cur_ts, cur_id = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
             except (ValueError, KeyError):
                 return DBResponse(response_code=400, body="Invalid cursor")
 
