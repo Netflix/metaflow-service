@@ -267,6 +267,37 @@ async def test_run_metadata_pagination_get(cli, db):
             metadata=METADATA_C,
         )
     ).body
+     # ========== DEBUG START ==========
+    import json as _json
+    import base64 as _b64
+
+    print("\n\n########## METADATA VALUES ##########")
+    print(f"A: id={_first_metadata['id']}, ts={_first_metadata['ts_epoch']}")
+    print(f"B: id={_second_metadata['id']}, ts={_second_metadata['ts_epoch']}")
+    print(f"C: id={_third_metadata['id']}, ts={_third_metadata['ts_epoch']}")
+
+    _r1 = await cli.get(
+        "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+        params={"_limit": 2},
+    )
+    _b1 = _json.loads(await _r1.text())
+    _cur = _r1.headers.get("X-Next-Cursor")
+    print("\n########## FIRST PAGE ##########")
+    print(f"body: {_b1}")
+    print(f"cursor(raw): {_cur}")
+    if _cur:
+        print(f"cursor(decoded): {_b64.b64decode(_cur).decode()}")
+
+    _r2 = await cli.get(
+        "/flows/{flow_id}/runs/{run_number}/metadata".format(**_task),
+        params={"_limit": 2, "_cursor": _cur},
+    )
+    _b2 = _json.loads(await _r2.text())
+    print("\n########## SECOND PAGE ##########")
+    print(f"body: {_b2}")
+    print(f"cursor(raw): {_r2.headers.get('X-Next-Cursor')}")
+    print("################################\n")
+    # ========== DEBUG END ==========
     # first page
     next_cursor = await assert_paginated_api_get_response(
         cli,
