@@ -9,15 +9,14 @@ import json
 from aiohttp import web
 import asyncio
 
-# Fields the tasks endpoint accepts in the field:operator filter grammar. Deliberately
-# excludes 'status' (task status is not derived by the metadata service, and is being
-# redefined upstream) and tag fields (a task's stored tags are not canonical; the run's
-# tags are grafted on at read time, so SQL tag filtering would match stale values).
+# Fields the tasks endpoint accepts in the field:operator filter grammar, scoped to the
+# columns a client can meaningfully narrow within a single step listing. Deliberately
+# excludes: the path-pinned fields (flow_id/run_number/run_id/step_name are already fixed by
+# the route, so filtering on them is redundant); 'status' (task status is not derived by the
+# metadata service, and is being redefined upstream); and tag fields (a task's stored tags
+# are not canonical; the run's tags are grafted on at read time, so SQL tag filtering would
+# match stale values).
 TASK_ALLOWED_FILTERS = [
-    "flow_id",
-    "run_number",
-    "run_id",
-    "step_name",
     "task_id",
     "task_name",
     "user_name",

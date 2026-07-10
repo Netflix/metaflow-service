@@ -309,7 +309,7 @@ async def test_tasks_get_filtering(cli, db):
         )
     ).body
 
-    async def task_at(ts, user="dipper"):
+    async def task_at(ts, user="dipper", hb=None):
         t = (
             await add_task(
                 db,
@@ -317,6 +317,7 @@ async def test_tasks_get_filtering(cli, db):
                 run_number=_step["run_number"],
                 step_name=_step["step_name"],
                 user_name=user,
+                last_heartbeat_ts=hb,
             )
         ).body
         await db.task_table_postgres.update_row(
@@ -330,9 +331,9 @@ async def test_tasks_get_filtering(cli, db):
         )
         return t
 
-    old = await task_at(1000)
-    mid = await task_at(2000, user="alice")
-    new = await task_at(3000)
+    old = await task_at(1000, hb=11)
+    mid = await task_at(2000, user="alice", hb=22)
+    new = await task_at(3000, hb=33)
     everyone = {old["task_id"], mid["task_id"], new["task_id"]}
 
     # inclusive time bounds
@@ -349,6 +350,17 @@ async def test_tasks_get_filtering(cli, db):
     }
     # user filter narrows to one task
     assert await _task_ids(cli, old, "?user_name:eq=alice") == {mid["task_id"]}
+    # multiple filters across several fields compose as a conjunction (AND)
+    assert await _task_ids(
+        cli,
+        old,
+        "?user_name:eq=alice&ts_epoch:ge=1500&ts_epoch:le=2500&last_heartbeat_ts:eq=22",
+    ) == {mid["task_id"]}
+    # a many-field conjunction that no single task satisfies returns empty (AND, not OR)
+    assert (
+        await _task_ids(cli, old, "?user_name:eq=alice&last_heartbeat_ts:eq=33")
+        == set()
+    )
     # an unknown field is ignored (returns everything); an unknown operator is a 400
     assert await _task_ids(cli, old, "?nonsense:eq=x") == everyone
     bad = await cli.get(
