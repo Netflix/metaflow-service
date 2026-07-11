@@ -1,11 +1,62 @@
 from services.data import TaskRow
 from services.data.postgres_async_db import AsyncPostgresDB
 from services.data.tagging_utils import apply_run_tags_to_db_response
+from services.data.db_utils import DBResponse, translate_run_key
+from services.data.filter_grammar import custom_conditions_query_dict, operators_to_sql
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, handle_exceptions
 import json
 from aiohttp import web
 import asyncio
+
+# Fields the tasks endpoint accepts in the field:operator filter grammar, scoped to the
+# columns a client can meaningfully narrow within a single step listing. Deliberately
+# excludes: the path-pinned fields (flow_id/run_number/run_id/step_name are already fixed by
+# the route, so filtering on them is redundant); 'status' (task status is not derived by the
+# metadata service, and is being redefined upstream); and tag fields (a task's stored tags
+# are not canonical; the run's tags are grafted on at read time, so SQL tag filtering would
+# match stale values).
+TASK_ALLOWED_FILTERS = [
+    "task_id",
+    "task_name",
+    "user_name",
+    "ts_epoch",
+    "last_heartbeat_ts",
+]
+# Fields whose values must be integer epoch milliseconds.
+_NUMERIC_TASK_FILTERS = {"ts_epoch", "last_heartbeat_ts"}
+
+
+def _split_field_op(key):
+    field, _, operator = key.partition(":")
+    return field, (operator or "eq")
+
+
+def _validate_task_filters(query):
+    """Fail loud on malformed filters the generic grammar would otherwise silently drop:
+    an unknown operator on a known field, or a non-integer time bound. Returns an error
+    string, or None when the filters are acceptable.
+    """
+    for key, val in query.items():
+        if key.startswith("_"):
+            continue
+        field, operator = _split_field_op(key)
+        if field not in TASK_ALLOWED_FILTERS:
+            continue  # unknown field: ignored, not an error
+        if operator not in operators_to_sql:
+            return "unsupported operator '%s' for field '%s'" % (operator, field)
+        for v in val.split(","):
+            if v == "null":
+                continue
+            if field in _NUMERIC_TASK_FILTERS:
+                try:
+                    int(v)
+                except (TypeError, ValueError):
+                    return (
+                        "invalid %s: expected integer epoch milliseconds, got '%s'"
+                        % (field, v)
+                    )
+    return None
 
 
 class TaskApi(object):
@@ -50,7 +101,7 @@ class TaskApi(object):
     async def get_tasks(self, request):
         """
         ---
-        description: get all tasks associated with the specified step.
+        description: get all tasks of a step, optionally filtered by the field:operator grammar
         tags:
         - Tasks
         parameters:
@@ -69,23 +120,65 @@ class TaskApi(object):
           description: "step_name"
           required: true
           type: "string"
+        - name: "ts_epoch"
+          in: "query"
+          description: "filter by start time, e.g. ts_epoch:ge=123&ts_epoch:le=456 (epoch ms)."
+          required: false
+          type: "string"
+        - name: "user_name"
+          in: "query"
+          description: "filter by user_name/task_name, e.g. user_name:eq=alice."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
             "200":
-                description: successful operation. Return tasks
+                description: successful operation. Return the matching tasks
+            "400":
+                description: non-integer time bound or unknown operator
             "405":
                 description: invalid HTTP Method
         """
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
         step_name = request.match_info.get("step_name")
+        query = request.query
 
-        db_response = await self._async_table.get_tasks(flow_id, run_number, step_name)
-        db_response = await apply_run_tags_to_db_response(
+        err = _validate_task_filters(query)
+        if err:
+            return DBResponse(response_code=400, body=err)
+
+        # field:operator filtering only (no _tags builtin: task-level tags are not
+        # canonical, the run's tags are grafted on below, so SQL tag filtering would match
+        # stale stored values; task status is not derived by the metadata service).
+        filter_conditions, filter_values = custom_conditions_query_dict(
+            query, TASK_ALLOWED_FILTERS
+        )
+
+        # Backwards-compatible fast path: with no filters, keep the original listing.
+        if not filter_conditions:
+            db_response = await self._async_table.get_tasks(
+                flow_id, run_number, step_name
+            )
+            return await apply_run_tags_to_db_response(
+                flow_id, run_number, self._async_run_table, db_response
+            )
+
+        # the step listing is pinned by the path; the grammar filters narrow within it.
+        run_id_key, run_id_value = translate_run_key(run_number)
+        conditions = [
+            '"flow_id" = %s',
+            '"{}" = %s'.format(run_id_key),
+            '"step_name" = %s',
+        ] + filter_conditions
+        values = [flow_id, run_id_value, step_name] + list(filter_values)
+
+        db_response = await self._async_table.get_filtered_tasks(conditions, values)
+        # graft the run's tags onto every task, same contract as the unfiltered path
+        return await apply_run_tags_to_db_response(
             flow_id, run_number, self._async_run_table, db_response
         )
-        return db_response
 
     @format_response
     @handle_exceptions

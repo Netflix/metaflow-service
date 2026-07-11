@@ -946,6 +946,13 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.get_records(filter_dict=filter_dict)
 
+    async def get_filtered_tasks(self, conditions: List[str], values: list):
+        # Filtered task listing. The field:operator conditions/values come pre-built from
+        # the shared grammar; there are no derived columns here, so no joins are needed.
+        # Cursor pagination is layered on separately, so this returns the matching set.
+        response, _ = await self.find_records(conditions=conditions, values=values)
+        return response
+
     async def get_task(
         self,
         flow_id: str,
