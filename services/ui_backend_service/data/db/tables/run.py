@@ -69,6 +69,14 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             LIMIT 1
         ) as end_attempt ON true
         """.format(table_name=table_name, metadata_table=metadata_table),
+        """
+        LEFT JOIN LATERAL (
+            SELECT max(last_heartbeat_ts) as last_heartbeat_ts
+            FROM {task_table} t
+            WHERE t.flow_id = {table_name}.flow_id
+            AND t.run_number = {table_name}.run_number
+        ) as latest_task_heartbeat ON true
+        """.format(table_name=table_name, task_table=task_table),
     ]
 
     @property
@@ -103,6 +111,9 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN NULL
+            WHEN latest_task_heartbeat.last_heartbeat_ts IS NOT NULL
+                AND @(extract(epoch from now())-latest_task_heartbeat.last_heartbeat_ts)<={heartbeat_cutoff}
+            THEN NULL
             ELSE {table_name}.last_heartbeat_ts*1000
         END) AS finished_at
         """.format(
@@ -120,6 +131,9 @@ class AsyncRunTablePostgres(AsyncPostgresTable):
             THEN 'failed'
             WHEN {table_name}.last_heartbeat_ts IS NOT NULL
                 AND @(extract(epoch from now())-{table_name}.last_heartbeat_ts)<={heartbeat_cutoff}
+            THEN 'running'
+            WHEN latest_task_heartbeat.last_heartbeat_ts IS NOT NULL
+                AND @(extract(epoch from now())-latest_task_heartbeat.last_heartbeat_ts)<={heartbeat_cutoff}
             THEN 'running'
             ELSE 'failed'
         END) AS status
