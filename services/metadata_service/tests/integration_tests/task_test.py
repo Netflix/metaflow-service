@@ -1,4 +1,5 @@
 import copy
+import json
 
 from .utils import (
     cli,
@@ -378,6 +379,152 @@ async def test_tasks_pagination_get(cli, db):
         ),
         data=[_third_task, _second_task, _first_task],
         params={"_limit": 3},
+        has_next_cursor=False,
+    )
+
+
+async def _task_ids(cli, task, query=""):
+    # the metadata service serves json as text/plain, so parse the body ourselves
+    url = "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks{q}".format(
+        q=query, **task
+    )
+    resp = await cli.get(url)
+    assert resp.status == 200
+    return {t["task_id"] for t in json.loads(await resp.text())}
+
+
+async def test_tasks_get_filtering(cli, db):
+    # field:operator filtering on the tasks endpoint (time range + user), with the
+    # backward-compatible unfiltered path preserved.
+    _flow = (await add_flow(db, "TaskFilterFlow", "u", ["a"], ["runtime:test"])).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="s"
+        )
+    ).body
+
+    async def task_at(ts, user="dipper", hb=None):
+        t = (
+            await add_task(
+                db,
+                flow_id=_step["flow_id"],
+                run_number=_step["run_number"],
+                step_name=_step["step_name"],
+                user_name=user,
+                last_heartbeat_ts=hb,
+            )
+        ).body
+        await db.task_table_postgres.update_row(
+            filter_dict={
+                "flow_id": t["flow_id"],
+                "run_number": t["run_number"],
+                "step_name": t["step_name"],
+                "task_id": t["task_id"],
+            },
+            update_dict={"ts_epoch": ts},
+        )
+        return t
+
+    old = await task_at(1000, hb=11)
+    mid = await task_at(2000, user="alice", hb=22)
+    new = await task_at(3000, hb=33)
+    everyone = {old["task_id"], mid["task_id"], new["task_id"]}
+
+    # inclusive time bounds
+    assert await _task_ids(cli, old, "?ts_epoch:ge=2000") == {
+        mid["task_id"],
+        new["task_id"],
+    }
+    assert await _task_ids(cli, old, "?ts_epoch:le=2000") == {
+        old["task_id"],
+        mid["task_id"],
+    }
+    assert await _task_ids(cli, old, "?ts_epoch:ge=2000&ts_epoch:le=2000") == {
+        mid["task_id"]
+    }
+    # user filter narrows to one task
+    assert await _task_ids(cli, old, "?user_name:eq=alice") == {mid["task_id"]}
+    # multiple filters across several fields compose as a conjunction (AND)
+    assert await _task_ids(
+        cli,
+        old,
+        "?user_name:eq=alice&ts_epoch:ge=1500&ts_epoch:le=2500&last_heartbeat_ts:eq=22",
+    ) == {mid["task_id"]}
+    # a many-field conjunction that no single task satisfies returns empty (AND, not OR)
+    assert (
+        await _task_ids(cli, old, "?user_name:eq=alice&last_heartbeat_ts:eq=33")
+        == set()
+    )
+    # an unknown field is ignored (returns everything); an unknown operator is a 400
+    assert await _task_ids(cli, old, "?nonsense:eq=x") == everyone
+    bad = await cli.get(
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks?ts_epoch:zz=1".format(
+            **old
+        )
+    )
+    assert bad.status == 400
+    # no params still returns all tasks (legacy path)
+    assert await _task_ids(cli, old) == everyone
+
+
+async def test_tasks_get_filter_with_cursor_pagination(cli, db):
+    # filtering and cursor pagination compose on the tasks endpoint, mirroring
+    # the runs endpoint: page through a filtered set, following X-Next-Cursor.
+    _flow = (
+        await add_flow(db, "TaskFilterCursorFlow", "u", ["a"], ["runtime:test"])
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="s"
+        )
+    ).body
+
+    # three tasks by alice (the ones the filter keeps), one by bob (excluded)
+    alice_tasks = []
+    for _ in range(3):
+        t = (
+            await add_task(
+                db,
+                flow_id=_step["flow_id"],
+                run_number=_step["run_number"],
+                step_name=_step["step_name"],
+                user_name="alice",
+            )
+        ).body
+        alice_tasks.append(t)
+
+    await add_task(
+        db,
+        flow_id=_step["flow_id"],
+        run_number=_step["run_number"],
+        step_name=_step["step_name"],
+        user_name="bob",
+    )
+
+    update_objects_with_run_tags("task", alice_tasks, _run)
+
+    # page 1: filtered to alice's tasks, newest first, page size 2
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **alice_tasks[0]
+        ),
+        data=[alice_tasks[2], alice_tasks[1]],
+        params={"user_name:eq": "alice", "_limit": 2},
+        has_next_cursor=True,
+    )
+    assert next_cursor is not None
+
+    # page 2: same filter + cursor -> the remaining task, bob's never appears
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **alice_tasks[0]
+        ),
+        data=[alice_tasks[0]],
+        params={"user_name:eq": "alice", "_limit": 2, "_cursor": next_cursor},
         has_next_cursor=False,
     )
 

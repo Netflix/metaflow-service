@@ -1000,31 +1000,40 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         }
         return await self.get_records(filter_dict=filter_dict)
 
-    async def get_tasks_paginated(
+    async def get_filtered_tasks_paginated(
         self,
-        flow_id: str,
-        run_id: str,
-        step_name: str,
+        conditions: List[str],
+        values: list,
         cur_ts: int = None,
         cur_task: int = None,
         limit: int = None,
     ):
-        run_id_key, run_id_value = translate_run_key(run_id)
-        filter_dict = {
-            "flow_id": flow_id,
-            run_id_key: run_id_value,
-            "step_name": step_name,
-        }
-        cursor_dict = {}
+        conditions = list(conditions)
+        values = list(values)
+
         if cur_ts is not None and cur_task is not None:
-            cursor_dict = {"(ts_epoch, task_id)": [cur_ts, cur_task]}
+            conditions.append("(ts_epoch, task_id) < (%s,%s)")
+            values.extend([cur_ts, cur_task])
         order = ["ts_epoch DESC", "task_id DESC"]
-        return await self.get_records_paginated(
-            filter_dict=filter_dict,
-            limit=limit,
-            ordering=order,
-            cursor_dict=cursor_dict,
+        cur_limit = limit + 1
+
+        # Filtered task listing. The field:operator conditions/values come pre-built from
+        # the shared grammar; there are no derived columns here, so no joins are needed.
+        response, pagination = await self.find_records(
+            conditions=conditions,
+            values=values,
+            limit=cur_limit,
+            order=order,
         )
+
+        if len(response.body) > limit:
+            response = response._replace(body=response.body[:limit])
+        else:
+            pagination = pagination._replace(next_cursor_record=None)
+
+        pagination = pagination._replace(limit=str(limit))
+
+        return response, pagination
 
     async def get_task(
         self,
