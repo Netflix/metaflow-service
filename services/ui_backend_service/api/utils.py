@@ -525,6 +525,19 @@ async def find_records(
     benchmark = query_param_enabled(request, "benchmark")
     invalidate_cache = query_param_enabled(request, "invalidate")
 
+    # eh DEBUG - Please remove it before the merge
+    print(f"[DEBUG] table={async_table.__class__.__name__}, "
+          f"table.ordering={async_table.ordering}, "
+          f"initial_order={initial_order}, order={order}, "
+          f"ordering_before_fallback={ordering}")
+
+    if not ordering and async_table.ordering:
+        ordering = async_table.ordering
+        print(f"[DEBUG] FALLBACK APPLIED: ordering={ordering}")
+
+    print(f"[DEBUG] final ordering={ordering}")
+
+
     results, pagination, benchmark_result = await async_table.find_records(
         conditions=conditions,
         values=values,
