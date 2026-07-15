@@ -525,9 +525,6 @@ async def find_records(
     benchmark = query_param_enabled(request, "benchmark")
     invalidate_cache = query_param_enabled(request, "invalidate")
 
-    if not ordering and async_table.ordering:
-        ordering = async_table.ordering
-
     results, pagination, benchmark_result = await async_table.find_records(
         conditions=conditions,
         values=values,
