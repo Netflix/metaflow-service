@@ -1180,7 +1180,12 @@ class AsyncMetadataTablePostgres(AsyncPostgresTable):
             "step_name": step_name,
             task_id_key: task_id_value,
         }
-        return await self.get_records(filter_dict=filter_dict)
+        # Explicit order so the non-paginated path matches the paginated one
+        # (get_metadata_paginated) and stays stable regardless of index changes.
+        return await self.get_records(
+            filter_dict=filter_dict,
+            ordering=["ts_epoch DESC", "id DESC"],
+        )
 
     async def get_metadata_paginated(
         self,

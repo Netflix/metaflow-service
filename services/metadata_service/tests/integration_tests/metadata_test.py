@@ -82,8 +82,8 @@ async def test_metadata_post(cli, db):
     ).body
     _first_found, _second_found = _data
 
-    compare_partial(_first_found, METADATA_A)
-    compare_partial(_second_found, METADATA_B)
+    compare_partial(_first_found, METADATA_B)
+    compare_partial(_second_found, METADATA_A)
 
     # Posting the same metadata twice should succeed, as duplicates are allowed due to
     # task attempts producing items with the same names.

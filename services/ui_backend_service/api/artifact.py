@@ -86,6 +86,8 @@ class ArtificatsApi(object):
                 "{task_id_key} = %s".format(task_id_key=task_id_key),
             ],
             initial_values=[flow_name, run_id_value, step_name, task_id_value],
+            # find_records only applies ORDER BY when `order` is set; our new index
+            # changed the default row order, so pass the table's ordering explicitly
             initial_order=self._async_table.ordering,
             allowed_order=self._async_table.keys,
             allowed_group=self._async_table.keys,
@@ -155,6 +157,8 @@ class ArtificatsApi(object):
                 "step_name = %s",
             ],
             initial_values=[flow_name, run_id_value, step_name],
+            # find_records only applies ORDER BY when `order` is set; our new index
+            # changed the default row order, so pass the table's ordering explicitly
             initial_order=self._async_table.ordering,
             allowed_order=self._async_table.keys,
             allowed_group=self._async_table.keys,
@@ -221,6 +225,8 @@ class ArtificatsApi(object):
                 "{run_id_key} = %s".format(run_id_key=run_id_key),
             ],
             initial_values=[flow_name, run_id_value],
+            # find_records only applies ORDER BY when `order` is set; our new index
+            # changed the default row order, so pass the table's ordering explicitly
             initial_order=self._async_table.ordering,
             allowed_order=self._async_table.keys,
             allowed_group=self._async_table.keys,
