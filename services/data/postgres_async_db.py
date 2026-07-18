@@ -7,7 +7,7 @@ import math
 import re
 import time
 from services.utils import logging, DBType
-from typing import List, Tuple
+from typing import List, Tuple, Any
 
 from .db_utils import (
     DBResponse,
@@ -1003,14 +1003,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
     async def get_filtered_tasks_paginated(
         self,
         conditions: List[str],
-        values: list,
+        values: List[Any],
         cur_ts: int = None,
         cur_task: int = None,
         limit: int = None,
     ):
-        conditions = list(conditions)
-        values = list(values)
-
         if cur_ts is not None and cur_task is not None:
             conditions.append("(ts_epoch, task_id) < (%s,%s)")
             values.extend([cur_ts, cur_task])
