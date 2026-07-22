@@ -173,8 +173,6 @@ class RunApi(object):
                 description: unsupported status value, non-integer time bound, unknown operator, or invalid cursor
             "405":
                 description: invalid HTTP Method
-            "400":
-                description: invalid cursor
         """
         flow_name = request.match_info.get("flow_id")
         query = request.query
