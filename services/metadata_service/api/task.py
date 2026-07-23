@@ -8,6 +8,7 @@ from services.metadata_service.api.utils import format_response, handle_exceptio
 import json
 from aiohttp import web
 import asyncio
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
 
 # Fields the tasks endpoint accepts in the field:operator filter grammar, scoped to the
 # columns a client can meaningfully narrow within a single step listing. Deliberately
@@ -120,6 +121,14 @@ class TaskApi(object):
           description: "step_name"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
         - name: "ts_epoch"
           in: "query"
           description: "filter by start time, e.g. ts_epoch:ge=123&ts_epoch:le=456 (epoch ms)."
@@ -156,8 +165,11 @@ class TaskApi(object):
             query, TASK_ALLOWED_FILTERS
         )
 
+        cursor = request.query.get("_cursor")
+        limit = request.query.get("_limit")
+
         # Backwards-compatible fast path: with no filters, keep the original listing.
-        if not filter_conditions:
+        if not filter_conditions and cursor is None and limit is None:
             db_response = await self._async_table.get_tasks(
                 flow_id, run_number, step_name
             )
@@ -174,11 +186,39 @@ class TaskApi(object):
         ] + filter_conditions
         values = [flow_id, run_id_value, step_name] + list(filter_values)
 
-        db_response = await self._async_table.get_filtered_tasks(conditions, values)
+        cur_ts, cur_task = None, None
+        if cursor:
+            try:
+                cursor_dict = decode_cursor(cursor)
+                cur_ts, cur_task = int(cursor_dict["ts_epoch"]), int(
+                    cursor_dict["task_id"]
+                )
+            except (ValueError, KeyError):
+                return DBResponse(response_code=400, body="Invalid cursor")
+
+        limit = min(int(limit), 500) if limit else 50
+        db_response, pagination = await self._async_table.get_filtered_tasks_paginated(
+            conditions=conditions,
+            values=values,
+            cur_ts=cur_ts,
+            cur_task=cur_task,
+            limit=limit,
+        )
         # graft the run's tags onto every task, same contract as the unfiltered path
-        return await apply_run_tags_to_db_response(
+        db_response = await apply_run_tags_to_db_response(
             flow_id, run_number, self._async_run_table, db_response
         )
+
+        if pagination.next_cursor_record:
+            next_cursor = encode_cursor(
+                {
+                    "ts_epoch": pagination.next_cursor_record["ts_epoch"],
+                    "task_id": pagination.next_cursor_record["task_id"],
+                }
+            )
+            pagination = pagination._replace(next_cursor=next_cursor)
+
+        return db_response, pagination
 
     @format_response
     @handle_exceptions

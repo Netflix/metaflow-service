@@ -106,7 +106,7 @@ async def test_list_artifact(cli, db):
         db,
         "/flows/{flow_id}/runs/{run_number}/artifacts".format(**_task),
         200,
-        [_first, _second],
+        [_second, _first],
     )
     await _test_list_resources(
         cli,
@@ -115,7 +115,7 @@ async def test_list_artifact(cli, db):
             **_task
         ),
         200,
-        [_first, _second],
+        [_second, _first],
     )
     await _test_list_resources(
         cli,
@@ -124,7 +124,7 @@ async def test_list_artifact(cli, db):
             **_task
         ),
         200,
-        [_first, _second],
+        [_second, _first],
     )
 
 
@@ -215,7 +215,7 @@ async def test_list_artifact_attempt_ids(cli, db):
         db,
         "/flows/{flow_id}/runs/{run_number}/artifacts".format(**steps[0]),
         200,
-        artifacts_visible_for_first_step,
+        list(reversed(artifacts_visible_for_first_step)),
     )
     await _test_list_resources(
         cli,
@@ -232,7 +232,7 @@ async def test_list_artifact_attempt_ids(cli, db):
             **steps[0]
         ),
         200,
-        artifacts_visible_for_first_step,
+        list(reversed(artifacts_visible_for_first_step)),
     )
     await _test_list_resources(
         cli,

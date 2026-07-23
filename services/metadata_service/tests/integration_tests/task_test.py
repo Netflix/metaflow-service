@@ -13,6 +13,7 @@ from .utils import (
     add_task,
     add_metadata,
     update_objects_with_run_tags,
+    assert_paginated_api_get_response,
 )
 import pytest
 
@@ -288,6 +289,100 @@ async def test_tasks_get(cli, db):
     )
 
 
+async def test_tasks_pagination_get(cli, db):
+    # create for test
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body  # set run-level tags
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+
+    _first_task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+    _second_task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+    _third_task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+
+    update_objects_with_run_tags("task", [_first_task, _second_task, _third_task], _run)
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **_first_task
+        ),
+        data=[_third_task, _second_task],
+        params={"_limit": 2},
+    )
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **_first_task
+        ),
+        data=[_first_task],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **_first_task
+        ),
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **_first_task
+        ),
+        data=[_third_task, _second_task, _first_task],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **_first_task
+        ),
+        data=[_third_task, _second_task, _first_task],
+        params={"_limit": 3},
+        has_next_cursor=False,
+    )
+
+
 async def _task_ids(cli, task, query=""):
     # the metadata service serves json as text/plain, so parse the body ourselves
     url = "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks{q}".format(
@@ -371,6 +466,67 @@ async def test_tasks_get_filtering(cli, db):
     assert bad.status == 400
     # no params still returns all tasks (legacy path)
     assert await _task_ids(cli, old) == everyone
+
+
+async def test_tasks_get_filter_with_cursor_pagination(cli, db):
+    # filtering and cursor pagination compose on the tasks endpoint, mirroring
+    # the runs endpoint: page through a filtered set, following X-Next-Cursor.
+    _flow = (
+        await add_flow(db, "TaskFilterCursorFlow", "u", ["a"], ["runtime:test"])
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db, flow_id=_run["flow_id"], run_number=_run["run_number"], step_name="s"
+        )
+    ).body
+
+    # three tasks by alice (the ones the filter keeps), one by bob (excluded)
+    alice_tasks = []
+    for _ in range(3):
+        t = (
+            await add_task(
+                db,
+                flow_id=_step["flow_id"],
+                run_number=_step["run_number"],
+                step_name=_step["step_name"],
+                user_name="alice",
+            )
+        ).body
+        alice_tasks.append(t)
+
+    await add_task(
+        db,
+        flow_id=_step["flow_id"],
+        run_number=_step["run_number"],
+        step_name=_step["step_name"],
+        user_name="bob",
+    )
+
+    update_objects_with_run_tags("task", alice_tasks, _run)
+
+    # page 1: filtered to alice's tasks, newest first, page size 2
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **alice_tasks[0]
+        ),
+        data=[alice_tasks[2], alice_tasks[1]],
+        params={"user_name:eq": "alice", "_limit": 2},
+        has_next_cursor=True,
+    )
+    assert next_cursor is not None
+
+    # page 2: same filter + cursor -> the remaining task, bob's never appears
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks".format(
+            **alice_tasks[0]
+        ),
+        data=[alice_tasks[0]],
+        params={"user_name:eq": "alice", "_limit": 2, "_cursor": next_cursor},
+        has_next_cursor=False,
+    )
 
 
 async def test_filtered_tasks_get(cli, db):
