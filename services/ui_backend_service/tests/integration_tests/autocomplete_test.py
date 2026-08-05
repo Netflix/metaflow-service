@@ -144,7 +144,7 @@ async def test_tags_autocomplete(cli, db):
     )
 
 
-async def test_tags_autocomplete_event_refrash(cli, db):
+async def test_tags_autocomplete_event_refresh(cli, db):
     await _test_list_resources(cli, db, "/tags/autocomplete", 200, [])
     await add_flow(db, flow_id="HelloFlow")
     _run = (
