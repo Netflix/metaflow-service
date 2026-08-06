@@ -90,9 +90,9 @@ class MetadataApi(object):
         cur_ts, cur_id = None, None
         if cursor:
             try:
-                cursor_dict = decode_cursor(cursor)
+                cursor_dict = decode_cursor(cursor, self._async_table.cursor_keys)
                 cur_ts, cur_id = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
-            except (ValueError, KeyError):
+            except ValueError:
                 return DBResponse(response_code=400, body="Invalid cursor")
 
         if limit is None and cursor is None:
@@ -163,9 +163,9 @@ class MetadataApi(object):
         cur_ts, cur_id = None, None
         if cursor:
             try:
-                cursor_dict = decode_cursor(cursor)
+                cursor_dict = decode_cursor(cursor, self._async_table.cursor_keys)
                 cur_ts, cur_id = int(cursor_dict["ts_epoch"]), int(cursor_dict["id"])
-            except (ValueError, KeyError):
+            except ValueError:
                 return DBResponse(response_code=400, body="Invalid cursor")
 
         if limit is None and cursor is None:

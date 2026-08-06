@@ -122,16 +122,14 @@ def filter_artifacts_by_attempt_id_for_tasks(
     return result
 
 
-def decode_cursor(cursor: str | None) -> dict:
+def decode_cursor(cursor: str, cursor_keys: list) -> dict:
     try:
         decoded = json.loads(b64decode(cursor).decode())
-
     except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError):
         raise ValueError("invalid_cursor")
 
-    if "ts_epoch" not in decoded:
+    if not all(key in decoded for key in cursor_keys):
         raise ValueError("invalid_cursor")
-
     return decoded
 
 

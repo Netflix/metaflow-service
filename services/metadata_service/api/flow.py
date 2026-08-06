@@ -125,11 +125,11 @@ class FlowApi(object):
         cur_ts, cur_flow = None, None
         if cursor:
             try:
-                cursor_dict = decode_cursor(cursor)
+                cursor_dict = decode_cursor(cursor, self._async_table.cursor_keys)
                 cur_ts, cur_flow = int(cursor_dict["ts_epoch"]), str(
                     cursor_dict["flow_id"]
                 )
-            except (ValueError, KeyError):
+            except ValueError:
                 return DBResponse(response_code=400, body="Invalid cursor")
 
         if limit is None and cursor is None:
