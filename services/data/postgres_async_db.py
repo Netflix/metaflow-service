@@ -191,7 +191,7 @@ class AsyncPostgresTable(object):
     keys: List[str] = []
     primary_keys: List[str] = None
     trigger_keys: List[str] = None
-    cursor_keys: List[str] = None
+    cursor_keys: List[str] = []
     trigger_operations: List[str] = ["INSERT", "UPDATE", "DELETE"]
     trigger_conditions: List[str] = None
     ordering: List[str] = None
