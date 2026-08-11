@@ -171,11 +171,9 @@ class TaskApi(object):
         # Backwards-compatible fast path: with no filters, keep the original listing.
         if not filter_conditions and cursor is None and limit is None:
             db_response = await self._async_table.get_tasks(
-                flow_id, run_number, step_name
+                flow_id, run_number, step_name, with_run_tags=True
             )
-            return await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
-            )
+            return db_response
 
         # the step listing is pinned by the path; the grammar filters narrow within it.
         run_id_key, run_id_value = translate_run_key(run_number)
@@ -203,10 +201,7 @@ class TaskApi(object):
             cur_ts=cur_ts,
             cur_task=cur_task,
             limit=limit,
-        )
-        # graft the run's tags onto every task, same contract as the unfiltered path
-        db_response = await apply_run_tags_to_db_response(
-            flow_id, run_number, self._async_run_table, db_response
+            with_run_tags=True,
         )
 
         if pagination.next_cursor_record:
@@ -315,10 +310,7 @@ class TaskApi(object):
         step_name = request.match_info.get("step_name")
         task_id = request.match_info.get("task_id")
         db_response = await self._async_table.get_task(
-            flow_id, run_number, step_name, task_id
-        )
-        db_response = await apply_run_tags_to_db_response(
-            flow_id, run_number, self._async_run_table, db_response
+            flow_id, run_number, step_name, task_id, with_run_tags=True
         )
         return db_response
 

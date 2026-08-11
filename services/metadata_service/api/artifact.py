@@ -7,7 +7,6 @@ from services.data.db_utils import (
     encode_cursor,
     decode_cursor,
 )
-from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import (
     format_response,
@@ -115,10 +114,7 @@ class ArtificatsApi(object):
         artifact_name = request.match_info.get("artifact_name")
 
         db_response = await self._async_table.get_artifact(
-            flow_id, run_number, step_name, task_id, artifact_name
-        )
-        db_response = await apply_run_tags_to_db_response(
-            flow_id, run_number, self._async_run_table, db_response
+            flow_id, run_number, step_name, task_id, artifact_name, with_run_tags=True
         )
         return db_response
 
@@ -177,10 +173,13 @@ class ArtificatsApi(object):
         attempt_id = request.match_info.get("attempt_id")
 
         db_response = await self._async_table.get_artifact_by_attempt(
-            flow_id, run_number, step_name, task_id, artifact_name, attempt_id
-        )
-        db_response = await apply_run_tags_to_db_response(
-            flow_id, run_number, self._async_run_table, db_response
+            flow_id,
+            run_number,
+            step_name,
+            task_id,
+            artifact_name,
+            attempt_id,
+            with_run_tags=True,
         )
         return db_response
 
@@ -253,12 +252,9 @@ class ArtificatsApi(object):
 
         if limit is None and cursor is None:
             db_response = await self._async_table.get_artifact_in_task(
-                flow_id, run_number, step_name, task_id
+                flow_id, run_number, step_name, task_id, with_run_tags=True
             )
             if db_response.response_code == 200:
-                db_response = await apply_run_tags_to_db_response(
-                    flow_id, run_number, self._async_run_table, db_response
-                )
                 filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
                 return db_response._replace(body=filtered_body)
             else:
@@ -279,10 +275,8 @@ class ArtificatsApi(object):
                     cur_task,
                     cur_name,
                     limit,
+                    with_run_tags=True,
                 )
-            )
-            db_response = await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
             )
 
         if pagination.next_cursor_record:
@@ -344,12 +338,9 @@ class ArtificatsApi(object):
         attempt_id = request.match_info.get("attempt_id")
 
         db_response = await self._async_table.get_artifact_in_task(
-            flow_id, run_number, step_name, task_id
+            flow_id, run_number, step_name, task_id, with_run_tags=True
         )
         if db_response.response_code == 200:
-            db_response = await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
-            )
             if db_response.body:
                 attempt_for_task = {db_response.body[0]["task_id"]: int(attempt_id)}
             else:
@@ -431,12 +422,9 @@ class ArtificatsApi(object):
         if limit is None and cursor is None:
 
             db_response = await self._async_table.get_artifact_in_steps(
-                flow_id, run_number, step_name
+                flow_id, run_number, step_name, with_run_tags=True
             )
             if db_response.response_code == 200:
-                db_response = await apply_run_tags_to_db_response(
-                    flow_id, run_number, self._async_run_table, db_response
-                )
                 filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
                 return db_response._replace(body=filtered_body)
             else:
@@ -449,11 +437,15 @@ class ArtificatsApi(object):
             limit = min(int(limit), 500) if limit else 50
             db_response, pagination = (
                 await self._async_table.get_artifact_in_steps_paginated(
-                    flow_id, run_number, step_name, cur_ts, cur_task, cur_name, limit
+                    flow_id,
+                    run_number,
+                    step_name,
+                    cur_ts,
+                    cur_task,
+                    cur_name,
+                    limit,
+                    with_run_tags=True,
                 )
-            )
-            db_response = await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
             )
         if pagination.next_cursor_record:
             next_cursor = encode_cursor(
@@ -525,12 +517,9 @@ class ArtificatsApi(object):
         if limit is None and cursor is None:
 
             db_response = await self._async_table.get_artifacts_in_runs(
-                flow_id, run_number
+                flow_id, run_number, with_run_tags=True
             )
             if db_response.response_code == 200:
-                db_response = await apply_run_tags_to_db_response(
-                    flow_id, run_number, self._async_run_table, db_response
-                )
                 filtered_body = filter_artifacts_for_latest_attempt(db_response.body)
                 return db_response._replace(body=filtered_body)
             else:
@@ -543,11 +532,14 @@ class ArtificatsApi(object):
             limit = min(int(limit), 500) if limit else 50
             db_response, pagination = (
                 await self._async_table.get_artifacts_in_runs_paginated(
-                    flow_id, run_number, cur_ts, cur_task, cur_name, limit
+                    flow_id,
+                    run_number,
+                    cur_ts,
+                    cur_task,
+                    cur_name,
+                    limit,
+                    with_run_tags=True,
                 )
-            )
-            db_response = await apply_run_tags_to_db_response(
-                flow_id, run_number, self._async_run_table, db_response
             )
 
         if pagination.next_cursor_record:
