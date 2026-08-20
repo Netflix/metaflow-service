@@ -10,6 +10,7 @@ from .utils import (
     add_run,
     add_step,
     update_objects_with_run_tags,
+    assert_paginated_api_get_response,
 )
 import pytest
 
@@ -131,6 +132,83 @@ async def test_steps_get(cli, db):
         "/flows/{flow_id}/runs/1234/steps".format(**_first_step),
         status=200,
         data=[],
+    )
+
+
+async def test_steps_pagination_get(cli, db):
+    # create a flow and run for the test
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+
+    # add steps to the run
+    _first_step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+    _second_step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="second_step",
+        )
+    ).body
+    _third_step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="third_step",
+        )
+    ).body
+    # expect steps' tags to be overridden by tags of their ancestral run
+    update_objects_with_run_tags("step", [_first_step, _second_step, _third_step], _run)
+
+    # first page
+    next_cursor = await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps".format(**_run),
+        data=[_third_step, _second_step],
+        params={"_limit": 2},
+    )
+    # continue with cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps".format(**_run),
+        data=[_first_step],
+        params={"_limit": 2, "_cursor": next_cursor},
+        status=200,
+        has_next_cursor=False,
+    )
+    # invalid cursor
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps".format(**_run),
+        params={"_cursor": "garbage1234"},
+        status=400,
+    )
+
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps".format(**_run),
+        data=[_third_step, _second_step, _first_step],
+        params={"_limit": 1000},
+        has_next_cursor=False,
+    )
+    await assert_paginated_api_get_response(
+        cli,
+        "/flows/{flow_id}/runs/{run_number}/steps".format(**_run),
+        data=[_third_step, _second_step, _first_step],
+        params={"_limit": 3},
+        has_next_cursor=False,
     )
 
 

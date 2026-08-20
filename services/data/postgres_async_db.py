@@ -299,6 +299,7 @@ class AsyncPostgresTable(object):
         limit: int = 50,
         expanded=False,
         cur: aiopg.Cursor = None,
+        with_run_tags: bool = False,
         cursor_dict={},
     ) -> Tuple[DBResponse, DBPagination]:
         conditions = []
@@ -322,6 +323,7 @@ class AsyncPostgresTable(object):
             limit=cur_limit,
             expanded=expanded,
             cur=cur,
+            with_run_tags=with_run_tags,
         )
 
         if len(response.body) > limit:
@@ -991,6 +993,7 @@ class AsyncStepTablePostgres(_RunTagsJoinMixin, AsyncPostgresTable):
     ]
     primary_keys = ["flow_id", "run_number", "step_name"]
     trigger_keys = primary_keys
+    cursor_keys = ["ts_epoch", "step_name"]
     run_table_name = AsyncRunTablePostgres.table_name
 
     # Only used when a read opts in via with_run_tags=True (see _RunTagsJoinMixin).
@@ -1013,6 +1016,31 @@ class AsyncStepTablePostgres(_RunTagsJoinMixin, AsyncPostgresTable):
         filter_dict = {"flow_id": flow_id, run_id_key: run_id_value}
         return await self.get_records(
             filter_dict=filter_dict, with_run_tags=with_run_tags
+        )
+
+    async def get_steps_paginated(
+        self,
+        flow_id: str,
+        run_id: str,
+        with_run_tags: bool = False,
+        limit: int = 50,
+        cur_ts: int = None,
+        cur_step: str = None,
+    ):
+        run_id_key, run_id_value = translate_run_key(run_id)
+        filter_dict = {"flow_id": flow_id, run_id_key: run_id_value}
+
+        cursor_dict = {}
+        if cur_ts is not None and cur_step is not None:
+            cursor_dict = {"(ts_epoch, step_name)": [cur_ts, cur_step]}
+        order = ["ts_epoch DESC", "step_name DESC"]
+
+        return await self.get_records_paginated(
+            filter_dict=filter_dict,
+            limit=limit,
+            ordering=order,
+            with_run_tags=with_run_tags,
+            cursor_dict=cursor_dict,
         )
 
     async def get_step(

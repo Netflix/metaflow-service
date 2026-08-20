@@ -3,6 +3,7 @@ from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
 
 
 class StepApi(object):
@@ -44,6 +45,16 @@ class StepApi(object):
           description: "run_number"
           required: true
           type: "string"
+        - name: "_limit"
+          in: "query"
+          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
+          required: false
+          type: "integer"
+        - name: "_cursor"
+          in: "query"
+          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          required: false
+          type: "string"
         produces:
         - text/plain
         responses:
@@ -54,10 +65,45 @@ class StepApi(object):
         """
         flow_id = request.match_info.get("flow_id")
         run_number = request.match_info.get("run_number")
-        db_response = await self._async_table.get_steps(
-            flow_id, run_number, with_run_tags=True
+        cursor = request.query.get("_cursor")
+        limit = request.query.get("_limit")
+
+        cur_ts, cur_step = None, None
+        if cursor:
+            try:
+                cursor_dict = decode_cursor(cursor, self._async_table.cursor_keys)
+                cur_ts, cur_step = int(cursor_dict["ts_epoch"]), str(
+                    cursor_dict["step_name"]
+                )
+            except ValueError:
+                return DBResponse(response_code=400, body="Invalid cursor")
+
+        if limit is None and cursor is None:
+            return await self._async_table.get_steps(
+                flow_id, run_number, with_run_tags=True
+            )
+
+        limit = min(int(limit), 500) if limit else 50
+
+        response, pagination = await self._async_table.get_steps_paginated(
+            flow_id=flow_id,
+            run_id=run_number,
+            with_run_tags=True,
+            limit=limit,
+            cur_ts=cur_ts,
+            cur_step=cur_step,
         )
-        return db_response
+
+        if pagination.next_cursor_record:
+            next_cursor = encode_cursor(
+                {
+                    "ts_epoch": pagination.next_cursor_record["ts_epoch"],
+                    "step_name": pagination.next_cursor_record["step_name"],
+                }
+            )
+            pagination = pagination._replace(next_cursor=next_cursor)
+
+        return response, pagination
 
     @format_response
     @handle_exceptions
