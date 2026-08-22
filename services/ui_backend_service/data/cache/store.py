@@ -40,6 +40,9 @@ CACHE_LOG_STORAGE_LIMIT = int(os.environ.get("CACHE_LOG_STORAGE_LIMIT", DISK_SIZ
 CARD_CACHE_DISK_CLEANUP_INTERVAL = int(
     os.environ.get("CARD_CACHE_DISK_CLEANUP_INTERVAL", 60 * 60 * 4)
 )
+# Cap on tasks fetched per run during cache prefetch, matching the max page
+# size the API layer enforces via pagination_query().
+PREFETCH_TASKS_LIMIT = int(os.environ.get("PREFETCH_TASKS_LIMIT", 1000))
 
 
 class CacheStore(object):
@@ -224,6 +227,7 @@ class ArtifactCacheStore(object):
                     run["flow_id"],
                     run["run_number"],
                     postprocess=self.task_refiner.postprocess,
+                    limit=PREFETCH_TASKS_LIMIT,
                 ),
             )
 
