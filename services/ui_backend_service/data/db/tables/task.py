@@ -297,7 +297,11 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         return result
 
     async def get_tasks_for_run(
-        self, flow_id: str, run_key: str, postprocess: Callable = None
+        self,
+        flow_id: str,
+        run_key: str,
+        postprocess: Callable = None,
+        limit: int = 0,
     ) -> DBResponse:
         """
         Fetches run tasks from DB.
@@ -311,6 +315,9 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
         postprocess : Callable
             A callback function for refining results.
             Receives DBResponse as an argument, and should return a DBResponse
+        limit : int
+            Maximum number of rows to fetch. 0 (default) fetches without a
+            LIMIT clause, matching the previous unbounded behavior.
 
         Returns
         -------
@@ -330,5 +337,6 @@ class AsyncTaskTablePostgres(AsyncPostgresTable):
             enable_joins=True,
             expanded=False,
             postprocess=postprocess,
+            limit=limit,
         )
         return result

@@ -898,6 +898,40 @@ async def create_ok_artifact_for_task(db, task, attempt=0):
     return _task
 
 
+async def test_get_tasks_for_run_respects_limit(db):
+    _flow = (await add_flow(db, flow_id="HelloFlow")).body
+    _run = (await add_run(db, flow_id=_flow.get("flow_id"))).body
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run.get("flow_id"),
+            step_name="step",
+            run_number=_run.get("run_number"),
+            run_id=_run.get("run_id"),
+        )
+    ).body
+
+    for _ in range(5):
+        await add_task(
+            db,
+            flow_id=_step.get("flow_id"),
+            run_number=_step.get("run_number"),
+            step_name=_step.get("step_name"),
+        )
+
+    # default (no limit) preserves prior unbounded behavior
+    unbounded = await db.task_table_postgres.get_tasks_for_run(
+        _step.get("flow_id"), _step.get("run_number")
+    )
+    assert len(unbounded.body) == 5
+
+    # a limit caps the number of rows returned (regression test for #473)
+    limited = await db.task_table_postgres.get_tasks_for_run(
+        _step.get("flow_id"), _step.get("run_number"), limit=2
+    )
+    assert len(limited.body) == 2
+
+
 async def create_task_with_step(
     db, step, status="running", task_id=None, task_name=None, last_heartbeat_ts=None
 ):
