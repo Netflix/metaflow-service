@@ -120,6 +120,10 @@ class RunApi(object):
         # due to lack of pg statistics on JSONB fields. To battle this, first execute
         # subquery of ordered list from runs_v3 table in and filter by tags on outer query.
         # This needs more research in the future to further improve performance.
+        _, limit, offset, _, _, _ = pagination_query(request)
+
+        # Prevent very large payloads
+        limit = min(limit, 100)
         builtin_conditions, _ = builtin_conditions_query(request)
         has_tag_filter = (
             len([s for s in builtin_conditions if "tags||system_tags" in s]) > 0
