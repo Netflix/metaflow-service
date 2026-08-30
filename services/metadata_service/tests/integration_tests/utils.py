@@ -258,6 +258,7 @@ async def assert_api_get_response(
     status: int = 200,
     data: object = None,
     data_is_unordered_list_of_dicts: bool = False,
+    params: dict = None,
 ):
     """
     Perform a GET request with the provided http cli to the provided path, assert that the status and data received are correct.
@@ -275,8 +276,10 @@ async def assert_api_get_response(
         An object to assert the api response against.
     data_is_unordered_list_of_dicts : bool
         Data is an unordered list of dictionaries, so ignore ordering when comparing data and response body
+    params : dict
+        query parameters to send with the request
     """
-    response = await cli.get(path)
+    response = await cli.get(path, params=params or {})
 
     assert response.status == status
 

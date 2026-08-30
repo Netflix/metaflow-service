@@ -12,6 +12,8 @@ from .utils import (
     update_objects_with_run_tags,
     assert_paginated_api_get_response,
 )
+import asyncio
+
 import pytest
 
 pytestmark = [pytest.mark.integration_tests]
@@ -54,6 +56,91 @@ ARTIFACT_C = {
     "tags": ["a_tag", "b_tag"],
     "system_tags": ["runtime:test"],
 }
+
+
+def artifact_for_attempt(artifact: dict, attempt_id: int) -> dict:
+    "Copy of an artifact definition for a specific attempt, with a distinguishable location."
+    return dict(
+        artifact,
+        attempt_id=attempt_id,
+        location="{location}-attempt-{attempt_id}".format(
+            location=artifact["location"], attempt_id=attempt_id
+        ),
+    )
+
+
+async def add_artifacts_for_attempts(db, attempt_ids=(0, 1)):
+    """
+    Create a flow, run, step and task, and write ARTIFACT_A, ARTIFACT_B and ARTIFACT_C
+    for every attempt in attempt_ids.
+
+    Returns a (task, artifacts_by_attempt) tuple, where artifacts_by_attempt maps an
+    attempt_id to the list of created artifacts, in creation order, with their tags
+    already replaced by the ancestral run's tags (which is what the read endpoints return).
+    """
+    _flow = (
+        await add_flow(
+            db, "TestFlow", "test_user-1", ["a_tag", "b_tag"], ["runtime:test"]
+        )
+    ).body
+    _run = (await add_run(db, flow_id=_flow["flow_id"])).body
+    _step = (
+        await add_step(
+            db,
+            flow_id=_run["flow_id"],
+            run_number=_run["run_number"],
+            step_name="first_step",
+        )
+    ).body
+    _task = (
+        await add_task(
+            db,
+            flow_id=_step["flow_id"],
+            run_number=_step["run_number"],
+            step_name=_step["step_name"],
+        )
+    ).body
+
+    artifacts_by_attempt = {}
+    for index, attempt_id in enumerate(attempt_ids):
+        if index > 0:
+            # The paginated queries resolve the latest attempt of an artifact by ts_epoch,
+            # which only has millisecond resolution. Keep the attempts apart in time so that
+            # the newer attempt always wins.
+            await asyncio.sleep(0.01)
+
+        _artifacts = [
+            (
+                await add_artifact(
+                    db,
+                    flow_id=_task["flow_id"],
+                    run_number=_task["run_number"],
+                    step_name=_task["step_name"],
+                    task_id=_task["task_id"],
+                    artifact=artifact_for_attempt(artifact, attempt_id),
+                )
+            ).body
+            for artifact in [ARTIFACT_A, ARTIFACT_B, ARTIFACT_C]
+        ]
+        # expect artifacts' tags to be overridden by tags of their ancestral run
+        update_objects_with_run_tags("artifact", _artifacts, _run)
+        artifacts_by_attempt[attempt_id] = _artifacts
+
+    return _task, artifacts_by_attempt
+
+
+# Artifact listing endpoints, in the order (run, step, task) of decreasing scope.
+ARTIFACT_LIST_PATHS = [
+    "/flows/{flow_id}/runs/{run_number}/artifacts",
+    "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/artifacts",
+    "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/artifacts",
+]
+
+# The only listing endpoint that is scoped to a single attempt.
+ARTIFACT_ATTEMPT_LIST_PATH = (
+    "/flows/{flow_id}/runs/{run_number}/steps/{step_name}"
+    "/tasks/{task_id}/attempt/{attempt_id}/artifacts"
+)
 
 
 async def test_artifact_post(cli, db):
@@ -862,3 +949,97 @@ async def test_artifact_get(cli, db):
         ),
         status=404,
     )
+
+
+async def test_artifacts_get_returns_latest_attempt_only(cli, db):
+    "Legacy (non-paginated) listing endpoints only return the latest attempt of an artifact."
+    _task, _artifacts = await add_artifacts_for_attempts(db, attempt_ids=(0, 1))
+
+    for path in ARTIFACT_LIST_PATHS:
+        await assert_api_get_response(
+            cli,
+            path.format(**_task),
+            data=_artifacts[1],
+            data_is_unordered_list_of_dicts=True,
+        )
+
+
+async def test_artifacts_get_by_attempt_id(cli, db):
+    "Legacy endpoints scoped to an attempt only return artifacts of that attempt."
+    _task, _artifacts = await add_artifacts_for_attempts(db, attempt_ids=(0, 1))
+
+    for attempt_id, _expected in _artifacts.items():
+        await assert_api_get_response(
+            cli,
+            ARTIFACT_ATTEMPT_LIST_PATH.format(attempt_id=attempt_id, **_task),
+            data=_expected,
+            data_is_unordered_list_of_dicts=True,
+        )
+
+        # the single artifact endpoint is scoped to an attempt the same way
+        for _artifact in _expected:
+            await assert_api_get_response(
+                cli,
+                "/flows/{flow_id}/runs/{run_number}/steps/{step_name}"
+                "/tasks/{task_id}/artifacts/{name}/attempt/{attempt_id}".format(
+                    **_artifact
+                ),
+                data=_artifact,
+            )
+
+    # an attempt that was never recorded has no artifacts
+    await assert_api_get_response(
+        cli,
+        ARTIFACT_ATTEMPT_LIST_PATH.format(attempt_id=2, **_task),
+        data=[],
+    )
+
+
+async def test_artifacts_pagination_get_returns_latest_attempt_only(cli, db):
+    "Paginated listing endpoints only return the latest attempt of an artifact."
+    _task, _artifacts = await add_artifacts_for_attempts(db, attempt_ids=(0, 1))
+    _first_artifact, _second_artifact, _third_artifact = _artifacts[1]
+
+    for path in ARTIFACT_LIST_PATHS:
+        _path = path.format(**_task)
+
+        # a page big enough for every attempt still only contains the latest one
+        await assert_paginated_api_get_response(
+            cli,
+            _path,
+            data=[_third_artifact, _second_artifact, _first_artifact],
+            params={"_limit": 1000},
+            has_next_cursor=False,
+        )
+
+        # paging through the results does not leak older attempts either
+        next_cursor = await assert_paginated_api_get_response(
+            cli,
+            _path,
+            data=[_third_artifact, _second_artifact],
+            params={"_limit": 2},
+            has_next_cursor=True,
+        )
+        await assert_paginated_api_get_response(
+            cli,
+            _path,
+            data=[_first_artifact],
+            params={"_limit": 2, "_cursor": next_cursor},
+            has_next_cursor=False,
+        )
+
+
+async def test_artifacts_pagination_get_by_attempt_id(cli, db):
+    "Pagination parameters do not widen an attempt scoped endpoint beyond its attempt."
+    _task, _artifacts = await add_artifacts_for_attempts(db, attempt_ids=(0, 1))
+
+    for attempt_id, _expected in _artifacts.items():
+        # NOTE: the attempt scoped endpoint does not implement cursor pagination, so
+        # _limit and _cursor are ignored and the whole attempt is returned in one go.
+        await assert_api_get_response(
+            cli,
+            ARTIFACT_ATTEMPT_LIST_PATH.format(attempt_id=attempt_id, **_task),
+            params={"_limit": 2},
+            data=_expected,
+            data_is_unordered_list_of_dicts=True,
+        )
