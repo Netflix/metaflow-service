@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 from services.data.db_utils import translate_run_key, translate_task_key
+from services.ui_backend_service.api.card_info import cards_from_card_info_records
 from services.ui_backend_service.data import unpack_processed_value
 from services.utils import handle_exceptions
 from .utils import (
@@ -99,12 +100,14 @@ class CardsApi(object):
         if not task:
             return web_response(404, {"data": []})
 
-        cards = await get_card_list(self.cache, task, max_wait_time=1)
+        cards = await list_cards_from_metadata(self.db, task)
+        if cards:
+            if self.cache is not None:
+                asyncio.create_task(get_card_list(self.cache, task, max_wait_time=1))
+        else:
+            cards = await get_card_list(self.cache, task, max_wait_time=1)
 
-        if cards is None:
-            # Handle edge: Cache failed to return anything, even errors.
-            # NOTE: choice of status 200 here is quite arbitrary, as the cache returning None is usually
-            # caused by a premature request, and cards are not permanently missing.
+        if not cards:
             return web_response(200, {"data": []})
 
         card_hashes = [
@@ -227,6 +230,40 @@ def _card_data_from_cache(local_cache):
         "id": local_cache.card_id,
         "type": local_cache.card_type,
     }
+
+
+async def list_cards_from_metadata(db, task):
+    """List cards from `card-info` metadata so the UI does not wait on S3 HTML cache."""
+    if db is None or task is None:
+        return {}
+    run_id_key, run_id_value = translate_run_key(
+        str(task.get("run_id") or task.get("run_number"))
+    )
+    task_id_key, task_id_value = translate_task_key(
+        str(task.get("task_name") or task.get("task_id"))
+    )
+    db_response, *_ = await db.metadata_table_postgres.find_records(
+        conditions=[
+            "flow_id = %s",
+            "{run_id_key} = %s".format(run_id_key=run_id_key),
+            "step_name = %s",
+            "{task_id_key} = %s".format(task_id_key=task_id_key),
+            "type = %s",
+        ],
+        values=[
+            task.get("flow_id"),
+            run_id_value,
+            task.get("step_name"),
+            task_id_value,
+            "card-info",
+        ],
+    )
+    if getattr(db_response, "response_code", 500) != 200:
+        return {}
+    body = db_response.body
+    if isinstance(body, dict):
+        body = [body]
+    return cards_from_card_info_records(body)
 
 
 async def get_card_html_for_task_async(

@@ -1,6 +1,15 @@
 import pytest
 from unittest import mock
-from .utils import cli, db, add_flow, add_run, add_step, add_task, _test_list_resources
+from .utils import (
+    cli,
+    db,
+    add_flow,
+    add_run,
+    add_step,
+    add_task,
+    add_metadata,
+    _test_list_resources,
+)
 
 pytestmark = [pytest.mark.integration_tests]
 
@@ -61,6 +70,43 @@ async def test_card_not_returned(cli, db):
             None,
         )
         assert data == []
+
+    await add_metadata(
+        db,
+        flow_id=_task.get("flow_id"),
+        run_number=_task.get("run_number"),
+        run_id=_task.get("run_id"),
+        step_name=_task.get("step_name"),
+        task_id=_task.get("task_id"),
+        task_name=_task.get("task_name"),
+        metadata={
+            "field_name": "3067b7280c294132af6205034e2f816f",
+            "type": "card-info",
+            "value": (
+                '{"card_uuid": "3067b7280c294132af6205034e2f816f",'
+                ' "type": "blank", "id": null}'
+            ),
+        },
+    )
+    with mock.patch(
+        "services.ui_backend_service.api.card.get_card_list", new=get_card_list
+    ):
+        _, data = await _test_list_resources(
+            cli,
+            db,
+            "/flows/{flow_id}/runs/{run_number}/steps/{step_name}/tasks/{task_id}/cards".format(
+                **_task
+            ),
+            200,
+            None,
+        )
+        assert data == [
+            {
+                "id": None,
+                "type": "blank",
+                "hash": "3067b7280c294132af6205034e2f816f",
+            }
+        ]
 
     with mock.patch(
         "services.ui_backend_service.api.card.get_card_html_for_task_async",

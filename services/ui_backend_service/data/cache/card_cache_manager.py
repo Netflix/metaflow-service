@@ -33,7 +33,19 @@ CACHE_STORAGE_PATH = os.environ.get(
 )
 CACHE_SERVICE_LOG_STORAGE_ROOT = os.environ.get("CACHE_SERVICE_LOG_STORAGE_ROOT", None)
 
-CARD_API_HTML_WAIT_TIME = float(os.environ.get("CARD_API_HTML_WAIT_TIME", 5))
+
+def bounded_card_html_wait_time(raw_value, default=5.0, maximum=30.0):
+    """Clamp HTML card origin wait so the request cannot hit Cloudflare's ~100s timeout."""
+    try:
+        wait = float(raw_value)
+    except (TypeError, ValueError):
+        wait = default
+    return max(0.1, min(wait, maximum))
+
+
+CARD_API_HTML_WAIT_TIME = bounded_card_html_wait_time(
+    os.environ.get("CARD_API_HTML_WAIT_TIME", 5)
+)
 
 
 async def _get_latest_return_code(process: Process):
