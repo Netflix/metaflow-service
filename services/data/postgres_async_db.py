@@ -1532,6 +1532,11 @@ class AsyncArtifactTablePostgres(_RunTagsJoinMixin, AsyncPostgresTable):
         db_response, pagination = await self.execute_sql(
             select_sql=select_sql, values=values
         )
+        if db_response.response_code != 200:
+            # execute_sql returns no pagination on failure.
+            return db_response, DBPagination(
+                limit=str(limit), offset=0, count=0, page=1
+            )
 
         # One record is over-fetched to detect whether a further page exists.
         if len(db_response.body) > limit:
