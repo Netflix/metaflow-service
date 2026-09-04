@@ -7,7 +7,7 @@ import math
 import re
 import time
 from services.utils import logging, DBType
-from typing import List, Tuple, Any
+from typing import Dict, List, Tuple, Any
 
 from .db_utils import (
     DBResponse,
@@ -1457,6 +1457,97 @@ class AsyncArtifactTablePostgres(_RunTagsJoinMixin, AsyncPostgresTable):
             )
         return ", ".join(self.keys), "", ""
 
+    def _latest_attempt_paginated_sql(
+        self,
+        filter_dict: Dict[str, Any],
+        cur_ts: int,
+        cur_task: int,
+        cur_name: str,
+        limit: int,
+        with_run_tags: bool,
+    ):
+        # Paginated artifact listing restricted to the latest attempt of each task.
+        #
+        # A task's attempts do not necessarily write the same set of artifacts: if
+        # "foo" was set in attempt N but not in attempt N+1, then "foo" is not part of
+        # the latest attempt and must not be returned. So the reduction has to be to
+        # the task's highest attempt_id, not to the newest row per artifact name --
+        # the latter would resurrect artifacts that the latest attempt never wrote.
+        # This matches the non-paginated endpoints, which reduce the same way via
+        # filter_artifacts_for_latest_attempt.
+        #
+        # The cursor is applied outside the subquery, after the latest-attempt filter.
+        keys_sql, join_sql, col_prefix = self._artifact_sql_parts(with_run_tags)
+        conditions = [
+            f"{col_prefix}{k} = %s" for k, v in filter_dict.items() if v is not None
+        ]
+        values = [v for k, v in filter_dict.items() if v is not None]
+
+        cursor_where = ""
+        if cur_ts is not None and cur_task is not None and cur_name is not None:
+            cursor_where = "AND (ts_epoch, task_id, name) < (%s, %s, %s)"
+            values.extend([cur_ts, cur_task, cur_name])
+
+        sql_template = """
+        SELECT {outer_keys} FROM (
+                SELECT {keys}, MAX({col_prefix}attempt_id)
+                    OVER (PARTITION BY {col_prefix}task_id) AS latest_attempt_id
+                FROM {table}
+                {join}
+                WHERE {where}
+            ) T
+            WHERE attempt_id = latest_attempt_id
+            {cursor_where}
+            ORDER BY ts_epoch DESC, task_id DESC, name DESC
+            LIMIT {limit}
+        """
+
+        select_sql = sql_template.format(
+            outer_keys=", ".join(self.keys),
+            keys=keys_sql,
+            table=self.table_name,
+            join=join_sql,
+            col_prefix=col_prefix,
+            where=" AND ".join(conditions),
+            cursor_where=cursor_where,
+            limit=limit + 1,
+        )
+        return select_sql, values
+
+    async def _get_artifacts_paginated(
+        self,
+        filter_dict: Dict[str, Any],
+        cur_ts: int,
+        cur_task: int,
+        cur_name: str,
+        limit: int,
+        with_run_tags: bool,
+    ):
+        # Shared by the run, step and task scoped paginated listings, which differ
+        # only in how they filter.
+        select_sql, values = self._latest_attempt_paginated_sql(
+            filter_dict, cur_ts, cur_task, cur_name, limit, with_run_tags
+        )
+
+        db_response, pagination = await self.execute_sql(
+            select_sql=select_sql, values=values
+        )
+        if db_response.response_code != 200:
+            # execute_sql returns no pagination on failure.
+            return db_response, DBPagination(
+                limit=str(limit), offset=0, count=0, page=1
+            )
+
+        # One record is over-fetched to detect whether a further page exists.
+        if len(db_response.body) > limit:
+            db_response = db_response._replace(body=db_response.body[:limit])
+        else:
+            pagination = pagination._replace(next_cursor_record=None)
+
+        pagination = pagination._replace(limit=str(limit))
+
+        return db_response, pagination
+
     async def add_artifact(
         self,
         flow_id,
@@ -1523,56 +1614,9 @@ class AsyncArtifactTablePostgres(_RunTagsJoinMixin, AsyncPostgresTable):
             "flow_id": flow_id,
             run_id_key: run_id_value,
         }
-        keys_sql, join_sql, col_prefix = self._artifact_sql_parts(with_run_tags)
-        conditions = [
-            f"{col_prefix}{k} = %s" for k, v in filter_dict.items() if v is not None
-        ]
-        values = [v for k, v in filter_dict.items() if v is not None]
-
-        cursor_where = ""
-        if cur_ts is not None and cur_task is not None and cur_name is not None:
-            cursor_where = "WHERE (ts_epoch, task_id, name) < (%s, %s, %s)"
-            values.extend([cur_ts, cur_task, cur_name])
-
-        cur_limit = limit + 1
-
-        # DISTINCT ON (task_id, name) keeps the latest attempt per artifact.
-        # Cursor is applied outside the subquery, after the latest-attempt filter.
-        sql_template = """
-        SELECT * FROM (
-                SELECT DISTINCT ON ({col_prefix}task_id, {col_prefix}name) {keys}
-                FROM {table}
-                {join}
-                WHERE {where}
-                ORDER BY {col_prefix}task_id, {col_prefix}name, {col_prefix}ts_epoch DESC
-            ) T
-            {cursor_where}
-            ORDER BY ts_epoch DESC, task_id DESC, name DESC
-            LIMIT {limit}
-        """
-
-        select_sql = sql_template.format(
-            keys=keys_sql,
-            table=self.table_name,
-            join=join_sql,
-            col_prefix=col_prefix,
-            where=" AND ".join(conditions),
-            cursor_where=cursor_where,
-            limit=cur_limit,
+        return await self._get_artifacts_paginated(
+            filter_dict, cur_ts, cur_task, cur_name, limit, with_run_tags
         )
-
-        db_response, pagination = await self.execute_sql(
-            select_sql=select_sql, values=values
-        )
-
-        if len(db_response.body) > limit:
-            db_response = db_response._replace(body=db_response.body[:limit])
-        else:
-            pagination = pagination._replace(next_cursor_record=None)
-
-        pagination = pagination._replace(limit=str(limit))
-
-        return db_response, pagination
 
     async def get_artifact_in_steps(
         self, flow_id: str, run_id: int, step_name: str, with_run_tags: bool = False
@@ -1604,56 +1648,9 @@ class AsyncArtifactTablePostgres(_RunTagsJoinMixin, AsyncPostgresTable):
             run_id_key: run_id_value,
             "step_name": step_name,
         }
-        keys_sql, join_sql, col_prefix = self._artifact_sql_parts(with_run_tags)
-        conditions = [
-            f"{col_prefix}{k} = %s" for k, v in filter_dict.items() if v is not None
-        ]
-        values = [v for k, v in filter_dict.items() if v is not None]
-
-        cursor_where = ""
-        if cur_ts is not None and cur_task is not None and cur_name is not None:
-            cursor_where = "WHERE (ts_epoch, task_id, name) < (%s, %s, %s)"
-            values.extend([cur_ts, cur_task, cur_name])
-
-        cur_limit = limit + 1
-
-        # DISTINCT ON (task_id, name) keeps the latest attempt per artifact.
-        # Cursor is applied outside the subquery, after the latest-attempt filter.
-        sql_template = """
-        SELECT * FROM (
-                SELECT DISTINCT ON ({col_prefix}task_id, {col_prefix}name) {keys}
-                FROM {table}
-                {join}
-                WHERE {where}
-                ORDER BY {col_prefix}task_id, {col_prefix}name, {col_prefix}ts_epoch DESC
-            ) T
-            {cursor_where}
-            ORDER BY ts_epoch DESC, task_id DESC, name DESC
-            LIMIT {limit}
-        """
-
-        select_sql = sql_template.format(
-            keys=keys_sql,
-            table=self.table_name,
-            join=join_sql,
-            col_prefix=col_prefix,
-            where=" AND ".join(conditions),
-            cursor_where=cursor_where,
-            limit=cur_limit,
+        return await self._get_artifacts_paginated(
+            filter_dict, cur_ts, cur_task, cur_name, limit, with_run_tags
         )
-
-        db_response, pagination = await self.execute_sql(
-            select_sql=select_sql, values=values
-        )
-
-        if len(db_response.body) > limit:
-            db_response = db_response._replace(body=db_response.body[:limit])
-        else:
-            pagination = pagination._replace(next_cursor_record=None)
-
-        pagination = pagination._replace(limit=str(limit))
-
-        return db_response, pagination
 
     async def get_artifact_in_task(
         self,
@@ -1695,57 +1692,9 @@ class AsyncArtifactTablePostgres(_RunTagsJoinMixin, AsyncPostgresTable):
             "step_name": step_name,
             task_id_key: task_id_value,
         }
-
-        keys_sql, join_sql, col_prefix = self._artifact_sql_parts(with_run_tags)
-        conditions = [
-            f"{col_prefix}{k} = %s" for k, v in filter_dict.items() if v is not None
-        ]
-        values = [v for k, v in filter_dict.items() if v is not None]
-
-        cursor_where = ""
-        if cur_ts is not None and cur_task is not None and cur_name is not None:
-            cursor_where = "WHERE (ts_epoch, task_id, name) < (%s, %s, %s)"
-            values.extend([cur_ts, cur_task, cur_name])
-
-        cur_limit = limit + 1
-
-        # DISTINCT ON (task_id, name) keeps the latest attempt per artifact.
-        # Cursor is applied outside the subquery, after the latest-attempt filter.
-        sql_template = """
-        SELECT * FROM (
-                SELECT DISTINCT ON ({col_prefix}task_id, {col_prefix}name) {keys}
-                FROM {table}
-                {join}
-                WHERE {where}
-                ORDER BY {col_prefix}task_id, {col_prefix}name, {col_prefix}ts_epoch DESC
-            ) T
-            {cursor_where}
-            ORDER BY ts_epoch DESC, task_id DESC, name DESC
-            LIMIT {limit}
-        """
-
-        select_sql = sql_template.format(
-            keys=keys_sql,
-            table=self.table_name,
-            join=join_sql,
-            col_prefix=col_prefix,
-            where=" AND ".join(conditions),
-            cursor_where=cursor_where,
-            limit=cur_limit,
+        return await self._get_artifacts_paginated(
+            filter_dict, cur_ts, cur_task, cur_name, limit, with_run_tags
         )
-
-        db_response, pagination = await self.execute_sql(
-            select_sql=select_sql, values=values
-        )
-
-        if len(db_response.body) > limit:
-            db_response = db_response._replace(body=db_response.body[:limit])
-        else:
-            pagination = pagination._replace(next_cursor_record=None)
-
-        pagination = pagination._replace(limit=str(limit))
-
-        return db_response, pagination
 
     async def get_artifact(
         self,
