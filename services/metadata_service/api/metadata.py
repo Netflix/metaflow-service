@@ -4,7 +4,7 @@ from services.utils import read_body
 from services.metadata_service.api.utils import format_response, handle_exceptions
 import asyncio
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor, parse_limit
 
 
 class MetadataApi(object):
@@ -100,7 +100,10 @@ class MetadataApi(object):
                 flow_name, run_number, step_name, task_id
             )
 
-        limit = min(int(limit), 500) if limit else 50
+        try:
+            limit = parse_limit(limit)
+        except ValueError:
+            return DBResponse(response_code=400, body="Invalid limit")
 
         db_response, pagination = await self._async_table.get_metadata_paginated(
             flow_name, run_number, step_name, task_id, cur_ts, cur_id, limit
@@ -171,7 +174,10 @@ class MetadataApi(object):
         if limit is None and cursor is None:
             return await self._async_table.get_metadata_in_runs(flow_name, run_number)
 
-        limit = min(int(limit), 500) if limit else 50
+        try:
+            limit = parse_limit(limit)
+        except ValueError:
+            return DBResponse(response_code=400, body="Invalid limit")
 
         db_response, pagination = (
             await self._async_table.get_metadata_paginated_in_runs(
