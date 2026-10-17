@@ -6,6 +6,7 @@ from services.data.db_utils import (
     DBResponse,
     encode_cursor,
     decode_cursor,
+    parse_limit,
 )
 from services.utils import read_body
 from services.metadata_service.api.utils import (
@@ -264,7 +265,10 @@ class ArtificatsApi(object):
                     body=error_response.body,
                 )
         else:
-            limit = min(int(limit), 500) if limit else 50
+            try:
+                limit = parse_limit(limit)
+            except ValueError:
+                return DBResponse(response_code=400, body="Invalid limit")
             db_response, pagination = (
                 await self._async_table.get_artifact_in_task_paginated(
                     flow_id,
@@ -434,7 +438,10 @@ class ArtificatsApi(object):
                     body=error_response.body,
                 )
         else:
-            limit = min(int(limit), 500) if limit else 50
+            try:
+                limit = parse_limit(limit)
+            except ValueError:
+                return DBResponse(response_code=400, body="Invalid limit")
             db_response, pagination = (
                 await self._async_table.get_artifact_in_steps_paginated(
                     flow_id,
@@ -529,7 +536,10 @@ class ArtificatsApi(object):
                     body=error_response.body,
                 )
         else:
-            limit = min(int(limit), 500) if limit else 50
+            try:
+                limit = parse_limit(limit)
+            except ValueError:
+                return DBResponse(response_code=400, body="Invalid limit")
             db_response, pagination = (
                 await self._async_table.get_artifacts_in_runs_paginated(
                     flow_id,
