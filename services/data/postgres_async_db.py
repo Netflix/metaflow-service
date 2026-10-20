@@ -580,19 +580,28 @@ class AsyncPostgresTable(object):
 class PostgresUtils(object):
     @staticmethod
     async def create_trigger_if_missing(
-        db: _AsyncPostgresDB, table_name, trigger_name, commands=[]
+        db: _AsyncPostgresDB,
+        table_name,
+        trigger_name,
+        commands=[],
+        schema=DB_SCHEMA_NAME,
     ):
-        "executes the commands only if a trigger with the given name does not already exist on the table"
-        with await db.pool.cursor() as cur:
+        """
+        Executes the commands only if a trigger with the given name does not already exist on the table
+        in the given schema. The schema must be part of the check: several deployments can share a database
+        with their own schemas and identical table names, and a trigger in one of them must not count for the others.
+        """
+        async with db.pool.acquire() as connection, connection.cursor() as cur:
             try:
                 await cur.execute(
                     """
                     SELECT *
                     FROM information_schema.triggers
                     WHERE event_object_table = %s
+                    AND event_object_schema = %s
                     AND trigger_name = %s
                     """,
-                    (table_name, trigger_name),
+                    (table_name, schema, trigger_name),
                 )
                 trigger_exist = bool(cur.rowcount)
                 if not trigger_exist:
@@ -717,6 +726,7 @@ class PostgresUtils(object):
             table_name=table_name,
             trigger_name="{}_{}".format(name_prefix, table_name),
             commands=_commands,
+            schema=schema,
         )
 
 

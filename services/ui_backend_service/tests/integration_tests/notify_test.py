@@ -15,6 +15,7 @@ from typing import List, Dict
 from asyncio import Future, wait_for
 
 from services.ui_backend_service.api.notify import ListenNotify
+from services.data.postgres_async_db import PostgresUtils
 
 pytestmark = [pytest.mark.integration_tests]
 
@@ -350,3 +351,54 @@ def assertable_artifact(artifact):
 
 
 # Helpers end
+
+
+async def test_triggers_are_set_up_per_schema(cli, db):
+    # Deployments can share a database, each with its own schema and identical table names.
+    # A trigger on the table in one schema (here: public, created at startup) must not prevent
+    # setting up the same trigger on the table in another schema.
+    schema = "notify_test_other_schema"
+    table_name = db.flow_table_postgres.table_name
+    async with db.pool.acquire() as connection, connection.cursor() as cur:
+        await cur.execute(
+            "DROP SCHEMA IF EXISTS {schema} CASCADE".format(schema=schema)
+        )
+        await cur.execute("CREATE SCHEMA {schema}".format(schema=schema))
+        await cur.execute(
+            "CREATE TABLE {schema}.{table} (LIKE public.{table} INCLUDING ALL)".format(
+                schema=schema, table=table_name
+            )
+        )
+        cur.close()
+    try:
+        await PostgresUtils.setup_trigger_notify(
+            db=db,
+            table_name=table_name,
+            keys=db.flow_table_postgres.trigger_keys,
+            schema=schema,
+            operations=["INSERT"],
+        )
+
+        async with db.pool.acquire() as connection, connection.cursor() as cur:
+            await cur.execute(
+                """
+                SELECT n.nspname, t.tgenabled
+                FROM pg_trigger t
+                JOIN pg_class c ON c.oid = t.tgrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE c.relname = %s AND NOT t.tgisinternal AND t.tgname LIKE 'notify_ui%%'
+                """,
+                [table_name],
+            )
+            rows = await cur.fetchall()
+            cur.close()
+        schemas = {row[0]: row[1] for row in rows}
+        assert "public" in schemas
+        # 'A': enabled always, set by the ALTER TABLE ... ENABLE ALWAYS TRIGGER step
+        assert schemas.get(schema) == "A"
+    finally:
+        async with db.pool.acquire() as connection, connection.cursor() as cur:
+            await cur.execute(
+                "DROP SCHEMA IF EXISTS {schema} CASCADE".format(schema=schema)
+            )
+            cur.close()
