@@ -64,15 +64,18 @@ def main():
     ssl_mode = os.environ.get("MF_METADATA_DB_SSL_MODE")
     ssl_cert_path = os.environ.get("MF_METADATA_DB_SSL_CERT_PATH")
     ssl_key_path = os.environ.get("MF_METADATA_DB_SSL_KEY_PATH")
-    ssl_root_cert_path = os.environ.get("MF_METADATA_DB_SSL_ROOT_CERT")
+    # Prefer the historical goose var; fall back to DBConfiguration's SSL_ROOT_CERT_PATH.
+    ssl_root_cert_path = os.environ.get(
+        "MF_METADATA_DB_SSL_ROOT_CERT"
+    ) or os.environ.get("MF_METADATA_DB_SSL_ROOT_CERT_PATH")
 
     if ssl_mode in ["allow", "prefer", "require", "verify-ca", "verify-full"]:
         ssl_query = f"sslmode={ssl_mode}"
-        if ssl_cert_path is not None:
+        if ssl_cert_path:
             ssl_query = f"{ssl_query}&sslcert={ssl_cert_path}"
-        if ssl_key_path is not None:
+        if ssl_key_path:
             ssl_query = f"{ssl_query}&sslkey={ssl_key_path}"
-        if ssl_root_cert_path is not None:
+        if ssl_root_cert_path:
             ssl_query = f"{ssl_query}&sslrootcert={ssl_root_cert_path}"
     else:
         ssl_query = f"sslmode=disable"

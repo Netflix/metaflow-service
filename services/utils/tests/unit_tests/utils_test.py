@@ -136,6 +136,67 @@ def test_db_conf_env_custom_prefix():
         assert db_conf.timeout == 5
 
 
+def test_db_conf_ssl_env_prefer_without_certs():
+    with set_env(
+        {
+            "MF_METADATA_DB_HOST": "db",
+            "MF_METADATA_DB_PORT": "5432",
+            "MF_METADATA_DB_USER": "postgres",
+            "MF_METADATA_DB_PSWD": "postgres",
+            "MF_METADATA_DB_NAME": "postgres",
+            "MF_METADATA_DB_SSL_MODE": "prefer",
+        }
+    ):
+        db_conf = DBConfiguration()
+        assert "sslmode=prefer" in db_conf.connection_string_url()
+        assert "sslcert=" not in db_conf.connection_string_url()
+        assert "sslkey=" not in db_conf.connection_string_url()
+        assert "sslrootcert=" not in db_conf.connection_string_url()
+        assert "sslmode=prefer" in db_conf.get_dsn()
+        assert "sslcert" not in db_conf.get_dsn()
+
+
+def test_db_conf_ssl_env_cert_paths():
+    with set_env(
+        {
+            "MF_METADATA_DB_HOST": "db",
+            "MF_METADATA_DB_PORT": "5432",
+            "MF_METADATA_DB_USER": "postgres",
+            "MF_METADATA_DB_PSWD": "postgres",
+            "MF_METADATA_DB_NAME": "postgres",
+            "MF_METADATA_DB_SSL_MODE": "verify-full",
+            "MF_METADATA_DB_SSL_CERT_PATH": "/certs/client.crt",
+            "MF_METADATA_DB_SSL_KEY_PATH": "/certs/client.key",
+            "MF_METADATA_DB_SSL_ROOT_CERT_PATH": "/certs/root.crt",
+        }
+    ):
+        url = DBConfiguration().connection_string_url()
+        assert "sslmode=verify-full" in url
+        assert "sslcert=/certs/client.crt" in url
+        assert "sslkey=/certs/client.key" in url
+        assert "sslrootcert=/certs/root.crt" in url
+
+
+def test_db_conf_ssl_empty_env_keeps_disable():
+    with set_env(
+        {
+            "MF_METADATA_DB_HOST": "db",
+            "MF_METADATA_DB_PORT": "5432",
+            "MF_METADATA_DB_USER": "postgres",
+            "MF_METADATA_DB_PSWD": "postgres",
+            "MF_METADATA_DB_NAME": "postgres",
+            "MF_METADATA_DB_SSL_MODE": "",
+            "MF_METADATA_DB_SSL_CERT_PATH": "",
+            "MF_METADATA_DB_SSL_KEY_PATH": "",
+            "MF_METADATA_DB_SSL_ROOT_CERT_PATH": "",
+        }
+    ):
+        db_conf = DBConfiguration()
+        assert db_conf.connection_string_url().endswith("?sslmode=disable")
+        assert "sslcert" not in db_conf.get_dsn()
+        assert "sslmode" not in db_conf.get_dsn()
+
+
 def test_db_conf_env_dsn():
     with set_env({"MF_METADATA_DB_DSN": "foo"}):
         # Should use default dsn with invalid dsn in environment

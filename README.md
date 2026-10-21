@@ -16,6 +16,11 @@ The service depends on the following Environment Variables to be set:
 - MF_METADATA_DB_USER [defaults to postgres]
 - MF_METADATA_DB_PSWD [defaults to postgres]
 - MF_METADATA_DB_NAME [defaults to postgres]
+- MF_METADATA_DB_SSL_MODE [optional; `allow`, `prefer`, `require`, `verify-ca`, or `verify-full`. Unset keeps `sslmode=disable`]
+- MF_METADATA_DB_SSL_CERT_PATH / MF_METADATA_DB_SSL_KEY_PATH / MF_METADATA_DB_SSL_ROOT_CERT_PATH [optional paths inside the process/container]
+- MF_METADATA_DB_SSL_ROOT_CERT [optional goose-specific root cert path; if both are set, goose prefers this over `MF_METADATA_DB_SSL_ROOT_CERT_PATH`]
+
+Custom CA/client certificates are not bundled. Mount them into the container and point the path variables at those mount points. For AWS RDS, `MF_METADATA_DB_SSL_MODE=prefer` is typically sufficient unless you use custom certificates.
 
 Optionally you can also overrider the host and port the service runs on
 
