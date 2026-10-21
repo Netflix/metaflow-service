@@ -26,8 +26,7 @@ ALTER TABLE metadata_v3
 ADD CONSTRAINT metadata_v3_primary_key UNIQUE (flow_id, run_number, step_name, task_id, field_name);
 
 -- drop index created for optimized access
-ALTER TABLE metadata_v3
-DROP metadata_v3 metadata_v3_akey;
+DROP INDEX metadata_v3_akey;
 
 -- drop primary key
 ALTER TABLE metadata_v3
