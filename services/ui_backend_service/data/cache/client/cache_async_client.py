@@ -25,7 +25,7 @@ class CacheAsyncClient(CacheClient):
         )
 
         self._proc = await asyncio.create_subprocess_exec(
-            *cmdline, env=env, stdin=PIPE, stdout=PIPE, stderr=STDOUT, limit=1024000
+            *cmdline, env=env, stdin=PIPE, stdout=PIPE, stderr=None, limit=1024000
         )  # 1024KB
 
         asyncio.gather(self._heartbeat(), self.read_stdout())
@@ -47,6 +47,8 @@ class CacheAsyncClient(CacheClient):
             # We check for isEnabledFor because some things may be very long to print
             # (in particularly pending_requests)
             message = json.loads(line)
+            if not isinstance(message, dict):
+                raise Exception("Unexpected message type: {} {}".format(type(message), repr(message)))
             if self.logger.isEnabledFor(logging.INFO):
                 self.logger.info(message)
             if message["op"] == OP_WORKER_CREATE:
