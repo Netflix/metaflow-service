@@ -70,6 +70,11 @@ operators_to_sql = {
     "is": '"{}" IS %s',  # IS
 }
 
+# A "null" value compares with IS NULL, except for ne which needs IS NOT NULL.
+null_operators_to_sql = {
+    "ne": '"{}" IS NOT %s',
+}
+
 operators_to_sql_values = {
     "eq": "{}",
     "ne": "{}",
@@ -114,9 +119,11 @@ def custom_conditions_query_dict(query: MultiDict, allowed_keys: List[str] = [])
             "({})".format(
                 " OR ".join(
                     map(
-                        lambda v: operators_to_sql[
-                            "is" if v == "null" else operator
-                        ].format(field),
+                        lambda v: (
+                            null_operators_to_sql.get(operator, operators_to_sql["is"])
+                            if v == "null"
+                            else operators_to_sql[operator]
+                        ).format(field),
                         vals,
                     )
                 )

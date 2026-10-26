@@ -522,6 +522,23 @@ async def test_runs_get_user_filter(cli, db):
     }
 
 
+async def test_runs_get_null_filter(cli, db):
+    _flow = (
+        await add_flow(db, "NullFlow", "test_user-1", ["a_tag"], ["runtime:test"])
+    ).body
+    flow_id = _flow["flow_id"]
+
+    _alice = (await add_run(db, flow_id=flow_id, user_name="alice")).body
+    _anonymous = (await add_run(db, flow_id=flow_id, user_name=None)).body
+
+    assert await _run_numbers(cli, flow_id, "?user_name:eq=null") == {
+        _anonymous["run_number"]
+    }
+    assert await _run_numbers(cli, flow_id, "?user_name:ne=null") == {
+        _alice["run_number"]
+    }
+
+
 async def test_runs_get_status_user_and_time_compose(cli, db):
     # status, user and time-range compose into compound filtering
     # ("alice's failed runs since T") with no special-casing.
