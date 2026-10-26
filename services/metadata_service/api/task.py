@@ -8,7 +8,7 @@ from services.metadata_service.api.utils import format_response, handle_exceptio
 import json
 from aiohttp import web
 import asyncio
-from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor, parse_limit
 
 # Fields the tasks endpoint accepts in the field:operator filter grammar, scoped to the
 # columns a client can meaningfully narrow within a single step listing. Deliberately
@@ -194,7 +194,10 @@ class TaskApi(object):
             except ValueError:
                 return DBResponse(response_code=400, body="Invalid cursor")
 
-        limit = min(int(limit), 500) if limit else 50
+        try:
+            limit = parse_limit(limit)
+        except ValueError:
+            return DBResponse(response_code=400, body="Invalid limit")
         db_response, pagination = await self._async_table.get_filtered_tasks_paginated(
             conditions=conditions,
             values=values,

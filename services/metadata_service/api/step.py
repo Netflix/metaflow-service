@@ -3,7 +3,7 @@ from services.data.tagging_utils import apply_run_tags_to_db_response
 from services.utils import read_body
 from services.metadata_service.api.utils import format_response, handle_exceptions
 from services.data.postgres_async_db import AsyncPostgresDB
-from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor, parse_limit
 
 
 class StepApi(object):
@@ -83,7 +83,10 @@ class StepApi(object):
                 flow_id, run_number, with_run_tags=True
             )
 
-        limit = min(int(limit), 500) if limit else 50
+        try:
+            limit = parse_limit(limit)
+        except ValueError:
+            return DBResponse(response_code=400, body="Invalid limit")
 
         response, pagination = await self._async_table.get_steps_paginated(
             flow_id=flow_id,

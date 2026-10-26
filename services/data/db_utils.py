@@ -128,9 +128,24 @@ def decode_cursor(cursor: str, cursor_keys: list) -> dict:
     except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError):
         raise ValueError("invalid_cursor")
 
-    if not all(key in decoded for key in cursor_keys):
+    if not isinstance(decoded, dict) or not all(
+        isinstance(decoded.get(key), (str, int)) for key in cursor_keys
+    ):
         raise ValueError("invalid_cursor")
     return decoded
+
+
+def parse_limit(limit: str, default: int = 50, maximum: int = 500) -> int:
+    if not limit:
+        return default
+    try:
+        value = int(limit)
+    except ValueError:
+        raise ValueError("invalid_limit")
+
+    if value < 1:
+        raise ValueError("invalid_limit")
+    return min(value, maximum)
 
 
 def encode_cursor(cursor: dict) -> str:

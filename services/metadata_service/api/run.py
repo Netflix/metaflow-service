@@ -1,7 +1,7 @@
 import asyncio
 from itertools import chain
 
-from services.data.db_utils import DBResponse, encode_cursor, decode_cursor
+from services.data.db_utils import DBResponse, encode_cursor, decode_cursor, parse_limit
 from services.data.models import RunRow
 from services.utils import has_heartbeat_capable_version_tag, read_body
 from services.metadata_service.api.utils import format_response, handle_exceptions
@@ -221,7 +221,10 @@ class RunApi(object):
             except ValueError:
                 return DBResponse(response_code=400, body="Invalid cursor")
 
-        limit = min(int(limit), 500) if limit else 50
+        try:
+            limit = parse_limit(limit)
+        except ValueError:
+            return DBResponse(response_code=400, body="Invalid limit")
 
         response, pagination = await self._async_table.get_filtered_runs_paginated(
             conditions=conditions,
