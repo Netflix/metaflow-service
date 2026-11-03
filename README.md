@@ -94,6 +94,15 @@ Be sure to set the proper env variables when running the image
 > -it -p 8082:8082 -p 8080:8080 metaflow_metadata_service
 > ```
 
+## Easypanel
+
+[Easypanel](https://easypanel.io) is a self-hosted Docker deployment platform. Metaflow's metadata service has a one-click deployment template there (metadata service + PostgreSQL), as an alternative to the manual docker-compose/DockerHub setups above:
+
+[![Deploy on Easypanel][easypanel-btn]][easypanel-deploy]
+
+[easypanel-btn]: https://easypanel.io/img/deploy-on-easypanel-40.svg
+[easypanel-deploy]: https://easypanel.io/templates/metaflow
+
 ### Running tests
 
 Tests are run using [Tox](https://tox.readthedocs.io) and [pytest](https://docs.pytest.org).
