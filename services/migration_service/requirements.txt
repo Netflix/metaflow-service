@@ -1,4 +1,5 @@
 aiohttp >= 3.8.1, < 4
 aiopg
+certifi>=2026.10.19
 packaging
 psycopg2
