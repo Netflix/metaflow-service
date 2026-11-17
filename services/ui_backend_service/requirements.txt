@@ -3,6 +3,7 @@ aiohttp_cors==0.7.0
 aiopg
 azure-identity==1.16.1
 azure-storage-blob==12.13.1
+certifi>=2026.10.19
 click==8.0.3
 google-cloud-storage~=2.10.0
 metaflow>=2.11.4

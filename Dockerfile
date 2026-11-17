@@ -21,14 +21,28 @@ ENV FEATURE_RUN_GROUPS=0
 ENV FEATURE_DEBUG_VIEW=1
 
 RUN apt-get update -y \
-    && apt-get -y install libpq-dev unzip gcc curl
+    && apt-get -y install libpq-dev unzip gcc curl \
+    # eMudhra (emSign) CA key compromise (Oct 2026): the system ca-certificates
+    # bundle contains the emSign ECC Root CA - G3 root whose intermediates were
+    # compromised.
+    && apt-get -y install --only-upgrade ca-certificates curl \
+    && update-ca-certificates
 
-RUN pip3 install virtualenv requests
+# eMudhra (emSign) CA key compromise (Oct 2026): pip bundles its own CA file
+# (cacert.pem inside the wheel) that is independent of certifi, and never checks
+# revocation. Upgrade pip to a fixed release (>=26.2.2) before installing anything else.
+RUN pip3 install --upgrade "pip>=26.2.2" \
+    && pip3 install virtualenv requests
 
 # TODO: possibly unused virtualenv. See if it can be removed
 RUN virtualenv /opt/v_1_0_1 -p python3
 # All of the official deployment templates reference this virtualenv for launching services.
 RUN virtualenv /opt/latest -p python3
+
+# virtualenv seeds each venv with its own bundled pip wheel, which may predate
+# the fix; upgrade it before it downloads the service dependencies.
+RUN /opt/v_1_0_1/bin/pip install --upgrade "pip>=26.2.2" \
+    && /opt/latest/bin/pip install --upgrade "pip>=26.2.2"
 
 RUN /opt/v_1_0_1/bin/pip install https://github.com/Netflix/metaflow-service/archive/1.0.1.zip
 
@@ -48,6 +62,14 @@ RUN /root/services/ui_backend_service/download_ui.sh
 # Migration Service
 ADD services/migration_service /root/services/migration_service
 RUN pip3 install -r /root/services/migration_service/requirements.txt
+
+# certifi < 2026.10.19 still bundles the emSign ECC Root CA - G3 root (see above).
+# Pin the exact recommended release: the advisory warns that 2026.10.18 also
+# drops unaffected emSign roots, and 2026.10.19 is the compatibility-safe one.
+# Upgrade it in both virtualenvs and on the system python.
+RUN /opt/latest/bin/pip install --upgrade "certifi>=2026.10.19" \
+    && /opt/v_1_0_1/bin/pip install --upgrade "certifi>=2026.10.19" \
+    && pip3 install --upgrade "certifi>=2026.10.19"
 
 RUN chmod 777 /root/services/migration_service/run_script.py
 CMD python3  services/migration_service/run_script.py

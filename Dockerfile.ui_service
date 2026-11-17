@@ -16,7 +16,17 @@ ARG CUSTOM_QUICKLINKS
 ENV CUSTOM_QUICKLINKS=$CUSTOM_QUICKLINKS
 
 RUN apt-get update -y \
-    && apt-get -y install libpq-dev unzip gcc curl
+    && apt-get -y install libpq-dev unzip gcc curl \
+    # eMudhra (emSign) CA key compromise (Oct 2026): the system ca-certificates
+    # bundle contains the emSign ECC Root CA - G3 root whose intermediates were
+    # compromised.
+    && apt-get -y install --only-upgrade ca-certificates curl \
+    && update-ca-certificates
+
+# eMudhra (emSign) CA key compromise (Oct 2026): pip bundles its own CA file
+# (cacert.pem inside the wheel) that is independent of certifi, and never checks
+# revocation. Upgrade pip to a fixed release (>=26.2.2) before installing anything else.
+RUN pip install --upgrade "pip>=26.2.2"
 
 ADD services/__init__.py /root/services/__init__.py
 ADD services/data /root/services/data
@@ -31,5 +41,7 @@ WORKDIR /root
 RUN /root/services/ui_backend_service/download_ui.sh
 
 RUN pip install --editable .
+# certifi < 2026.10.19 still bundles the emSign ECC Root CA - G3 root (see above).
+RUN pip install --upgrade "certifi>=2026.10.19"
 
 CMD ui_backend_service

@@ -1,7 +1,17 @@
 FROM python:3.11.7-bookworm
 
 RUN apt-get update -y \
-    && apt-get -y install libpq-dev gcc
+    && apt-get -y install libpq-dev gcc \
+    # eMudhra (emSign) CA key compromise (Oct 2026): the system ca-certificates
+    # bundle contains the emSign ECC Root CA - G3 root whose intermediates were
+    # compromised.
+    && apt-get -y install --only-upgrade ca-certificates \
+    && update-ca-certificates
+
+# eMudhra (emSign) CA key compromise (Oct 2026): pip bundles its own CA file
+# (cacert.pem inside the wheel) that is independent of certifi, and never checks
+# revocation. Upgrade pip to a fixed release (>=26.2.2) before installing anything else.
+RUN pip install --upgrade "pip>=26.2.2"
 
 ADD services/__init__.py /root/services/
 ADD services/data /root/services/data
@@ -10,4 +20,6 @@ ADD services/metadata_service /root/services/metadata_service
 ADD setup.py setup.cfg /root/
 WORKDIR /root
 RUN pip install --editable .
+# certifi < 2026.10.19 still bundles the emSign ECC Root CA - G3 root (see above).
+RUN pip install --upgrade "certifi>=2026.10.19"
 CMD metadata_service
