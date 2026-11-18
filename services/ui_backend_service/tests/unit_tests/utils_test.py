@@ -259,7 +259,29 @@ def test_resource_conditions():
     assert query.get("flow_id") == "HelloFlow"
     assert query.get("status") == "running"
 
-    # TODO: test out the returned filter_fn as well?
+
+@pytest.mark.parametrize(
+    ("condition", "record", "matches"),
+    [
+        ("flow_id:lt=BetaFlow", {"flow_id": "AlphaFlow"}, True),
+        ("flow_id:lt=BetaFlow", {"flow_id": "BetaFlow"}, False),
+        ("user:le=bob", {"user": "alice"}, True),
+        ("user:le=bob", {"user": "bob"}, True),
+        ("user:le=bob", {"user": "charlie"}, False),
+        ("flow_id:gt=AlphaFlow", {"flow_id": "BetaFlow"}, True),
+        ("flow_id:gt=AlphaFlow", {"flow_id": "AlphaFlow"}, False),
+        ("flow_id:ge=AlphaFlow", {"flow_id": "AlphaFlow"}, True),
+        ("user:le=2", {"user": "10"}, True),
+        ("user:le=bob", {"user": None}, False),
+        ("user:le=bob", {}, False),
+        ("ts_epoch:ge=9", {"ts_epoch": 10}, True),
+        ("run_number:ge=9", {"run_number": "10"}, True),
+    ],
+)
+def test_resource_conditions_range_filters(condition, record, matches):
+    _, _, filter_fn = resource_conditions(f"/runs?{condition}")
+
+    assert filter_fn(record) is matches
 
 
 def test_filter_from_conditions_query():

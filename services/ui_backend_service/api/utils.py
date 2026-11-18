@@ -1,4 +1,5 @@
 import json
+import operator
 import os
 import re
 import time
@@ -290,9 +291,20 @@ operators_to_sql_values = {
 }
 
 
+_TEXT_RANGE_FILTERS = {
+    "lt": operator.lt,
+    "le": operator.le,
+    "gt": operator.gt,
+    "ge": operator.ge,
+}
+
+
 def bound_filter(op, term, key):
     "returns function that binds the key, and the term that should be compared to, on an item"
     _filter = operators_to_filters[op]
+    if key in ("flow_id", "user") and op in _TEXT_RANGE_FILTERS:
+        # Flow and user names can look numeric but are ordered as text.
+        _filter = _TEXT_RANGE_FILTERS[op]
 
     def _fn(item):
         try:
