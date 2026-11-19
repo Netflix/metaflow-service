@@ -66,7 +66,7 @@ def get_db_ts_epoch_str():
 
 
 def new_heartbeat_ts():
-    return int(datetime.datetime.utcnow().timestamp())
+    return int(datetime.datetime.now(datetime.timezone.utc).timestamp())
 
 
 def translate_run_key(v: str):

@@ -6,7 +6,7 @@ import uuid
 import time
 import fcntl
 import multiprocessing
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import deque
 from itertools import chain
 import time
@@ -40,7 +40,7 @@ class CacheServerException(Exception):
 
 
 def echo(msg):
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")
     sys.stdout.write("CACHE [%s] %s\n" % (now, msg))
 
 
