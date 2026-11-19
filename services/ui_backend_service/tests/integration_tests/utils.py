@@ -429,7 +429,7 @@ def _test_dict_approx(actual, expected, approx_keys, threshold=1000):
 
 def get_heartbeat_ts(offset=5):
     "Return a heartbeat timestamp with the given offset in seconds. Default offset is 5 seconds"
-    return int(datetime.datetime.utcnow().timestamp()) + offset
+    return int(datetime.datetime.now(datetime.timezone.utc).timestamp()) + offset
 
 
 def update_objects_with_run_tags(obj_type_name: str, objects: list, run: object):

@@ -267,4 +267,4 @@ class TaskHeartbeatMonitor(HeartbeatMonitor):
 
 def heartbeat_time_now():
     # same format as the metadata heartbeat uses
-    return int(datetime.datetime.utcnow().timestamp())
+    return int(datetime.datetime.now(datetime.timezone.utc).timestamp())
