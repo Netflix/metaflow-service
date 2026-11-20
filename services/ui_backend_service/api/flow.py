@@ -17,7 +17,7 @@ class FlowApi(object):
         tags:
         - Flow
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
+          - $ref: '#/parameters/path_flow_id'
         produces:
         - application/json
         responses:
@@ -49,14 +49,14 @@ class FlowApi(object):
         tags:
         - Flow
         parameters:
-          - $ref: '#/definitions/Params/Builtin/_page'
-          - $ref: '#/definitions/Params/Builtin/_limit'
-          - $ref: '#/definitions/Params/Builtin/_order'
-          - $ref: '#/definitions/Params/Builtin/_tags'
-          - $ref: '#/definitions/Params/Builtin/_group'
-          - $ref: '#/definitions/Params/Custom/flow_id'
-          - $ref: '#/definitions/Params/Custom/user_name'
-          - $ref: '#/definitions/Params/Custom/ts_epoch'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/builtin__order'
+          - $ref: '#/parameters/builtin__tags'
+          - $ref: '#/parameters/builtin__group'
+          - $ref: '#/parameters/custom_flow_id'
+          - $ref: '#/parameters/custom_user_name'
+          - $ref: '#/parameters/custom_ts_epoch'
         produces:
         - application/json
         responses:

@@ -20,9 +20,9 @@ class DagApi(object):
         tags:
         - Run
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Custom/invalidate'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/custom_invalidate'
         produces:
         - application/json
         responses:

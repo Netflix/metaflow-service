@@ -34,6 +34,8 @@ class AuthApi(object):
         responses:
             "200":
                 description: successful operation. Return the version number
+                schema:
+                    $ref: '#/definitions/Version'
             "405":
                 description: invalid HTTP Method
         """
@@ -48,8 +50,11 @@ class AuthApi(object):
         produces:
         - 'text/plain'
         responses:
-            "202":
+            "200":
                 description: successful operation. Return "pong" text
+                schema:
+                    type: string
+                    example: pong
             "405":
                 description: invalid HTTP Method
         """
@@ -68,8 +73,10 @@ class AuthApi(object):
         produces:
         - 'application/json'
         responses:
-            "202":
+            "200":
                 description: successful operation.
+                schema:
+                    $ref: '#/definitions/HealthStatus'
             "405":
                 description: invalid HTTP Method
             "500":
@@ -99,10 +106,12 @@ class AuthApi(object):
         tags:
         - Auth
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successfully returned certs
+                schema:
+                    $ref: '#/definitions/AwsCredentials'
             "403":
                 description: no token for you
             "405":

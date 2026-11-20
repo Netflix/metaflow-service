@@ -106,29 +106,11 @@ class TaskApi(object):
         tags:
         - Tasks
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "step_name"
-          in: "path"
-          description: "step_name"
-          required: true
-          type: "string"
-        - name: "_limit"
-          in: "query"
-          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
-          required: false
-          type: "integer"
-        - name: "_cursor"
-          in: "query"
-          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/path_step_name'
+        - $ref: '#/parameters/query_limit'
+        - $ref: '#/parameters/query_cursor'
         - name: "ts_epoch"
           in: "query"
           description: "filter by start time, e.g. ts_epoch:ge=123&ts_epoch:le=456 (epoch ms)."
@@ -136,16 +118,42 @@ class TaskApi(object):
           type: "string"
         - name: "user_name"
           in: "query"
-          description: "filter by user_name/task_name, e.g. user_name:eq=alice."
+          description: "filter by user_name, e.g. user_name:eq=alice."
+          required: false
+          type: "string"
+        - name: "task_name"
+          in: "query"
+          description: "filter by task_name, e.g. task_name:eq=my-task."
+          required: false
+          type: "string"
+        - name: "task_id"
+          in: "query"
+          description: "filter by task_id, e.g. task_id:ge=10."
+          required: false
+          type: "string"
+        - name: "last_heartbeat_ts"
+          in: "query"
+          description: "filter by last heartbeat, e.g. last_heartbeat_ts:ge=123 (epoch seconds)."
           required: false
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Return the matching tasks
+                schema:
+                    type: array
+                    items:
+                        $ref: '#/definitions/Task'
+                headers:
+                    X-Limit:
+                        type: integer
+                        description: Page size used. Only sent when paginating.
+                    X-Next-Cursor:
+                        type: string
+                        description: Cursor for the next page (pass as _cursor). Only sent when paginating and more results exist.
             "400":
-                description: non-integer time bound or unknown operator
+                description: non-integer time bound, unknown operator, or invalid cursor
             "405":
                 description: invalid HTTP Method
         """
@@ -224,34 +232,29 @@ class TaskApi(object):
         tags:
         - Tasks
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "step_name"
-          in: "path"
-          description: "step_name"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/path_step_name'
         - name: "metadata_field_name"
           in: "query"
           description: "Metadata field name to filter with"
+          required: false
           type: "string"
         - name: "pattern"
           in: "query"
           description: "A regexp pattern to filter the metadata values on"
+          required: false
           type: "string"
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
-                description: successful operation. Return tasks
+                description: successful operation. Return task pathspecs (flow/run/step/task)
+                schema:
+                    type: array
+                    items:
+                        type: string
+                        example: HelloFlow/5/start/32
             "405":
                 description: invalid HTTP Method
         """
@@ -273,35 +276,23 @@ class TaskApi(object):
     async def get_task(self, request):
         """
         ---
-        description: get all artifacts associated with the specified task.
+        description: get the specified task.
         tags:
         - Tasks
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "step_name"
-          in: "path"
-          description: "step_name"
-          required: true
-          type: "string"
-        - name: "task_id"
-          in: "path"
-          description: "task_id"
-          required: true
-          type: "integer"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/path_step_name'
+        - $ref: '#/parameters/path_task_id'
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Return task
+                schema:
+                    $ref: '#/definitions/Task'
+            "404":
+                description: task not found
             "405":
                 description: invalid HTTP Method
         """
@@ -319,48 +310,29 @@ class TaskApi(object):
     async def create_task(self, request):
         """
         ---
-        description: This end-point allow to test that service is up.
+        description: Create a task and generate its task id.
                     "tags" and "system_tags" values will be persisted to DB, but will not be
                     returned by read endpoints - the related run's "tags" and "system_tags" will
                     be returned instead.
         tags:
         - Tasks
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "step_name"
-          in: "path"
-          description: "step_name"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/path_step_name'
         - name: "body"
           in: "body"
           description: "body"
           required: true
           schema:
-            type: object
-            properties:
-                user_name:
-                    type: string
-                tags:
-                    type: object
-                system_tags:
-                    type: object
-                task_id:
-                    type: string
+            $ref: '#/definitions/CreateTaskBody'
         produces:
-        - 'text/plain'
+        - application/json
         responses:
-            "202":
+            "200":
                 description: successful operation. Return newly registered task
+                schema:
+                    $ref: '#/definitions/Task'
             "400":
                 description: invalid HTTP Request
             "405":
@@ -411,41 +383,27 @@ class TaskApi(object):
     async def tasks_heartbeat(self, request):
         """
         ---
-        description: update hb
+        description: Update the heartbeat timestamp of a task (and its run).
         tags:
         - Tasks
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "step_name"
-          in: "path"
-          description: "step_name"
-          required: true
-          type: "string"
-        - name: "task_id"
-          in: "path"
-          description: "task_id"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/path_step_name'
+        - $ref: '#/parameters/path_task_id'
         - name: "body"
           in: "body"
-          description: "body"
-          required: true
+          description: "Ignored. Clients send an empty object."
+          required: false
           schema:
             type: object
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "200":
-                description: successful operation. Return newly registered run
+                description: successful operation. Heartbeat recorded.
+                schema:
+                    $ref: '#/definitions/Heartbeat'
             "400":
                 description: invalid HTTP Request
             "405":

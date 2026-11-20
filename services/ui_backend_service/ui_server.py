@@ -35,7 +35,6 @@ from .api import (
 from .api.utils import allow_get_requests_only
 from .data.cache import CacheStore
 from .data.db import AsyncPostgresDB
-from .doc import swagger_definitions, swagger_description
 from .features import (
     FEATURE_DB_LISTEN_ENABLE,
     FEATURE_HEARTBEAT_ENABLE,
@@ -68,6 +67,34 @@ os.environ["METAFLOW_DEFAULT_METADATA"] = os.environ.get(
 # Create database triggers automatically, enabled by default
 # Disable with env variable `DB_TRIGGER_CREATE=0`
 DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", "1") == "1"
+
+
+def register_routes(app, db, cache_store, event_emitter):
+    """Register the documented UI API routes on the given application.
+
+    Requires no database connection. The OpenAPI generator reads this function
+    from source (services/openapi/generator.py, "Route collection"): only
+    instantiate API classes here, one call each.
+    Websocket, ListenNotify, heartbeat monitors, the /metadata sub-app and the
+    Frontend catch-all are registered separately in app().
+    """
+    AutoCompleteApi(app, db, event_emitter=event_emitter)
+    FlowApi(app, db)
+    RunApi(app, db, cache_store)
+    StepApi(app, db)
+    TaskApi(app, db, cache_store)
+    MetadataApi(app, db)
+    ArtificatsApi(app, db, cache_store)
+    TagApi(app, db)
+    SearchApi(app, db, cache_store)
+    DagApi(app, db, cache_store)
+    FeaturesApi(app)
+    ConfigApi(app)
+    PluginsApi(app)
+    CardsApi(app, db, cache_store)
+
+    LogApi(app, db, cache_store)
+    AdminApi(app, cache_store)
 
 
 def app(loop=None, db_conf: DBConfiguration = None):
@@ -103,23 +130,7 @@ def app(loop=None, db_conf: DBConfiguration = None):
         loop.run_until_complete(async_db_ws._init(db_conf))
         Websocket(app, db=async_db_ws, event_emitter=event_emitter, cache=cache_store)
 
-    AutoCompleteApi(app, async_db, event_emitter=event_emitter)
-    FlowApi(app, async_db)
-    RunApi(app, async_db, cache_store)
-    StepApi(app, async_db)
-    TaskApi(app, async_db, cache_store)
-    MetadataApi(app, async_db)
-    ArtificatsApi(app, async_db, cache_store)
-    TagApi(app, async_db)
-    SearchApi(app, async_db, cache_store)
-    DagApi(app, async_db, cache_store)
-    FeaturesApi(app)
-    ConfigApi(app)
-    PluginsApi(app)
-    CardsApi(app, async_db, cache_store)
-
-    LogApi(app, async_db, cache_store)
-    AdminApi(app, cache_store)
+    register_routes(app, async_db, cache_store, event_emitter)
 
     # Add Metadata Service as a sub application so that Metaflow Client
     # can use it as a service backend in case none provided via METAFLOW_SERVICE_URL

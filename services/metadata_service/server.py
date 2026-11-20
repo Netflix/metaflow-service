@@ -18,6 +18,22 @@ from services.utils import DBConfiguration
 PATH_PREFIX = os.environ.get("PATH_PREFIX", "")
 
 
+def register_routes(app):
+    """Register all API routes on the given application.
+
+    Requires no database connection. The OpenAPI generator reads this function
+    from source (services/openapi/generator.py, "Route collection"): only
+    instantiate API classes here, one call each.
+    """
+    FlowApi(app)
+    RunApi(app)
+    StepApi(app)
+    TaskApi(app)
+    MetadataApi(app)
+    ArtificatsApi(app)
+    AuthApi(app)
+
+
 def app(loop=None, db_conf: DBConfiguration = None, middlewares=None, path_prefix=""):
 
     loop = loop or asyncio.get_event_loop()
@@ -26,13 +42,7 @@ def app(loop=None, db_conf: DBConfiguration = None, middlewares=None, path_prefi
     app = web.Application(loop=loop) if path_prefix else _app
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))
-    FlowApi(app)
-    RunApi(app)
-    StepApi(app)
-    TaskApi(app)
-    MetadataApi(app)
-    ArtificatsApi(app)
-    AuthApi(app)
+    register_routes(app)
 
     if path_prefix:
         _app.add_subapp(path_prefix, app)

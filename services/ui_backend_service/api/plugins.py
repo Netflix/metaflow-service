@@ -47,7 +47,7 @@ class PluginsApi(object):
         tags:
         - Plugin
         parameters:
-          - $ref: '#/definitions/Params/Path/plugin_name'
+          - $ref: '#/parameters/path_plugin_name'
         produces:
         - application/json
         responses:
@@ -74,8 +74,8 @@ class PluginsApi(object):
         tags:
         - Plugin
         parameters:
-          - $ref: '#/definitions/Params/Path/plugin_name'
-          - $ref: '#/definitions/Params/Path/plugin_filename'
+          - $ref: '#/parameters/path_plugin_name'
+          - $ref: '#/parameters/path_plugin_filename'
         produces:
         - application/json
         responses:

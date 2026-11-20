@@ -34,7 +34,14 @@ Create triggers to broadcast any database changes via `pg_notify` on channel `NO
 > python3 -m services.metadata_service.server
 > ```
 
-Swagger UI: http://localhost:8080/api/doc
+API docs: generate Swagger 2.0 specs for all services and open them in any Swagger viewer, e.g. editor.swagger.io. Only two small packages are needed: no database and none of the service dependencies (the routes and docstrings are read from the source):
+
+> ```sh
+> pip3 install -r requirements.docs.txt
+> python3 -m services.openapi --service all --out ./api-docs --strict
+> ```
+
+See [Documenting an endpoint](./services/ui_backend_service/docs/api.md#documenting-an-endpoint) for how the docs are authored.
 
 #### Using docker-compose
 

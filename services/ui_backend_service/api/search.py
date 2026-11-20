@@ -23,7 +23,9 @@ class SearchApi(object):
         self.db = db
         # Old search route kept for backwards compatibility
         app.router.add_route(
-            "GET", "/flows/{flow_id}/runs/{run_number}/search", self.get_run_tasks
+            "GET",
+            "/flows/{flow_id}/runs/{run_number}/search",
+            self.get_run_tasks_legacy,
         )
         app.router.add_route(
             "GET", "/search/flows/{flow_id}/runs/{run_number}", self.get_run_tasks
@@ -35,8 +37,58 @@ class SearchApi(object):
         self.search_results = defaultdict(list)
         self.search_result_keyset = defaultdict(set)
 
+    async def get_run_tasks_legacy(self, request):
+        """
+        ---
+        description: Deprecated alias of /search/flows/{flow_id}/runs/{run_number},
+            kept for backwards compatibility. Behaves identically.
+        tags:
+        - Search
+        deprecated: true
+        parameters:
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/search_key'
+          - $ref: '#/parameters/search_value'
+          - $ref: '#/parameters/search_scope'
+          - $ref: '#/parameters/custom_invalidate'
+        produces:
+        - application/json
+        responses:
+            "101":
+                description: Websocket upgrade. Search progress and results are
+                    streamed as JSON text messages, then the socket is closed.
+                schema:
+                    $ref: '#/definitions/ModelsSearchEvent'
+        """
+        return await self.get_run_tasks(request)
+
     @handle_exceptions
     async def get_run_tasks(self, request):
+        """
+        ---
+        description: Search the tasks of a run by artifact value or foreach
+            variable. This is a websocket endpoint; connect with a websocket
+            client. Search progress and results are streamed as JSON text
+            messages and the socket is closed when the search is done.
+        tags:
+        - Search
+        parameters:
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/search_key'
+          - $ref: '#/parameters/search_value'
+          - $ref: '#/parameters/search_scope'
+          - $ref: '#/parameters/custom_invalidate'
+        produces:
+        - application/json
+        responses:
+            "101":
+                description: Websocket upgrade. Search progress and results are
+                    streamed as JSON text messages, then the socket is closed.
+                schema:
+                    $ref: '#/definitions/ModelsSearchEvent'
+        """
         scope_list = _decode_url_param_value(
             request.query.get("scope", SCOPE_ARTIFACT)
         ).split(",")

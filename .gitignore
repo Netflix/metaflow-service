@@ -22,6 +22,9 @@ var/
 .tox/
 .coverage
 
+# Generated API docs (python -m services.openapi)
+api-docs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
