@@ -13,7 +13,9 @@ from .migration_config import db_conf
 def register_routes(app):
     """Register all API routes on the given application.
 
-    Requires no database connection; also used by the OpenAPI generator.
+    Requires no database connection. The OpenAPI generator reads this function
+    from source (services/openapi/generator.py, "Route collection"): only
+    instantiate API classes here, one call each.
     """
     AdminApi(app)
 

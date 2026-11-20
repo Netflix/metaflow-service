@@ -1,4 +1,4 @@
-import importlib
+import asyncio
 import inspect
 import json
 import os
@@ -112,12 +112,11 @@ def test_all_routes_documented(service):
     spec, undocumented = _generate(service)
     assert undocumented == []
 
-    app = generator.collect_routes(service)
     registered = {
-        (route.method.lower(), route.resource.canonical)
-        for route in app.router.routes()
-        if route.method not in ("HEAD", "OPTIONS")
-        and not generator._is_excluded(route.resource.canonical)
+        (method.lower(), path)
+        for method, path, _ in generator.documentable_routes(
+            generator.collect_routes(service)
+        )
     }
     documented = {
         (method, path)
@@ -129,6 +128,76 @@ def test_all_routes_documented(service):
     for path, item in spec["paths"].items():
         for operation in item.values():
             assert operation.get("summary") != generator.UNDOCUMENTED_SUMMARY, path
+
+
+def _aiohttp_routes(service):
+    """
+    Routes as registered by actually running the service's register_routes()
+    on a bare aiohttp application. Needs the service dependencies; the
+    generator itself reads the routes statically instead.
+    """
+    from unittest.mock import MagicMock
+
+    from pyee import AsyncIOEventEmitter
+
+    if service == "metadata":
+        from services.metadata_service.server import register_routes
+
+        args = ()
+    elif service == "ui":
+        from services.ui_backend_service.ui_server import register_routes
+
+        args = (MagicMock(), MagicMock(), AsyncIOEventEmitter())
+    else:
+        from services.migration_service.migration_server import register_routes
+
+        args = ()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    # Enables the optional endpoints, which the static reader always includes.
+    previous = os.environ.get("MF_MIGRATION_ENDPOINTS_ENABLED")
+    os.environ["MF_MIGRATION_ENDPOINTS_ENABLED"] = "1"
+    try:
+        app = web.Application()
+        register_routes(app, *args)
+        return [
+            (route.method, route.resource.canonical, route.handler)
+            for route in app.router.routes()
+        ]
+    finally:
+        if previous is None:
+            os.environ.pop("MF_MIGRATION_ENDPOINTS_ENABLED")
+        else:
+            os.environ["MF_MIGRATION_ENDPOINTS_ENABLED"] = previous
+        pending = [task for task in asyncio.all_tasks(loop) if not task.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        loop.close()
+        asyncio.set_event_loop(None)
+
+
+@pytest.mark.parametrize("service", SERVICES)
+def test_static_routes_match_aiohttp(service):
+    """The source reader finds exactly what aiohttp registers, in order."""
+
+    def describe(routes):
+        return [
+            (method, path, handler.name, handler.operation_id, handler.doc)
+            for method, path, handler in generator.documentable_routes(routes)
+        ]
+
+    static = describe(generator.collect_routes(service))
+    live = describe(_aiohttp_routes(service))
+    assert static == live
+
+
+def test_service_version_matches_installed_package():
+    from services.utils import METADATA_SERVICE_VERSION
+
+    assert generator.service_version() == str(METADATA_SERVICE_VERSION)
 
 
 def test_ui_spec_excludes_metadata_ws_and_frontend():
@@ -171,10 +240,9 @@ def test_no_invalid_swagger2_keywords(service):
 def test_service_components_are_used(service):
     spec, _ = _generate(service)
     refs = _referenced(spec)
-    module = generator.SERVICES[service]["doc_module"]
-    if not module:
+    doc = generator.load_doc_module(service)
+    if doc is None:
         return
-    doc = importlib.import_module(module)
     for kind in ("definitions", "parameters"):
         for name in getattr(doc, kind):
             assert "#/{}/{}".format(kind, name) in refs, "unused {} {}".format(
@@ -262,9 +330,7 @@ def test_undocumented_route_gets_stub_and_fails_strict(tmp_path, monkeypatch):
             pass
 
     def fake_collect(service):
-        app = web.Application()
-        app.router.add_route("GET", "/things/{thing_id}", FakeApi().nodoc)
-        return app
+        return [("GET", "/things/{thing_id}", FakeApi().nodoc)]
 
     monkeypatch.setattr(generator, "collect_routes", fake_collect)
     spec, undocumented, errors = generator.generate("migration")
@@ -292,11 +358,8 @@ def test_duplicate_operation_id_fails(monkeypatch):
             """
 
     def fake_collect(service):
-        app = web.Application()
         api = FakeApi()
-        app.router.add_route("GET", "/a", api.handler)
-        app.router.add_route("GET", "/b", api.handler)
-        return app
+        return [("GET", "/a", api.handler), ("GET", "/b", api.handler)]
 
     monkeypatch.setattr(generator, "collect_routes", fake_collect)
     with pytest.raises(generator.SpecError, match="Duplicate operationId"):
@@ -371,6 +434,272 @@ def test_production_modules_do_not_import_dev_only_packages():
     assert result.returncode == 0, result.stderr
 
 
+# The docs command must run with only requirements.docs.txt installed.
+SERVICE_DEPENDENCIES = (
+    "aiohttp",
+    "aiopg",
+    "psycopg2",
+    "multidict",
+    "yarl",
+    "pyee",
+    "metaflow",
+    "packaging",
+    # Packages whose __init__ (or modules) need the dependencies above.
+    "services.data",
+    "services.metadata_service.api",
+    "services.ui_backend_service.api",
+    "services.migration_service.api",
+)
+# Blocked by exact name only: the generator may load the stdlib only
+# services.utils.openapi_components, but never run services/utils/__init__.py.
+SERVICE_PACKAGES_EXACT = ("services.utils",)
+
+_CLI_GUARD_SCRIPT = textwrap.dedent("""
+    import runpy
+    import sys
+
+    PREFIXES = {prefixes!r}
+    EXACT = {exact!r}
+
+    class BlockServiceDependencies:
+        def find_spec(self, name, path=None, target=None):
+            if name in EXACT or any(
+                name == p or name.startswith(p + ".") for p in PREFIXES
+            ):
+                raise ImportError("docs generator imported " + name)
+            return None
+
+    sys.meta_path.insert(0, BlockServiceDependencies())
+    sys.argv = ["services.openapi", "--service", "all", "--out", {out!r}, "--strict"]
+    runpy.run_module("services.openapi", run_name="__main__", alter_sys=True)
+    """)
+
+
+def test_cli_runs_without_service_dependencies(tmp_path):
+    script = _CLI_GUARD_SCRIPT.format(
+        prefixes=SERVICE_DEPENDENCIES,
+        exact=SERVICE_PACKAGES_EXACT,
+        out=str(tmp_path),
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    for service in SERVICES:
+        written = json.loads((tmp_path / "{}.json".format(service)).read_text())
+        spec, _ = _generate(service)
+        assert written == spec, service
+
+
+def test_docs_requirements_match_dev_requirements():
+    # requirements.dev.txt cannot -r include the docs file (setup.py reads its
+    # lines as extras), so the pins are duplicated and must stay equal.
+    def lines(name):
+        text = (REPO_ROOT / name).read_text()
+        return {line.strip() for line in text.splitlines() if line.strip()}
+
+    docs = lines("requirements.docs.txt")
+    assert docs and docs <= lines("requirements.dev.txt")
+
+
+# --------------------------------------------------------------------------
+# Static route reader, on a small fake repository
+# --------------------------------------------------------------------------
+
+_FAKE_API = '''
+import os
+
+
+def documented(func):
+    return func
+
+
+def handler_function(request):
+    pass
+
+
+def register_more(app):
+    pass
+
+
+class ThingsApi:
+    def __init__(self, app, db=None):
+{init}
+
+    @documented
+    async def list_things(self, request):
+        """
+        List things.
+        ---
+        responses:
+            "200":
+                description: ok
+        """
+
+    async def get_thing(self, request):
+        """Get a thing."""
+
+    async def delete_thing(self, request):
+        pass
+
+    async def start(self, app):
+        pass
+'''
+
+_FAKE_SERVER = '''
+from .api import ThingsApi
+
+
+def helper(app):
+    pass
+
+
+class LocalApi:
+    def __init__(self, app):
+        app.router.add_route("GET", "/local", self.local)
+
+    async def local(self, request):
+        """Local."""
+
+
+def register_routes(app, db):
+{body}
+'''
+
+_DEFAULT_INIT = """
+        app.router.add_route("GET", "/things", self.list_things)
+        app.router.add_get("/things/{name:[a-z]+}", self.get_thing)
+        if os.environ.get("OPTIONAL_ENDPOINTS"):
+            app.router.add_route(
+                method="delete", path="/things/{name}", handler=self.delete_thing
+            )
+        app.on_startup.append(self.start)
+"""
+
+_DEFAULT_BODY = """
+    print("not a registration")
+    ThingsApi(app, db)
+    LocalApi(app)
+"""
+
+
+def _fake_repo(tmp_path, monkeypatch, init=_DEFAULT_INIT, body=_DEFAULT_BODY):
+    package = tmp_path / "fakesvc"
+    (package / "api").mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    (package / "api" / "__init__.py").write_text("from .things import ThingsApi\n")
+    (package / "api" / "things.py").write_text(
+        _FAKE_API.format(init=textwrap.indent(textwrap.dedent(init), " " * 8))
+    )
+    (package / "server.py").write_text(
+        _FAKE_SERVER.format(body=textwrap.indent(textwrap.dedent(body), " " * 4))
+    )
+    monkeypatch.setattr(generator, "REPO_ROOT", tmp_path)
+    monkeypatch.setitem(
+        generator.SERVICES,
+        "fake",
+        {"title": "Fake", "server_module": "fakesvc.server", "doc_module": None},
+    )
+
+
+def test_static_reader_supported_patterns(tmp_path, monkeypatch):
+    _fake_repo(tmp_path, monkeypatch)
+    routes = generator.collect_routes("fake")
+    assert [(m, p, h.name, h.operation_id) for m, p, h in routes] == [
+        (
+            "GET",
+            "/things",
+            "fakesvc.api.things.ThingsApi.list_things",
+            "ThingsApi.list_things",
+        ),
+        # Regex patterns are dropped like aiohttp's resource.canonical.
+        (
+            "GET",
+            "/things/{name}",
+            "fakesvc.api.things.ThingsApi.get_thing",
+            "ThingsApi.get_thing",
+        ),
+        # Optional endpoints are always included.
+        (
+            "DELETE",
+            "/things/{name}",
+            "fakesvc.api.things.ThingsApi.delete_thing",
+            "ThingsApi.delete_thing",
+        ),
+        ("GET", "/local", "fakesvc.server.LocalApi.local", "LocalApi.local"),
+    ]
+    docs = [h.doc for _, _, h in routes]
+    assert docs[0].startswith("List things.\n---\nresponses:")
+    assert docs[1:] == ["Get a thing.", None, "Local."]
+
+
+@pytest.mark.parametrize(
+    "init,body,message,where",
+    [
+        (
+            'for path in ("/a", "/b"):\n'
+            "    app.router.add_route('GET', path, self.get_thing)",
+            _DEFAULT_BODY,
+            "loop",
+            "fakesvc/api/things.py:",
+        ),
+        (
+            'app.router.add_route("GET", "/" + os.sep, self.get_thing)',
+            _DEFAULT_BODY,
+            "string literal",
+            "fakesvc/api/things.py:",
+        ),
+        (
+            'app.router.add_route("GET", "/a", handler_function)',
+            _DEFAULT_BODY,
+            "must be a method",
+            "fakesvc/api/things.py:",
+        ),
+        (
+            "register_more(app)",
+            _DEFAULT_BODY,
+            "unsupported registration",
+            "fakesvc/api/things.py:",
+        ),
+        (
+            'app.router.add_static("/static", "dir")',
+            _DEFAULT_BODY,
+            "not supported",
+            "fakesvc/api/things.py:",
+        ),
+        (
+            _DEFAULT_INIT,
+            'app.router.add_route("GET", "/a", None)',
+            "API class",
+            "fakesvc/server.py:",
+        ),
+        (_DEFAULT_INIT, "helper(app)", "is a function", "fakesvc/server.py:"),
+        (_DEFAULT_INIT, "MissingApi(app)", "cannot find", "fakesvc/server.py:"),
+    ],
+    ids=[
+        "loop",
+        "non-literal-path",
+        "foreign-handler",
+        "helper-in-init",
+        "unsupported-router-method",
+        "router-in-register-routes",
+        "helper-function",
+        "unknown-class",
+    ],
+)
+def test_static_reader_rejects_unsupported_patterns(
+    tmp_path, monkeypatch, init, body, message, where
+):
+    _fake_repo(tmp_path, monkeypatch, init=init, body=body)
+    with pytest.raises(generator.RouteParseError, match=message) as err:
+        generator.collect_routes("fake")
+    assert str(err.value).startswith(where), str(err.value)
+
+
 # --------------------------------------------------------------------------
 # Route duplicates, shadowing and per service isolation
 # --------------------------------------------------------------------------
@@ -440,10 +769,9 @@ def _fake_collect(monkeypatch, routes):
     api = _RouteApi()
 
     def fake_collect(service):
-        app = web.Application()
-        for method, path, handler in routes:
-            app.router.add_route(method, path, getattr(api, handler))
-        return app
+        return [
+            (method, path, getattr(api, handler)) for method, path, handler in routes
+        ]
 
     monkeypatch.setattr(generator, "collect_routes", fake_collect)
 
@@ -465,7 +793,7 @@ def test_shadowed_route_fails(monkeypatch):
 
 
 def test_exact_duplicate_route_fails(monkeypatch):
-    # Not consecutive, so aiohttp accepts it and keeps two resources.
+    # Not consecutive, so aiohttp would accept it and keep two resources.
     _fake_collect(
         monkeypatch,
         [
@@ -500,8 +828,8 @@ def test_specs_are_isolated_per_service():
     def build_all(order):
         specs = {}
         for service in order:
-            app = generator.collect_routes(service)
-            spec, _ = generator.build_spec(app, service)
+            routes = generator.collect_routes(service)
+            spec, _ = generator.build_spec(routes, service)
             expected = {
                 (method.lower(), path)
                 for method, path, _ in generator.documentable_routes(

@@ -72,7 +72,9 @@ DB_TRIGGER_CREATE = os.environ.get("DB_TRIGGER_CREATE", "1") == "1"
 def register_routes(app, db, cache_store, event_emitter):
     """Register the documented UI API routes on the given application.
 
-    Requires no database connection; also used by the OpenAPI generator.
+    Requires no database connection. The OpenAPI generator reads this function
+    from source (services/openapi/generator.py, "Route collection"): only
+    instantiate API classes here, one call each.
     Websocket, ListenNotify, heartbeat monitors, the /metadata sub-app and the
     Frontend catch-all are registered separately in app().
     """

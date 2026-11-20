@@ -34,10 +34,10 @@ Create triggers to broadcast any database changes via `pg_notify` on channel `NO
 > python3 -m services.metadata_service.server
 > ```
 
-API docs: generate Swagger 2.0 specs for all services (no database needed) and open them in any Swagger viewer, e.g. editor.swagger.io:
+API docs: generate Swagger 2.0 specs for all services and open them in any Swagger viewer, e.g. editor.swagger.io. Only two small packages are needed: no database and none of the service dependencies (the routes and docstrings are read from the source):
 
 > ```sh
-> pip3 install -r requirements.dev.txt
+> pip3 install -r requirements.docs.txt
 > python3 -m services.openapi --service all --out ./api-docs --strict
 > ```
 
