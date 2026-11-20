@@ -54,11 +54,11 @@ class LogApi(object):
         tags:
         - Task
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
-          - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
+          - $ref: '#/parameters/path_task_id'
+          - $ref: '#/parameters/custom_attempt_id'
         produces:
         - application/json
         responses:
@@ -89,11 +89,11 @@ class LogApi(object):
         tags:
         - Task
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
-          - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
+          - $ref: '#/parameters/path_task_id'
+          - $ref: '#/parameters/custom_attempt_id'
         produces:
         - application/json
         responses:
@@ -124,11 +124,11 @@ class LogApi(object):
         tags:
         - Task
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
-          - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
+          - $ref: '#/parameters/path_task_id'
+          - $ref: '#/parameters/custom_attempt_id'
         produces:
         - text/plain
         responses:
@@ -157,11 +157,11 @@ class LogApi(object):
         tags:
         - Task
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
-          - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Custom/attempt_id'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
+          - $ref: '#/parameters/path_task_id'
+          - $ref: '#/parameters/custom_attempt_id'
         produces:
         - text/plain
         responses:

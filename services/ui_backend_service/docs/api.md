@@ -1,7 +1,53 @@
 # API documentation
 
-A thorough documentation of the RESTful API routes, responses and types can be accessed through the Swagger docs that the backend serves.
-These are accessible at `example.com/api/doc`
+A thorough documentation of the RESTful API routes, responses and types is available as a Swagger 2.0 spec generated from the handler docstrings.
+The spec is not served by the backend; generate it locally (no database needed) and open `api-docs/ui.json` in any Swagger viewer, e.g. editor.swagger.io:
+
+```sh
+pip install -r requirements.dev.txt
+python -m services.openapi --service ui --out ./api-docs --strict
+```
+
+Use `--service all` to also generate `metadata.json` and `migration.json`. The UI spec covers the UI API only: the `/metadata` sub-app (see `metadata.json`), the websocket `/ws` and the frontend routes are not included, and paths are documented without `PATH_PREFIX`.
+
+## Documenting an endpoint
+
+Every route registered in a service's `register_routes()` must be documented; `--strict` and the unit tests in `services/openapi/tests` fail otherwise. Undocumented routes get a stub operation and a warning when generating without `--strict`.
+
+Handlers are documented with a docstring: optional free text, a line that is exactly `---`, then a Swagger 2.0 [operation object](https://swagger.io/specification/v2/#operation-object) in YAML. The free text becomes the `summary` if no `description` is given. `operationId` defaults to `ClassName.method_name`.
+
+```python
+@handle_exceptions
+async def get_run(self, request):
+    """
+    ---
+    description: Get one run
+    tags:
+    - Run
+    parameters:
+      - $ref: '#/parameters/path_flow_id'
+      - $ref: '#/parameters/path_run_number'
+    produces:
+    - application/json
+    responses:
+        "200":
+            description: Returns one run
+            schema:
+              $ref: '#/definitions/ResponsesRun'
+    """
+```
+
+Components live in plain Python dicts:
+
+- `services/utils/openapi_components.py`: parameters and models shared by all services (`path_flow_id`, `path_run_number`, `path_step_name`, `path_task_id`, `query_limit`, ..., the base `Flow`/`Run`/`Step`/`Task`/`Metadata`/`Artifact` models), plus helpers to build properties, models and the UI `{data, status, links}` response wrappers.
+- `services/ui_backend_service/doc.py` and `services/metadata_service/doc.py`: service specific `parameters` and `definitions`, built with those helpers. Keys must not clash with the shared ones.
+
+Guidelines:
+
+- Prefer the shared `#/parameters/path_*` parameters over inline path parameters. Every `{placeholder}` in the route must be declared.
+- Only use Swagger 2.0: no `anyOf`/`oneOf`/`nullable`/`style`, no keys next to a `$ref`, sample values in `example` (not `default`).
+- Model properties must match the `serialize()` output of the matching row class (`services/data/models.py` for the metadata service, `services/ui_backend_service/data/db/models/*_row.py` for the UI). When you change a serializer, change the model in the same commit; the unit tests compare the two.
+- Every component must be referenced by at least one operation; unused components fail the tests.
 
 ## Examples
 

@@ -95,6 +95,10 @@ class AutoCompleteApi(object):
         description: Get all available tags, with pagination.
         tags:
         - Autocomplete
+        parameters:
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/custom_tag'
         produces:
         - application/json
         responses:
@@ -142,6 +146,10 @@ class AutoCompleteApi(object):
         tags:
         - Autocomplete
         - Flow
+        parameters:
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/custom_flow_id'
         produces:
         - application/json
         responses:
@@ -163,6 +171,11 @@ class AutoCompleteApi(object):
         tags:
         - Autocomplete
         - Run
+        parameters:
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/custom_run'
         produces:
         - application/json
         responses:
@@ -189,6 +202,12 @@ class AutoCompleteApi(object):
         tags:
         - Autocomplete
         - Step
+        parameters:
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_id'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/custom_step_name'
         produces:
         - application/json
         responses:
@@ -218,11 +237,17 @@ class AutoCompleteApi(object):
         tags:
         - Autocomplete
         - Artifact
+        parameters:
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_id'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/custom_name'
         produces:
         - application/json
         responses:
             "200":
-                description: Returns string list of step names
+                description: Returns string list of artifact names
                 schema:
                     $ref: '#/definitions/ResponsesAutocompleteArtifactList'
         """

@@ -35,8 +35,8 @@ class RunApi(object):
         tags:
         - Run
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
         produces:
         - application/json
         responses:
@@ -75,18 +75,20 @@ class RunApi(object):
         tags:
         - Run
         parameters:
-          - $ref: '#/definitions/Params/Builtin/_page'
-          - $ref: '#/definitions/Params/Builtin/_limit'
-          - $ref: '#/definitions/Params/Builtin/_order'
-          - $ref: '#/definitions/Params/Builtin/_tags'
-          - $ref: '#/definitions/Params/Builtin/_group'
-          - $ref: '#/definitions/Params/Custom/run_number'
-          - $ref: '#/definitions/Params/Custom/run_id'
-          - $ref: '#/definitions/Params/Custom/user_name'
-          - $ref: '#/definitions/Params/Custom/ts_epoch'
-          - $ref: '#/definitions/Params/Custom/finished_at'
-          - $ref: '#/definitions/Params/Custom/duration'
-          - $ref: '#/definitions/Params/Custom/status'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/builtin__order'
+          - $ref: '#/parameters/builtin__tags'
+          - $ref: '#/parameters/builtin__group'
+          - $ref: '#/parameters/custom_run_number'
+          - $ref: '#/parameters/custom_run_id'
+          - $ref: '#/parameters/custom_user_name'
+          - $ref: '#/parameters/custom_ts_epoch'
+          - $ref: '#/parameters/custom_finished_at'
+          - $ref: '#/parameters/custom_duration'
+          - $ref: '#/parameters/custom_status'
+          - $ref: '#/parameters/custom_user'
+          - $ref: '#/parameters/custom_run'
         produces:
         - application/json
         responses:
@@ -172,19 +174,21 @@ class RunApi(object):
         tags:
         - Run
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Builtin/_page'
-          - $ref: '#/definitions/Params/Builtin/_limit'
-          - $ref: '#/definitions/Params/Builtin/_order'
-          - $ref: '#/definitions/Params/Builtin/_tags'
-          - $ref: '#/definitions/Params/Builtin/_group'
-          - $ref: '#/definitions/Params/Custom/run_number'
-          - $ref: '#/definitions/Params/Custom/run_id'
-          - $ref: '#/definitions/Params/Custom/user_name'
-          - $ref: '#/definitions/Params/Custom/ts_epoch'
-          - $ref: '#/definitions/Params/Custom/finished_at'
-          - $ref: '#/definitions/Params/Custom/duration'
-          - $ref: '#/definitions/Params/Custom/status'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/builtin__order'
+          - $ref: '#/parameters/builtin__tags'
+          - $ref: '#/parameters/builtin__group'
+          - $ref: '#/parameters/custom_run_number'
+          - $ref: '#/parameters/custom_run_id'
+          - $ref: '#/parameters/custom_user_name'
+          - $ref: '#/parameters/custom_ts_epoch'
+          - $ref: '#/parameters/custom_finished_at'
+          - $ref: '#/parameters/custom_duration'
+          - $ref: '#/parameters/custom_status'
+          - $ref: '#/parameters/custom_user'
+          - $ref: '#/parameters/custom_run'
         produces:
         - application/json
         responses:
@@ -220,9 +224,9 @@ class RunApi(object):
          tags:
          - Run
          parameters:
-           - $ref: '#/definitions/Params/Path/flow_id'
-           - $ref: '#/definitions/Params/Path/run_number'
-           - $ref: '#/definitions/Params/Custom/invalidate'
+           - $ref: '#/parameters/path_flow_id'
+           - $ref: '#/parameters/path_run_number'
+           - $ref: '#/parameters/custom_invalidate'
          produces:
          - application/json
          responses:

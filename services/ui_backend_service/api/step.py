@@ -23,18 +23,18 @@ class StepApi(object):
         tags:
         - Step
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Builtin/_page'
-          - $ref: '#/definitions/Params/Builtin/_limit'
-          - $ref: '#/definitions/Params/Builtin/_order'
-          - $ref: '#/definitions/Params/Builtin/_tags'
-          - $ref: '#/definitions/Params/Builtin/_group'
-          - $ref: '#/definitions/Params/Custom/flow_id'
-          - $ref: '#/definitions/Params/Custom/run_number'
-          - $ref: '#/definitions/Params/Custom/step_name'
-          - $ref: '#/definitions/Params/Custom/user_name'
-          - $ref: '#/definitions/Params/Custom/ts_epoch'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/builtin__order'
+          - $ref: '#/parameters/builtin__tags'
+          - $ref: '#/parameters/builtin__group'
+          - $ref: '#/parameters/custom_flow_id'
+          - $ref: '#/parameters/custom_run_number'
+          - $ref: '#/parameters/custom_step_name'
+          - $ref: '#/parameters/custom_user_name'
+          - $ref: '#/parameters/custom_ts_epoch'
         produces:
         - application/json
         responses:
@@ -77,9 +77,9 @@ class StepApi(object):
         tags:
         - Step
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
         produces:
         - application/json
         responses:

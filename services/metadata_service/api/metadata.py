@@ -41,41 +41,30 @@ class MetadataApi(object):
         tags:
         - Metadata
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "step_name"
-          in: "path"
-          description: "step_name"
-          required: true
-          type: "string"
-        - name: "task_id"
-          in: "path"
-          description: "task_id"
-          required: true
-          type: "string"
-        - name: "_limit"
-          in: "query"
-          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
-          required: false
-          type: "integer"
-        - name: "_cursor"
-          in: "query"
-          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
-          required: false
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/path_step_name'
+        - $ref: '#/parameters/path_task_id'
+        - $ref: '#/parameters/query_limit'
+        - $ref: '#/parameters/query_cursor'
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
+                schema:
+                    type: array
+                    items:
+                        $ref: '#/definitions/Metadata'
+                headers:
+                    X-Limit:
+                        type: integer
+                        description: Page size used. Only sent when paginating.
+                    X-Next-Cursor:
+                        type: string
+                        description: Cursor for the next page (pass as _cursor). Only sent when paginating and more results exist.
+            "400":
+                description: invalid cursor
             "405":
                 description: invalid HTTP Method
         """
@@ -126,31 +115,28 @@ class MetadataApi(object):
         tags:
         - Metadata
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "_limit"
-          in: "query"
-          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
-          required: false
-          type: "integer"
-        - name: "_cursor"
-          in: "query"
-          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
-          required: false
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/query_limit'
+        - $ref: '#/parameters/query_cursor'
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation
+                schema:
+                    type: array
+                    items:
+                        $ref: '#/definitions/Metadata'
+                headers:
+                    X-Limit:
+                        type: integer
+                        description: Page size used. Only sent when paginating.
+                    X-Next-Cursor:
+                        type: string
+                        description: Cursor for the next page (pass as _cursor). Only sent when paginating and more results exist.
+            "400":
+                description: invalid cursor
             "405":
                 description: invalid HTTP Method
         """
@@ -197,52 +183,25 @@ class MetadataApi(object):
         tags:
         - Metadata
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
-        - name: "step_name"
-          in: "path"
-          description: "step_name"
-          required: true
-          type: "string"
-        - name: "task_id"
-          in: "path"
-          description: "task_id"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
+        - $ref: '#/parameters/path_step_name'
+        - $ref: '#/parameters/path_task_id'
         - name: "body"
           in: "body"
           description: "body"
           required: true
           schema:
-            type: array
-            items:
-                type: object
-                properties:
-                    field_name:
-                        type: string
-                    value:
-                        type: string
-                    type:
-                        type: string
-                    user_name:
-                        type: string
-                    tags:
-                        type: object
-                    system_tags:
-                        type: object
+            $ref: '#/definitions/MetadataBody'
         produces:
-        - 'text/plain'
+        - application/json
         responses:
-            "202":
-                description: successful operation.
+            "200":
+                description: successful operation. Returns the number of rows created.
+                schema:
+                    $ref: '#/definitions/MetadataCreated'
+            "400":
+                description: run or task is not registered
             "405":
                 description: invalid HTTP Method
         """

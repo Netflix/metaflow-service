@@ -96,21 +96,15 @@ class RunApi(object):
         tags:
         - Run
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: successful operation. Return specified run
+                schema:
+                    $ref: '#/definitions/Run'
             "404":
                 description: specified run not found
             "405":
@@ -129,11 +123,7 @@ class RunApi(object):
         tags:
         - Run
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
         - name: "status"
           in: "query"
           description: "filter by status, e.g. status:eq=running or status:eq=running,failed (OR). Status is derived relative to the heartbeat cutoff, so a multi-status filter that includes running is time-relative, not fully deterministic."
@@ -149,26 +139,35 @@ class RunApi(object):
           description: "filter by start time, e.g. ts_epoch:ge=123&ts_epoch:le=456 (epoch ms)."
           required: false
           type: "string"
-        - name: "_tags"
+        - name: "last_heartbeat_ts"
           in: "query"
-          description: "filter by tags, e.g. _tags:any=a,b (OR) or _tags:all=a,b (AND)."
+          description: "filter by last heartbeat, e.g. last_heartbeat_ts:ge=123 (epoch seconds)."
           required: false
           type: "string"
-        - name: "_cursor"
+        - name: "user_name"
           in: "query"
-          description: "opaque pagination cursor, returned via the X-Next-Cursor header."
+          description: "filter by the user_name column, e.g. user_name:eq=alice."
           required: false
           type: "string"
-        - name: "_limit"
-          in: "query"
-          description: "page size (default 50, max 500). Supplying _limit or _cursor turns on cursor pagination."
-          required: false
-          type: "string"
+        - $ref: '#/parameters/query_tags'
+        - $ref: '#/parameters/query_cursor'
+        - $ref: '#/parameters/query_limit'
         produces:
-        - text/plain
+        - application/json
         responses:
             "200":
                 description: Returned the matching runs of the specified flow
+                schema:
+                    type: array
+                    items:
+                        $ref: '#/definitions/Run'
+                headers:
+                    X-Limit:
+                        type: integer
+                        description: Page size used. Only sent when paginating.
+                    X-Next-Cursor:
+                        type: string
+                        description: Cursor for the next page (pass as _cursor). Only sent when paginating and more results exist.
             "400":
                 description: unsupported status value, non-integer time bound, unknown operator, or invalid cursor
             "405":
@@ -252,31 +251,20 @@ class RunApi(object):
         tags:
         - Run
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
         - name: "body"
           in: "body"
           description: "body"
           required: true
           schema:
-            type: object
-            properties:
-                user_name:
-                    type: string
-                run_number:
-                    type: string
-                tags:
-                    type: object
-                system_tags:
-                    type: object
+            $ref: '#/definitions/CreateRunBody'
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "200":
                 description: successful operation. Return newly registered run
+                schema:
+                    $ref: '#/definitions/Run'
             "400":
                 description: invalid HTTP Request
             "405":
@@ -315,38 +303,29 @@ class RunApi(object):
         tags:
         - Run
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
         - name: "body"
           in: "body"
           description: "body"
           required: true
           schema:
-            type: object
-            properties:
-                tags_to_add:
-                    type: array of string
-                tags_to_remove:
-                    type: array of string
+            $ref: '#/definitions/TagMutationBody'
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "200":
                 description: successful operation. Tags updated.  Returns latest user tags
+                schema:
+                    $ref: '#/definitions/TagMutationResult'
             "400":
                 description: invalid HTTP Request
             "405":
                 description: invalid HTTP Method
             "409":
                 description: mutation request conflicts with an existing in-flight mutation. Retry recommended
+            "404":
+                description: specified run not found
             "422":
                 description: illegal tag mutation. No update performed.  E.g. could be because we tried to remove
                              a system tag.
@@ -419,31 +398,25 @@ class RunApi(object):
     async def runs_heartbeat(self, request):
         """
         ---
-        description: update hb
+        description: Update the heartbeat timestamp of a run.
         tags:
         - Run
         parameters:
-        - name: "flow_id"
-          in: "path"
-          description: "flow_id"
-          required: true
-          type: "string"
-        - name: "run_number"
-          in: "path"
-          description: "run_number"
-          required: true
-          type: "string"
+        - $ref: '#/parameters/path_flow_id'
+        - $ref: '#/parameters/path_run_number'
         - name: "body"
           in: "body"
-          description: "body"
-          required: true
+          description: "Ignored. Clients send an empty object."
+          required: false
           schema:
             type: object
         produces:
-        - 'text/plain'
+        - application/json
         responses:
             "200":
-                description: successful operation. Return newly registered run
+                description: successful operation. Heartbeat recorded.
+                schema:
+                    $ref: '#/definitions/Heartbeat'
             "400":
                 description: invalid HTTP Request
             "405":

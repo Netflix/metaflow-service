@@ -1,537 +1,361 @@
-def response_object(ref_definition: str):
-    return {
-        "type": "object",
-        "properties": {
-            "data": {"type": "object", "$ref": ref_definition},
-            "status": {
-                "type": "integer",
-                "description": "Response status",
-                "default": 200,
-            },
-            "links": {
-                "type": "object",
-                "properties": {
-                    "self": {
-                        "type": "string",
-                        "description": "Full URL to current page",
-                        "default": "http://localhost:8083/path",
-                    }
-                },
-            },
-            "query": {"type": "object", "description": "Object of query parameters"},
-        },
-    }
+"""
+Swagger 2.0 components specific to the UI backend service.
+
+Models extend the shared base models from ``services.utils.openapi_components``
+with the UI only fields. Property sets match the non-expanded ``serialize()`` output
+of ``services/ui_backend_service/data/db/models/*_row.py``; the UI rows always
+serialize ``run_number``/``task_id`` as strings.
+"""
+
+from services.utils.openapi_components import (
+    FILTER_OPERATORS,
+    SHARED_DEFINITIONS,
+    array_of,
+    extend,
+    model,
+    path_param,
+    prop,
+    query_param,
+    ref,
+    ui_internal_error,
+    ui_response_error,
+    ui_response_list,
+    ui_response_object,
+)
+
+description = "Metaflow UI backend service"
 
 
-def response_list(ref_definition: str):
-    return {
-        "type": "object",
-        "properties": {
-            "data": {"type": "array", "items": {"$ref": ref_definition}},
-            "status": {
-                "type": "integer",
-                "description": "Response status",
-                "default": 200,
-            },
-            "links": {
-                "type": "object",
-                "properties": {
-                    "self": {
-                        "type": "string",
-                        "description": "Full URL to current page",
-                        "default": "http://localhost:8083/path",
-                    },
-                    "first": {
-                        "type": "string",
-                        "description": "Full URL to first page",
-                        "default": "http://localhost:8083/path?_page=1",
-                    },
-                    "prev": {
-                        "type": "string",
-                        "description": "Full URL to previous page",
-                        "default": "http://localhost:8083/path?_page=1",
-                    },
-                    "next": {
-                        "type": "string",
-                        "description": "Full URL to next page",
-                        "default": "http://localhost:8083/path?_page=2",
-                    },
-                },
-            },
-            "pages": {
-                "type": "object",
-                "properties": {
-                    "self": {
-                        "type": "integer",
-                        "description": "Current page number",
-                        "default": 1,
-                    },
-                    "first": {
-                        "type": "integer",
-                        "description": "First page number",
-                        "default": 1,
-                    },
-                    "prev": {
-                        "type": "integer",
-                        "description": "Previous page number",
-                        "default": 1,
-                    },
-                    "next": {
-                        "type": "integer",
-                        "description": "Next page number",
-                        "default": 2,
-                    },
-                },
-            },
-            "query": {"type": "object", "description": "Object of query parameters"},
-        },
-    }
-
-
-def response_error(status: int):
-    return {
-        "type": "object",
-        "properties": {
-            "data": {
-                "type": "array",
-                "description": "Response data",
-                "items": {"type": "object"},
-            },
-            "status": {
-                "type": "integer",
-                "description": "Response status",
-                "default": status,
-            },
-        },
-    }
-
-
-def response_internal_error(error_ids_and_descriptions={}):
-    """Formats a response object for internal errors.
-    Includes all passed in keys in the 'id' enum field, along with 'generic-error'.
-    Includes all values as descriptions for the error ids.
-    """
-    # Include the default error-id.
-    _errors = {
-        "generic-error": "Non-Specific Error",
-        "DataException": "Metaflow client DataException",
-        "MetaflowS3AccessDenied": "S3 Access Denied",
-        "MetaflowS3NotFound": "S3 error 404 not found",
-        "MetaflowS3URLException": "S3 URL is malformed",
-        "MetaflowS3Exception": "Something went wrong with S3 access",
-        **error_ids_and_descriptions,
-    }
-    error_ids = list(_errors.keys())
-    description = "Specific error ID\n" + "\n".join(
-        [f"* {id} - {desc}" for id, desc in _errors.items()]
+def custom_param(name: str, param_type: str) -> dict:
+    return query_param(
+        name,
+        "Filter by '{}' column - (Operators: {}), e.g. {}:eq=value. "
+        "Comma separated values are OR'ed.".format(name, FILTER_OPERATORS, name),
+        param_type,
     )
-    return {
-        "type": "object",
-        "properties": {
-            "id": {"type": "string", "enum": error_ids, "description": description},
-            "traceback": {"type": "string", "description": "Stacktrace of the error"},
-            "detail": {
-                "type": "string",
-                "description": "Detailed message of the error",
-            },
-            "status": {"type": "integer", "default": 500},
-            "title": {"type": "string", "default": "Internal Server Error"},
-            "type": {"type": "string", "default": "about:blank"},
-        },
-        "required": ["id", "traceback", "detail", "status", "title", "type"],
-    }
 
 
-def path_param(name: str, description: str, param_type: str):
-    return {
-        "name": name,
-        "in": "path",
-        "description": description,
-        "required": True,
-        "type": param_type,
-    }
+def _flag_param(name: str, description: str) -> dict:
+    return query_param(name, description, "boolean", default=False)
 
 
-def custom_param(name: str, param_type: str):
-    return {
-        "name": name,
-        "in": "query",
-        "description": "Filter by '{}' column - (Operators: eq,ne,lt,le,gt,ge,co,sw,ew)".format(
-            name
-        ),
-        "required": False,
-        "type": param_type,
-    }
-
-
-def basemodel(properties={}):
-    return {
-        "type": "object",
-        "properties": {
-            **{
-                **modelprop("flow_id", "string", "Flow id", "HelloFlow"),
-            },
-            **properties,
-            **{
-                **modelprop("user_name", "string", "Username", "john"),
-                **modelprop(
-                    "ts_epoch", "integer", "Created at epoch timestamp", 1591788834035
-                ),
-                "tags": {"type": "array", "items": {"type": "string"}},
-                "system_tags": {"type": "array", "items": {"type": "string"}},
-            },
-        },
-    }
-
-
-def modelprop(name: str, property_type: str, description: str, default_value):
-    return {
-        name: {
-            "type": property_type,
-            "description": description,
-            "default": default_value,
-        }
-    }
-
-
-swagger_definitions = {
-    "Params": {
-        "Builtin": {
-            "_page": {
-                "name": "_page",
-                "in": "query",
-                "description": "Results page",
-                "required": False,
-                "type": "integer",
-                "default": 1,
-            },
-            "_limit": {
-                "name": "_limit",
-                "in": "query",
-                "description": "Limit results per page",
-                "required": False,
-                "type": "integer",
-                "default": 10,
-                "minimum": 1,
-                "maximum": 50,
-            },
-            "_order": {
-                "name": "_order",
-                "in": "query",
-                "description": "Order results based on columns - (_order=run_number,+user_name)",
-                "required": False,
-                "type": "array",
-                "items": {"type": "string"},
-                "style": "form",
-                "explode": False,
-                "allowReserved": True,
-            },
-            "_tags": {
-                "name": "_tags",
-                "in": "query",
-                "description": "Filter by resource 'tags' and 'system_tags' - (_tags=runtime:dev _tags:any=runtime:dev,user:john)",
-                "required": False,
-                "type": "array",
-                "items": {"type": "string"},
-                "style": "form",
-                "explode": False,
-                "allowReserved": True,
-            },
-            "_group": {
-                "name": "_group",
-                "in": "query",
-                "description": "Group (partition) results by column(s). Once applied,\
-                    limits and filters are affected per group and pagination is no longer supported.\
-                     - (_group=flow_id _group=flow_id,user_name)",
-                "required": False,
-                "type": "string",
-            },
-        },
-        "Path": {
-            "flow_id": path_param("flow_id", "Flow id", "string"),
-            "run_number": path_param("run_number", "Run number", "integer"),
-            "step_name": path_param("step_name", "Step name", "string"),
-            "task_id": path_param("task_id", "Task id", "integer"),
-            "plugin_name": path_param(
-                "plugin_name", "Plugin name (identifier)", "string"
-            ),
-            "plugin_filename": path_param(
-                "filename", "Relative path to file (e.g. dist/index.html)", "string"
-            ),
-        },
-        "Custom": {
-            "id": custom_param("id", "integer"),
-            "flow_id": custom_param("flow_id", "string"),
-            "run_number": custom_param("run_number", "integer"),
-            "run_id": custom_param("run_id", "string"),
-            "step_name": custom_param("step_name", "string"),
-            "task_id": custom_param("task_id", "integer"),
-            "name": custom_param("name", "string"),
-            "field_name": custom_param("field_name", "string"),
-            "value": custom_param("value", "string"),
-            "type": custom_param("type", "string"),
-            "ds_type": custom_param("ds_type", "string"),
-            "attempt_id": custom_param("attempt_id", "integer"),
-            "user_name": custom_param("user_name", "string"),
-            "ts_epoch": custom_param("ts_epoch", "integer"),
-            "finished_at": custom_param("finished_at", "integer"),
-            "duration": custom_param("duration", "integer"),
-            "status": custom_param("status", "string"),
-            "postprocess": {
-                "name": "postprocess",
-                "in": "query",
-                "description": "Control whether any postprocessing is done (if applicable) to the requested results\
-                    before returning. This will slow down the request considerably in case it depends on S3 content.",
-                "required": False,
-                "default": False,
-                "type": "boolean",
-            },
-            "invalidate": {
-                "name": "invalidate",
-                "in": "query",
-                "description": "Invalidate cache before fetching new results from S3. Requires refining/postprocessing\
-                    to be effective, usually defined with postprocess=true query parameter.",
-                "required": False,
-                "default": False,
-                "type": "boolean",
-            },
-        },
-    },
-    "ResponsesAutocompleteTagList": response_list(
-        "#/definitions/ModelsAutocompleteTag"
+parameters = {
+    # Builtin query parameters, shared by all list endpoints.
+    "builtin__page": query_param(
+        "_page", "Results page", "integer", default=1, minimum=1
     ),
-    "ResponsesAutocompleteFlowList": response_list(
-        "#/definitions/ModelsAutocompleteFlow"
+    "builtin__limit": query_param(
+        "_limit",
+        "Limit results per page",
+        "integer",
+        default=10,
+        minimum=1,
+        maximum=1000,
     ),
-    "ResponsesAutocompleteRunList": response_list(
-        "#/definitions/ModelsAutocompleteRun"
+    "builtin__order": query_param(
+        "_order",
+        "Order results based on columns, descending by default. Prefix a column "
+        "with + for ascending order - (_order=run_number,+user_name)",
+        "array",
     ),
-    "ResponsesAutocompleteStepList": response_list(
-        "#/definitions/ModelsAutocompleteStep"
+    "builtin__tags": query_param(
+        "_tags",
+        "Filter by resource 'tags' and 'system_tags' - (_tags=runtime:dev "
+        "_tags:any=runtime:dev,user:john). Operators: all (default), any, "
+        "likeall, likeany.",
+        "array",
     ),
-    "ResponsesAutocompleteArtifactList": response_list(
-        "#/definitions/ModelsAutocompleteArtifact"
+    "builtin__group": query_param(
+        "_group",
+        "Group (partition) results by column(s). Once applied, limits and "
+        "filters are affected per group and pagination is no longer supported. "
+        "- (_group=flow_id _group=flow_id,user_name)",
+        "array",
     ),
-    "ResponsesFlow": response_object("#/definitions/ModelsFlow"),
-    "ResponsesFlowList": response_list("#/definitions/ModelsFlow"),
-    "ResponsesRun": response_object("#/definitions/ModelsRun"),
-    "ResponsesRunList": response_list("#/definitions/ModelsRun"),
-    "ResponsesRunParameters": response_object("#/definitions/ModelsRunParameters"),
-    "ResponsesRunParametersError500": response_internal_error(),
-    "ResponsesStep": response_object("#/definitions/ModelsStep"),
-    "ResponsesStepList": response_list("#/definitions/ModelsStep"),
-    "ResponsesTask": response_object("#/definitions/ModelsTask"),
-    "ResponsesTaskList": response_list("#/definitions/ModelsTask"),
-    "ResponsesMetadataList": response_list("#/definitions/ModelsMetadata"),
-    "ResponsesArtifactList": response_list("#/definitions/ModelsArtifact"),
-    "ResponsesCardList": response_list("#/definitions/ModelsCardInfo"),
-    "ResponsesLinkList": {
-        "type": "array",
-        "items": {"type": "object", "$ref": "#/definitions/ModelsLink"},
-    },
-    "ResponsesNotificationList": {
-        "type": "array",
-        "items": {"type": "object", "$ref": "#/definitions/ModelsNotification"},
-    },
-    "ResponsesLog": response_list("#/definitions/ModelsLogRow"),
-    "ResponsesLogError500": response_internal_error(
-        {"log-error": "Parsing the log failed"}
+    # UI only path parameters. Flow/run/step/task path parameters are shared.
+    "path_run_id": path_param("run_id", "Run number or run id"),
+    "path_plugin_name": path_param("plugin_name", "Plugin name (identifier)"),
+    "path_plugin_filename": path_param(
+        "filename", "Relative path to file (e.g. dist/index.html)"
     ),
-    "ResponsesDag": response_object("#/definitions/ModelsDag"),
-    "ResponsesDagError500": response_internal_error(
+    "path_hash": path_param("hash", "Card hash"),
+    # Column filters (field:operator grammar).
+    "custom_id": custom_param("id", "integer"),
+    "custom_flow_id": custom_param("flow_id", "string"),
+    "custom_run_number": custom_param("run_number", "integer"),
+    "custom_run_id": custom_param("run_id", "string"),
+    "custom_run": custom_param("run", "string"),
+    "custom_user": custom_param("user", "string"),
+    "custom_step_name": custom_param("step_name", "string"),
+    "custom_task_id": custom_param("task_id", "integer"),
+    "custom_name": custom_param("name", "string"),
+    "custom_field_name": custom_param("field_name", "string"),
+    "custom_value": custom_param("value", "string"),
+    "custom_type": custom_param("type", "string"),
+    "custom_ds_type": custom_param("ds_type", "string"),
+    "custom_attempt_id": custom_param("attempt_id", "integer"),
+    "custom_user_name": custom_param("user_name", "string"),
+    "custom_ts_epoch": custom_param("ts_epoch", "integer"),
+    "custom_finished_at": custom_param("finished_at", "integer"),
+    "custom_duration": custom_param("duration", "integer"),
+    "custom_status": custom_param("status", "string"),
+    "custom_tag": custom_param("tag", "string"),
+    "custom_postprocess": _flag_param(
+        "postprocess",
+        "Control whether any postprocessing is done (if applicable) to the "
+        "requested results before returning. This will slow down the request "
+        "considerably in case it depends on S3 content.",
+    ),
+    "custom_invalidate": _flag_param(
+        "invalidate",
+        "Invalidate cache before fetching new results from S3. Requires "
+        "refining/postprocessing to be effective, usually defined with "
+        "postprocess=true query parameter.",
+    ),
+    # Search
+    "search_key": query_param(
+        "key",
+        "Artifact name (ARTIFACT scope) or foreach variable name "
+        "(FOREACH_VARIABLE scope) to search for",
+        required=True,
+    ),
+    "search_value": query_param(
+        "value",
+        "Value to match. Partial match by default, exact match when wrapped in "
+        'double quotes ("value"). Omit to list every task with the artifact.',
+    ),
+    "search_scope": query_param(
+        "scope",
+        "Comma separated search scopes: ARTIFACT (default), FOREACH_VARIABLE",
+        "array",
+        default=["ARTIFACT"],
+    ),
+}
+
+
+# --------------------------------------------------------------------------
+# Models
+# --------------------------------------------------------------------------
+
+_RUN_NUMBER = prop(
+    "run_number",
+    "string",
+    "Run number or run id, always serialized as a string",
+    "5",
+)
+_TASK_ID = prop(
+    "task_id",
+    "string",
+    "Task id or task name, always serialized as a string",
+    "32",
+)
+_FINISHED_AT = prop(
+    "finished_at",
+    "integer",
+    "Finished at, epoch timestamp in milliseconds (null if unfinished)",
+    1591788834035,
+)
+
+
+def _duration(description: str) -> dict:
+    return prop("duration", "integer", description, 456)
+
+
+_ui_definitions = {
+    "ModelsFlow": extend(SHARED_DEFINITIONS["Flow"]),
+    "ModelsRun": extend(
+        SHARED_DEFINITIONS["Run"],
         {
-            "DAGParsingFailed": "Processing the DAG Failed",
-            "DAGUnsupportedFlowLanguage": "The Flow language is not supported by the DAG parser. DAG graph can not be generated",
-        }
-    ),
-    "ResponsesPlugin": {"type": "object", "$ref": "#/definitions/ModelsPlugin"},
-    "ResponsesPluginList": {
-        "type": "array",
-        "items": {"type": "object", "$ref": "#/definitions/ModelsPlugin"},
-    },
-    "ResponsesError405": response_error(405),
-    "ResponsesError404": response_error(404),
-    "ResponsesError500": response_internal_error(),
-    "ModelsFlow": basemodel({}),
-    "ModelsRun": basemodel(
-        {
-            **modelprop("run_number", "integer", "Run number", 5),
-            **modelprop(
+            **_RUN_NUMBER,
+            **prop(
                 "status", "string", "Run status (completed/running/failed)", "completed"
             ),
-            **modelprop(
-                "finished_at", "integer", "Finished at epoch timestamp", 1591788834035
-            ),
-            **modelprop(
-                "duration",
-                "integer",
-                "Duration in milliseconds (null if unfinished)",
-                456,
-            ),
-        }
-    ),
-    "ModelsAutocompleteTag": {"type": "string", "default": "tag name"},
-    "ModelsAutocompleteFlow": {"type": "string", "default": "Flow id"},
-    "ModelsAutocompleteRun": {"type": "string", "default": "run number or run id"},
-    "ModelsAutocompleteStep": {"type": "string", "default": "step name"},
-    "ModelsAutocompleteArtifact": {"type": "string", "default": "artifact name"},
-    "ModelsRunParameters": {
-        "type": "object",
-        "properties": {
-            "run_parameter_name": {
-                "type": "object",
-                "$ref": "#/definitions/ModelsRunParameter",
-            }
+            **_FINISHED_AT,
+            **_duration("Duration in milliseconds (null if unfinished)"),
         },
-    },
-    "ModelsRunParameter": {
-        "type": "object",
-        "properties": {
-            **modelprop("value", "string", "Value of the parameter", "A"),
-        },
-    },
-    "ModelsStep": basemodel(
-        {
-            **modelprop("run_number", "integer", "Run number", 5),
-            **modelprop("step_name", "string", "Step name", "bonus_movie"),
-            **modelprop(
-                "duration",
-                "integer",
-                "Current duration in milliseconds (null if no tasks exist yet)",
-                456,
-            ),
-        }
+        drop=["user"],
     ),
-    "ModelsTask": basemodel(
+    "ModelsStep": extend(
+        SHARED_DEFINITIONS["Step"],
         {
-            **modelprop("run_number", "integer", "Run number", 5),
-            **modelprop("step_name", "string", "Step name", "bonus_movie"),
-            **modelprop("task_id", "integer", "Task id", 32),
-            **modelprop(
-                "foreach_label",
+            **_RUN_NUMBER,
+            **_duration(
+                "Current duration in milliseconds (null if no tasks exist yet)"
+            ),
+        },
+    ),
+    "ModelsTask": extend(
+        SHARED_DEFINITIONS["Task"],
+        {
+            **_RUN_NUMBER,
+            **_TASK_ID,
+            **prop(
+                "status",
                 "string",
-                "Task foreach label (if applicable)",
-                "123[0]",
+                "Task status (completed/running/failed/unknown)",
+                "completed",
             ),
-            **modelprop(
-                "status", "string", "Task status (completed/running)", "completed"
+            **prop(
+                "task_ok",
+                "string",
+                "Location of the _task_ok artifact, used internally to refine the "
+                "status (null when not needed)",
             ),
-            **modelprop(
+            **prop(
                 "started_at",
                 "integer",
-                "Started at epoch timestamp of the attempt (if this could be inferred from the database, otherwise NULL)",
-                None,
+                "Started at epoch timestamp of the attempt (if this could be "
+                "inferred from the database, otherwise null)",
+                1591788834035,
             ),
-            **modelprop(
+            **prop(
                 "finished_at",
                 "integer",
                 "Finished at epoch timestamp of the attempt",
                 1591788834035,
             ),
-            **modelprop(
-                "duration",
-                "integer",
-                "Duration in milliseconds (null if unfinished)",
-                456,
-            ),
-        }
-    ),
-    "ModelsMetadata": basemodel(
-        {
-            **modelprop("run_number", "integer", "Run number", 5),
-            **modelprop("step_name", "string", "Step name", "bonus_movie"),
-            **modelprop("task_id", "integer", "Task id", 32),
-            **modelprop("field_name", "string", "Field name", "attempt-done"),
-            **modelprop("value", "string", "Value", "None"),
-            **modelprop("type", "string", "Type", "attempt-done"),
-        }
-    ),
-    "ModelsArtifact": basemodel(
-        {
-            **modelprop("run_number", "integer", "Run number", 5),
-            **modelprop("step_name", "string", "Step name", "bonus_movie"),
-            **modelprop("task_id", "integer", "Task id", 32),
-            **modelprop("name", "string", "Name", "bonus"),
-            **modelprop(
-                "location",
+            **_duration("Duration in milliseconds (null if unfinished)"),
+            **prop("attempt_id", "integer", "Attempt id", 0),
+            **prop(
+                "foreach_label",
                 "string",
-                "Name",
-                "/local/path/.metaflow/HelloFlow/data/8d/8de2c3d91a9384069a3b014fdc3b60b4eb68567c",
+                "Task foreach label (if applicable). Only present with "
+                "postprocess=true.",
+                "123[0]",
             ),
-            **modelprop("content", "string", "Artifact value", None),
-            **modelprop("ds_type", "string", "Datastore type", "local"),
-            **modelprop(
-                "sha", "string", "SHA hash", "8de2c3d91a9384069a3b014fdc3b60b4eb68567c"
+        },
+    ),
+    "ModelsMetadata": extend(
+        SHARED_DEFINITIONS["Metadata"],
+        {
+            **_RUN_NUMBER,
+            **_TASK_ID,
+            **prop("attempt_id", "integer", "Attempt id (null if not recorded)", 0),
+        },
+    ),
+    "ModelsArtifact": extend(
+        SHARED_DEFINITIONS["Artifact"],
+        {
+            **_RUN_NUMBER,
+            **_TASK_ID,
+            **prop(
+                "content",
+                "string",
+                "Artifact value. Only present with postprocess=true.",
             ),
-            **modelprop("type", "string", "Type", "metaflow.artifact"),
-            **modelprop("content_type", "string", "Content-type", "gzip+pickle-v2"),
-            **modelprop("attempt_id", "integer", "Attempt id", 0),
+        },
+    ),
+    "ModelsAutocompleteTag": {"type": "string", "example": "user:john"},
+    "ModelsAutocompleteFlow": {"type": "string", "example": "HelloFlow"},
+    "ModelsAutocompleteRun": {
+        "type": "string",
+        "description": "Run number or run id",
+        "example": "5",
+    },
+    "ModelsAutocompleteStep": {"type": "string", "example": "start"},
+    "ModelsAutocompleteArtifact": {"type": "string", "example": "bonus"},
+    "ModelsRunParameters": {
+        "type": "object",
+        "description": "Run parameters keyed by parameter name",
+        "additionalProperties": ref("ModelsRunParameter"),
+    },
+    "ModelsRunParameter": model(
+        prop("value", "string", "Value of the parameter", "A"),
+    ),
+    "ModelsCardInfo": model(
+        {
+            **prop("id", "string", "Card id (null if not set)", "my_card"),
+            **prop("type", "string", "Card type", "default"),
+            **prop("hash", "string", "Card hash", "123456abcdef"),
         }
     ),
-    "ModelsCardInfo": {
-        "type": "object",
-        "properties": {
-            **modelprop("type", "string", "Card type", "default"),
-            **modelprop("hash", "string", "Card hash", "123456abcdef"),
+    "ModelsSearchResult": model(
+        {
+            **prop("flow_id", "string", "Flow id (flow name)", "HelloFlow"),
+            **prop("run_number", None, "Run number or run id", 5),
+            **prop("step_name", "string", "Step name", "start"),
+            **prop("task_id", None, "Task id or task name", 32),
+            **prop(
+                "searchable",
+                "boolean",
+                "Whether the artifact content could be included in the search",
+            ),
+            **prop(
+                "error",
+                "object",
+                "Null, or an error object {id, detail} if the artifact could not "
+                "be searched",
+            ),
+        }
+    ),
+    "ModelsSearchEvent": model(
+        {
+            "event": model(
+                {
+                    **prop(
+                        "type",
+                        "string",
+                        "Event type. 'result' carries matches, 'error' an error "
+                        "(message, id, traceback, key); progress events from the "
+                        "cache may be streamed too.",
+                        "result",
+                    ),
+                    "matches": array_of("ModelsSearchResult"),
+                }
+            )
         },
-    },
-    "ModelsLink": {
-        "type": "object",
-        "properties": {
-            "href": {"type": "string", "description": "URL for the link"},
-            "label": {"type": "string", "description": "Label for the link"},
+        description="Websocket text message (JSON) streamed by the search endpoints",
+    ),
+    "ModelsLink": model(
+        {
+            **prop("href", "string", "URL for the link"),
+            **prop("label", "string", "Label for the link"),
         },
-        "required": ["href", "label"],
-    },
-    "ModelsNotification": {
-        "type": "object",
-        "properties": {
-            "id": {
-                "type": "string",
-                "description": "Notification identifier",
-                "default": "Generated SHA1 hash",
-            },
-            "message": {
-                "type": "string",
-                "description": "Message to display (Markdown supported)",
-            },
-            "created": {
-                "type": "integer",
-                "description": "Notification created at (Epoch timestamp in milliseconds)",
-                "default": None,
-            },
-            "type": {
-                "type": "string",
-                "description": "Notification type, allowed values: success|info|warning|danger|default",
-                "default": "info",
-            },
-            "contentType": {
-                "type": "string",
-                "description": "Message content-type, allowed values: text|markdown",
-                "default": "text",
-            },
-            "url": {
-                "type": "string",
-                "description": "Notification url",
-                "default": None,
-            },
-            "urlText": {
-                "type": "string",
-                "description": "Human readable url title",
-                "default": None,
-            },
-            "start": {
-                "type": "integer",
-                "description": "Schedule notification to be visible starting at (Epoch timestamp in milliseconds)",
-                "default": None,
-            },
-            "end": {
-                "type": "integer",
-                "description": "Schedule notification to disappear after (Epoch timestamp in milliseconds)",
-                "default": None,
-            },
+        required=["href", "label"],
+    ),
+    "ModelsNotification": model(
+        {
+            **prop(
+                "id",
+                "string",
+                "Notification identifier (generated SHA1 hash unless configured)",
+            ),
+            **prop("message", "string", "Message to display (Markdown supported)"),
+            **prop(
+                "created",
+                "integer",
+                "Notification created at (Epoch timestamp in milliseconds)",
+            ),
+            **prop(
+                "type",
+                "string",
+                "Notification type",
+                "info",
+                enum=["success", "info", "warning", "danger", "default"],
+            ),
+            **prop(
+                "contentType",
+                "string",
+                "Message content-type",
+                "text",
+                enum=["text", "markdown"],
+            ),
+            **prop("url", "string", "Notification url"),
+            **prop("urlText", "string", "Human readable url title"),
+            **prop(
+                "start",
+                "integer",
+                "Schedule notification to be visible starting at (Epoch timestamp "
+                "in milliseconds)",
+            ),
+            **prop(
+                "end",
+                "integer",
+                "Schedule notification to disappear after (Epoch timestamp in "
+                "milliseconds)",
+            ),
         },
-        "required": [
+        required=[
             "id",
             "message",
             "created",
@@ -542,46 +366,26 @@ swagger_definitions = {
             "start",
             "end",
         ],
-    },
-    "ModelsPlugin": {
-        "type": "object",
-        "properties": {
-            "identifier": {
-                "type": "string",
-                "description": "Plugin identifier (repository/folder name)",
-            },
-            "name": {"type": "string", "description": "Plugin name (manifest.json)"},
-            "repository": {
-                "type": "string",
-                "description": "Git repository",
-                "default": None,
-            },
-            "ref": {
-                "type": "string",
-                "description": "Git refish to use e.g. origin/feature/extra-syrup",
-                "default": None,
-            },
-            "parameters": {
-                "type": "object",
-                "description": "Custom parameters to pass to the plugin",
-            },
-            "config": {
-                "type": "object",
-                "$ref": "#/definitions/ModelsPluginConfig",
-                "description": "Plugin manifest.json",
-                "default": {
-                    "name": "plugin-name",
-                    "version": "1.0.0",
-                    "entrypoint": "index.html",
-                },
-            },
+    ),
+    "ModelsPlugin": model(
+        {
+            **prop(
+                "identifier", "string", "Plugin identifier (repository/folder name)"
+            ),
+            **prop("name", "string", "Plugin name (manifest.json)"),
+            **prop("repository", "string", "Git repository"),
+            **prop(
+                "ref", "string", "Git refish to use e.g. origin/feature/extra-syrup"
+            ),
+            **prop("parameters", "object", "Custom parameters to pass to the plugin"),
+            "config": ref("ModelsPluginConfig"),
             "files": {
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "List of files available for this plugin",
             },
         },
-        "required": [
+        required=[
             "identifier",
             "name",
             "repository",
@@ -590,109 +394,121 @@ swagger_definitions = {
             "config",
             "files",
         ],
-    },
-    "ModelsPluginConfig": {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string", "description": "Plugin name"},
-            "version": {
-                "type": "string",
-                "description": "Semantic version of this plugin",
-            },
-            "entrypoint": {
-                "type": "string",
-                "description": "Entrypoint for the plugin, relative or absolute. Loaded inside iframe with parameters",
-            },
+    ),
+    "ModelsPluginConfig": model(
+        {
+            **prop("name", "string", "Plugin name", "plugin-name"),
+            **prop("version", "string", "Semantic version of this plugin", "1.0.0"),
+            **prop(
+                "entrypoint",
+                "string",
+                "Entrypoint for the plugin, relative or absolute. Loaded inside "
+                "iframe with parameters",
+                "index.html",
+            ),
         },
-        "required": ["name", "version", "entrypoint"],
-    },
-    "ModelsDag": {
-        "type": "object",
-        "properties": {
-            "file": {
-                "type": "string",
-                "description": "Filename of the script used to execute the flow.",
-                "required": False,
-            },
-            "steps_info": {
-                "type": "object",
-                "$ref": "#/definitions/ModelsDagStepsInfo",
-                "description": "DAG Step details",
-            },
-            "steps_structure": {
-                "type": "object",
-                "$ref": "#/definitions/ModelsDagStepsStructure",
-                "description": "DAG Step structure",
-            },
-        },
-    },
-    # TODO: requires addition to type for nested arrays.
+        required=["name", "version", "entrypoint"],
+        description="Plugin manifest.json",
+    ),
+    "ModelsDag": model(
+        {
+            **prop(
+                "file", "string", "Filename of the script used to execute the flow."
+            ),
+            "steps_info": ref("ModelsDagStepsInfo"),
+            "steps_structure": ref("ModelsDagStepsStructure"),
+        }
+    ),
+    # Nested arrays of step names, e.g. ["start", ["a", "b"], "join", "end"].
+    # Swagger 2.0 has no anyOf, so the item type is left open.
     "ModelsDagStepsStructure": {
         "type": "array",
-        "items": {
-            "anyOf": [
-                {"type": "string"},
-                {"type": "object", "$ref": "#/definitions/ModelsDagStepsStructure"},
-            ]
-        },
+        "description": "DAG step structure. Items are step names (string) or "
+        "nested arrays of the same structure for parallel branches.",
+        "items": {},
     },
     "ModelsDagStepsInfo": {
         "type": "object",
-        "properties": {
-            "start": {
-                "type": "object",
-                "$ref": "#/definitions/ModelsDagNode",
-                "description": "First step of the flow",
-            },
-            "sample_step": {
-                "type": "object",
-                "$ref": "#/definitions/ModelsDagNode",
-                "description": "One of many steps of the flow, name of the property can be anything, not just sample_step",
-            },
-            "end": {
-                "type": "object",
-                "$ref": "#/definitions/ModelsDagNode",
-                "description": "Last step in the flow",
-            },
-        },
-        "required": ["start", "end"],
+        "description": "DAG step details keyed by step name. Always contains "
+        "'start' and 'end'.",
+        "additionalProperties": ref("ModelsDagNode"),
     },
-    "ModelsDagNode": {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string", "description": "Step name of the node"},
-            "type": {"type": "string", "description": "DAG Node type"},
-            "line": {
-                "type": "integer",
-                "description": "Line of code where step definition starts",
-            },
-            "doc": {"type": "string", "description": "DAG Node Docstring"},
+    "ModelsDagNode": model(
+        {
+            **prop("name", "string", "Step name of the node"),
+            **prop("type", "string", "DAG Node type"),
+            **prop("line", "integer", "Line of code where step definition starts"),
+            **prop("doc", "string", "DAG Node Docstring"),
             "decorators": {
                 "type": "array",
                 "items": {"type": "string"},
-                "required": False,
+                "description": "Decorators of the step",
             },
             "next": {
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "names of next steps that follow from this step",
             },
-        },
-    },
-    "ModelsLogRow": {
-        "type": "object",
-        "properties": {
-            **modelprop("row", "int", "Row number", 0),
-            **modelprop(
+        }
+    ),
+    "ModelsLogRow": model(
+        {
+            **prop("row", "integer", "Row number", 0),
+            **prop(
                 "timestamp",
-                "int",
+                "integer",
                 "Epoch timestamp of the log line entry",
                 1591788834035,
             ),
-            **modelprop("line", "string", "Log line content", "logged text"),
+            **prop("line", "string", "Log line content", "logged text"),
         },
-        "required": ["row", "line"],
-    },
+        required=["row", "line"],
+    ),
 }
 
-swagger_description = "Metaflow UI backend service"
+_responses = {
+    "ResponsesAutocompleteTagList": ui_response_list(ref("ModelsAutocompleteTag")),
+    "ResponsesAutocompleteFlowList": ui_response_list(ref("ModelsAutocompleteFlow")),
+    "ResponsesAutocompleteRunList": ui_response_list(ref("ModelsAutocompleteRun")),
+    "ResponsesAutocompleteStepList": ui_response_list(ref("ModelsAutocompleteStep")),
+    "ResponsesAutocompleteArtifactList": ui_response_list(
+        ref("ModelsAutocompleteArtifact")
+    ),
+    "ResponsesFlow": ui_response_object(ref("ModelsFlow")),
+    "ResponsesFlowList": ui_response_list(ref("ModelsFlow")),
+    "ResponsesRun": ui_response_object(ref("ModelsRun")),
+    "ResponsesRunList": ui_response_list(ref("ModelsRun")),
+    "ResponsesRunParameters": ui_response_object(ref("ModelsRunParameters")),
+    "ResponsesRunParametersError500": ui_internal_error(),
+    "ResponsesStep": ui_response_object(ref("ModelsStep")),
+    "ResponsesStepList": ui_response_list(ref("ModelsStep")),
+    "ResponsesTask": ui_response_object(ref("ModelsTask")),
+    "ResponsesTaskList": ui_response_list(ref("ModelsTask")),
+    "ResponsesMetadataList": ui_response_list(ref("ModelsMetadata")),
+    "ResponsesArtifactList": ui_response_list(ref("ModelsArtifact")),
+    "ResponsesCardList": ui_response_list(ref("ModelsCardInfo")),
+    "ResponsesTagList": {
+        "type": "array",
+        "description": "All distinct tags and system tags of all runs",
+        "items": {"type": "string"},
+    },
+    "ResponsesLinkList": array_of("ModelsLink"),
+    "ResponsesNotificationList": array_of("ModelsNotification"),
+    "ResponsesLog": ui_response_list(ref("ModelsLogRow")),
+    "ResponsesLogError500": ui_internal_error({"log-error": "Parsing the log failed"}),
+    "ResponsesDag": ui_response_object(ref("ModelsDag")),
+    "ResponsesDagError500": ui_internal_error(
+        {
+            "DAGParsingFailed": "Processing the DAG Failed",
+            "DAGUnsupportedFlowLanguage": "The Flow language is not supported by "
+            "the DAG parser. DAG graph can not be generated",
+        }
+    ),
+    "ResponsesPlugin": ref("ModelsPlugin"),
+    "ResponsesPluginList": array_of("ModelsPlugin"),
+    "ResponsesError405": ui_response_error(405),
+    "ResponsesError404": ui_response_error(404),
+    "ResponsesError500": ui_internal_error(),
+}
+
+definitions = {**_ui_definitions, **_responses}

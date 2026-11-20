@@ -73,13 +73,13 @@ class CardsApi(object):
         tags:
         - Card
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
-          - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Builtin/_page'
-          - $ref: '#/definitions/Params/Builtin/_limit'
-          - $ref: '#/definitions/Params/Custom/invalidate'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
+          - $ref: '#/parameters/path_task_id'
+          - $ref: '#/parameters/builtin__page'
+          - $ref: '#/parameters/builtin__limit'
+          - $ref: '#/parameters/custom_invalidate'
         produces:
         - application/json
         responses:
@@ -130,11 +130,12 @@ class CardsApi(object):
         tags:
         - Card
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
-          - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Custom/invalidate'
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
+          - $ref: '#/parameters/path_task_id'
+          - $ref: '#/parameters/path_hash'
+          - $ref: '#/parameters/custom_invalidate'
         produces:
         - text/html
         responses:
@@ -182,17 +183,28 @@ class CardsApi(object):
         tags:
         - Card
         parameters:
-          - $ref: '#/definitions/Params/Path/flow_id'
-          - $ref: '#/definitions/Params/Path/run_number'
-          - $ref: '#/definitions/Params/Path/step_name'
-          - $ref: '#/definitions/Params/Path/task_id'
-          - $ref: '#/definitions/Params/Path/hash'
-
+          - $ref: '#/parameters/path_flow_id'
+          - $ref: '#/parameters/path_run_number'
+          - $ref: '#/parameters/path_step_name'
+          - $ref: '#/parameters/path_task_id'
+          - $ref: '#/parameters/path_hash'
         produces:
         - application/json
         responses:
             "200":
                 description: Returns the data object created by the realtime card with the specific hash
+                schema:
+                    type: object
+                    properties:
+                        id:
+                            type: string
+                            description: Card id (null if not set)
+                        type:
+                            type: string
+                            description: Card type
+                        data:
+                            type: object
+                            description: Card data
             "404":
                 description: Card data was not found.
             "405":

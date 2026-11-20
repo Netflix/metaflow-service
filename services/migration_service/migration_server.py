@@ -10,13 +10,21 @@ from services.utils import DBConfiguration
 from .migration_config import db_conf
 
 
+def register_routes(app):
+    """Register all API routes on the given application.
+
+    Requires no database connection; also used by the OpenAPI generator.
+    """
+    AdminApi(app)
+
+
 def app(loop=None, db_conf: DBConfiguration = None):
 
     loop = loop or asyncio.get_event_loop()
     app = web.Application(loop=loop)
     async_db = AsyncPostgresDB()
     loop.run_until_complete(async_db._init(db_conf))
-    AdminApi(app)
+    register_routes(app)
     return app
 
 
