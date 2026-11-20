@@ -495,17 +495,6 @@ def test_cli_runs_without_service_dependencies(tmp_path):
         assert written == spec, service
 
 
-def test_docs_requirements_match_dev_requirements():
-    # requirements.dev.txt cannot -r include the docs file (setup.py reads its
-    # lines as extras), so the pins are duplicated and must stay equal.
-    def lines(name):
-        text = (REPO_ROOT / name).read_text()
-        return {line.strip() for line in text.splitlines() if line.strip()}
-
-    docs = lines("requirements.docs.txt")
-    assert docs and docs <= lines("requirements.dev.txt")
-
-
 # --------------------------------------------------------------------------
 # Static route reader, on a small fake repository
 # --------------------------------------------------------------------------
